@@ -1,0 +1,8 @@
+# Config with missing dependency
+
+[workflow]
+name = "ci"
+
+[tasks.build]
+command = "npm run build"
+needs = ["install"]  # install doesn't exist

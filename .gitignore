@@ -1,0 +1,25 @@
+.DS_Store
+NOTES*
+__debug_bin
+_research
+*.sqlite
+*.sqlite3
+yarn-error*
+release
+.idea
+.vscode/settings.json
+coverage.out
+
+# environment file
+*.env
+.env
+
+/bin
+
+run.sh
+sandbox.sh
+build.sh
+
+dump.rdb
+
+.dagryn
