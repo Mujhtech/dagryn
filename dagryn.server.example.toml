@@ -1,0 +1,52 @@
+# Dagryn Server - Development Configuration
+#
+# Minimal config for local development. Copy to dagryn.server.toml and customize.
+#
+# Required environment variables (or set below):
+#   JWT_SECRET - at least 32 characters
+#   GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET (or Google OAuth credentials)
+
+[server]
+host = "localhost"
+port = 9000
+
+[server.swagger]
+enabled = true
+
+[database]
+url = "postgres://localhost:5432/dagryn?sslmode=disable"
+
+[redis]
+host = "localhost"
+port = 6379
+
+[auth]
+# Generate with: openssl rand -base64 32
+jwt_secret = "your-super-secret-jwt-key-at-least-32-chars"
+
+# Configure at least one OAuth provider
+[oauth.github]
+client_id = ""
+client_secret = ""
+
+[oauth.google]
+client_id = ""
+client_secret = ""
+
+[job]
+enabled = false
+concurrency = 10
+
+[telemetry]
+enabled = false
+
+# GitHub App configuration (optional, required for GitHub webhooks + app-based repo access)
+[github_app]
+# Numeric GitHub App ID
+app_id = 0
+# GitHub App OAuth client ID (from app settings)
+client_id = ""
+# PEM-encoded private key for the GitHub App (or set GITHUB_APP_PRIVATE_KEY env var)
+private_key = ""
+# Webhook secret configured on the GitHub App (or set GITHUB_APP_WEBHOOK_SECRET env var)
+webhook_secret = ""

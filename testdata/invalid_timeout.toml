@@ -1,0 +1,8 @@
+# Config with invalid timeout
+
+[workflow]
+name = "ci"
+
+[tasks.build]
+command = "npm run build"
+timeout = "invalid"

@@ -1,0 +1,16 @@
+# Config with cyclic dependencies
+
+[workflow]
+name = "ci"
+
+[tasks.a]
+command = "echo a"
+needs = ["b"]
+
+[tasks.b]
+command = "echo b"
+needs = ["c"]
+
+[tasks.c]
+command = "echo c"
+needs = ["a"]

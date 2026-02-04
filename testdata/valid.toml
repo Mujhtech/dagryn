@@ -1,0 +1,27 @@
+# Valid dagryn.toml for testing
+
+[workflow]
+name = "ci"
+default = true
+
+[tasks.install]
+command = "npm install"
+inputs = ["package.json", "package-lock.json"]
+outputs = ["node_modules/**"]
+timeout = "5m"
+
+[tasks.build]
+command = "npm run build"
+needs = ["install"]
+inputs = ["src/**"]
+outputs = ["dist/**"]
+workdir = "./packages/app"
+
+[tasks.test]
+command = "npm test"
+needs = ["build"]
+timeout = "2m"
+
+[tasks.lint]
+command = "npm run lint"
+env = { CI = "true" }
