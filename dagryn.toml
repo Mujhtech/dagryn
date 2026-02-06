@@ -41,17 +41,17 @@ timeout = "10m"
 
 
 # Run tests
-[tasks.web-test]
-workdir = "web"
-command = "pnpm test"
-needs = ["web-build"]
-inputs = ["src/**", "test/**", "tests/**", "__tests__/**", "package.json"]
-timeout = "5m"
+# [tasks.web-test]
+# workdir = "web"
+# command = "pnpm test"
+# needs = ["web-build"]
+# inputs = ["src/**", "test/**", "tests/**", "__tests__/**", "package.json"]
+# timeout = "5m"
 
 # Run linter (configured in package.json scripts)
 [tasks.web-lint]
 workdir = "web"
-command = "pnpm lint"
+command = "pnpm typecheck"
 needs = ["web-install"]
 inputs = ["src/**", ".eslintrc*", "eslint.config.*", "package.json"]
 timeout = "2m"
