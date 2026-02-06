@@ -58,7 +58,7 @@ func TestHashTask(t *testing.T) {
 func TestHashTask_WithInputFiles(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "cache-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create test files
 	err = os.WriteFile(filepath.Join(tmpDir, "file1.txt"), []byte("content1"), 0644)

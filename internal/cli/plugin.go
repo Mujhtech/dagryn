@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
-	"path/filepath"
+	// "path/filepath"
 	"text/tabwriter"
 
 	"github.com/mujhtech/dagryn/internal/plugin"
@@ -47,17 +47,17 @@ func newPluginListCmd() *cobra.Command {
 			}
 
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(w, "NAME\tSOURCE\tVERSION\tPATH")
-			fmt.Fprintln(w, "----\t------\t-------\t----")
+			_, _ = fmt.Fprintln(w, "NAME\tSOURCE\tVERSION\tPATH")
+			_, _ = fmt.Fprintln(w, "----\t------\t-------\t----")
 
 			for _, p := range plugins {
 				version := p.ResolvedVersion
 				if version == "" {
 					version = p.Version
 				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", p.Name, p.Source, version, p.BinaryPath)
+				_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", p.Name, p.Source, version, p.BinaryPath)
 			}
-			w.Flush()
+			_ = w.Flush()
 
 			fmt.Printf("\nTotal: %d plugins\n", len(plugins))
 			fmt.Printf("Location: %s\n", manager.PluginDir())
@@ -113,7 +113,7 @@ Use --all to remove all plugins without confirmation.`,
 				fmt.Print("Continue? [y/N] ")
 
 				var response string
-				fmt.Scanln(&response)
+				_, _ = fmt.Scanln(&response)
 				if response != "y" && response != "Y" {
 					fmt.Println("Cancelled.")
 					return nil
@@ -192,8 +192,8 @@ This command allows you to pre-install plugins.`,
 }
 
 // pluginDirExists checks if the plugin directory exists.
-func pluginDirExists(projectRoot string) bool {
-	pluginDir := filepath.Join(projectRoot, ".dagryn", "plugins")
-	info, err := os.Stat(pluginDir)
-	return err == nil && info.IsDir()
-}
+// func pluginDirExists(projectRoot string) bool {
+// 	pluginDir := filepath.Join(projectRoot, ".dagryn", "plugins")
+// 	info, err := os.Stat(pluginDir)
+// 	return err == nil && info.IsDir()
+// }

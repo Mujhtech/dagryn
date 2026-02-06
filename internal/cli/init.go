@@ -211,7 +211,7 @@ func maybeSuggestGitHubWorkflows(projectRoot, configPath string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var b strings.Builder
 	var tasksBuf strings.Builder
@@ -605,7 +605,7 @@ func setupRemoteProject(projectRoot string) error {
 		tokens, err := apiClient.RefreshToken(context.Background(), creds.RefreshToken)
 		if err != nil {
 			if client.IsNetworkError(err) {
-				return fmt.Errorf("cannot connect to server at %s\n\nPlease check your network connection and ensure the server is running.", creds.ServerURL)
+				return fmt.Errorf("cannot connect to server at %s\n\nPlease check your network connection and ensure the server is running", creds.ServerURL)
 			}
 			return fmt.Errorf("session expired, please login again: %w", err)
 		}
@@ -764,7 +764,7 @@ func createNewProject(ctx context.Context, apiClient *client.Client, projectRoot
 	teams, err := apiClient.ListTeams(ctx)
 	if err != nil {
 		if client.IsNetworkError(err) {
-			return nil, fmt.Errorf("cannot connect to server. Please check your network connection.")
+			return nil, fmt.Errorf("cannot connect to server. please check your network connection")
 		}
 		return nil, fmt.Errorf("failed to list teams: %w", err)
 	}
@@ -823,7 +823,7 @@ func createNewProject(ctx context.Context, apiClient *client.Client, projectRoot
 	project, err := apiClient.CreateProject(ctx, req)
 	if err != nil {
 		if client.IsNetworkError(err) {
-			return nil, fmt.Errorf("cannot connect to server. Please check your network connection and try again.")
+			return nil, fmt.Errorf("cannot connect to server. please check your network connection and try again")
 		}
 		return nil, fmt.Errorf("failed to create project: %w", err)
 	}

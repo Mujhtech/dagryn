@@ -55,7 +55,7 @@ func (r *GoResolver) Install(ctx context.Context, plugin *Plugin, installDir str
 	}
 
 	// Build the module path with version
-	modulePath := plugin.Repo
+	var modulePath string
 	if plugin.Version != "" && plugin.Version != "latest" {
 		modulePath = fmt.Sprintf("%s@%s", plugin.Repo, plugin.Version)
 	} else {

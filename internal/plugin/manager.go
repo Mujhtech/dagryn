@@ -295,7 +295,9 @@ func (m *Manager) Clean() error {
 
 	// Remove lock file
 	lockPath := filepath.Join(m.projectRoot, ".dagryn", LockFileName)
-	os.Remove(lockPath)
+	if err := os.Remove(lockPath); err != nil {
+		return fmt.Errorf("failed to remove lock file: %w", err)
+	}
 
 	return nil
 }
@@ -438,7 +440,7 @@ func (m *Manager) saveLockFile() {
 	lockPath := filepath.Join(m.projectRoot, ".dagryn", LockFileName)
 
 	// Ensure directory exists
-	os.MkdirAll(filepath.Dir(lockPath), 0755)
+	_ = os.MkdirAll(filepath.Dir(lockPath), 0755)
 
 	lockFile := LockFile{
 		Version: 1,
@@ -462,7 +464,7 @@ func (m *Manager) saveLockFile() {
 		return
 	}
 
-	os.WriteFile(lockPath, data, 0644)
+	_ = os.WriteFile(lockPath, data, 0644)
 }
 
 // ResolveGlobalPlugins resolves global plugin references to their full specs.

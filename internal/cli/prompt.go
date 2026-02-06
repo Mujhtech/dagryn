@@ -101,12 +101,12 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 
 	if index == m.Index() {
 		// Selected item
-		fmt.Fprintf(w, "%s\n%s\n",
+		_, _ = fmt.Fprintf(w, "%s\n%s\n",
 			selectedTitleStyle.Render("> "+title),
 			selectedDescStyle.Render("  "+desc))
 	} else {
 		// Normal item
-		fmt.Fprintf(w, "%s\n%s\n",
+		_, _ = fmt.Fprintf(w, "%s\n%s\n",
 			titleStyle.Render(title),
 			descStyle.Render(desc))
 	}
@@ -253,9 +253,9 @@ func (d genericItemDelegate) Render(w io.Writer, m list.Model, index int, listIt
 	selectedTitleStyle := lipgloss.NewStyle().PaddingLeft(0).Foreground(lipgloss.Color("170"))
 
 	if index == m.Index() {
-		fmt.Fprintf(w, "%s\n", selectedTitleStyle.Render("> "+title))
+		_, _ = fmt.Fprintf(w, "%s\n", selectedTitleStyle.Render("> "+title))
 	} else {
-		fmt.Fprintf(w, "%s\n", titleStyle.Render(title))
+		_, _ = fmt.Fprintf(w, "%s\n", titleStyle.Render(title))
 	}
 }
 
@@ -283,12 +283,12 @@ func (d selectableItemDelegate) Render(w io.Writer, m list.Model, index int, lis
 
 	if index == m.Index() {
 		// Selected item
-		fmt.Fprintf(w, "%s\n%s\n",
+		_, _ = fmt.Fprintf(w, "%s\n%s\n",
 			selectedTitleStyle.Render("> "+title),
 			selectedDescStyle.Render("  "+desc))
 	} else {
 		// Normal item
-		fmt.Fprintf(w, "%s\n%s\n",
+		_, _ = fmt.Fprintf(w, "%s\n%s\n",
 			titleStyle.Render(title),
 			descStyle.Render(desc))
 	}

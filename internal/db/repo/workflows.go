@@ -54,7 +54,7 @@ func (r *WorkflowRepo) UpsertTasks(ctx context.Context, workflowID uuid.UUID, ta
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Delete existing tasks
 	_, err = tx.Exec(ctx, "DELETE FROM workflow_tasks WHERE workflow_id = $1", workflowID)
@@ -225,7 +225,7 @@ func (r *WorkflowRepo) getTasksByWorkflowID(ctx context.Context, workflowID uuid
 			return nil, err
 		}
 		if len(envJSON) > 0 {
-			json.Unmarshal(envJSON, &t.Env)
+			_ = json.Unmarshal(envJSON, &t.Env)
 		}
 		tasks = append(tasks, t)
 	}

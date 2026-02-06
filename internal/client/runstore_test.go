@@ -13,7 +13,7 @@ import (
 func TestRunStore_CreateAndGetRun(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRunStore(tmpDir)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	run := &LocalRun{
 		RunID:     uuid.New(),
@@ -71,7 +71,7 @@ func TestRunStore_CreateAndGetRun(t *testing.T) {
 func TestRunStore_UpdateRun(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRunStore(tmpDir)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	run := &LocalRun{
 		RunID:     uuid.New(),
@@ -111,7 +111,7 @@ func TestRunStore_UpdateRun(t *testing.T) {
 func TestRunStore_UpdateNonExistent(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRunStore(tmpDir)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	run := &LocalRun{
 		RunID:  uuid.New(),
@@ -127,7 +127,7 @@ func TestRunStore_UpdateNonExistent(t *testing.T) {
 func TestRunStore_GetNonExistent(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRunStore(tmpDir)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	run, err := store.GetRun(uuid.New())
 	if err != nil {
@@ -141,7 +141,7 @@ func TestRunStore_GetNonExistent(t *testing.T) {
 func TestRunStore_DeleteRun(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRunStore(tmpDir)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	run := &LocalRun{
 		RunID:     uuid.New(),
@@ -189,7 +189,7 @@ func TestRunStore_DeleteRun(t *testing.T) {
 func TestRunStore_AppendAndReadLogs(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRunStore(tmpDir)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	run := &LocalRun{
 		RunID:     uuid.New(),
@@ -214,8 +214,8 @@ func TestRunStore_AppendAndReadLogs(t *testing.T) {
 	}
 
 	// Flush and close
-	store.FlushLogs(run.RunID)
-	store.CloseLogs(run.RunID)
+	_ = store.FlushLogs(run.RunID)
+	_ = store.CloseLogs(run.RunID)
 
 	// Read logs
 	logs, err := store.ReadLogs(run.RunID)
@@ -238,7 +238,7 @@ func TestRunStore_AppendAndReadLogs(t *testing.T) {
 func TestRunStore_AppendLogsBatch(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRunStore(tmpDir)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	run := &LocalRun{
 		RunID:     uuid.New(),
@@ -259,7 +259,7 @@ func TestRunStore_AppendLogsBatch(t *testing.T) {
 		t.Fatalf("AppendLogs failed: %v", err)
 	}
 
-	store.CloseLogs(run.RunID)
+	_ = store.CloseLogs(run.RunID)
 
 	// Read
 	logs, _ := store.ReadLogs(run.RunID)
@@ -271,7 +271,7 @@ func TestRunStore_AppendLogsBatch(t *testing.T) {
 func TestRunStore_ReadLogsNonExistent(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRunStore(tmpDir)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	logs, err := store.ReadLogs(uuid.New())
 	if err != nil {
@@ -285,7 +285,7 @@ func TestRunStore_ReadLogsNonExistent(t *testing.T) {
 func TestRunStore_ListRuns(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRunStore(tmpDir)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	// Create multiple runs with different times
 	runs := []*LocalRun{
@@ -322,7 +322,7 @@ func TestRunStore_ListRuns(t *testing.T) {
 func TestRunStore_ListPendingRuns(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRunStore(tmpDir)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	runs := []*LocalRun{
 		{RunID: uuid.New(), StartedAt: time.Now(), Status: "success", PendingSync: false},
@@ -331,7 +331,7 @@ func TestRunStore_ListPendingRuns(t *testing.T) {
 	}
 
 	for _, r := range runs {
-		store.CreateRun(r)
+		_ = store.CreateRun(r)
 	}
 
 	pending, err := store.ListPendingRuns()
@@ -347,7 +347,7 @@ func TestRunStore_ListPendingRuns(t *testing.T) {
 func TestRunStore_MarkSynced(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRunStore(tmpDir)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	run := &LocalRun{
 		RunID:       uuid.New(),
@@ -355,7 +355,7 @@ func TestRunStore_MarkSynced(t *testing.T) {
 		Status:      "success",
 		PendingSync: true,
 	}
-	store.CreateRun(run)
+	_ = store.CreateRun(run)
 
 	// Mark synced
 	if err := store.MarkSynced(run.RunID); err != nil {
@@ -372,7 +372,7 @@ func TestRunStore_MarkSynced(t *testing.T) {
 func TestRunStore_CleanOldRuns(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRunStore(tmpDir)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	runs := []*LocalRun{
 		{RunID: uuid.New(), StartedAt: time.Now().Add(-48 * time.Hour), Status: "success"},
@@ -381,7 +381,7 @@ func TestRunStore_CleanOldRuns(t *testing.T) {
 	}
 
 	for _, r := range runs {
-		store.CreateRun(r)
+		_ = store.CreateRun(r)
 	}
 
 	// Clean runs older than 24 hours
@@ -404,7 +404,7 @@ func TestRunStore_CleanOldRuns(t *testing.T) {
 func TestRunStore_CleanExcessRuns(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRunStore(tmpDir)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	for i := 0; i < 5; i++ {
 		run := &LocalRun{
@@ -412,7 +412,7 @@ func TestRunStore_CleanExcessRuns(t *testing.T) {
 			StartedAt: time.Now().Add(time.Duration(-i) * time.Hour),
 			Status:    "success",
 		}
-		store.CreateRun(run)
+		_ = store.CreateRun(run)
 	}
 
 	// Keep only 2
@@ -434,14 +434,14 @@ func TestRunStore_CleanExcessRuns(t *testing.T) {
 func TestRunStore_ConcurrentLogAppend(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRunStore(tmpDir)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	run := &LocalRun{
 		RunID:     uuid.New(),
 		StartedAt: time.Now(),
 		Status:    "running",
 	}
-	store.CreateRun(run)
+	_ = store.CreateRun(run)
 
 	// Concurrent appends
 	var wg sync.WaitGroup
@@ -455,12 +455,14 @@ func TestRunStore_ConcurrentLogAppend(t *testing.T) {
 				Stream:    "stdout",
 				Line:      "concurrent line",
 			}
-			store.AppendLog(run.RunID, entry)
+			_ = store.AppendLog(run.RunID, entry)
 		}(i)
 	}
 	wg.Wait()
 
-	store.CloseLogs(run.RunID)
+	if err := store.CloseLogs(run.RunID); err != nil {
+		t.Fatalf("CloseLogs failed: %v", err)
+	}
 
 	// Verify all logs were written
 	logs, _ := store.ReadLogs(run.RunID)
@@ -501,14 +503,14 @@ func TestRunStore_Paths(t *testing.T) {
 func TestRunStore_LongLogLine(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRunStore(tmpDir)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	run := &LocalRun{
 		RunID:     uuid.New(),
 		StartedAt: time.Now(),
 		Status:    "running",
 	}
-	store.CreateRun(run)
+	_ = store.CreateRun(run)
 
 	// Create a very long line (1MB)
 	longLine := make([]byte, 1024*1024)
@@ -527,7 +529,7 @@ func TestRunStore_LongLogLine(t *testing.T) {
 		t.Fatalf("AppendLog failed: %v", err)
 	}
 
-	store.CloseLogs(run.RunID)
+	_ = store.CloseLogs(run.RunID)
 
 	logs, err := store.ReadLogs(run.RunID)
 	if err != nil {

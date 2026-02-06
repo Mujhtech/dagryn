@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -164,7 +165,7 @@ func (r *GitHubResolver) Install(ctx context.Context, plugin *Plugin, installDir
 		result.Error = fmt.Errorf("failed to download asset: %w", err)
 		return result, result.Error
 	}
-	defer os.Remove(tempFile)
+	defer func() { _ = os.Remove(tempFile) }()
 
 	// Extract or copy binary
 	binaryPath, err := r.extractBinary(tempFile, asset.Name, plugin.BinaryName, installDir)
@@ -240,10 +241,10 @@ func (r *GitHubResolver) listReleases(ctx context.Context, owner, repo string) (
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("github API returned status %d", resp.StatusCode)
 	}
 
 	var releases []GitHubRelease
@@ -267,14 +268,14 @@ func (r *GitHubResolver) fetchRelease(ctx context.Context, url string) (*GitHubR
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("release not found")
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("github API returned status %d", resp.StatusCode)
 	}
 
 	var release GitHubRelease
@@ -380,7 +381,7 @@ func (r *GitHubResolver) downloadAsset(ctx context.Context, asset *GitHubAsset) 
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("download returned status %d", resp.StatusCode)
@@ -397,10 +398,10 @@ func (r *GitHubResolver) downloadAsset(ctx context.Context, asset *GitHubAsset) 
 	if err != nil {
 		return "", err
 	}
-	defer tempFile.Close()
+	defer func() { _ = tempFile.Close() }()
 
 	if _, err := io.Copy(tempFile, resp.Body); err != nil {
-		os.Remove(tempFile.Name())
+		_ = os.Remove(tempFile.Name())
 		return "", err
 	}
 
@@ -449,13 +450,13 @@ func (r *GitHubResolver) extractFromTarGz(archivePath, binaryName, destDir strin
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	gzr, err := gzip.NewReader(file)
 	if err != nil {
 		return "", err
 	}
-	defer gzr.Close()
+	defer func() { _ = gzr.Close() }()
 
 	tr := tar.NewReader(gzr)
 
@@ -486,10 +487,10 @@ func (r *GitHubResolver) extractFromTarGz(archivePath, binaryName, destDir strin
 			}
 
 			if _, err := io.Copy(outFile, tr); err != nil {
-				outFile.Close()
+				_ = outFile.Close()
 				return "", err
 			}
-			outFile.Close()
+			_ = outFile.Close()
 
 			return destPath, nil
 		}
@@ -504,7 +505,11 @@ func (r *GitHubResolver) extractFromZip(archivePath, binaryName, destDir string)
 	if err != nil {
 		return "", err
 	}
-	defer zr.Close()
+	defer func() {
+		if err := zr.Close(); err != nil {
+			log.Printf("Failed to close zip reader: %v", err)
+		}
+	}()
 
 	binaryPattern := regexp.MustCompile(fmt.Sprintf(`(?i)(^|/)%s(%s)?$`, regexp.QuoteMeta(binaryName), regexp.QuoteMeta(r.platform.BinaryExtension())))
 
@@ -524,20 +529,26 @@ func (r *GitHubResolver) extractFromZip(archivePath, binaryName, destDir string)
 				return "", err
 			}
 
+			defer func() {
+				if err := rc.Close(); err != nil {
+					log.Printf("Failed to close zip reader: %v", err)
+				}
+			}()
+
 			outFile, err := os.Create(destPath)
 			if err != nil {
-				rc.Close()
 				return "", err
 			}
+
+			defer func() {
+				if err := outFile.Close(); err != nil {
+					log.Printf("Failed to close destination file: %v", err)
+				}
+			}()
 
 			if _, err := io.Copy(outFile, rc); err != nil {
-				outFile.Close()
-				rc.Close()
 				return "", err
 			}
-
-			outFile.Close()
-			rc.Close()
 
 			return destPath, nil
 		}
@@ -557,9 +568,9 @@ func (r *GitHubResolver) matchSemverRange(constraint string, releases []GitHubRe
 	}
 
 	var major, minor, patch int
-	fmt.Sscanf(parts[0], "%d", &major)
-	fmt.Sscanf(parts[1], "%d", &minor)
-	fmt.Sscanf(parts[2], "%d", &patch)
+	_, _ = fmt.Sscanf(parts[0], "%d", &major)
+	_, _ = fmt.Sscanf(parts[1], "%d", &minor)
+	_, _ = fmt.Sscanf(parts[2], "%d", &patch)
 
 	// Filter valid releases
 	var candidates []string
@@ -575,11 +586,11 @@ func (r *GitHubResolver) matchSemverRange(constraint string, releases []GitHubRe
 		}
 
 		var tagMajor, tagMinor, tagPatch int
-		fmt.Sscanf(tagParts[0], "%d", &tagMajor)
-		fmt.Sscanf(tagParts[1], "%d", &tagMinor)
+		_, _ = fmt.Sscanf(tagParts[0], "%d", &tagMajor)
+		_, _ = fmt.Sscanf(tagParts[1], "%d", &tagMinor)
 		// Handle pre-release suffixes like "1.55.2-rc1"
 		patchStr := strings.Split(tagParts[2], "-")[0]
-		fmt.Sscanf(patchStr, "%d", &tagPatch)
+		_, _ = fmt.Sscanf(patchStr, "%d", &tagPatch)
 
 		matches := false
 		switch prefix {
@@ -614,13 +625,17 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer srcFile.Close()
+	defer func() { _ = srcFile.Close() }()
 
 	dstFile, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer dstFile.Close()
+	defer func() {
+		if err := dstFile.Close(); err != nil {
+			log.Printf("Failed to close destination file: %v", err)
+		}
+	}()
 
 	_, err = io.Copy(dstFile, srcFile)
 	return err

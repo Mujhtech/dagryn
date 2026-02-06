@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"net/http"
 	"path"
 	"strings"
@@ -42,7 +43,11 @@ func Handler() http.Handler {
 			serveIndexHTML(w, dist)
 			return
 		}
-		file.Close()
+		defer func() {
+			if err := file.Close(); err != nil {
+				log.Printf("Failed to close file: %v", err)
+			}
+		}()
 
 		// File exists - serve it with appropriate content type
 		fileServer.ServeHTTP(w, r)
@@ -56,7 +61,11 @@ func serveIndexHTML(w http.ResponseWriter, dist fs.FS) {
 		http.Error(w, "index.html not found", http.StatusNotFound)
 		return
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Failed to close file: %v", err)
+		}
+	}()
 
 	// Get file info for content length
 	stat, err := file.Stat()
@@ -69,5 +78,8 @@ func serveIndexHTML(w http.ResponseWriter, dist fs.FS) {
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", stat.Size()))
 	w.WriteHeader(http.StatusOK)
 
-	io.Copy(w, file)
+	if _, err := io.Copy(w, file); err != nil {
+		http.Error(w, "Failed to copy index.html", http.StatusInternalServerError)
+		return
+	}
 }

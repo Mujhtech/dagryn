@@ -104,7 +104,7 @@ var pluginPattern = regexp.MustCompile(`^(github|go|npm|pip|cargo):(.+)@(.+)$`)
 var semverPattern = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)(-[\w.]+)?(\+[\w.]+)?$`)
 
 // semverRangePattern matches semver ranges like ^1.0.0 or ~1.0.0
-var semverRangePattern = regexp.MustCompile(`^[\^~]?v?(\d+)\.(\d+)\.(\d+)(-[\w.]+)?$`)
+// var semverRangePattern = regexp.MustCompile(`^[\^~]?v?(\d+)\.(\d+)\.(\d+)(-[\w.]+)?$`)
 
 // Parse parses a plugin specification string into a Plugin struct.
 // Format: "source:name@version"

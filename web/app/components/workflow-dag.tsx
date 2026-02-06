@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useEffect, useState } from "react";
 import type { Workflow, WorkflowTask } from "~/lib/api";
 import { cn } from "~/lib/utils";
 
@@ -12,13 +12,26 @@ interface TaskNode extends WorkflowTask {
   dependents: string[];
 }
 
+interface NodePosition {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 /**
  * Visualizes a workflow DAG showing task dependencies.
- * Uses a simple CSS-based layout instead of a full graph library.
+ * Uses SVG for connector lines between nodes.
  */
 export function WorkflowDag({ workflow, className }: WorkflowDagProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [nodePositions, setNodePositions] = useState<Map<string, NodePosition>>(
+    new Map()
+  );
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+
   // Build the DAG structure with levels
-  const { levels } = useMemo(() => {
+  const { levels, nodeMap } = useMemo(() => {
     const nodeMap = new Map<string, TaskNode>();
 
     // Initialize nodes with dependents tracking
@@ -51,7 +64,7 @@ export function WorkflowDag({ workflow, className }: WorkflowDagProps) {
       }
 
       const maxDepLevel = Math.max(
-        ...node.needs.map((dep) => calculateLevel(dep)),
+        ...node.needs.map((dep) => calculateLevel(dep))
       );
       node.level = maxDepLevel + 1;
       return node.level;
@@ -73,6 +86,80 @@ export function WorkflowDag({ workflow, className }: WorkflowDagProps) {
     return { levels, nodeMap };
   }, [workflow.tasks]);
 
+  // Measure node positions after render
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const updatePositions = () => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const positions = new Map<string, NodePosition>();
+      const nodeElements = container.querySelectorAll("[data-node-id]");
+
+      nodeElements.forEach((el) => {
+        const nodeId = el.getAttribute("data-node-id");
+        if (nodeId) {
+          const rect = el.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+          positions.set(nodeId, {
+            x: rect.left - containerRect.left + rect.width / 2,
+            y: rect.top - containerRect.top,
+            width: rect.width,
+            height: rect.height,
+          });
+        }
+      });
+
+      setNodePositions(positions);
+      setContainerSize({
+        width: container.scrollWidth,
+        height: container.scrollHeight,
+      });
+    };
+
+    // Update positions after a short delay to ensure layout is complete
+    const timer = setTimeout(updatePositions, 100);
+
+    // Also update on resize
+    const resizeObserver = new ResizeObserver(updatePositions);
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      clearTimeout(timer);
+      resizeObserver.disconnect();
+    };
+  }, [levels]);
+
+  // Generate connector paths
+  const connectors = useMemo(() => {
+    const paths: { from: string; to: string; path: string }[] = [];
+
+    nodeMap.forEach((node) => {
+      node.needs?.forEach((depName) => {
+        const fromPos = nodePositions.get(depName);
+        const toPos = nodePositions.get(node.name);
+
+        if (fromPos && toPos) {
+          // Calculate path from bottom of parent to top of child
+          const startX = fromPos.x;
+          const startY = fromPos.y + fromPos.height + 2; // Small offset from bottom
+          const endX = toPos.x;
+          const endY = toPos.y - 8; // End before the node to make room for arrowhead
+
+          // Use a bezier curve for smooth connections
+          const controlOffset = Math.min(Math.abs(endY - startY) * 0.5, 40);
+
+          const path = `M ${startX} ${startY} C ${startX} ${startY + controlOffset}, ${endX} ${endY - controlOffset}, ${endX} ${endY}`;
+
+          paths.push({ from: depName, to: node.name, path });
+        }
+      });
+    });
+
+    return paths;
+  }, [nodeMap, nodePositions]);
+
   if (workflow.tasks.length === 0) {
     return (
       <div className={cn("text-center text-muted-foreground py-8", className)}>
@@ -82,10 +169,47 @@ export function WorkflowDag({ workflow, className }: WorkflowDagProps) {
   }
 
   return (
-    <div className={cn("overflow-auto", className)}>
-      <div className="flex flex-col items-center gap-6 p-4 min-w-fit">
+    <div className={cn("overflow-auto relative", className)} ref={containerRef}>
+      {/* SVG layer for connectors */}
+      <svg
+        className="absolute inset-0 pointer-events-none"
+        width={containerSize.width || "100%"}
+        height={containerSize.height || "100%"}
+        style={{ minWidth: "100%", minHeight: "100%" }}
+      >
+        <defs>
+          <marker
+            id="arrowhead"
+            markerWidth="10"
+            markerHeight="10"
+            refX="5"
+            refY="5"
+            orient="auto-start-reverse"
+            markerUnits="strokeWidth"
+          >
+            <path
+              d="M 0 0 L 10 5 L 0 10 z"
+              className="fill-muted-foreground/60"
+            />
+          </marker>
+        </defs>
+        {connectors.map(({ from, to, path }) => (
+          <path
+            key={`${from}-${to}`}
+            d={path}
+            fill="none"
+            className="stroke-muted-foreground/60"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            markerEnd="url(#arrowhead)"
+          />
+        ))}
+      </svg>
+
+      {/* Node layout */}
+      <div className="flex flex-col items-center gap-12 p-6 min-w-fit relative z-10">
         {levels.map((levelNodes, levelIndex) => (
-          <div key={levelIndex} className="flex flex-wrap gap-4 justify-center">
+          <div key={levelIndex} className="flex flex-wrap gap-6 justify-center">
             {levelNodes.map((node) => (
               <TaskCard key={node.name} task={node} />
             ))}
@@ -105,13 +229,8 @@ function TaskCard({ task }: TaskCardProps) {
   const hasPlugins = task.plugins && task.plugins.length > 0;
 
   return (
-    <div className="relative group">
-      {/* Connection lines to dependencies */}
-      {hasDeps && (
-        <div className="absolute left-1/2 -top-6 w-px h-6 bg-border" />
-      )}
-
-      <div className="bg-card border rounded-lg p-4 w-64 shadow-sm hover:shadow-md transition-shadow">
+    <div className="relative" data-node-id={task.name}>
+      <div className="bg-card border border-border rounded-lg p-4 w-64 shadow-sm hover:shadow-md transition-shadow hover:border-primary/50">
         <div className="flex items-center justify-between mb-2">
           <h4 className="font-semibold text-sm truncate">{task.name}</h4>
           {hasPlugins && (
@@ -141,14 +260,6 @@ function TaskCard({ task }: TaskCardProps) {
           </div>
         )}
       </div>
-
-      {/* Arrow pointing down to dependents */}
-      {task.dependents.length > 0 && (
-        <div className="absolute left-1/2 -bottom-6 flex flex-col items-center">
-          <div className="w-px h-4 bg-border" />
-          <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-border" />
-        </div>
-      )}
     </div>
   );
 }

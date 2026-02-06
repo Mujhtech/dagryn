@@ -31,13 +31,13 @@ func (h *Handler) ListProjects(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projects, err := h.projects.ListByUser(ctx, user.ID)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to list projects"))
+		_ = response.InternalServerError(w, r, errors.New("failed to list projects"))
 		return
 	}
 
@@ -77,19 +77,19 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	var req CreateProjectRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
 	// Validate required fields
 	if req.Name == "" {
-		_ = response.BadRequest(w, r, errors.New("Project name is required"))
+		_ = response.BadRequest(w, r, errors.New("project name is required"))
 		return
 	}
 
@@ -100,16 +100,16 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		member, err := h.teams.GetMember(ctx, req.TeamID, user.ID)
 		if err != nil {
 			if errors.Is(err, repo.ErrNotFound) {
-				_ = response.Forbidden(w, r, errors.New("You are not a member of this team"))
+				_ = response.Forbidden(w, r, errors.New("you are not a member of this team"))
 				return
 			}
-			_ = response.InternalServerError(w, r, errors.New("Failed to check team membership"))
+			_ = response.InternalServerError(w, r, errors.New("failed to check team membership"))
 			return
 		}
 
 		// Only admins and owners can create projects in a team
 		if !member.Role.CanManageMembers() {
-			_ = response.Forbidden(w, r, errors.New("You don't have permission to create projects in this team"))
+			_ = response.Forbidden(w, r, errors.New("you don't have permission to create projects in this team"))
 			return
 		}
 	}
@@ -123,11 +123,11 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	// Check if slug exists within the team/personal scope
 	exists, err := h.projects.SlugExists(ctx, teamID, slug)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to check slug"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check slug"))
 		return
 	}
 	if exists {
-		_ = response.BadRequest(w, r, errors.New("A project with this slug already exists"))
+		_ = response.BadRequest(w, r, errors.New("a project with this slug already exists"))
 		return
 	}
 
@@ -136,7 +136,7 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	if req.Visibility != "" {
 		visibility = models.Visibility(req.Visibility)
 		if !models.IsValidVisibility(visibility) {
-			_ = response.BadRequest(w, r, errors.New("Invalid visibility. Must be private, team, or public"))
+			_ = response.BadRequest(w, r, errors.New("invalid visibility. Must be private, team, or public"))
 			return
 		}
 	}
@@ -164,17 +164,17 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		// Fallback to OAuth token if no installation token was obtained
 		if accessToken == "" {
 			if h.providerTokens == nil || h.providerEncrypt == nil {
-				_ = response.BadRequest(w, r, errors.New("GitHub integration is not configured; cannot create project from repository"))
+				_ = response.BadRequest(w, r, errors.New("gitHub integration is not configured; cannot create project from repository"))
 				return
 			}
 			tok, err := h.providerTokens.GetByUserAndProvider(ctx, user.ID, "github")
 			if err != nil || tok == nil {
-				_ = response.BadRequest(w, r, errors.New("No GitHub account linked. Log in with GitHub to create a project from a repository."))
+				_ = response.BadRequest(w, r, errors.New("no GitHub account linked. Log in with GitHub to create a project from a repository"))
 				return
 			}
 			accessToken, err = h.providerEncrypt.Decrypt(tok.AccessTokenEncrypted)
 			if err != nil {
-				_ = response.InternalServerError(w, r, errors.New("Failed to use GitHub token"))
+				_ = response.InternalServerError(w, r, errors.New("failed to use GitHub token"))
 				return
 			}
 		}
@@ -207,7 +207,7 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.projects.Create(ctx, project, user.ID); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to create project"))
+		_ = response.InternalServerError(w, r, errors.New("failed to create project"))
 		return
 	}
 
@@ -231,13 +231,13 @@ func (h *Handler) GetProject(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
@@ -245,20 +245,20 @@ func (h *Handler) GetProject(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	project, err := h.projects.GetByID(ctx, projectID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Project not found"))
+			_ = response.NotFound(w, r, errors.New("project not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get project"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get project"))
 		return
 	}
 
@@ -285,13 +285,13 @@ func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
@@ -299,32 +299,32 @@ func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to edit
 	if !role.HasPermission(models.PermissionProjectEdit) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to edit this project"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to edit this project"))
 		return
 	}
 
 	var req UpdateProjectRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
 	project, err := h.projects.GetByID(ctx, projectID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Project not found"))
+			_ = response.NotFound(w, r, errors.New("project not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get project"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get project"))
 		return
 	}
 
@@ -338,7 +338,7 @@ func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	if req.Visibility != nil {
 		visibility := models.Visibility(*req.Visibility)
 		if !models.IsValidVisibility(visibility) {
-			_ = response.BadRequest(w, r, errors.New("Invalid visibility"))
+			_ = response.BadRequest(w, r, errors.New("invalid visibility"))
 			return
 		}
 		project.Visibility = visibility
@@ -349,7 +349,7 @@ func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.projects.Update(ctx, project); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to update project"))
+		_ = response.InternalServerError(w, r, errors.New("failed to update project"))
 		return
 	}
 
@@ -376,13 +376,13 @@ func (h *Handler) ConnectProjectToGitHub(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
@@ -390,22 +390,22 @@ func (h *Handler) ConnectProjectToGitHub(w http.ResponseWriter, r *http.Request)
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to edit
 	if !role.HasPermission(models.PermissionProjectEdit) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to edit this project"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to edit this project"))
 		return
 	}
 
 	var req ConnectGitHubRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
@@ -425,7 +425,7 @@ func (h *Handler) ConnectProjectToGitHub(w http.ResponseWriter, r *http.Request)
 
 	// Check GitHub App is configured
 	if h.githubApp == nil || h.githubInstallations == nil {
-		_ = response.BadRequest(w, r, errors.New("GitHub App integration is not configured"))
+		_ = response.BadRequest(w, r, errors.New("github App integration is not configured"))
 		return
 	}
 
@@ -433,23 +433,23 @@ func (h *Handler) ConnectProjectToGitHub(w http.ResponseWriter, r *http.Request)
 	instRecord, err := h.githubInstallations.GetByID(ctx, req.GitHubInstallationID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.BadRequest(w, r, errors.New("GitHub installation not found"))
+			_ = response.BadRequest(w, r, errors.New("github installation not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to verify installation"))
+		_ = response.InternalServerError(w, r, errors.New("failed to verify installation"))
 		return
 	}
 
 	// Fetch installation token
 	token, err := h.githubApp.FetchInstallationToken(ctx, instRecord.InstallationID)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to get installation token"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get installation token"))
 		return
 	}
 
 	// Validate repo belongs to installation
 	if err := h.validateGitHubRepoBelongsToInstallation(ctx, token.Token, req.GitHubRepoID, req.RepoURL); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Repository does not belong to the specified installation: "+err.Error()))
+		_ = response.BadRequest(w, r, errors.New("repository does not belong to the specified installation: "+err.Error()))
 		return
 	}
 
@@ -463,10 +463,10 @@ func (h *Handler) ConnectProjectToGitHub(w http.ResponseWriter, r *http.Request)
 	project, err := h.projects.GetByID(ctx, projectID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Project not found"))
+			_ = response.NotFound(w, r, errors.New("project not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get project"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get project"))
 		return
 	}
 
@@ -477,7 +477,7 @@ func (h *Handler) ConnectProjectToGitHub(w http.ResponseWriter, r *http.Request)
 	project.RepoLinkedByUserID = &user.ID
 
 	if err := h.projects.Update(ctx, project); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to update project"))
+		_ = response.InternalServerError(w, r, errors.New("failed to update project"))
 		return
 	}
 
@@ -500,13 +500,13 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
@@ -514,25 +514,25 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Only owner can delete
 	if !role.CanDeleteProject() {
-		_ = response.Forbidden(w, r, errors.New("Only the project owner can delete this project"))
+		_ = response.Forbidden(w, r, errors.New("only the project owner can delete this project"))
 		return
 	}
 
 	if err := h.projects.Delete(ctx, projectID); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Project not found"))
+			_ = response.NotFound(w, r, errors.New("project not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to delete project"))
+		_ = response.InternalServerError(w, r, errors.New("failed to delete project"))
 		return
 	}
 
@@ -558,13 +558,13 @@ func (h *Handler) ListProjectMembers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
@@ -572,22 +572,22 @@ func (h *Handler) ListProjectMembers(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to view members
 	if !role.HasPermission(models.PermissionMembersView) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to view members"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to view members"))
 		return
 	}
 
 	members, err := h.projects.ListMembers(ctx, projectID)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to list members"))
+		_ = response.InternalServerError(w, r, errors.New("failed to list members"))
 		return
 	}
 
@@ -619,13 +619,13 @@ func (h *Handler) AddProjectMember(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
@@ -633,35 +633,35 @@ func (h *Handler) AddProjectMember(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to manage members
 	if !role.HasPermission(models.PermissionMembersManage) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to manage members"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to manage members"))
 		return
 	}
 
 	var req AddProjectMemberRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
 	// Validate role
 	newRole := models.Role(req.Role)
 	if !models.IsValidProjectRole(newRole) {
-		_ = response.BadRequest(w, r, errors.New("Invalid role. Must be owner, admin, member, or viewer"))
+		_ = response.BadRequest(w, r, errors.New("invalid role: must be owner, admin, member, or viewer"))
 		return
 	}
 
 	// Cannot assign owner role
 	if newRole == models.RoleOwner {
-		_ = response.BadRequest(w, r, errors.New("Cannot assign owner role"))
+		_ = response.BadRequest(w, r, errors.New("cannot assign owner role"))
 		return
 	}
 
@@ -669,27 +669,27 @@ func (h *Handler) AddProjectMember(w http.ResponseWriter, r *http.Request) {
 	targetUser, err := h.users.GetByID(ctx, req.UserID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("User not found"))
+			_ = response.NotFound(w, r, errors.New("user not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get user"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get user"))
 		return
 	}
 
 	// Check if already a member
 	_, err = h.projects.GetMember(ctx, projectID, req.UserID)
 	if err == nil {
-		_ = response.BadRequest(w, r, errors.New("User is already a member of this project"))
+		_ = response.BadRequest(w, r, errors.New("user is already a member of this project"))
 		return
 	}
 	if !errors.Is(err, repo.ErrNotFound) {
-		_ = response.InternalServerError(w, r, errors.New("Failed to check membership"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check membership"))
 		return
 	}
 
 	// Add member
 	if err := h.projects.AddMember(ctx, projectID, req.UserID, newRole, &user.ID); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to add member"))
+		_ = response.InternalServerError(w, r, errors.New("failed to add member"))
 		return
 	}
 
@@ -717,19 +717,19 @@ func (h *Handler) RemoveProjectMember(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
 	targetUserID, err := uuid.Parse(chi.URLParam(r, "userID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid user ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid user ID"))
 		return
 	}
 
@@ -737,16 +737,16 @@ func (h *Handler) RemoveProjectMember(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Allow users to remove themselves, or admins/owners to remove others
 	if user.ID != targetUserID && !role.HasPermission(models.PermissionMembersManage) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to remove members"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to remove members"))
 		return
 	}
 
@@ -754,20 +754,20 @@ func (h *Handler) RemoveProjectMember(w http.ResponseWriter, r *http.Request) {
 	targetMember, err := h.projects.GetMember(ctx, projectID, targetUserID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Member not found"))
+			_ = response.NotFound(w, r, errors.New("member not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get member"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get member"))
 		return
 	}
 
 	if targetMember.Role == models.RoleOwner {
-		_ = response.BadRequest(w, r, errors.New("Cannot remove the project owner"))
+		_ = response.BadRequest(w, r, errors.New("cannot remove the project owner"))
 		return
 	}
 
 	if err := h.projects.RemoveMember(ctx, projectID, targetUserID); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to remove member"))
+		_ = response.InternalServerError(w, r, errors.New("failed to remove member"))
 		return
 	}
 
@@ -795,19 +795,19 @@ func (h *Handler) UpdateProjectMemberRole(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
 	targetUserID, err := uuid.Parse(chi.URLParam(r, "userID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid user ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid user ID"))
 		return
 	}
 
@@ -815,28 +815,28 @@ func (h *Handler) UpdateProjectMemberRole(w http.ResponseWriter, r *http.Request
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to manage members
 	if !role.HasPermission(models.PermissionMembersManage) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to manage members"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to manage members"))
 		return
 	}
 
 	var req UpdateMemberRoleRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
 	newRole := models.Role(req.Role)
 	if !models.IsValidProjectRole(newRole) {
-		_ = response.BadRequest(w, r, errors.New("Invalid role. Must be owner, admin, member, or viewer"))
+		_ = response.BadRequest(w, r, errors.New("invalid role: must be owner, admin, member, or viewer"))
 		return
 	}
 
@@ -844,20 +844,20 @@ func (h *Handler) UpdateProjectMemberRole(w http.ResponseWriter, r *http.Request
 	targetMember, err := h.projects.GetMember(ctx, projectID, targetUserID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Member not found"))
+			_ = response.NotFound(w, r, errors.New("member not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get member"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get member"))
 		return
 	}
 
 	if targetMember.Role == models.RoleOwner || newRole == models.RoleOwner {
-		_ = response.BadRequest(w, r, errors.New("Cannot change owner role"))
+		_ = response.BadRequest(w, r, errors.New("cannot change owner role"))
 		return
 	}
 
 	if err := h.projects.UpdateMemberRole(ctx, projectID, targetUserID, newRole); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to update role"))
+		_ = response.InternalServerError(w, r, errors.New("failed to update role"))
 		return
 	}
 
@@ -888,13 +888,13 @@ func (h *Handler) ListProjectInvitations(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
@@ -902,22 +902,22 @@ func (h *Handler) ListProjectInvitations(w http.ResponseWriter, r *http.Request)
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to manage members
 	if !role.HasPermission(models.PermissionMembersManage) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to view invitations"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to view invitations"))
 		return
 	}
 
 	invitations, err := h.invitations.ListByProject(ctx, projectID)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to list invitations"))
+		_ = response.InternalServerError(w, r, errors.New("failed to list invitations"))
 		return
 	}
 
@@ -949,13 +949,13 @@ func (h *Handler) CreateProjectInvitation(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
@@ -963,39 +963,39 @@ func (h *Handler) CreateProjectInvitation(w http.ResponseWriter, r *http.Request
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to manage members
 	if !role.HasPermission(models.PermissionMembersManage) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to create invitations"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to create invitations"))
 		return
 	}
 
 	var req CreateInvitationRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
 	// Validate email
 	if req.Email == "" {
-		_ = response.BadRequest(w, r, errors.New("Email is required"))
+		_ = response.BadRequest(w, r, errors.New("email is required"))
 		return
 	}
 
 	invRole := models.Role(req.Role)
 	if !models.IsValidProjectRole(invRole) {
-		_ = response.BadRequest(w, r, errors.New("Invalid role"))
+		_ = response.BadRequest(w, r, errors.New("invalid role"))
 		return
 	}
 
 	if invRole == models.RoleOwner {
-		_ = response.BadRequest(w, r, errors.New("Cannot invite with owner role"))
+		_ = response.BadRequest(w, r, errors.New("cannot invite with owner role"))
 		return
 	}
 
@@ -1008,7 +1008,7 @@ func (h *Handler) CreateProjectInvitation(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := h.invitations.Create(ctx, invitation); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to create invitation"))
+		_ = response.InternalServerError(w, r, errors.New("failed to create invitation"))
 		return
 	}
 
@@ -1032,19 +1032,19 @@ func (h *Handler) RevokeProjectInvitation(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
 	invitationID, err := uuid.Parse(chi.URLParam(r, "invitationID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid invitation ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid invitation ID"))
 		return
 	}
 
@@ -1052,25 +1052,25 @@ func (h *Handler) RevokeProjectInvitation(w http.ResponseWriter, r *http.Request
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to manage members
 	if !role.HasPermission(models.PermissionMembersManage) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to revoke invitations"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to revoke invitations"))
 		return
 	}
 
 	if err := h.invitations.Delete(ctx, invitationID); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Invitation not found"))
+			_ = response.NotFound(w, r, errors.New("invitation not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to revoke invitation"))
+		_ = response.InternalServerError(w, r, errors.New("failed to revoke invitation"))
 		return
 	}
 
@@ -1096,13 +1096,13 @@ func (h *Handler) ListProjectAPIKeys(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
@@ -1110,22 +1110,22 @@ func (h *Handler) ListProjectAPIKeys(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to view API keys
 	if !role.HasPermission(models.PermissionAPIKeysView) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to view API keys"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to view API keys"))
 		return
 	}
 
 	keys, err := h.apikeys.ListByProject(ctx, projectID)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to list API keys"))
+		_ = response.InternalServerError(w, r, errors.New("failed to list API keys"))
 		return
 	}
 
@@ -1157,13 +1157,13 @@ func (h *Handler) CreateProjectAPIKey(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
@@ -1171,22 +1171,22 @@ func (h *Handler) CreateProjectAPIKey(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to manage API keys
 	if !role.HasPermission(models.PermissionAPIKeysManage) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to create API keys"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to create API keys"))
 		return
 	}
 
 	var req CreateAPIKeyRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
@@ -1200,7 +1200,7 @@ func (h *Handler) CreateProjectAPIKey(w http.ResponseWriter, r *http.Request) {
 	if req.ExpiresIn != "" {
 		duration, err := parseDuration(req.ExpiresIn)
 		if err != nil {
-			_ = response.BadRequest(w, r, errors.New("Invalid expiration format. Use format like '90d', '30d', '1y'"))
+			_ = response.BadRequest(w, r, errors.New("invalid expiration format: use format like '90d', '30d', '1y'"))
 			return
 		}
 		exp := time.Now().Add(duration)
@@ -1218,7 +1218,7 @@ func (h *Handler) CreateProjectAPIKey(w http.ResponseWriter, r *http.Request) {
 
 	rawKey, err := h.apikeys.Create(ctx, key)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to create API key"))
+		_ = response.InternalServerError(w, r, errors.New("failed to create API key"))
 		return
 	}
 
@@ -1245,19 +1245,19 @@ func (h *Handler) RevokeProjectAPIKey(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
 	keyID, err := uuid.Parse(chi.URLParam(r, "keyID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid API key ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid API key ID"))
 		return
 	}
 
@@ -1265,16 +1265,16 @@ func (h *Handler) RevokeProjectAPIKey(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to manage API keys
 	if !role.HasPermission(models.PermissionAPIKeysManage) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to revoke API keys"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to revoke API keys"))
 		return
 	}
 
@@ -1285,7 +1285,7 @@ func (h *Handler) RevokeProjectAPIKey(w http.ResponseWriter, r *http.Request) {
 			_ = response.NotFound(w, r, errors.New("API key not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get API key"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get API key"))
 		return
 	}
 
@@ -1295,7 +1295,7 @@ func (h *Handler) RevokeProjectAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.apikeys.Revoke(ctx, keyID); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to revoke API key"))
+		_ = response.InternalServerError(w, r, errors.New("failed to revoke API key"))
 		return
 	}
 

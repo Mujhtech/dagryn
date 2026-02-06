@@ -25,14 +25,14 @@ import (
 func (h *Handler) ListProjectWorkflows(w http.ResponseWriter, r *http.Request) {
 	projectID, err := ParseUUID(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
 	// Get workflows with tasks
 	workflows, err := h.workflows.ListByProjectWithTasks(r.Context(), projectID)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to fetch workflows"))
+		_ = response.InternalServerError(w, r, errors.New("failed to fetch workflows"))
 		return
 	}
 
@@ -62,25 +62,25 @@ func (h *Handler) ListProjectWorkflows(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) SyncProjectWorkflow(w http.ResponseWriter, r *http.Request) {
 	projectID, err := ParseUUID(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
 	// Verify project exists
 	project, err := h.projects.GetByID(r.Context(), projectID)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to fetch project"))
+		_ = response.InternalServerError(w, r, errors.New("failed to fetch project"))
 		return
 	}
 	if project == nil {
-		_ = response.NotFound(w, r, errors.New("Project not found"))
+		_ = response.NotFound(w, r, errors.New("project not found"))
 		return
 	}
 
 	// Parse request
 	var req SyncWorkflowRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
@@ -104,7 +104,7 @@ func (h *Handler) SyncProjectWorkflow(w http.ResponseWriter, r *http.Request) {
 	// Upsert workflow
 	changed, err := h.workflows.Upsert(r.Context(), workflow)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to sync workflow"))
+		_ = response.InternalServerError(w, r, errors.New("failed to sync workflow"))
 		return
 	}
 
@@ -127,7 +127,7 @@ func (h *Handler) SyncProjectWorkflow(w http.ResponseWriter, r *http.Request) {
 
 	// Upsert tasks
 	if err := h.workflows.UpsertTasks(r.Context(), workflow.ID, tasks); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to sync workflow tasks"))
+		_ = response.InternalServerError(w, r, errors.New("failed to sync workflow tasks"))
 		return
 	}
 
@@ -160,35 +160,35 @@ func (h *Handler) SyncProjectWorkflow(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetRunWorkflow(w http.ResponseWriter, r *http.Request) {
 	runID, err := ParseUUID(chi.URLParam(r, "runID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid run ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid run ID"))
 		return
 	}
 
 	// Get the run to find its workflow ID
 	run, err := h.runs.GetByID(r.Context(), runID)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to fetch run"))
+		_ = response.InternalServerError(w, r, errors.New("failed to fetch run"))
 		return
 	}
 	if run == nil {
-		_ = response.NotFound(w, r, errors.New("Run not found"))
+		_ = response.NotFound(w, r, errors.New("run not found"))
 		return
 	}
 
 	// Check if run has a workflow linked
 	if run.WorkflowID == nil {
-		_ = response.NotFound(w, r, errors.New("Run has no workflow snapshot"))
+		_ = response.NotFound(w, r, errors.New("run has no workflow snapshot"))
 		return
 	}
 
 	// Get the workflow
 	workflow, err := h.workflows.GetByID(r.Context(), *run.WorkflowID)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to fetch workflow"))
+		_ = response.InternalServerError(w, r, errors.New("failed to fetch workflow"))
 		return
 	}
 	if workflow == nil {
-		_ = response.NotFound(w, r, errors.New("Workflow not found"))
+		_ = response.NotFound(w, r, errors.New("workflow not found"))
 		return
 	}
 

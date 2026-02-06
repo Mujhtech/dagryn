@@ -61,7 +61,7 @@ func NewWithWriter(verbose bool, w io.Writer) *Logger {
 
 // TaskStart logs the start of a task.
 func (l *Logger) TaskStart(name string) {
-	fmt.Fprintf(l.writer, "● %s\n", name)
+	_, _ = fmt.Fprintf(l.writer, "● %s\n", name)
 }
 
 // TaskEnd logs the completion of a task.
@@ -75,7 +75,7 @@ func (l *Logger) TaskEnd(name string, result *executor.Result, cacheHit bool) {
 	}
 
 	duration := formatDuration(result.Duration)
-	fmt.Fprintf(l.writer, "%s %-12s%s%s\n", status, name, cacheStatus, duration)
+	_, _ = fmt.Fprintf(l.writer, "%s %-12s%s%s\n", status, name, cacheStatus, duration)
 }
 
 // CacheHit logs a cache hit.
@@ -94,7 +94,7 @@ func (l *Logger) CacheMiss(name string) {
 
 // Summary prints the execution summary.
 func (l *Logger) Summary(results []*executor.Result, total time.Duration, cacheHits int) {
-	fmt.Fprintln(l.writer)
+	_, _ = fmt.Fprintln(l.writer)
 
 	succeeded := 0
 	failed := 0
@@ -118,28 +118,28 @@ func (l *Logger) Summary(results []*executor.Result, total time.Duration, cacheH
 	}
 
 	if failed > 0 {
-		fmt.Fprintf(l.writer, "✗ %d/%d tasks failed in %s%s\n",
+		_, _ = fmt.Fprintf(l.writer, "✗ %d/%d tasks failed in %s%s\n",
 			failed, totalTasks, formatDuration(total), cacheInfo)
 	} else {
-		fmt.Fprintf(l.writer, "✓ %d tasks completed in %s%s\n",
+		_, _ = fmt.Fprintf(l.writer, "✓ %d tasks completed in %s%s\n",
 			succeeded, formatDuration(total), cacheInfo)
 	}
 }
 
 // Error logs an error message.
 func (l *Logger) Error(msg string, err error) {
-	fmt.Fprintf(l.writer, "Error: %s: %v\n", msg, err)
+	_, _ = fmt.Fprintf(l.writer, "Error: %s: %v\n", msg, err)
 }
 
 // Info logs an info message.
 func (l *Logger) Info(msg string) {
-	fmt.Fprintf(l.writer, "%s\n", msg)
+	_, _ = fmt.Fprintf(l.writer, "%s\n", msg)
 }
 
 // Debug logs a debug message (only in verbose mode).
 func (l *Logger) Debug(msg string) {
 	if l.verbose {
-		fmt.Fprintf(l.writer, "[DEBUG] %s\n", msg)
+		_, _ = fmt.Fprintf(l.writer, "[DEBUG] %s\n", msg)
 	}
 }
 
@@ -182,17 +182,17 @@ func formatDuration(d time.Duration) string {
 
 // PrintPlan prints the execution plan.
 func (l *Logger) PrintPlan(levels [][]string) {
-	fmt.Fprintln(l.writer, "Execution Plan:")
-	fmt.Fprintln(l.writer, strings.Repeat("─", 40))
+	_, _ = fmt.Fprintln(l.writer, "Execution Plan:")
+	_, _ = fmt.Fprintln(l.writer, strings.Repeat("─", 40))
 	for i, level := range levels {
-		fmt.Fprintf(l.writer, "Level %d: %s\n", i, strings.Join(level, ", "))
+		_, _ = fmt.Fprintf(l.writer, "Level %d: %s\n", i, strings.Join(level, ", "))
 	}
-	fmt.Fprintln(l.writer, strings.Repeat("─", 40))
+	_, _ = fmt.Fprintln(l.writer, strings.Repeat("─", 40))
 }
 
 // PluginStart logs the start of a plugin installation.
 func (l *Logger) PluginStart(spec string) {
-	fmt.Fprintf(l.writer, "  ↓ %s\n", spec)
+	_, _ = fmt.Fprintf(l.writer, "  ↓ %s\n", spec)
 }
 
 // PluginDone logs the completion of a plugin installation.
@@ -203,10 +203,10 @@ func (l *Logger) PluginDone(spec string, result *plugin.InstallResult) {
 
 	switch result.Status {
 	case plugin.StatusInstalled:
-		fmt.Fprintf(l.writer, "    ✓ Installed %s %s\n", result.Plugin.Name, result.Plugin.ResolvedVersion)
+		_, _ = fmt.Fprintf(l.writer, "    ✓ Installed %s %s\n", result.Plugin.Name, result.Plugin.ResolvedVersion)
 	case plugin.StatusCached:
-		fmt.Fprintf(l.writer, "    ✓ %s [CACHED]\n", result.Plugin.Name)
+		_, _ = fmt.Fprintf(l.writer, "    ✓ %s [CACHED]\n", result.Plugin.Name)
 	case plugin.StatusFailed:
-		fmt.Fprintf(l.writer, "    ✗ Failed to install %s: %v\n", spec, result.Error)
+		_, _ = fmt.Fprintf(l.writer, "    ✗ Failed to install %s: %v\n", spec, result.Error)
 	}
 }

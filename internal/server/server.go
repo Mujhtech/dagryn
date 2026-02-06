@@ -408,7 +408,7 @@ func (s *Server) WaitForReady(ctx context.Context, timeout time.Duration) error 
 		default:
 			resp, err := client.Get(addr)
 			if err == nil {
-				resp.Body.Close()
+				_ = resp.Body.Close()
 				if resp.StatusCode == http.StatusOK {
 					return nil
 				}

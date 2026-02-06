@@ -66,7 +66,7 @@ func (h *Handler) checkGitHubRepoHasDagrynToml(ctx context.Context, accessToken,
 	if err != nil {
 		return fmt.Errorf("failed to check repository: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	switch resp.StatusCode {
 	case http.StatusOK:
@@ -104,7 +104,7 @@ func (h *Handler) validateGitHubRepoBelongsToInstallation(ctx context.Context, a
 	if err != nil {
 		return fmt.Errorf("failed to validate repository: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.ReadAll(resp.Body)
@@ -148,24 +148,24 @@ func (h *Handler) ListGitHubRepos(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	if h.providerTokens == nil || h.providerEncrypt == nil {
-		_ = response.Forbidden(w, r, errors.New("GitHub integration is not configured"))
+		_ = response.Forbidden(w, r, errors.New("gitHub integration is not configured"))
 		return
 	}
 
 	tok, err := h.providerTokens.GetByUserAndProvider(ctx, user.ID, "github")
 	if err != nil || tok == nil {
-		_ = response.Forbidden(w, r, errors.New("No GitHub account linked. Log in with GitHub to import repositories."))
+		_ = response.Forbidden(w, r, errors.New("no GitHub account linked. Log in with GitHub to import repositories"))
 		return
 	}
 
 	accessToken, err := h.providerEncrypt.Decrypt(tok.AccessTokenEncrypted)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to use GitHub token"))
+		_ = response.InternalServerError(w, r, errors.New("failed to use GitHub token"))
 		return
 	}
 
@@ -180,14 +180,14 @@ func (h *Handler) ListGitHubRepos(w http.ResponseWriter, r *http.Request) {
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		_ = response.InternalServerError(w, r, fmt.Errorf("GitHub API request failed: %w", err))
+		_ = response.InternalServerError(w, r, fmt.Errorf("gitHub API request failed: %w", err))
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		_ = response.InternalServerError(w, r, fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, string(body)))
+		_ = response.InternalServerError(w, r, fmt.Errorf("gitHub API returned %d: %s", resp.StatusCode, string(body)))
 		return
 	}
 
@@ -238,12 +238,12 @@ func (h *Handler) ListGitHubAppInstallations(w http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	if h.githubInstallations == nil {
-		_ = response.Forbidden(w, r, errors.New("GitHub App integration is not configured"))
+		_ = response.Forbidden(w, r, errors.New("github App integration is not configured"))
 		return
 	}
 
@@ -283,26 +283,26 @@ func (h *Handler) ListGitHubAppRepos(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	if h.githubApp == nil || h.githubInstallations == nil {
-		_ = response.Forbidden(w, r, errors.New("GitHub App integration is not configured"))
+		_ = response.Forbidden(w, r, errors.New("github App integration is not configured"))
 		return
 	}
 
 	installationIDStr := chi.URLParam(r, "installationID")
 	installationID, err := uuid.Parse(installationIDStr)
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid installation ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid installation ID"))
 		return
 	}
 
 	inst, err := h.githubInstallations.GetByID(ctx, installationID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Installation not found"))
+			_ = response.NotFound(w, r, errors.New("installation not found"))
 			return
 		}
 		_ = response.InternalServerError(w, r, err)
@@ -311,7 +311,7 @@ func (h *Handler) ListGitHubAppRepos(w http.ResponseWriter, r *http.Request) {
 
 	token, err := h.githubApp.FetchInstallationToken(ctx, inst.InstallationID)
 	if err != nil {
-		_ = response.InternalServerError(w, r, fmt.Errorf("Failed to fetch installation token: %w", err))
+		_ = response.InternalServerError(w, r, fmt.Errorf("failed to fetch installation token: %w", err))
 		return
 	}
 
@@ -328,14 +328,14 @@ func (h *Handler) ListGitHubAppRepos(w http.ResponseWriter, r *http.Request) {
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		_ = response.InternalServerError(w, r, fmt.Errorf("GitHub API request failed: %w", err))
+		_ = response.InternalServerError(w, r, fmt.Errorf("github API request failed: %w", err))
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		_ = response.InternalServerError(w, r, fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, string(body)))
+		_ = response.InternalServerError(w, r, fmt.Errorf("github API returned %d: %s", resp.StatusCode, string(body)))
 		return
 	}
 

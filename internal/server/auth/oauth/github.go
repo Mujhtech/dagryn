@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -77,7 +78,11 @@ func (p *GitHubProvider) Exchange(ctx context.Context, code string) (*Tokens, er
 	if err != nil {
 		return nil, fmt.Errorf("failed to exchange code: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -153,7 +158,7 @@ func (p *GitHubProvider) getUser(ctx context.Context, accessToken string) (*gith
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -186,7 +191,7 @@ func (p *GitHubProvider) getPrimaryEmail(ctx context.Context, accessToken string
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch emails: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("github api error: %d", resp.StatusCode)
@@ -240,7 +245,7 @@ func (p *GitHubProvider) RequestDeviceCode(ctx context.Context) (*DeviceCode, er
 	if err != nil {
 		return nil, fmt.Errorf("failed to request device code: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result struct {
 		DeviceCode      string `json:"device_code"`
@@ -287,7 +292,7 @@ func (p *GitHubProvider) PollDeviceCode(ctx context.Context, deviceCode string) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to poll device code: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result struct {
 		AccessToken string `json:"access_token"`

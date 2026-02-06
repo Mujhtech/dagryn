@@ -143,7 +143,7 @@ func (s *RunStore) DeleteRun(runID uuid.UUID) error {
 	defer s.mu.Unlock()
 
 	// Close any open log file descriptor
-	s.closeLogFDLocked(runID)
+	_ = s.closeLogFDLocked(runID)
 
 	runDir := s.RunPath(runID)
 	if err := os.RemoveAll(runDir); err != nil {
@@ -225,7 +225,7 @@ func (s *RunStore) ReadLogs(runID uuid.UUID) ([]RunLogEntry, error) {
 		}
 		return nil, fmt.Errorf("failed to open logs file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var entries []RunLogEntry
 	scanner := bufio.NewScanner(file)

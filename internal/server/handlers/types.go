@@ -295,6 +295,9 @@ type TriggerRunRequest struct {
 	GitBranch string   `json:"git_branch,omitempty" example:"main"`
 	GitCommit string   `json:"git_commit,omitempty" example:"abc123def456"`
 	Force     bool     `json:"force,omitempty" example:"false"`
+	// SyncOnly when true creates a run record for status tracking without triggering remote execution.
+	// Use this when the CLI is executing locally and only needs to sync status to the server.
+	SyncOnly bool `json:"sync_only,omitempty" example:"false"`
 }
 
 // TriggerRunResponse represents the response after triggering a run.

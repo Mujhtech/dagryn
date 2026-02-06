@@ -31,7 +31,7 @@ func (r *ProjectRepo) Create(ctx context.Context, project *models.Project, owner
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Create project
 	_, err = tx.Exec(ctx, `

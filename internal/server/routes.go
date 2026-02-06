@@ -218,7 +218,7 @@ func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHand
 			strings.HasPrefix(r.URL.Path, "/metrics") ||
 			strings.HasPrefix(r.URL.Path, "/swagger") ||
 			strings.HasPrefix(r.URL.Path, "/queue") {
-			response.NotFound(w, r, errors.New("The requested resource was not found"))
+			_ = response.NotFound(w, r, errors.New("the requested resource was not found"))
 			return
 		}
 		dashboardHandler.ServeHTTP(w, r)
@@ -226,12 +226,12 @@ func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHand
 
 	// 404 handler for API routes
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		response.NotFound(w, r, errors.New("The requested resource was not found"))
+		_ = response.NotFound(w, r, errors.New("the requested resource was not found"))
 	})
 
 	// 405 handler
 	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
-		response.MethodNotAllowed(w, r, errors.New("The requested method is not allowed for this resource"))
+		_ = response.MethodNotAllowed(w, r, errors.New("the requested method is not allowed for this resource"))
 	})
 }
 

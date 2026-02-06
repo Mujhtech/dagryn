@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -88,7 +89,9 @@ func authenticateJWT(ctx context.Context, config AuthConfig, token string) (*mod
 
 	// Update token last used (async, don't block request)
 	go func() {
-		config.JWTService.UpdateLastUsed(context.Background(), claims.ID)
+		if err := config.JWTService.UpdateLastUsed(context.Background(), claims.ID); err != nil {
+			slog.Error("failed to update token last used", "error", err)
+		}
 	}()
 
 	return user, nil
@@ -231,6 +234,8 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if data != nil {
-		json.NewEncoder(w).Encode(data)
+		if err := json.NewEncoder(w).Encode(data); err != nil {
+			slog.Error("failed to write JSON response", "error", err)
+		}
 	}
 }

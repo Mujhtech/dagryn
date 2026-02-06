@@ -4,6 +4,7 @@ package sse
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -333,12 +334,19 @@ func ServeSSE(w http.ResponseWriter, r *http.Request, hub *Hub, topics []string)
 	hub.Register(client)
 
 	// Send initial connection event
-	writeSSEEvent(w, Event{
+	err := writeSSEEvent(w, Event{
 		ID:        uuid.New().String(),
 		Type:      "connected",
 		Timestamp: time.Now(),
 		Data:      map[string]string{"client_id": client.ID},
 	})
+
+	defer func() {
+		if err != nil {
+			slog.Error("failed to send initial connection event", "error", err)
+		}
+	}()
+
 	flusher.Flush()
 
 	// Use request context for cancellation

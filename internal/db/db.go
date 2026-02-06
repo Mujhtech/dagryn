@@ -177,13 +177,13 @@ func (db *DB) Migrate(ctx context.Context) error {
 
 		// Execute migration
 		if _, err := tx.Exec(ctx, m.SQL); err != nil {
-			tx.Rollback(ctx)
+			_ = tx.Rollback(ctx)
 			return fmt.Errorf("failed to execute migration %d (%s): %w", m.Version, m.Name, err)
 		}
 
 		// Record migration
 		if _, err := tx.Exec(ctx, "INSERT INTO schema_migrations (version, name) VALUES ($1, $2)", m.Version, m.Name); err != nil {
-			tx.Rollback(ctx)
+			_ = tx.Rollback(ctx)
 			return fmt.Errorf("failed to record migration: %w", err)
 		}
 
@@ -226,13 +226,13 @@ func (db *DB) MigrateDown(ctx context.Context) error {
 
 	// Execute down migration
 	if _, err := tx.Exec(ctx, downSQL); err != nil {
-		tx.Rollback(ctx)
+		_ = tx.Rollback(ctx)
 		return fmt.Errorf("failed to execute down migration: %w", err)
 	}
 
 	// Remove migration record
 	if _, err := tx.Exec(ctx, "DELETE FROM schema_migrations WHERE version = $1", version); err != nil {
-		tx.Rollback(ctx)
+		_ = tx.Rollback(ctx)
 		return fmt.Errorf("failed to remove migration record: %w", err)
 	}
 

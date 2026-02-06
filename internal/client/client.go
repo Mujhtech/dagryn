@@ -119,6 +119,8 @@ type TriggerRunRequest struct {
 	Targets   []string `json:"targets,omitempty"`
 	GitBranch string   `json:"git_branch,omitempty"`
 	GitCommit string   `json:"git_commit,omitempty"`
+	// SyncOnly when true creates a run record for status tracking without triggering remote execution.
+	SyncOnly bool `json:"sync_only,omitempty"`
 }
 
 // TriggerRunResponse represents a triggered run.
@@ -170,7 +172,7 @@ func (c *Client) RequestDeviceCode(ctx context.Context) (*DeviceCodeResponse, er
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, c.parseError(resp)
@@ -192,7 +194,7 @@ func (c *Client) PollDeviceCode(ctx context.Context, deviceCode string) (*TokenR
 	if err != nil {
 		return nil, false, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// 428 Precondition Required = authorization pending
 	if resp.StatusCode == http.StatusPreconditionRequired {
@@ -218,7 +220,7 @@ func (c *Client) RefreshToken(ctx context.Context, refreshToken string) (*TokenR
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, c.parseError(resp)
@@ -239,7 +241,7 @@ func (c *Client) Logout(ctx context.Context, revokeAll bool) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return c.parseError(resp)
@@ -254,7 +256,7 @@ func (c *Client) GetCurrentUser(ctx context.Context) (*UserResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, c.parseError(resp)
@@ -274,7 +276,7 @@ func (c *Client) ListProjects(ctx context.Context) ([]ProjectResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, c.parseError(resp)
@@ -299,7 +301,7 @@ func (c *Client) TriggerRun(ctx context.Context, projectID uuid.UUID, req Trigge
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
 		return nil, c.parseError(resp)
@@ -320,7 +322,7 @@ func (c *Client) GetRun(ctx context.Context, projectID, runID uuid.UUID) (*RunRe
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, c.parseError(resp)
@@ -341,7 +343,7 @@ func (c *Client) CancelRun(ctx context.Context, projectID, runID uuid.UUID) erro
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return c.parseError(resp)
@@ -371,7 +373,7 @@ func (c *Client) UpdateRunStatus(ctx context.Context, projectID, runID uuid.UUID
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return c.parseError(resp)
@@ -393,7 +395,7 @@ func (c *Client) CreateTask(ctx context.Context, projectID, runID uuid.UUID, tas
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
 		return c.parseError(resp)
@@ -427,7 +429,7 @@ func (c *Client) UpdateTaskStatus(ctx context.Context, projectID, runID uuid.UUI
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return c.parseError(resp)
@@ -457,7 +459,7 @@ func (c *Client) AppendLogs(ctx context.Context, projectID, runID uuid.UUID, log
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return c.parseError(resp)
@@ -505,7 +507,7 @@ func (c *Client) ListTeams(ctx context.Context) ([]TeamResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, c.parseError(resp)
@@ -532,7 +534,7 @@ func (c *Client) GetProject(ctx context.Context, projectID uuid.UUID) (*ProjectR
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, c.parseError(resp)
@@ -554,7 +556,7 @@ func (c *Client) CreateProject(ctx context.Context, req CreateProjectRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
 		return nil, c.parseError(resp)
@@ -611,7 +613,7 @@ func (c *Client) SyncWorkflow(ctx context.Context, projectID uuid.UUID, req Sync
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, c.parseError(resp)

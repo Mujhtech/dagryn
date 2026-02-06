@@ -290,7 +290,7 @@ func setupRemoteSync(projectRoot string, targets []string) (*RemoteSync, error) 
 		if err != nil {
 			// Check if it's a network error
 			if client.IsNetworkError(err) {
-				return nil, fmt.Errorf("cannot connect to server at %s: %w\n\nThe local run will continue without remote sync.\nTo run without sync, omit the --sync flag.", creds.ServerURL, err)
+				return nil, fmt.Errorf("cannot connect to server at %s: %w", creds.ServerURL, err)
 			}
 			return nil, fmt.Errorf("session expired, please login again: %w", err)
 		}
@@ -305,6 +305,15 @@ func setupRemoteSync(projectRoot string, targets []string) (*RemoteSync, error) 
 
 	apiClient.SetCredentials(creds)
 
+	// Sync workflow to remote before triggering the run
+	// This ensures the remote has the latest workflow definition
+	syncCtx, syncCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if err := syncWorkflowToRemote(syncCtx, apiClient, projectRoot, projID); err != nil {
+		// Non-fatal warning - continue with run even if workflow sync fails
+		fmt.Fprintf(os.Stderr, "Warning: Failed to sync workflow: %v\n", err)
+	}
+	syncCancel()
+
 	// Get git info
 	gitBranch := getGitBranch()
 	gitCommit := getGitCommit()
@@ -317,14 +326,15 @@ func setupRemoteSync(projectRoot string, targets []string) (*RemoteSync, error) 
 		Targets:   targets,
 		GitBranch: gitBranch,
 		GitCommit: gitCommit,
+		SyncOnly:  true, // CLI executes locally, only sync status to server
 	})
 	if err != nil {
 		// Provide helpful error messages based on error type
 		if client.IsNetworkError(err) {
-			return nil, fmt.Errorf("cannot connect to server at %s\n\nPlease check:\n  - Your network connection\n  - The server is running\n  - The server URL is correct\n\nTo run without sync, omit the --sync flag.", creds.ServerURL)
+			return nil, fmt.Errorf("cannot connect to server at %s\n\nPlease check:\n  - Your network connection\n  - The server is running\n  - The server URL is correct\n\nTo run without sync, omit the --sync flag", creds.ServerURL)
 		}
 		if client.IsAuthError(err) {
-			return nil, fmt.Errorf("authentication failed: %s\n\nPlease run 'dagryn auth login' to re-authenticate.", client.UserFriendlyError(err))
+			return nil, fmt.Errorf("authentication failed: %s\n\nPlease run 'dagryn auth login' to re-authenticate", client.UserFriendlyError(err))
 		}
 		return nil, fmt.Errorf("failed to create remote run: %w", err)
 	}

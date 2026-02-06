@@ -30,7 +30,7 @@ import (
 func (h *Handler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	user := serverctx.GetUser(r.Context())
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
@@ -54,13 +54,13 @@ func (h *Handler) UpdateCurrentUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	var req UpdateUserRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
@@ -73,7 +73,7 @@ func (h *Handler) UpdateCurrentUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.users.Update(ctx, user); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to update user"))
+		_ = response.InternalServerError(w, r, errors.New("failed to update user"))
 		return
 	}
 
@@ -98,13 +98,13 @@ func (h *Handler) ListTeams(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	teams, err := h.teams.ListByUser(ctx, user.ID)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to list teams"))
+		_ = response.InternalServerError(w, r, errors.New("failed to list teams"))
 		return
 	}
 
@@ -143,19 +143,19 @@ func (h *Handler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	var req CreateTeamRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
 	// Validate required fields
 	if req.Name == "" {
-		_ = response.BadRequest(w, r, errors.New("Team name is required"))
+		_ = response.BadRequest(w, r, errors.New("team name is required"))
 		return
 	}
 
@@ -168,11 +168,11 @@ func (h *Handler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 	// Check if slug exists
 	exists, err := h.teams.SlugExists(ctx, slug)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to check slug"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check slug"))
 		return
 	}
 	if exists {
-		_ = response.BadRequest(w, r, errors.New("A team with this slug already exists"))
+		_ = response.BadRequest(w, r, errors.New("a team with this slug already exists"))
 		return
 	}
 
@@ -185,7 +185,7 @@ func (h *Handler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.teams.Create(ctx, team); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to create team"))
+		_ = response.InternalServerError(w, r, errors.New("failed to create team"))
 		return
 	}
 
@@ -209,13 +209,13 @@ func (h *Handler) GetTeam(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid team ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
 		return
 	}
 
@@ -223,20 +223,20 @@ func (h *Handler) GetTeam(w http.ResponseWriter, r *http.Request) {
 	member, err := h.teams.GetMember(ctx, teamID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You are not a member of this team"))
+			_ = response.Forbidden(w, r, errors.New("you are not a member of this team"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check membership"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check membership"))
 		return
 	}
 
 	team, err := h.teams.GetByID(ctx, teamID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Team not found"))
+			_ = response.NotFound(w, r, errors.New("team not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get team"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get team"))
 		return
 	}
 
@@ -263,13 +263,13 @@ func (h *Handler) UpdateTeam(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid team ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
 		return
 	}
 
@@ -277,31 +277,31 @@ func (h *Handler) UpdateTeam(w http.ResponseWriter, r *http.Request) {
 	member, err := h.teams.GetMember(ctx, teamID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You are not a member of this team"))
+			_ = response.Forbidden(w, r, errors.New("you are not a member of this team"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check membership"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check membership"))
 		return
 	}
 
 	if !member.Role.CanManageMembers() {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to update this team"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to update this team"))
 		return
 	}
 
 	var req UpdateTeamRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
 	team, err := h.teams.GetByID(ctx, teamID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Team not found"))
+			_ = response.NotFound(w, r, errors.New("team not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get team"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get team"))
 		return
 	}
 
@@ -314,7 +314,7 @@ func (h *Handler) UpdateTeam(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.teams.Update(ctx, team); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to update team"))
+		_ = response.InternalServerError(w, r, errors.New("failed to update team"))
 		return
 	}
 
@@ -337,13 +337,13 @@ func (h *Handler) DeleteTeam(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid team ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
 		return
 	}
 
@@ -351,24 +351,24 @@ func (h *Handler) DeleteTeam(w http.ResponseWriter, r *http.Request) {
 	member, err := h.teams.GetMember(ctx, teamID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You are not a member of this team"))
+			_ = response.Forbidden(w, r, errors.New("you are not a member of this team"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check membership"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check membership"))
 		return
 	}
 
 	if member.Role != models.RoleOwner {
-		_ = response.Forbidden(w, r, errors.New("Only the owner can delete this team"))
+		_ = response.Forbidden(w, r, errors.New("only the owner can delete this team"))
 		return
 	}
 
 	if err := h.teams.Delete(ctx, teamID); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Team not found"))
+			_ = response.NotFound(w, r, errors.New("team not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to delete team"))
+		_ = response.InternalServerError(w, r, errors.New("failed to delete team"))
 		return
 	}
 
@@ -394,13 +394,13 @@ func (h *Handler) ListTeamMembers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid team ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
 		return
 	}
 
@@ -408,16 +408,16 @@ func (h *Handler) ListTeamMembers(w http.ResponseWriter, r *http.Request) {
 	_, err = h.teams.GetMember(ctx, teamID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You are not a member of this team"))
+			_ = response.Forbidden(w, r, errors.New("you are not a member of this team"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check membership"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check membership"))
 		return
 	}
 
 	members, err := h.teams.ListMembers(ctx, teamID)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to list members"))
+		_ = response.InternalServerError(w, r, errors.New("failed to list members"))
 		return
 	}
 
@@ -449,13 +449,13 @@ func (h *Handler) AddTeamMember(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid team ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
 		return
 	}
 
@@ -463,34 +463,34 @@ func (h *Handler) AddTeamMember(w http.ResponseWriter, r *http.Request) {
 	member, err := h.teams.GetMember(ctx, teamID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You are not a member of this team"))
+			_ = response.Forbidden(w, r, errors.New("you are not a member of this team"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check membership"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check membership"))
 		return
 	}
 
 	if !member.Role.CanManageMembers() {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to manage members"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to manage members"))
 		return
 	}
 
 	var req AddTeamMemberRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
 	// Validate role
 	role := models.Role(req.Role)
 	if !models.IsValidTeamRole(role) {
-		_ = response.BadRequest(w, r, errors.New("Invalid role. Must be owner, admin, or member"))
+		_ = response.BadRequest(w, r, errors.New("invalid role: must be owner, admin, or member"))
 		return
 	}
 
 	// Cannot assign owner role
 	if role == models.RoleOwner {
-		_ = response.BadRequest(w, r, errors.New("Cannot assign owner role"))
+		_ = response.BadRequest(w, r, errors.New("cannot assign owner role"))
 		return
 	}
 
@@ -498,27 +498,27 @@ func (h *Handler) AddTeamMember(w http.ResponseWriter, r *http.Request) {
 	targetUser, err := h.users.GetByID(ctx, req.UserID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("User not found"))
+			_ = response.NotFound(w, r, errors.New("user not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get user"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get user"))
 		return
 	}
 
 	// Check if already a member
 	_, err = h.teams.GetMember(ctx, teamID, req.UserID)
 	if err == nil {
-		_ = response.BadRequest(w, r, errors.New("User is already a member of this team"))
+		_ = response.BadRequest(w, r, errors.New("user is already a member of this team"))
 		return
 	}
 	if !errors.Is(err, repo.ErrNotFound) {
-		_ = response.InternalServerError(w, r, errors.New("Failed to check membership"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check membership"))
 		return
 	}
 
 	// Add member
 	if err := h.teams.AddMember(ctx, teamID, req.UserID, role, &user.ID); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to add member"))
+		_ = response.InternalServerError(w, r, errors.New("failed to add member"))
 		return
 	}
 
@@ -546,19 +546,19 @@ func (h *Handler) RemoveTeamMember(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid team ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
 		return
 	}
 
 	targetUserID, err := uuid.Parse(chi.URLParam(r, "userID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid user ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid user ID"))
 		return
 	}
 
@@ -566,16 +566,16 @@ func (h *Handler) RemoveTeamMember(w http.ResponseWriter, r *http.Request) {
 	member, err := h.teams.GetMember(ctx, teamID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You are not a member of this team"))
+			_ = response.Forbidden(w, r, errors.New("you are not a member of this team"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check membership"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check membership"))
 		return
 	}
 
 	// Allow users to remove themselves, or admins/owners to remove others
 	if user.ID != targetUserID && !member.Role.CanManageMembers() {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to remove members"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to remove members"))
 		return
 	}
 
@@ -583,20 +583,20 @@ func (h *Handler) RemoveTeamMember(w http.ResponseWriter, r *http.Request) {
 	targetMember, err := h.teams.GetMember(ctx, teamID, targetUserID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Member not found"))
+			_ = response.NotFound(w, r, errors.New("member not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get member"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get member"))
 		return
 	}
 
 	if targetMember.Role == models.RoleOwner {
-		_ = response.BadRequest(w, r, errors.New("Cannot remove the team owner"))
+		_ = response.BadRequest(w, r, errors.New("cannot remove the team owner"))
 		return
 	}
 
 	if err := h.teams.RemoveMember(ctx, teamID, targetUserID); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to remove member"))
+		_ = response.InternalServerError(w, r, errors.New("failed to remove member"))
 		return
 	}
 
@@ -624,19 +624,19 @@ func (h *Handler) UpdateTeamMemberRole(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid team ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
 		return
 	}
 
 	targetUserID, err := uuid.Parse(chi.URLParam(r, "userID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid user ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid user ID"))
 		return
 	}
 
@@ -644,27 +644,27 @@ func (h *Handler) UpdateTeamMemberRole(w http.ResponseWriter, r *http.Request) {
 	member, err := h.teams.GetMember(ctx, teamID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You are not a member of this team"))
+			_ = response.Forbidden(w, r, errors.New("you are not a member of this team"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check membership"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check membership"))
 		return
 	}
 
 	if !member.Role.CanManageMembers() {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to manage members"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to manage members"))
 		return
 	}
 
 	var req UpdateMemberRoleRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
 	role := models.Role(req.Role)
 	if !models.IsValidTeamRole(role) {
-		_ = response.BadRequest(w, r, errors.New("Invalid role. Must be owner, admin, or member"))
+		_ = response.BadRequest(w, r, errors.New("invalid role: must be owner, admin, or member"))
 		return
 	}
 
@@ -672,20 +672,20 @@ func (h *Handler) UpdateTeamMemberRole(w http.ResponseWriter, r *http.Request) {
 	targetMember, err := h.teams.GetMember(ctx, teamID, targetUserID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Member not found"))
+			_ = response.NotFound(w, r, errors.New("member not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get member"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get member"))
 		return
 	}
 
 	if targetMember.Role == models.RoleOwner || role == models.RoleOwner {
-		_ = response.BadRequest(w, r, errors.New("Cannot change owner role"))
+		_ = response.BadRequest(w, r, errors.New("cannot change owner role"))
 		return
 	}
 
 	if err := h.teams.UpdateMemberRole(ctx, teamID, targetUserID, role); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to update role"))
+		_ = response.InternalServerError(w, r, errors.New("failed to update role"))
 		return
 	}
 
@@ -716,13 +716,13 @@ func (h *Handler) ListTeamInvitations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid team ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
 		return
 	}
 
@@ -730,21 +730,21 @@ func (h *Handler) ListTeamInvitations(w http.ResponseWriter, r *http.Request) {
 	member, err := h.teams.GetMember(ctx, teamID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You are not a member of this team"))
+			_ = response.Forbidden(w, r, errors.New("you are not a member of this team"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check membership"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check membership"))
 		return
 	}
 
 	if !member.Role.CanManageMembers() {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to view invitations"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to view invitations"))
 		return
 	}
 
 	invitations, err := h.invitations.ListByTeam(ctx, teamID)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to list invitations"))
+		_ = response.InternalServerError(w, r, errors.New("failed to list invitations"))
 		return
 	}
 
@@ -776,13 +776,13 @@ func (h *Handler) CreateTeamInvitation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid team ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
 		return
 	}
 
@@ -790,38 +790,38 @@ func (h *Handler) CreateTeamInvitation(w http.ResponseWriter, r *http.Request) {
 	member, err := h.teams.GetMember(ctx, teamID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You are not a member of this team"))
+			_ = response.Forbidden(w, r, errors.New("you are not a member of this team"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check membership"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check membership"))
 		return
 	}
 
 	if !member.Role.CanManageMembers() {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to create invitations"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to create invitations"))
 		return
 	}
 
 	var req CreateInvitationRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
 	// Validate email
 	if req.Email == "" {
-		_ = response.BadRequest(w, r, errors.New("Email is required"))
+		_ = response.BadRequest(w, r, errors.New("email is required"))
 		return
 	}
 
 	role := models.Role(req.Role)
 	if !models.IsValidTeamRole(role) {
-		_ = response.BadRequest(w, r, errors.New("Invalid role"))
+		_ = response.BadRequest(w, r, errors.New("invalid role"))
 		return
 	}
 
 	if role == models.RoleOwner {
-		_ = response.BadRequest(w, r, errors.New("Cannot invite with owner role"))
+		_ = response.BadRequest(w, r, errors.New("cannot invite with owner role"))
 		return
 	}
 
@@ -834,7 +834,7 @@ func (h *Handler) CreateTeamInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.invitations.Create(ctx, invitation); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to create invitation"))
+		_ = response.InternalServerError(w, r, errors.New("failed to create invitation"))
 		return
 	}
 
@@ -858,19 +858,19 @@ func (h *Handler) RevokeTeamInvitation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid team ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
 		return
 	}
 
 	invitationID, err := uuid.Parse(chi.URLParam(r, "invitationID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid invitation ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid invitation ID"))
 		return
 	}
 
@@ -878,24 +878,24 @@ func (h *Handler) RevokeTeamInvitation(w http.ResponseWriter, r *http.Request) {
 	member, err := h.teams.GetMember(ctx, teamID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You are not a member of this team"))
+			_ = response.Forbidden(w, r, errors.New("you are not a member of this team"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check membership"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check membership"))
 		return
 	}
 
 	if !member.Role.CanManageMembers() {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to revoke invitations"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to revoke invitations"))
 		return
 	}
 
 	if err := h.invitations.Delete(ctx, invitationID); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Invitation not found"))
+			_ = response.NotFound(w, r, errors.New("invitation not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to revoke invitation"))
+		_ = response.InternalServerError(w, r, errors.New("failed to revoke invitation"))
 		return
 	}
 

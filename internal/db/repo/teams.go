@@ -31,7 +31,7 @@ func (r *TeamRepo) Create(ctx context.Context, team *models.Team) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Create team
 	_, err = tx.Exec(ctx, `

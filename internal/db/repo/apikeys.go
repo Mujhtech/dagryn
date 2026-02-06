@@ -97,7 +97,7 @@ func (r *APIKeyRepo) ValidateKey(ctx context.Context, rawKey string) (*models.AP
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		r.pool.Exec(ctx, "UPDATE api_keys SET last_used_at = NOW() WHERE id = $1", key.ID)
+		_, _ = r.pool.Exec(ctx, "UPDATE api_keys SET last_used_at = NOW() WHERE id = $1", key.ID)
 	}()
 
 	return &key, nil

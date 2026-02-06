@@ -6,9 +6,9 @@ import "fmt"
 func GetTemplate(projectType ProjectType, pm PackageManager) string {
 	switch projectType {
 	case ProjectGo:
-		return templateGo
+		return formatHeader("Go Project", "This configuration defines a CI workflow for Go projects.\n# Customize the tasks below to match your project structure.") + templateGo
 	case ProjectRust:
-		return templateRust
+		return formatHeader("Rust Project", "This configuration defines a CI workflow for Rust projects using Cargo.\n# Customize the tasks below to match your project structure.") + templateRust
 	case ProjectPython:
 		return getPythonTemplate(pm)
 	case ProjectNode:
@@ -16,17 +16,17 @@ func GetTemplate(projectType ProjectType, pm PackageManager) string {
 	case ProjectJava:
 		return getJavaTemplate(pm)
 	case ProjectRuby:
-		return templateRuby
+		return formatHeader("Ruby Project", "This configuration defines a CI workflow for Ruby projects using Bundler.\n# Ruby tools like rubocop are typically managed via Gemfile and run via\n# \"bundle exec\". The [plugins] section can be used for tools not in your Gemfile.") + templateRuby
 	case ProjectPHP:
-		return templatePHP
+		return formatHeader("PHP Project", "This configuration defines a CI workflow for PHP projects using Composer.\n# Customize the tasks below to match your project structure.") + templatePHP
 	case ProjectElixir:
-		return templateElixir
+		return formatHeader("Elixir Project", "This configuration defines a CI workflow for Elixir projects using Mix.\n# Customize the tasks below to match your project structure.") + templateElixir
 	case ProjectSwift:
-		return templateSwift
+		return formatHeader("Swift Project", "This configuration defines a CI workflow for Swift projects using SPM.\n# Customize the tasks below to match your project structure.") + templateSwift
 	case ProjectCpp:
 		return getCppTemplate(pm)
 	default:
-		return templateGeneric
+		return formatHeader("Generic Project", "Dagryn couldn't auto-detect your project type.\n# Customize the tasks below to match your build system.") + templateGeneric
 	}
 }
 
@@ -57,13 +57,13 @@ func GetAllTemplateInfos() []TemplateInfo {
 func getPythonTemplate(pm PackageManager) string {
 	switch pm {
 	case PMPoetry:
-		return templatePythonPoetry
+		return formatHeader("Python Project (Poetry)", "This configuration defines a CI workflow for Python projects using Poetry.\n# Poetry manages project dependencies, so tools like ruff/black are typically\n# included in pyproject.toml dev-dependencies and run via \"poetry run\".\n# Alternatively, use the [plugins] section to auto-install tools independently.") + templatePythonPoetry
 	case PMPipenv:
-		return templatePythonPipenv
+		return formatHeader("Python Project (Pipenv)", "This configuration defines a CI workflow for Python projects using Pipenv.\n# Pipenv manages project dependencies, so tools like ruff/black are typically\n# included in Pipfile dev-dependencies and run via \"pipenv run\".") + templatePythonPipenv
 	case PMUv:
-		return templatePythonUv
+		return formatHeader("Python Project (uv)", "This configuration defines a CI workflow for Python projects using uv.\n# uv is a fast Python package installer and resolver.\n# uv manages project dependencies, so tools like ruff are typically\n# included in pyproject.toml and run via \"uv run\".") + templatePythonUv
 	default:
-		return templatePythonPip
+		return formatHeader("Python Project (pip)", "This configuration defines a CI workflow for Python projects using pip.\n# Customize the tasks below to match your project structure.") + templatePythonPip
 	}
 }
 
@@ -71,11 +71,11 @@ func getPythonTemplate(pm PackageManager) string {
 func getNodeTemplate(pm PackageManager) string {
 	switch pm {
 	case PMYarn:
-		return templateNodeYarn
+		return formatHeader("Node.js Project (Yarn)", "This configuration defines a CI workflow for Node.js projects using Yarn.\n# Node.js tools like eslint/prettier are typically managed via package.json\n# and run via yarn scripts. The [plugins] section can be used for tools\n# not in your package.json (e.g., global CLI tools).") + templateNodeYarn
 	case PMPnpm:
-		return templateNodePnpm
+		return formatHeader("Node.js Project (pnpm)", "This configuration defines a CI workflow for Node.js projects using pnpm.\n# Node.js tools like eslint/prettier are typically managed via package.json\n# and run via pnpm scripts. The [plugins] section can be used for tools\n# not in your package.json (e.g., global CLI tools).") + templateNodePnpm
 	default:
-		return templateNodeNpm
+		return formatHeader("Node.js Project (npm)", "This configuration defines a CI workflow for Node.js projects using npm.\n# Node.js tools like eslint/prettier are typically managed via package.json\n# and run via npm scripts. The [plugins] section can be used for tools\n# not in your package.json (e.g., global CLI tools).") + templateNodeNpm
 	}
 }
 
@@ -83,9 +83,9 @@ func getNodeTemplate(pm PackageManager) string {
 func getJavaTemplate(pm PackageManager) string {
 	switch pm {
 	case PMGradle:
-		return templateJavaGradle
+		return formatHeader("Java Project (Gradle)", "This configuration defines a CI workflow for Java projects using Gradle.\n# Customize the tasks below to match your project structure.") + templateJavaGradle
 	default:
-		return templateJavaMaven
+		return formatHeader("Java Project (Maven)", "This configuration defines a CI workflow for Java projects using Maven.\n# Customize the tasks below to match your project structure.") + templateJavaMaven
 	}
 }
 
@@ -93,41 +93,18 @@ func getJavaTemplate(pm PackageManager) string {
 func getCppTemplate(pm PackageManager) string {
 	switch pm {
 	case PMMeson:
-		return templateCppMeson
+		return formatHeader("C/C++ Project (Meson)", "This configuration defines a CI workflow for C/C++ projects using Meson.\n# Customize the tasks below to match your project structure.") + templateCppMeson
 	default:
-		return templateCppCMake
+		return formatHeader("C/C++ Project (CMake)", "This configuration defines a CI workflow for C/C++ projects using CMake.\n# Customize the tasks below to match your project structure.") + templateCppCMake
 	}
 }
 
 // formatHeader generates a consistent header for templates
-func formatHeader(projectType, pmInfo string) string {
+func formatHeader(projectType, description string) string {
 	return fmt.Sprintf(`# dagryn.toml - %s
 # Generated by: dagryn init
 #
-# This configuration defines a CI workflow for %s.
-# Customize the tasks below to match your project structure.
-#
-# Available fields for each task:
-#   command  - The shell command to run (required)
-#   needs    - List of tasks that must complete first
-#   inputs   - File globs that affect task caching
-#   outputs  - File globs produced by this task
-#   timeout  - Maximum execution time (e.g., "5m", "1h")
-#   workdir  - Working directory for the command
-#   env      - Environment variables as key=value pairs
-
-`, projectType, pmInfo)
-}
-
-// =============================================================================
-// Go Template
-// =============================================================================
-
-var templateGo = `# dagryn.toml - Go Project
-# Generated by: dagryn init
-#
-# This configuration defines a CI workflow for Go projects.
-# Customize the tasks below to match your project structure.
+%s
 #
 # Available fields for each task:
 #   command  - The shell command to run (required)
@@ -139,7 +116,14 @@ var templateGo = `# dagryn.toml - Go Project
 #   env      - Environment variables as key=value pairs
 #   uses     - Plugin(s) to install before running the task
 
-[workflow]
+`, projectType, description)
+}
+
+// =============================================================================
+// Go Template
+// =============================================================================
+
+var templateGo = `[workflow]
 name = "ci"
 default = true
 
@@ -180,13 +164,7 @@ timeout = "1m"
 // Rust Template
 // =============================================================================
 
-var templateRust = `# dagryn.toml - Rust Project
-# Generated by: dagryn init
-#
-# This configuration defines a CI workflow for Rust projects using Cargo.
-# Customize the tasks below to match your project structure.
-
-[workflow]
+var templateRust = `[workflow]
 name = "ci"
 default = true
 
@@ -221,13 +199,7 @@ timeout = "1m"
 // Python Templates
 // =============================================================================
 
-var templatePythonPip = `# dagryn.toml - Python Project (pip)
-# Generated by: dagryn init
-#
-# This configuration defines a CI workflow for Python projects using pip.
-# Customize the tasks below to match your project structure.
-
-[workflow]
+var templatePythonPip = `[workflow]
 name = "ci"
 default = true
 
@@ -270,15 +242,7 @@ inputs = ["src/**/*.py", "tests/**/*.py", "pyproject.toml"]
 timeout = "2m"
 `
 
-var templatePythonPoetry = `# dagryn.toml - Python Project (Poetry)
-# Generated by: dagryn init
-#
-# This configuration defines a CI workflow for Python projects using Poetry.
-# Poetry manages project dependencies, so tools like ruff/black are typically
-# included in pyproject.toml dev-dependencies and run via "poetry run".
-# Alternatively, use the [plugins] section to auto-install tools independently.
-
-[workflow]
+var templatePythonPoetry = `[workflow]
 name = "ci"
 default = true
 
@@ -311,14 +275,7 @@ inputs = ["src/**/*.py", "tests/**/*.py", "pyproject.toml"]
 timeout = "2m"
 `
 
-var templatePythonPipenv = `# dagryn.toml - Python Project (Pipenv)
-# Generated by: dagryn init
-#
-# This configuration defines a CI workflow for Python projects using Pipenv.
-# Pipenv manages project dependencies, so tools like ruff/black are typically
-# included in Pipfile dev-dependencies and run via "pipenv run".
-
-[workflow]
+var templatePythonPipenv = `[workflow]
 name = "ci"
 default = true
 
@@ -351,15 +308,7 @@ inputs = ["src/**/*.py", "tests/**/*.py", "Pipfile"]
 timeout = "2m"
 `
 
-var templatePythonUv = `# dagryn.toml - Python Project (uv)
-# Generated by: dagryn init
-#
-# This configuration defines a CI workflow for Python projects using uv.
-# uv is a fast Python package installer and resolver.
-# uv manages project dependencies, so tools like ruff are typically
-# included in pyproject.toml and run via "uv run".
-
-[workflow]
+var templatePythonUv = `[workflow]
 name = "ci"
 default = true
 
@@ -396,15 +345,7 @@ timeout = "2m"
 // Node.js Templates
 // =============================================================================
 
-var templateNodeNpm = `# dagryn.toml - Node.js Project (npm)
-# Generated by: dagryn init
-#
-# This configuration defines a CI workflow for Node.js projects using npm.
-# Node.js tools like eslint/prettier are typically managed via package.json
-# and run via npm scripts. The [plugins] section can be used for tools
-# not in your package.json (e.g., global CLI tools).
-
-[workflow]
+var templateNodeNpm = `[workflow]
 name = "ci"
 default = true
 
@@ -438,15 +379,7 @@ inputs = ["src/**", ".eslintrc*", "eslint.config.*", "package.json"]
 timeout = "2m"
 `
 
-var templateNodeYarn = `# dagryn.toml - Node.js Project (Yarn)
-# Generated by: dagryn init
-#
-# This configuration defines a CI workflow for Node.js projects using Yarn.
-# Node.js tools like eslint/prettier are typically managed via package.json
-# and run via yarn scripts. The [plugins] section can be used for tools
-# not in your package.json (e.g., global CLI tools).
-
-[workflow]
+var templateNodeYarn = `[workflow]
 name = "ci"
 default = true
 
@@ -480,15 +413,7 @@ inputs = ["src/**", ".eslintrc*", "eslint.config.*", "package.json"]
 timeout = "2m"
 `
 
-var templateNodePnpm = `# dagryn.toml - Node.js Project (pnpm)
-# Generated by: dagryn init
-#
-# This configuration defines a CI workflow for Node.js projects using pnpm.
-# Node.js tools like eslint/prettier are typically managed via package.json
-# and run via pnpm scripts. The [plugins] section can be used for tools
-# not in your package.json (e.g., global CLI tools).
-
-[workflow]
+var templateNodePnpm = `[workflow]
 name = "ci"
 default = true
 
@@ -526,13 +451,7 @@ timeout = "2m"
 // Java Templates
 // =============================================================================
 
-var templateJavaMaven = `# dagryn.toml - Java Project (Maven)
-# Generated by: dagryn init
-#
-# This configuration defines a CI workflow for Java projects using Maven.
-# Customize the tasks below to match your project structure.
-
-[workflow]
+var templateJavaMaven = `[workflow]
 name = "ci"
 default = true
 
@@ -567,13 +486,7 @@ inputs = ["src/main/**/*.java", "pom.xml"]
 timeout = "2m"
 `
 
-var templateJavaGradle = `# dagryn.toml - Java Project (Gradle)
-# Generated by: dagryn init
-#
-# This configuration defines a CI workflow for Java projects using Gradle.
-# Customize the tasks below to match your project structure.
-
-[workflow]
+var templateJavaGradle = `[workflow]
 name = "ci"
 default = true
 
@@ -609,14 +522,7 @@ timeout = "1m"
 // Ruby Template
 // =============================================================================
 
-var templateRuby = `# dagryn.toml - Ruby Project
-# Generated by: dagryn init
-#
-# This configuration defines a CI workflow for Ruby projects using Bundler.
-# Ruby tools like rubocop are typically managed via Gemfile and run via
-# "bundle exec". The [plugins] section can be used for tools not in your Gemfile.
-
-[workflow]
+var templateRuby = `[workflow]
 name = "ci"
 default = true
 
@@ -646,13 +552,7 @@ timeout = "2m"
 // PHP Template
 // =============================================================================
 
-var templatePHP = `# dagryn.toml - PHP Project
-# Generated by: dagryn init
-#
-# This configuration defines a CI workflow for PHP projects using Composer.
-# Customize the tasks below to match your project structure.
-
-[workflow]
+var templatePHP = `[workflow]
 name = "ci"
 default = true
 
@@ -690,13 +590,7 @@ timeout = "2m"
 // Elixir Template
 // =============================================================================
 
-var templateElixir = `# dagryn.toml - Elixir Project
-# Generated by: dagryn init
-#
-# This configuration defines a CI workflow for Elixir projects using Mix.
-# Customize the tasks below to match your project structure.
-
-[workflow]
+var templateElixir = `[workflow]
 name = "ci"
 default = true
 
@@ -741,13 +635,7 @@ timeout = "2m"
 // Swift Template
 // =============================================================================
 
-var templateSwift = `# dagryn.toml - Swift Project
-# Generated by: dagryn init
-#
-# This configuration defines a CI workflow for Swift projects using SPM.
-# Customize the tasks below to match your project structure.
-
-[workflow]
+var templateSwift = `[workflow]
 name = "ci"
 default = true
 
@@ -781,13 +669,7 @@ timeout = "2m"
 // C/C++ Templates
 // =============================================================================
 
-var templateCppCMake = `# dagryn.toml - C/C++ Project (CMake)
-# Generated by: dagryn init
-#
-# This configuration defines a CI workflow for C/C++ projects using CMake.
-# Customize the tasks below to match your project structure.
-
-[workflow]
+var templateCppCMake = `[workflow]
 name = "ci"
 default = true
 
@@ -819,13 +701,7 @@ command = "rm -rf build"
 timeout = "1m"
 `
 
-var templateCppMeson = `# dagryn.toml - C/C++ Project (Meson)
-# Generated by: dagryn init
-#
-# This configuration defines a CI workflow for C/C++ projects using Meson.
-# Customize the tasks below to match your project structure.
-
-[workflow]
+var templateCppMeson = `[workflow]
 name = "ci"
 default = true
 
@@ -861,23 +737,7 @@ timeout = "1m"
 // Generic Template
 // =============================================================================
 
-var templateGeneric = `# dagryn.toml - Generic Project
-# Generated by: dagryn init
-#
-# Dagryn couldn't auto-detect your project type.
-# Customize the tasks below to match your build system.
-#
-# Available fields for each task:
-#   command  - The shell command to run (required)
-#   needs    - List of tasks that must complete first
-#   inputs   - File globs that affect task caching
-#   outputs  - File globs produced by this task
-#   timeout  - Maximum execution time (e.g., "5m", "1h")
-#   workdir  - Working directory for the command
-#   env      - Environment variables as key=value pairs
-#   uses     - Plugin(s) to install before running the task
-#
-# Plugin formats:
+var templateGeneric = `# Plugin formats:
 #   github:owner/repo@version  - Download from GitHub releases
 #   go:module/path@version     - Install via go install
 #   npm:package@version        - Install via npm

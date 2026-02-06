@@ -15,7 +15,7 @@ import (
 func TestNew(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "scheduler-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflow := task.NewWorkflow("ci", nil)
 	_ = workflow.AddTask(&task.Task{Name: "build", Command: "echo build"})
@@ -29,7 +29,7 @@ func TestNew(t *testing.T) {
 func TestNew_CyclicDependency(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "scheduler-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflow := task.NewWorkflow("ci", nil)
 	_ = workflow.AddTask(&task.Task{Name: "a", Command: "echo a", Needs: []string{"b"}})
@@ -43,7 +43,7 @@ func TestNew_CyclicDependency(t *testing.T) {
 func TestScheduler_Run_SimpleChain(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "scheduler-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflow := task.NewWorkflow("ci", nil)
 	_ = workflow.AddTask(&task.Task{Name: "install", Command: "echo install"})
@@ -70,7 +70,7 @@ func TestScheduler_Run_SimpleChain(t *testing.T) {
 func TestScheduler_Run_ParallelTasks(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "scheduler-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflow := task.NewWorkflow("ci", nil)
 	_ = workflow.AddTask(&task.Task{Name: "install", Command: "echo install"})
@@ -92,7 +92,7 @@ func TestScheduler_Run_ParallelTasks(t *testing.T) {
 func TestScheduler_Run_FailFast(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "scheduler-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflow := task.NewWorkflow("ci", nil)
 	_ = workflow.AddTask(&task.Task{Name: "fail", Command: "exit 1"})
@@ -113,7 +113,7 @@ func TestScheduler_Run_FailFast(t *testing.T) {
 func TestScheduler_Run_DryRun(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "scheduler-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflow := task.NewWorkflow("ci", nil)
 	_ = workflow.AddTask(&task.Task{Name: "build", Command: "echo should not run"})
@@ -133,7 +133,7 @@ func TestScheduler_Run_DryRun(t *testing.T) {
 func TestScheduler_RunAll(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "scheduler-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflow := task.NewWorkflow("ci", nil)
 	_ = workflow.AddTask(&task.Task{Name: "a", Command: "echo a"})
@@ -153,7 +153,7 @@ func TestScheduler_RunAll(t *testing.T) {
 func TestScheduler_Callbacks(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "scheduler-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflow := task.NewWorkflow("ci", nil)
 	_ = workflow.AddTask(&task.Task{Name: "build", Command: "echo build"})
@@ -184,7 +184,7 @@ func TestScheduler_Callbacks(t *testing.T) {
 func TestScheduler_GetExecutionPlan(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "scheduler-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflow := task.NewWorkflow("ci", nil)
 	_ = workflow.AddTask(&task.Task{Name: "install", Command: "echo install"})
@@ -203,7 +203,7 @@ func TestScheduler_GetExecutionPlan(t *testing.T) {
 func TestScheduler_Cancellation(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "scheduler-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflow := task.NewWorkflow("ci", nil)
 	_ = workflow.AddTask(&task.Task{Name: "slow", Command: "sleep 10"})

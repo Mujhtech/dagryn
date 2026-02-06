@@ -45,13 +45,13 @@ func (h *Handler) ListRuns(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
@@ -59,16 +59,16 @@ func (h *Handler) ListRuns(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to view runs
 	if !role.HasPermission(models.PermissionRunView) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to view runs"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to view runs"))
 		return
 	}
 
@@ -77,7 +77,7 @@ func (h *Handler) ListRuns(w http.ResponseWriter, r *http.Request) {
 
 	runs, total, err := h.runs.ListByProject(ctx, projectID, perPage, offset)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to list runs"))
+		_ = response.InternalServerError(w, r, errors.New("failed to list runs"))
 		return
 	}
 
@@ -120,19 +120,19 @@ func (h *Handler) GetRun(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
 	runID, err := uuid.Parse(chi.URLParam(r, "runID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid run ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid run ID"))
 		return
 	}
 
@@ -140,32 +140,32 @@ func (h *Handler) GetRun(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to view runs
 	if !role.HasPermission(models.PermissionRunView) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to view runs"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to view runs"))
 		return
 	}
 
 	run, err := h.runs.GetByID(ctx, runID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Run not found"))
+			_ = response.NotFound(w, r, errors.New("run not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get run"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get run"))
 		return
 	}
 
 	// Verify the run belongs to the project
 	if run.ProjectID != projectID {
-		_ = response.NotFound(w, r, errors.New("Run not found in this project"))
+		_ = response.NotFound(w, r, errors.New("run not found in this project"))
 		return
 	}
 
@@ -190,19 +190,19 @@ func (h *Handler) GetRunTasks(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
 	runID, err := uuid.Parse(chi.URLParam(r, "runID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid run ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid run ID"))
 		return
 	}
 
@@ -210,16 +210,16 @@ func (h *Handler) GetRunTasks(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to view runs
 	if !role.HasPermission(models.PermissionRunView) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to view runs"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to view runs"))
 		return
 	}
 
@@ -227,21 +227,21 @@ func (h *Handler) GetRunTasks(w http.ResponseWriter, r *http.Request) {
 	run, err := h.runs.GetByID(ctx, runID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Run not found"))
+			_ = response.NotFound(w, r, errors.New("run not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get run"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get run"))
 		return
 	}
 
 	if run.ProjectID != projectID {
-		_ = response.NotFound(w, r, errors.New("Run not found in this project"))
+		_ = response.NotFound(w, r, errors.New("run not found in this project"))
 		return
 	}
 
 	tasks, err := h.runs.ListTaskResults(ctx, runID)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to list task results"))
+		_ = response.InternalServerError(w, r, errors.New("failed to list task results"))
 		return
 	}
 
@@ -271,19 +271,19 @@ func (h *Handler) StreamRunLogs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
 	runID, err := uuid.Parse(chi.URLParam(r, "runID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid run ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid run ID"))
 		return
 	}
 
@@ -291,16 +291,16 @@ func (h *Handler) StreamRunLogs(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to view runs
 	if !role.HasPermission(models.PermissionRunView) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to view runs"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to view runs"))
 		return
 	}
 
@@ -308,15 +308,15 @@ func (h *Handler) StreamRunLogs(w http.ResponseWriter, r *http.Request) {
 	run, err := h.runs.GetByID(ctx, runID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Run not found"))
+			_ = response.NotFound(w, r, errors.New("run not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get run"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get run"))
 		return
 	}
 
 	if run.ProjectID != projectID {
-		_ = response.NotFound(w, r, errors.New("Run not found in this project"))
+		_ = response.NotFound(w, r, errors.New("run not found in this project"))
 		return
 	}
 
@@ -347,13 +347,13 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
@@ -361,35 +361,35 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to trigger runs
 	if !role.HasPermission(models.PermissionRunTrigger) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to trigger runs"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to trigger runs"))
 		return
 	}
 
 	var req TriggerRunRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
 	// Validate request
 	if len(req.Targets) == 0 {
-		_ = response.BadRequest(w, r, errors.New("At least one target is required"))
+		_ = response.BadRequest(w, r, errors.New("at least one target is required"))
 		return
 	}
 
 	// Load project early (needed for git-linked metadata + optional enqueue)
 	project, err := h.projects.GetByID(ctx, projectID)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to load project"))
+		_ = response.InternalServerError(w, r, errors.New("failed to load project"))
 		return
 	}
 
@@ -421,12 +421,13 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 
 	// Create the run in the database
 	if err := h.runs.Create(ctx, run); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to create run"))
+		_ = response.InternalServerError(w, r, errors.New("failed to create run"))
 		return
 	}
 
-	// Enqueue server-side execution when job client is available and project has a repo URL
-	if h.jobClient != nil {
+	// Enqueue server-side execution when job client is available and project has a repo URL.
+	// Skip if SyncOnly is true (CLI is executing locally and just syncing status).
+	if h.jobClient != nil && !req.SyncOnly {
 		if project.RepoURL != nil && *project.RepoURL != "" {
 			repoURL := *project.RepoURL
 			payload := job.ExecuteRunPayload{
@@ -502,7 +503,7 @@ func (h *Handler) enrichRunWithGitHubCommit(ctx context.Context, run *models.Run
 		if err != nil {
 			return
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			_, _ = io.ReadAll(resp.Body)
 			return
@@ -534,7 +535,7 @@ func (h *Handler) enrichRunWithGitHubCommit(ctx context.Context, run *models.Run
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.ReadAll(resp.Body)
 		return
@@ -612,7 +613,7 @@ func (h *Handler) enrichRunWithGitHubCommitUsingToken(ctx context.Context, run *
 		if err != nil {
 			return
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			_, _ = io.ReadAll(resp.Body)
 			return
@@ -644,7 +645,7 @@ func (h *Handler) enrichRunWithGitHubCommitUsingToken(ctx context.Context, run *
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.ReadAll(resp.Body)
 		return
@@ -900,19 +901,19 @@ func (h *Handler) CancelRun(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
 	runID, err := uuid.Parse(chi.URLParam(r, "runID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid run ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid run ID"))
 		return
 	}
 
@@ -920,16 +921,16 @@ func (h *Handler) CancelRun(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to cancel runs (same as trigger permission)
 	if !role.HasPermission(models.PermissionRunTrigger) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to cancel runs"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to cancel runs"))
 		return
 	}
 
@@ -937,22 +938,22 @@ func (h *Handler) CancelRun(w http.ResponseWriter, r *http.Request) {
 	run, err := h.runs.GetByID(ctx, runID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Run not found"))
+			_ = response.NotFound(w, r, errors.New("run not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get run"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get run"))
 		return
 	}
 
 	// Verify the run belongs to the project
 	if run.ProjectID != projectID {
-		_ = response.NotFound(w, r, errors.New("Run not found in this project"))
+		_ = response.NotFound(w, r, errors.New("run not found in this project"))
 		return
 	}
 
 	// Check if run can be cancelled
 	if run.Status.IsTerminal() {
-		_ = response.Conflict(w, r, fmt.Errorf("Run is already %s and cannot be cancelled", run.Status))
+		_ = response.Conflict(w, r, fmt.Errorf("run is already %s and cannot be cancelled", run.Status))
 		return
 	}
 
@@ -964,7 +965,7 @@ func (h *Handler) CancelRun(w http.ResponseWriter, r *http.Request) {
 	run.ErrorMessage = &errorMsg
 
 	if err := h.runs.Update(ctx, run); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to cancel run"))
+		_ = response.InternalServerError(w, r, errors.New("failed to cancel run"))
 		return
 	}
 
@@ -999,19 +1000,19 @@ func (h *Handler) StreamRunEvents(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
 	runID, err := uuid.Parse(chi.URLParam(r, "runID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid run ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid run ID"))
 		return
 	}
 
@@ -1019,16 +1020,16 @@ func (h *Handler) StreamRunEvents(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to view runs
 	if !role.HasPermission(models.PermissionRunView) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to view runs"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to view runs"))
 		return
 	}
 
@@ -1036,15 +1037,15 @@ func (h *Handler) StreamRunEvents(w http.ResponseWriter, r *http.Request) {
 	run, err := h.runs.GetByID(ctx, runID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Run not found"))
+			_ = response.NotFound(w, r, errors.New("run not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get run"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get run"))
 		return
 	}
 
 	if run.ProjectID != projectID {
-		_ = response.NotFound(w, r, errors.New("Run not found in this project"))
+		_ = response.NotFound(w, r, errors.New("run not found in this project"))
 		return
 	}
 
@@ -1073,19 +1074,19 @@ func (h *Handler) GetRunDetail(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
 	runID, err := uuid.Parse(chi.URLParam(r, "runID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid run ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid run ID"))
 		return
 	}
 
@@ -1093,16 +1094,16 @@ func (h *Handler) GetRunDetail(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to view runs
 	if !role.HasPermission(models.PermissionRunView) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to view runs"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to view runs"))
 		return
 	}
 
@@ -1110,22 +1111,22 @@ func (h *Handler) GetRunDetail(w http.ResponseWriter, r *http.Request) {
 	run, err := h.runs.GetByID(ctx, runID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Run not found"))
+			_ = response.NotFound(w, r, errors.New("run not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get run"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get run"))
 		return
 	}
 
 	if run.ProjectID != projectID {
-		_ = response.NotFound(w, r, errors.New("Run not found in this project"))
+		_ = response.NotFound(w, r, errors.New("run not found in this project"))
 		return
 	}
 
 	// Get task results
 	tasks, err := h.runs.ListTaskResults(ctx, runID)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to get task results"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get task results"))
 		return
 	}
 
@@ -1182,13 +1183,13 @@ func (h *Handler) ListUserAPIKeys(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	keys, err := h.apikeys.ListByUser(ctx, user.ID)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to list API keys"))
+		_ = response.InternalServerError(w, r, errors.New("failed to list API keys"))
 		return
 	}
 
@@ -1216,13 +1217,13 @@ func (h *Handler) CreateUserAPIKey(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	var req CreateAPIKeyRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
@@ -1236,7 +1237,7 @@ func (h *Handler) CreateUserAPIKey(w http.ResponseWriter, r *http.Request) {
 	if req.ExpiresIn != "" {
 		duration, err := parseDuration(req.ExpiresIn)
 		if err != nil {
-			_ = response.BadRequest(w, r, errors.New("Invalid expiration format. Use format like '90d', '30d', '1y'"))
+			_ = response.BadRequest(w, r, errors.New("invalid expiration format: use format like '90d', '30d', '1y'"))
 			return
 		}
 		exp := time.Now().Add(duration)
@@ -1254,7 +1255,7 @@ func (h *Handler) CreateUserAPIKey(w http.ResponseWriter, r *http.Request) {
 
 	rawKey, err := h.apikeys.Create(ctx, key)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to create API key"))
+		_ = response.InternalServerError(w, r, errors.New("failed to create API key"))
 		return
 	}
 
@@ -1278,13 +1279,13 @@ func (h *Handler) RevokeUserAPIKey(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	keyID, err := uuid.Parse(chi.URLParam(r, "keyID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid API key ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid API key ID"))
 		return
 	}
 
@@ -1295,7 +1296,7 @@ func (h *Handler) RevokeUserAPIKey(w http.ResponseWriter, r *http.Request) {
 			_ = response.NotFound(w, r, errors.New("API key not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get API key"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get API key"))
 		return
 	}
 
@@ -1305,7 +1306,7 @@ func (h *Handler) RevokeUserAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.apikeys.Revoke(ctx, keyID); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to revoke API key"))
+		_ = response.InternalServerError(w, r, errors.New("failed to revoke API key"))
 		return
 	}
 
@@ -1327,13 +1328,13 @@ func (h *Handler) ListPendingInvitations(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	invitations, err := h.invitations.ListPendingByEmail(ctx, user.Email)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to list invitations"))
+		_ = response.InternalServerError(w, r, errors.New("failed to list invitations"))
 		return
 	}
 
@@ -1363,13 +1364,13 @@ func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	token := chi.URLParam(r, "token")
 	if token == "" {
-		_ = response.BadRequest(w, r, errors.New("Invitation token is required"))
+		_ = response.BadRequest(w, r, errors.New("invitation token is required"))
 		return
 	}
 
@@ -1377,22 +1378,22 @@ func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	inv, err := h.invitations.GetPendingByToken(ctx, token)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Invitation not found or already accepted/expired"))
+			_ = response.NotFound(w, r, errors.New("invitation not found or already accepted/expired"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get invitation"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get invitation"))
 		return
 	}
 
 	// Verify the invitation is for this user's email
 	if inv.Email != user.Email {
-		_ = response.Forbidden(w, r, errors.New("This invitation was sent to a different email address"))
+		_ = response.Forbidden(w, r, errors.New("this invitation was sent to a different email address"))
 		return
 	}
 
 	// Check if expired
 	if inv.IsExpired() {
-		_ = response.Gone(w, r, errors.New("This invitation has expired"))
+		_ = response.Gone(w, r, errors.New("this invitation has expired"))
 		return
 	}
 
@@ -1401,14 +1402,14 @@ func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 		// Team invitation - add user to team
 		err = h.teams.AddMember(ctx, *inv.TeamID, user.ID, inv.Role, &inv.InvitedBy)
 		if err != nil {
-			_ = response.InternalServerError(w, r, errors.New("Failed to add you to the team"))
+			_ = response.InternalServerError(w, r, errors.New("failed to add you to the team"))
 			return
 		}
 	} else if inv.ProjectID != nil {
 		// Project invitation - add user to project
 		err = h.projects.AddMember(ctx, *inv.ProjectID, user.ID, inv.Role, &inv.InvitedBy)
 		if err != nil {
-			_ = response.InternalServerError(w, r, errors.New("Failed to add you to the project"))
+			_ = response.InternalServerError(w, r, errors.New("failed to add you to the project"))
 			return
 		}
 	}
@@ -1417,6 +1418,7 @@ func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	if err := h.invitations.Accept(ctx, token); err != nil {
 		// User was already added, so this is a minor error
 		// Log it but don't fail the request
+		slog.Error("failed to accept invitation", "error", err)
 	}
 
 	_ = response.Ok(w, r, "Success", SuccessResponse{
@@ -1438,13 +1440,13 @@ func (h *Handler) DeclineInvitation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	token := chi.URLParam(r, "token")
 	if token == "" {
-		_ = response.BadRequest(w, r, errors.New("Invitation token is required"))
+		_ = response.BadRequest(w, r, errors.New("invitation token is required"))
 		return
 	}
 
@@ -1452,22 +1454,22 @@ func (h *Handler) DeclineInvitation(w http.ResponseWriter, r *http.Request) {
 	inv, err := h.invitations.GetByToken(ctx, token)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Invitation not found"))
+			_ = response.NotFound(w, r, errors.New("invitation not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get invitation"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get invitation"))
 		return
 	}
 
 	// Verify the invitation is for this user's email
 	if inv.Email != user.Email {
-		_ = response.Forbidden(w, r, errors.New("This invitation was sent to a different email address"))
+		_ = response.Forbidden(w, r, errors.New("this invitation was sent to a different email address"))
 		return
 	}
 
 	// Delete the invitation (declining)
 	if err := h.invitations.DeleteByToken(ctx, token); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to decline invitation"))
+		_ = response.InternalServerError(w, r, errors.New("failed to decline invitation"))
 		return
 	}
 
@@ -1578,9 +1580,9 @@ func apiKeyWithProjectToResponse(key *models.APIKeyWithProject) APIKeyResponse {
 // Note: userModelToResponse is defined in users.go
 
 // parseInt converts a string to int (duplicated here for self-containment)
-func parseIntParam(s string) (int, error) {
-	return strconv.Atoi(s)
-}
+// func parseIntParam(s string) (int, error) {
+// 	return strconv.Atoi(s)
+// }
 
 // --- Run Status Update Handlers ---
 
@@ -1606,19 +1608,19 @@ func (h *Handler) UpdateRunStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
 	runID, err := uuid.Parse(chi.URLParam(r, "runID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid run ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid run ID"))
 		return
 	}
 
@@ -1626,22 +1628,22 @@ func (h *Handler) UpdateRunStatus(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	// Check permission to trigger/update runs
 	if !role.HasPermission(models.PermissionRunTrigger) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to update runs"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to update runs"))
 		return
 	}
 
 	var req UpdateRunStatusRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
@@ -1654,7 +1656,7 @@ func (h *Handler) UpdateRunStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	newStatus, ok := validStatuses[req.Status]
 	if !ok {
-		_ = response.BadRequest(w, r, errors.New("Invalid status. Must be one of: running, success, failed, cancelled"))
+		_ = response.BadRequest(w, r, errors.New("invalid status: must be one of: running, success, failed, cancelled"))
 		return
 	}
 
@@ -1662,22 +1664,22 @@ func (h *Handler) UpdateRunStatus(w http.ResponseWriter, r *http.Request) {
 	run, err := h.runs.GetByID(ctx, runID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Run not found"))
+			_ = response.NotFound(w, r, errors.New("run not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get run"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get run"))
 		return
 	}
 
 	// Verify the run belongs to the project
 	if run.ProjectID != projectID {
-		_ = response.NotFound(w, r, errors.New("Run not found in this project"))
+		_ = response.NotFound(w, r, errors.New("run not found in this project"))
 		return
 	}
 
 	// Check if run can be updated
 	if run.Status.IsTerminal() {
-		_ = response.Conflict(w, r, fmt.Errorf("Run is already %s and cannot be updated", run.Status))
+		_ = response.Conflict(w, r, fmt.Errorf("run is already %s and cannot be updated", run.Status))
 		return
 	}
 
@@ -1710,7 +1712,7 @@ func (h *Handler) UpdateRunStatus(w http.ResponseWriter, r *http.Request) {
 	becameTerminal := !oldStatus.IsTerminal() && newStatus.IsTerminal()
 
 	if err := h.runs.Update(ctx, run); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to update run"))
+		_ = response.InternalServerError(w, r, errors.New("failed to update run"))
 		return
 	}
 
@@ -1769,19 +1771,19 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
 	runID, err := uuid.Parse(chi.URLParam(r, "runID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid run ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid run ID"))
 		return
 	}
 
@@ -1789,26 +1791,26 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	if !role.HasPermission(models.PermissionRunTrigger) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to update runs"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to update runs"))
 		return
 	}
 
 	var req CreateTaskRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
 	if req.TaskName == "" {
-		_ = response.BadRequest(w, r, errors.New("Task name is required"))
+		_ = response.BadRequest(w, r, errors.New("task name is required"))
 		return
 	}
 
@@ -1816,15 +1818,15 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	run, err := h.runs.GetByID(ctx, runID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Run not found"))
+			_ = response.NotFound(w, r, errors.New("run not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get run"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get run"))
 		return
 	}
 
 	if run.ProjectID != projectID {
-		_ = response.NotFound(w, r, errors.New("Run not found in this project"))
+		_ = response.NotFound(w, r, errors.New("run not found in this project"))
 		return
 	}
 
@@ -1839,7 +1841,7 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.runs.CreateTaskResult(ctx, task); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to create task"))
+		_ = response.InternalServerError(w, r, errors.New("failed to create task"))
 		return
 	}
 
@@ -1868,25 +1870,25 @@ func (h *Handler) UpdateTaskStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
 	runID, err := uuid.Parse(chi.URLParam(r, "runID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid run ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid run ID"))
 		return
 	}
 
 	taskName := chi.URLParam(r, "taskName")
 	if taskName == "" {
-		_ = response.BadRequest(w, r, errors.New("Task name is required"))
+		_ = response.BadRequest(w, r, errors.New("task name is required"))
 		return
 	}
 
@@ -1894,21 +1896,21 @@ func (h *Handler) UpdateTaskStatus(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	if !role.HasPermission(models.PermissionRunTrigger) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to update runs"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to update runs"))
 		return
 	}
 
 	var req UpdateTaskStatusRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
@@ -1924,7 +1926,7 @@ func (h *Handler) UpdateTaskStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	newStatus, ok := validStatuses[req.Status]
 	if !ok {
-		_ = response.BadRequest(w, r, errors.New("Invalid status"))
+		_ = response.BadRequest(w, r, errors.New("invalid status"))
 		return
 	}
 
@@ -1932,15 +1934,15 @@ func (h *Handler) UpdateTaskStatus(w http.ResponseWriter, r *http.Request) {
 	run, err := h.runs.GetByID(ctx, runID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Run not found"))
+			_ = response.NotFound(w, r, errors.New("run not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get run"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get run"))
 		return
 	}
 
 	if run.ProjectID != projectID {
-		_ = response.NotFound(w, r, errors.New("Run not found in this project"))
+		_ = response.NotFound(w, r, errors.New("run not found in this project"))
 		return
 	}
 
@@ -1948,10 +1950,10 @@ func (h *Handler) UpdateTaskStatus(w http.ResponseWriter, r *http.Request) {
 	task, err := h.runs.GetTaskResult(ctx, runID, taskName)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Task not found"))
+			_ = response.NotFound(w, r, errors.New("task not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get task"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get task"))
 		return
 	}
 
@@ -1989,7 +1991,7 @@ func (h *Handler) UpdateTaskStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.runs.UpdateTaskResult(ctx, task); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to update task"))
+		_ = response.InternalServerError(w, r, errors.New("failed to update task"))
 		return
 	}
 
@@ -1997,9 +1999,9 @@ func (h *Handler) UpdateTaskStatus(w http.ResponseWriter, r *http.Request) {
 	if newStatus.IsTerminal() {
 		switch newStatus {
 		case models.TaskStatusSuccess, models.TaskStatusCached:
-			h.runs.IncrementCompleted(ctx, runID, newStatus == models.TaskStatusCached || req.CacheHit)
+			_ = h.runs.IncrementCompleted(ctx, runID, newStatus == models.TaskStatusCached || req.CacheHit)
 		case models.TaskStatusFailed:
-			h.runs.IncrementFailed(ctx, runID)
+			_ = h.runs.IncrementFailed(ctx, runID)
 		}
 	}
 
@@ -2047,19 +2049,19 @@ func (h *Handler) AppendLog(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
 	runID, err := uuid.Parse(chi.URLParam(r, "runID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid run ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid run ID"))
 		return
 	}
 
@@ -2067,21 +2069,21 @@ func (h *Handler) AppendLog(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	if !role.HasPermission(models.PermissionRunTrigger) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to update runs"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to update runs"))
 		return
 	}
 
 	var req BatchLogRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
@@ -2089,15 +2091,15 @@ func (h *Handler) AppendLog(w http.ResponseWriter, r *http.Request) {
 	run, err := h.runs.GetByID(ctx, runID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Run not found"))
+			_ = response.NotFound(w, r, errors.New("run not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get run"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get run"))
 		return
 	}
 
 	if run.ProjectID != projectID {
-		_ = response.NotFound(w, r, errors.New("Run not found in this project"))
+		_ = response.NotFound(w, r, errors.New("run not found in this project"))
 		return
 	}
 
@@ -2153,19 +2155,19 @@ func (h *Handler) GetLogs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
 	runID, err := uuid.Parse(chi.URLParam(r, "runID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid run ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid run ID"))
 		return
 	}
 
@@ -2173,15 +2175,15 @@ func (h *Handler) GetLogs(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	if !role.HasPermission(models.PermissionRunView) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to view runs"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to view runs"))
 		return
 	}
 
@@ -2189,15 +2191,15 @@ func (h *Handler) GetLogs(w http.ResponseWriter, r *http.Request) {
 	run, err := h.runs.GetByID(ctx, runID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Run not found"))
+			_ = response.NotFound(w, r, errors.New("run not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get run"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get run"))
 		return
 	}
 
 	if run.ProjectID != projectID {
-		_ = response.NotFound(w, r, errors.New("Run not found in this project"))
+		_ = response.NotFound(w, r, errors.New("run not found in this project"))
 		return
 	}
 
@@ -2206,7 +2208,7 @@ func (h *Handler) GetLogs(w http.ResponseWriter, r *http.Request) {
 	if afterIDStr != "" {
 		afterID, err := strconv.ParseInt(afterIDStr, 10, 64)
 		if err != nil {
-			_ = response.BadRequest(w, r, errors.New("Invalid after_id parameter"))
+			_ = response.BadRequest(w, r, errors.New("invalid after_id parameter"))
 			return
 		}
 
@@ -2220,7 +2222,7 @@ func (h *Handler) GetLogs(w http.ResponseWriter, r *http.Request) {
 
 		logs, err := h.runs.GetLogsSince(ctx, runID, afterID, limit)
 		if err != nil {
-			_ = response.InternalServerError(w, r, errors.New("Failed to get logs"))
+			_ = response.InternalServerError(w, r, errors.New("failed to get logs"))
 			return
 		}
 
@@ -2255,7 +2257,7 @@ func (h *Handler) GetLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to get logs"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get logs"))
 		return
 	}
 
@@ -2305,19 +2307,19 @@ func (h *Handler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid project ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
 		return
 	}
 
 	runID, err := uuid.Parse(chi.URLParam(r, "runID"))
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid run ID"))
+		_ = response.BadRequest(w, r, errors.New("invalid run ID"))
 		return
 	}
 
@@ -2325,15 +2327,15 @@ func (h *Handler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Forbidden(w, r, errors.New("You don't have access to this project"))
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to check access"))
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
 		return
 	}
 
 	if !role.HasPermission(models.PermissionRunTrigger) {
-		_ = response.Forbidden(w, r, errors.New("You don't have permission to update runs"))
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to update runs"))
 		return
 	}
 
@@ -2341,21 +2343,21 @@ func (h *Handler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 	run, err := h.runs.GetByID(ctx, runID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.NotFound(w, r, errors.New("Run not found"))
+			_ = response.NotFound(w, r, errors.New("run not found"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get run"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get run"))
 		return
 	}
 
 	if run.ProjectID != projectID {
-		_ = response.NotFound(w, r, errors.New("Run not found in this project"))
+		_ = response.NotFound(w, r, errors.New("run not found in this project"))
 		return
 	}
 
 	// Update the heartbeat timestamp
 	if err := h.runs.UpdateHeartbeat(ctx, runID); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to update heartbeat"))
+		_ = response.InternalServerError(w, r, errors.New("failed to update heartbeat"))
 		return
 	}
 

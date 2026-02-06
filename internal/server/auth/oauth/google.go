@@ -80,7 +80,7 @@ func (p *GoogleProvider) Exchange(ctx context.Context, code string) (*Tokens, er
 	if err != nil {
 		return nil, fmt.Errorf("failed to exchange code: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -92,7 +92,9 @@ func (p *GoogleProvider) Exchange(ctx context.Context, code string) (*Tokens, er
 			Error       string `json:"error"`
 			Description string `json:"error_description"`
 		}
-		json.Unmarshal(body, &errResp)
+		if err := json.Unmarshal(body, &errResp); err != nil {
+			return nil, fmt.Errorf("failed to parse error response: %w", err)
+		}
 		return nil, fmt.Errorf("oauth error: %s - %s", errResp.Error, errResp.Description)
 	}
 
@@ -126,7 +128,7 @@ func (p *GoogleProvider) GetUserInfo(ctx context.Context, accessToken string) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user info: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -183,7 +185,7 @@ func (p *GoogleProvider) RefreshToken(ctx context.Context, refreshToken string) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to refresh token: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)

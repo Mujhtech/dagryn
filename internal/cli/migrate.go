@@ -184,8 +184,8 @@ func runMigrateStatus(databaseURL string) error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "VERSION\tNAME\tSTATUS\tAPPLIED AT")
-	fmt.Fprintln(w, "-------\t----\t------\t----------")
+	_, _ = fmt.Fprintln(w, "VERSION\tNAME\tSTATUS\tAPPLIED AT")
+	_, _ = fmt.Fprintln(w, "-------\t----\t------\t----------")
 
 	var pending, applied int
 	for _, m := range status {
@@ -200,9 +200,9 @@ func runMigrateStatus(databaseURL string) error {
 		} else {
 			pending++
 		}
-		fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", m.Version, m.Name, statusStr, appliedAt)
+		_, _ = fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", m.Version, m.Name, statusStr, appliedAt)
 	}
-	w.Flush()
+	_ = w.Flush()
 
 	fmt.Printf("\nTotal: %d migrations (%d applied, %d pending)\n", len(status), applied, pending)
 

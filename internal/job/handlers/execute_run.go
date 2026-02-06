@@ -36,7 +36,7 @@ type githubAppClientAdapter struct {
 
 func (a *githubAppClientAdapter) FetchInstallationToken(ctx context.Context, installationID int64) (*InstallationToken, error) {
 	if a.client == nil {
-		return nil, fmt.Errorf("GitHub App client not configured")
+		return nil, fmt.Errorf("github App client not configured")
 	}
 	token, err := a.client.FetchInstallationToken(ctx, installationID)
 	if err != nil {

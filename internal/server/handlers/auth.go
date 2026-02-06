@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -236,10 +237,10 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	user, err := h.userRepo.GetByID(ctx, claims.UserID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			_ = response.Unauthorized(w, r, errors.New("User no longer exists"))
+			_ = response.Unauthorized(w, r, errors.New("user no longer exists"))
 			return
 		}
-		_ = response.InternalServerError(w, r, errors.New("Failed to get user"))
+		_ = response.InternalServerError(w, r, errors.New("failed to get user"))
 		return
 	}
 
@@ -384,12 +385,13 @@ func (h *AuthHandler) PollDeviceCode(w http.ResponseWriter, r *http.Request) {
 	// Consume the device code
 	if err := h.deviceCodeService.Consume(ctx, req.DeviceCode); err != nil {
 		// Log but don't fail - tokens should still be issued
+		slog.Error("failed to consume device code", "error", err)
 	}
 
 	// Generate JWT tokens
 	tokenPair, err := h.jwtService.GenerateTokenPair(ctx, user)
 	if err != nil {
-		_ = response.InternalServerError(w, r, errors.New("Failed to generate tokens"))
+		_ = response.InternalServerError(w, r, errors.New("failed to generate tokens"))
 		return
 	}
 
@@ -419,18 +421,18 @@ func (h *AuthHandler) AuthorizeDevice(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	var req DeviceAuthorizeRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
 	if req.UserCode == "" {
-		_ = response.BadRequest(w, r, errors.New("User code is required"))
+		_ = response.BadRequest(w, r, errors.New("user code is required"))
 		return
 	}
 
@@ -438,16 +440,16 @@ func (h *AuthHandler) AuthorizeDevice(w http.ResponseWriter, r *http.Request) {
 	if err := h.deviceCodeService.Authorize(ctx, req.UserCode, user.ID); err != nil {
 		switch {
 		case errors.Is(err, auth.ErrDeviceCodeNotFound):
-			_ = response.BadRequest(w, r, errors.New("Invalid user code"))
+			_ = response.BadRequest(w, r, errors.New("invalid user code"))
 			return
 		case errors.Is(err, auth.ErrDeviceCodeExpired):
-			_ = response.BadRequest(w, r, errors.New("User code has expired"))
+			_ = response.BadRequest(w, r, errors.New("user code has expired"))
 			return
 		case errors.Is(err, auth.ErrDeviceCodeAlreadyUsed):
-			_ = response.BadRequest(w, r, errors.New("User code has already been used"))
+			_ = response.BadRequest(w, r, errors.New("user code has already been used"))
 			return
 		default:
-			_ = response.InternalServerError(w, r, errors.New("Failed to authorize device"))
+			_ = response.InternalServerError(w, r, errors.New("failed to authorize device"))
 			return
 		}
 	}
@@ -473,18 +475,18 @@ func (h *AuthHandler) DenyDevice(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := serverctx.GetUser(ctx)
 	if user == nil {
-		_ = response.Unauthorized(w, r, errors.New("Authentication required"))
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
 		return
 	}
 
 	var req DeviceAuthorizeRequest
 	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("Invalid request body"))
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 
 	if req.UserCode == "" {
-		_ = response.BadRequest(w, r, errors.New("User code is required"))
+		_ = response.BadRequest(w, r, errors.New("user code is required"))
 		return
 	}
 
@@ -492,10 +494,10 @@ func (h *AuthHandler) DenyDevice(w http.ResponseWriter, r *http.Request) {
 	if err := h.deviceCodeService.Deny(ctx, req.UserCode); err != nil {
 		switch {
 		case errors.Is(err, auth.ErrDeviceCodeNotFound):
-			_ = response.BadRequest(w, r, errors.New("Invalid user code"))
+			_ = response.BadRequest(w, r, errors.New("invalid user code"))
 			return
 		default:
-			_ = response.InternalServerError(w, r, errors.New("Failed to deny device"))
+			_ = response.InternalServerError(w, r, errors.New("failed to deny device"))
 			return
 		}
 	}
@@ -509,13 +511,13 @@ func (h *AuthHandler) DenyDevice(w http.ResponseWriter, r *http.Request) {
 func handleAuthError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, auth.ErrInvalidToken):
-		_ = response.Unauthorized(w, r, errors.New("The provided token is invalid"))
+		_ = response.Unauthorized(w, r, errors.New("the provided token is invalid"))
 	case errors.Is(err, auth.ErrExpiredToken):
-		_ = response.Unauthorized(w, r, errors.New("The provided token has expired"))
+		_ = response.Unauthorized(w, r, errors.New("the provided token has expired"))
 	case errors.Is(err, auth.ErrRevokedToken):
-		_ = response.Unauthorized(w, r, errors.New("The provided token has been revoked"))
+		_ = response.Unauthorized(w, r, errors.New("the provided token has been revoked"))
 	default:
-		_ = response.InternalServerError(w, r, errors.New("An error occurred during authentication"))
+		_ = response.InternalServerError(w, r, errors.New("an error occurred during authentication"))
 	}
 }
 

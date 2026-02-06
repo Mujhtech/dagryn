@@ -132,7 +132,7 @@ func (c *Client) FetchInstallationToken(ctx context.Context, installationID int6
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		_, _ = io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("github installation token request failed with status %d", resp.StatusCode)

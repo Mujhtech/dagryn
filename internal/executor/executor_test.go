@@ -83,7 +83,7 @@ func TestOutputCapture(t *testing.T) {
 func TestExecutor_Execute_Success(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "executor-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	executor := New(tmpDir)
 	task := &task.Task{
@@ -103,7 +103,7 @@ func TestExecutor_Execute_Success(t *testing.T) {
 func TestExecutor_Execute_Failure(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "executor-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	executor := New(tmpDir)
 	task := &task.Task{
@@ -122,7 +122,7 @@ func TestExecutor_Execute_Failure(t *testing.T) {
 func TestExecutor_Execute_Timeout(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "executor-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	executor := New(tmpDir)
 	task := &task.Task{
@@ -141,7 +141,7 @@ func TestExecutor_Execute_Timeout(t *testing.T) {
 func TestExecutor_Execute_Cancelled(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "executor-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	executor := New(tmpDir)
 	task := &task.Task{
@@ -163,7 +163,7 @@ func TestExecutor_Execute_Cancelled(t *testing.T) {
 func TestExecutor_Execute_WithWorkdir(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "executor-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create subdirectory
 	subDir := "subdir"
@@ -186,7 +186,7 @@ func TestExecutor_Execute_WithWorkdir(t *testing.T) {
 func TestExecutor_Execute_WithEnv(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "executor-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	executor := New(tmpDir)
 	task := &task.Task{
