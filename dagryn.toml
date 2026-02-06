@@ -22,35 +22,7 @@ default = true
 [plugins]
 golangci-lint = "github:golangci/golangci-lint@v2.8.0"
 
-# Build the Go application
-[tasks.build]
-command = "go build -v ./..."
-inputs = ["**/*.go", "go.mod", "go.sum"]
-outputs = ["bin/**"]
-timeout = "10m"
-
-# Run tests with coverage
-[tasks.test]
-command = "go test -v -race -coverprofile=coverage.out ./..."
-needs = ["build"]
-inputs = ["**/*.go", "go.mod", "go.sum"]
-outputs = ["coverage.out"]
-timeout = "5m"
-
-# Run linter (auto-installed via plugin)
-[tasks.lint]
-uses = ["golangci-lint"]
-command = "golangci-lint run ./..."
-inputs = ["**/*.go", ".golangci.yml", ".golangci.yaml"]
-timeout = "2m"
-
-# Check code formatting (fails if files need formatting)
-[tasks.fmt]
-command = "test -z \"$(gofmt -l .)\""
-inputs = ["**/*.go"]
-timeout = "1m"
-
-# Web
+# Install dependencies
 [tasks.web-install]
 workdir = "web"
 command = "pnpm install --frozen-lockfile"
@@ -58,7 +30,7 @@ inputs = ["package.json", "pnpm-lock.yaml"]
 outputs = ["node_modules/**"]
 timeout = "5m"
 
-# Build the project
+# Build the web
 [tasks.web-build]
 workdir = "web"
 command = "pnpm build"
@@ -66,6 +38,7 @@ needs = ["web-install"]
 inputs = ["src/**", "package.json", "tsconfig.json"]
 outputs = ["dist/**", "build/**"]
 timeout = "10m"
+
 
 # Run tests
 [tasks.web-test]
@@ -82,3 +55,32 @@ command = "pnpm lint"
 needs = ["web-install"]
 inputs = ["src/**", ".eslintrc*", "eslint.config.*", "package.json"]
 timeout = "2m"
+
+# Build the Go application
+[tasks.go-build]
+command = "go build -v ./..."
+needs = ["web-build"]
+inputs = ["**/*.go", "go.mod", "go.sum"]
+outputs = ["bin/**"]
+timeout = "10m"
+
+# Run tests with coverage
+[tasks.go-test]
+command = "go test -v -race -coverprofile=coverage.out ./..."
+needs = ["go-build"]
+inputs = ["**/*.go", "go.mod", "go.sum"]
+outputs = ["coverage.out"]
+timeout = "5m"
+
+# Run linter (auto-installed via plugin)
+[tasks.go-lint]
+uses = ["golangci-lint"]
+command = "golangci-lint run ./..."
+inputs = ["**/*.go", ".golangci.yml", ".golangci.yaml"]
+timeout = "2m"
+
+# Check code formatting (fails if files need formatting)
+[tasks.go-fmt]
+command = "test -z \"$(gofmt -l .)\""
+inputs = ["**/*.go"]
+timeout = "1m"
