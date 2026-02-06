@@ -75,6 +75,7 @@ timeout = "5m"
 # Run linter (auto-installed via plugin)
 [tasks.go-lint]
 uses = ["golangci-lint"]
+needs = ["go-build"]
 command = "golangci-lint run ./..."
 inputs = ["**/*.go", ".golangci.yml", ".golangci.yaml"]
 timeout = "2m"
@@ -82,5 +83,6 @@ timeout = "2m"
 # Check code formatting (fails if files need formatting)
 [tasks.go-fmt]
 command = "test -z \"$(gofmt -l .)\""
+needs = ["go-build"]
 inputs = ["**/*.go"]
 timeout = "1m"
