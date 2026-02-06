@@ -109,7 +109,7 @@ function ProjectsPage() {
   const {
     data: appRepos = [],
     isLoading: appReposLoading,
-    error: appReposError,
+    // error: appReposError,
   } = useGitHubAppRepos(selectedInstallation ? selectedInstallation.id : null);
 
   useEffect(() => {
@@ -157,7 +157,7 @@ function ProjectsPage() {
             params: { projectId: project.id },
           });
         },
-      }
+      },
     );
   };
 
@@ -194,7 +194,7 @@ function ProjectsPage() {
 
   const filteredGitHubRepos = repoSearch.trim()
     ? effectiveRepos.filter((r) =>
-        r.full_name.toLowerCase().includes(repoSearch.trim().toLowerCase())
+        r.full_name.toLowerCase().includes(repoSearch.trim().toLowerCase()),
       )
     : effectiveRepos;
 
@@ -217,7 +217,7 @@ function ProjectsPage() {
             params: { projectId: project.id },
           });
         },
-      }
+      },
     );
   };
 
@@ -507,7 +507,7 @@ function ProjectsPage() {
                         }
                         onClick={() =>
                           setSelectedInstallation(
-                            selectedInstallation?.id === inst.id ? null : inst
+                            selectedInstallation?.id === inst.id ? null : inst,
                           )
                         }
                       >

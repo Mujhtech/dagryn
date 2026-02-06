@@ -44,7 +44,7 @@ const navItems = [
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   const isActive = (url: string) => {
     if (url === "/") {

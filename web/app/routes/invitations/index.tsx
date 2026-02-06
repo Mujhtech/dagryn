@@ -37,7 +37,7 @@ function InvitationsPage() {
   }, [isAuthenticated, authLoading, navigate]);
 
   const list = (invitations as Invitation[] | undefined) ?? [];
-  const pending = list.filter((i) => i.status === "pending");
+  // const pending = list.filter((i) => i.status === "pending");
 
   const handleAccept = (inv: Invitation) => {
     if (!inv.accept_token) return;

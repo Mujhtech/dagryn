@@ -1,6 +1,6 @@
 // SSE client for real-time updates
 import { EventSourcePolyfill } from "event-source-polyfill";
-import { isEqual, isEmpty } from "lodash-es";
+// import { isEqual, isEmpty } from "lodash-es";
 
 export interface SSEEvent {
   id: string;
@@ -53,6 +53,7 @@ export class RunStreamClient {
   };
 
   connect(projectId: string, runId: string, token?: string) {
+    console.log("Connecting to SSE", projectId, runId, token);
     const url = `/api/v1/projects/${projectId}/runs/${runId}/events`;
 
     // Note: EventSource doesn't support custom headers, so we'd need to use

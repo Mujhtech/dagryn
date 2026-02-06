@@ -2,7 +2,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "~/lib/auth";
 import { useAuthProviders } from "~/hooks/queries";
-import { api } from "~/lib/api";
 import { Button } from "~/components/ui/button";
 import {
   Card,
