@@ -65,13 +65,32 @@ func TestTask_Validate(t *testing.T) {
 			errMsg:  "invalid name",
 		},
 		{
-			name: "empty command",
+			name: "empty command without uses",
 			task: Task{
 				Name:    "build",
 				Command: "",
 			},
 			wantErr: true,
 			errMsg:  "has no command",
+		},
+		{
+			name: "uses without command (composite)",
+			task: Task{
+				Name: "setup",
+				Uses: []string{"dagryn/setup-go@v1"},
+				With: map[string]string{"go-version": "1.22"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "with without uses",
+			task: Task{
+				Name:    "build",
+				Command: "go build",
+				With:    map[string]string{"key": "value"},
+			},
+			wantErr: true,
+			errMsg:  "has 'with' but no 'uses'",
 		},
 	}
 
@@ -143,6 +162,51 @@ func TestTask_Clone(t *testing.T) {
 	clone.Env["NEW_KEY"] = "value"
 	_, exists := original.Env["NEW_KEY"]
 	assert.False(t, exists)
+}
+
+func TestTask_IsComposite(t *testing.T) {
+	composite := Task{
+		Name: "setup",
+		Uses: []string{"dagryn/setup-go@v1"},
+	}
+	assert.True(t, composite.IsComposite())
+
+	// Has command -> not composite
+	notComposite := Task{
+		Name:    "build",
+		Command: "go build",
+		Uses:    []string{"github:golangci/golangci-lint@v1.55.0"},
+	}
+	assert.False(t, notComposite.IsComposite())
+
+	// Multiple uses -> not composite
+	multiUses := Task{
+		Name: "multi",
+		Uses: []string{"a@v1", "b@v2"},
+	}
+	assert.False(t, multiUses.IsComposite())
+
+	// No uses -> not composite
+	noUses := Task{
+		Name:    "simple",
+		Command: "echo hello",
+	}
+	assert.False(t, noUses.IsComposite())
+}
+
+func TestTask_Clone_WithField(t *testing.T) {
+	original := &Task{
+		Name: "setup",
+		Uses: []string{"dagryn/setup-go@v1"},
+		With: map[string]string{"go-version": "1.22"},
+	}
+
+	clone := original.Clone()
+	assert.Equal(t, original.With, clone.With)
+
+	// Verify deep copy
+	clone.With["go-version"] = "1.23"
+	assert.NotEqual(t, original.With["go-version"], clone.With["go-version"])
 }
 
 func TestTask_String(t *testing.T) {

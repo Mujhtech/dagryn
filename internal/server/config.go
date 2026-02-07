@@ -14,15 +14,30 @@ import (
 
 // Config holds all server configuration.
 type Config struct {
-	Server    ServerConfig     `toml:"server"`
-	Database  db.Config        `toml:"database"`
-	Redis     redis.Config     `toml:"redis"`
-	Auth      AuthConfig       `toml:"auth"`
-	OAuth     OAuthConfig      `toml:"oauth"`
-	Telemetry telemetry.Config `toml:"telemetry"`
-	Job       JobConfig        `toml:"job"`
-	Health    HealthConfig     `toml:"health"`
-	GitHubApp GitHubAppConfig  `toml:"github_app"`
+	Server       ServerConfig     `toml:"server"`
+	Database     db.Config        `toml:"database"`
+	Redis        redis.Config     `toml:"redis"`
+	Auth         AuthConfig       `toml:"auth"`
+	OAuth        OAuthConfig      `toml:"oauth"`
+	Telemetry    telemetry.Config `toml:"telemetry"`
+	Job          JobConfig        `toml:"job"`
+	Health       HealthConfig     `toml:"health"`
+	GitHubApp    GitHubAppConfig  `toml:"github_app"`
+	CacheStorage StorageConfig    `toml:"cache_storage"`
+}
+
+// StorageConfig holds cache storage backend configuration.
+type StorageConfig struct {
+	Provider        string `toml:"provider"`
+	Bucket          string `toml:"bucket"`
+	Region          string `toml:"region"`
+	Endpoint        string `toml:"endpoint"`
+	AccessKeyID     string `toml:"access_key_id"`
+	SecretAccessKey string `toml:"secret_access_key"`
+	UsePathStyle    bool   `toml:"use_path_style"`
+	BasePath        string `toml:"base_path"`
+	Prefix          string `toml:"prefix"`
+	CredentialsFile string `toml:"credentials_file"`
 }
 
 // HealthConfig holds health/readiness check configuration.
@@ -276,6 +291,38 @@ func applyEnvVars(cfg *Config) {
 	}
 	if v := os.Getenv("DAGRYN_JOB_ENABLED"); v == "true" || v == "1" {
 		cfg.Job.Enabled = true
+	}
+
+	// Cache Storage
+	if v := getEnvAny("DAGRYN_CACHE_STORAGE_PROVIDER"); v != "" {
+		cfg.CacheStorage.Provider = v
+	}
+	if v := getEnvAny("DAGRYN_CACHE_STORAGE_BUCKET"); v != "" {
+		cfg.CacheStorage.Bucket = v
+	}
+	if v := getEnvAny("DAGRYN_CACHE_STORAGE_REGION"); v != "" {
+		cfg.CacheStorage.Region = v
+	}
+	if v := getEnvAny("DAGRYN_CACHE_STORAGE_ENDPOINT"); v != "" {
+		cfg.CacheStorage.Endpoint = v
+	}
+	if v := getEnvAny("DAGRYN_CACHE_STORAGE_ACCESS_KEY_ID"); v != "" {
+		cfg.CacheStorage.AccessKeyID = v
+	}
+	if v := getEnvAny("DAGRYN_CACHE_STORAGE_SECRET_ACCESS_KEY"); v != "" {
+		cfg.CacheStorage.SecretAccessKey = v
+	}
+	if v := getEnvAny("DAGRYN_CACHE_STORAGE_BASE_PATH"); v != "" {
+		cfg.CacheStorage.BasePath = v
+	}
+	if v := getEnvAny("DAGRYN_CACHE_STORAGE_PREFIX"); v != "" {
+		cfg.CacheStorage.Prefix = v
+	}
+	if v := getEnvAny("DAGRYN_CACHE_STORAGE_CREDENTIALS_FILE"); v != "" {
+		cfg.CacheStorage.CredentialsFile = v
+	}
+	if v := os.Getenv("DAGRYN_CACHE_STORAGE_USE_PATH_STYLE"); v == "true" || v == "1" {
+		cfg.CacheStorage.UsePathStyle = true
 	}
 
 	// Health

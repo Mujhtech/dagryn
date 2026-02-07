@@ -171,6 +171,62 @@ func (s *Store) ClearAll() error {
 	return os.RemoveAll(s.CachePath())
 }
 
+// CacheEntry represents a discovered local cache entry.
+type CacheEntry struct {
+	TaskName string
+	CacheKey string
+}
+
+// ListEntries returns all cache entries, optionally filtered to a single task.
+// It walks the .dagryn/cache/ directory looking for metadata.json files.
+func (s *Store) ListEntries(taskFilter string) ([]CacheEntry, error) {
+	cachePath := s.CachePath()
+	if _, err := os.Stat(cachePath); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	var entries []CacheEntry
+
+	taskDirs, err := os.ReadDir(cachePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read cache directory: %w", err)
+	}
+
+	for _, taskDir := range taskDirs {
+		if !taskDir.IsDir() {
+			continue
+		}
+		taskName := taskDir.Name()
+		if taskFilter != "" && taskName != taskFilter {
+			continue
+		}
+
+		keyDirs, err := os.ReadDir(filepath.Join(cachePath, taskName))
+		if err != nil {
+			continue
+		}
+		for _, keyDir := range keyDirs {
+			if !keyDir.IsDir() {
+				continue
+			}
+			// Verify metadata.json exists
+			metaPath := filepath.Join(cachePath, taskName, keyDir.Name(), "metadata.json")
+			if _, err := os.Stat(metaPath); err == nil {
+				entries = append(entries, CacheEntry{
+					TaskName: taskName,
+					CacheKey: keyDir.Name(),
+				})
+			}
+		}
+	}
+	return entries, nil
+}
+
+// Root returns the project root.
+func (s *Store) Root() string {
+	return s.root
+}
+
 // copyFile copies a file from src to dest, creating directories as needed.
 func copyFile(src, dest string) error {
 	// Create destination directory

@@ -17,11 +17,12 @@ import (
 
 // Options configures the scheduler behavior.
 type Options struct {
-	Parallelism int  // Max concurrent tasks (default: NumCPU)
-	NoCache     bool // Disable caching
-	NoPlugins   bool // Disable plugin installation
-	FailFast    bool // Stop on first failure
-	DryRun      bool // Show plan without executing
+	Parallelism  int           // Max concurrent tasks (default: NumCPU)
+	NoCache      bool          // Disable caching
+	NoPlugins    bool          // Disable plugin installation
+	FailFast     bool          // Stop on first failure
+	DryRun       bool          // Show plan without executing
+	CacheBackend cache.Backend // Optional custom cache backend
 }
 
 // DefaultOptions returns the default scheduler options.
@@ -63,13 +64,14 @@ type taskState struct {
 
 // Scheduler orchestrates the execution of tasks in a DAG.
 type Scheduler struct {
-	workflow      *task.Workflow
-	graph         *dag.Graph
-	executor      *executor.Executor
-	cache         *cache.Cache
-	pluginManager *plugin.Manager
-	opts          Options
-	projectRoot   string
+	workflow          *task.Workflow
+	graph             *dag.Graph
+	executor          *executor.Executor
+	cache             *cache.Cache
+	pluginManager     *plugin.Manager
+	compositeExecutor *plugin.CompositeExecutor
+	opts              Options
+	projectRoot       string
 
 	// Callbacks
 	onTaskStart    TaskCallback
@@ -104,14 +106,22 @@ func New(workflow *task.Workflow, projectRoot string, opts Options) (*Scheduler,
 		return nil, cycleErr
 	}
 
+	var c *cache.Cache
+	if opts.CacheBackend != nil {
+		c = cache.NewWithBackend(projectRoot, !opts.NoCache, opts.CacheBackend)
+	} else {
+		c = cache.New(projectRoot, !opts.NoCache)
+	}
+
 	return &Scheduler{
-		workflow:      workflow,
-		graph:         g,
-		executor:      executor.New(projectRoot),
-		cache:         cache.New(projectRoot, !opts.NoCache),
-		pluginManager: plugin.NewManager(projectRoot),
-		opts:          opts,
-		projectRoot:   projectRoot,
+		workflow:          workflow,
+		graph:             g,
+		executor:          executor.New(projectRoot),
+		cache:             c,
+		pluginManager:     plugin.NewManager(projectRoot),
+		compositeExecutor: plugin.NewCompositeExecutor(projectRoot, nil),
+		opts:              opts,
+		projectRoot:       projectRoot,
 	}, nil
 }
 
@@ -301,11 +311,11 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 	}
 
 	// Check cache
-	cacheHit, cacheKey, _ := s.cache.Check(t)
+	cacheHit, cacheKey, _ := s.cache.Check(ctx, t)
 
 	if cacheHit {
 		// Restore from cache
-		_ = s.cache.Restore(t, cacheKey)
+		_ = s.cache.Restore(ctx, t, cacheKey)
 		result := &executor.Result{
 			Task:      taskName,
 			Status:    executor.Cached,
@@ -325,6 +335,11 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 			s.onTaskComplete(taskName, result, false)
 		}
 		return &taskState{result: result, cacheKey: cacheKey}
+	}
+
+	// Check if this is a composite task
+	if t.IsComposite() {
+		return s.executeCompositeTask(ctx, t, cacheKey)
 	}
 
 	// Get plugin paths for this task
@@ -366,11 +381,92 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 
 	// Save to cache on success
 	if result.IsSuccess() && cacheKey != "" {
-		_ = s.cache.Save(t, cacheKey, result.Duration)
+		_ = s.cache.Save(ctx, t, cacheKey, result.Duration)
 	}
 
 	if s.onTaskComplete != nil {
 		s.onTaskComplete(taskName, result, false)
+	}
+
+	return &taskState{result: result, cacheKey: cacheKey}
+}
+
+// executeCompositeTask handles execution of composite plugin tasks.
+func (s *Scheduler) executeCompositeTask(ctx context.Context, t *task.Task, cacheKey string) *taskState {
+	startTime := time.Now()
+
+	// Resolve the plugin to get its manifest
+	spec := t.Uses[0]
+	resolved, err := s.pluginManager.Resolve(ctx, spec)
+	if err != nil {
+		result := &executor.Result{
+			Task:      t.Name,
+			Status:    executor.Failed,
+			Error:     fmt.Errorf("failed to resolve composite plugin %s: %w", spec, err),
+			StartTime: startTime,
+			EndTime:   time.Now(),
+			Duration:  time.Since(startTime),
+		}
+		if s.onTaskComplete != nil {
+			s.onTaskComplete(t.Name, result, false)
+		}
+		return &taskState{result: result, cacheKey: cacheKey}
+	}
+
+	if resolved.Manifest == nil || !resolved.Manifest.IsComposite() {
+		result := &executor.Result{
+			Task:      t.Name,
+			Status:    executor.Failed,
+			Error:     fmt.Errorf("plugin %s is not a composite plugin", spec),
+			StartTime: startTime,
+			EndTime:   time.Now(),
+			Duration:  time.Since(startTime),
+		}
+		if s.onTaskComplete != nil {
+			s.onTaskComplete(t.Name, result, false)
+		}
+		return &taskState{result: result, cacheKey: cacheKey}
+	}
+
+	// Determine working directory
+	workdir := s.projectRoot
+	if t.Workdir != "" {
+		workdir = t.Workdir
+	}
+
+	// Execute the composite steps
+	err = s.compositeExecutor.Execute(ctx, resolved.Manifest, t.With, t.Env, workdir)
+
+	endTime := time.Now()
+	duration := endTime.Sub(startTime)
+
+	var result *executor.Result
+	if err != nil {
+		result = &executor.Result{
+			Task:      t.Name,
+			Status:    executor.Failed,
+			Error:     err,
+			StartTime: startTime,
+			EndTime:   endTime,
+			Duration:  duration,
+		}
+	} else {
+		result = &executor.Result{
+			Task:      t.Name,
+			Status:    executor.Success,
+			StartTime: startTime,
+			EndTime:   endTime,
+			Duration:  duration,
+		}
+
+		// Save to cache on success
+		if cacheKey != "" {
+			_ = s.cache.Save(ctx, t, cacheKey, duration)
+		}
+	}
+
+	if s.onTaskComplete != nil {
+		s.onTaskComplete(t.Name, result, false)
 	}
 
 	return &taskState{result: result, cacheKey: cacheKey}
@@ -418,6 +514,27 @@ func (s *Scheduler) installPluginsForPlan(ctx context.Context, plan *dag.Executi
 	for _, spec := range specs {
 		if s.onPluginStart != nil {
 			s.onPluginStart(spec, nil)
+		}
+
+		// Resolve the plugin first to check if it's composite
+		resolved, err := s.pluginManager.Resolve(ctx, spec)
+		if err != nil {
+			if s.onPluginDone != nil {
+				s.onPluginDone(spec, nil)
+			}
+			return fmt.Errorf("failed to resolve plugin %s: %w", spec, err)
+		}
+
+		// Composite plugins don't need binary installation
+		if resolved.Manifest != nil && resolved.Manifest.IsComposite() {
+			if s.onPluginDone != nil {
+				s.onPluginDone(spec, &plugin.InstallResult{
+					Plugin:  resolved,
+					Status:  plugin.StatusInstalled,
+					Message: fmt.Sprintf("Resolved composite plugin %s", resolved.Name),
+				})
+			}
+			continue
 		}
 
 		result, err := s.pluginManager.Install(ctx, spec)

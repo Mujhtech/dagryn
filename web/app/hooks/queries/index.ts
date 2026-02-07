@@ -14,3 +14,5 @@ export { useRuns } from "./use-runs";
 export { useRunDetail } from "./use-run-detail";
 export { useRunLogs } from "./use-run-logs";
 export { useProjectWorkflows, useRunWorkflow } from "./use-project-workflows";
+export { useCacheStats } from "./use-cache-stats";
+export { useCacheAnalytics } from "./use-cache-analytics";

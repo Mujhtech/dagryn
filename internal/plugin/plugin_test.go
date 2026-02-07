@@ -61,7 +61,28 @@ func TestParse(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "invalid - no source",
+			name:       "short format - github implicit",
+			spec:       "dagryn/setup-go@v1",
+			wantSource: SourceGitHub,
+			wantName:   "setup-go",
+			wantVer:    "v1",
+		},
+		{
+			name:       "short format - exact version",
+			spec:       "golangci/golangci-lint@v1.55.0",
+			wantSource: SourceGitHub,
+			wantName:   "golangci-lint",
+			wantVer:    "v1.55.0",
+		},
+		{
+			name:       "short format - latest",
+			spec:       "owner/repo@latest",
+			wantSource: SourceGitHub,
+			wantName:   "repo",
+			wantVer:    "latest",
+		},
+		{
+			name:    "invalid - no source no owner",
 			spec:    "golangci-lint@v1.55.0",
 			wantErr: true,
 		},
@@ -105,6 +126,34 @@ func TestParse(t *testing.T) {
 				t.Errorf("Parse() version = %v, want %v", plugin.Version, tt.wantVer)
 			}
 		})
+	}
+}
+
+func TestParse_ShortFormat_Owner(t *testing.T) {
+	p, err := Parse("dagryn/setup-go@v1.0.0")
+	if err != nil {
+		t.Fatalf("Parse() unexpected error: %v", err)
+	}
+	if p.Owner != "dagryn" {
+		t.Errorf("Parse() owner = %v, want %v", p.Owner, "dagryn")
+	}
+	if p.Repo != "setup-go" {
+		t.Errorf("Parse() repo = %v, want %v", p.Repo, "setup-go")
+	}
+	if p.Raw != "dagryn/setup-go@v1.0.0" {
+		t.Errorf("Parse() raw = %v, want %v", p.Raw, "dagryn/setup-go@v1.0.0")
+	}
+}
+
+// Verify long format still takes precedence
+func TestParse_LongFormatPrecedence(t *testing.T) {
+	// This matches long format (github:owner/repo@version)
+	p, err := Parse("github:owner/repo@v1.0.0")
+	if err != nil {
+		t.Fatalf("Parse() unexpected error: %v", err)
+	}
+	if p.Source != SourceGitHub {
+		t.Errorf("Parse() source = %v, want %v", p.Source, SourceGitHub)
 	}
 }
 

@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mujhtech/dagryn/internal/cache"
+	"github.com/mujhtech/dagryn/internal/cache/cloud"
+	"github.com/mujhtech/dagryn/internal/cache/remote"
 	"github.com/mujhtech/dagryn/internal/client"
 	"github.com/mujhtech/dagryn/internal/config"
 	"github.com/mujhtech/dagryn/internal/executor"
@@ -109,12 +112,15 @@ func runRun(cmd *cobra.Command, args []string) error {
 
 	// Create scheduler options
 	opts := scheduler.DefaultOptions()
-	opts.NoCache = noCache
+	opts.NoCache = noCache || !cfg.Cache.IsEnabled()
 	opts.NoPlugins = noPlugins
 	opts.DryRun = dryRun
 	if parallel > 0 {
 		opts.Parallelism = parallel
 	}
+
+	// Build cache backend from config
+	opts.CacheBackend = buildCacheBackend(cfg.Cache, projectRoot, log)
 
 	// Create scheduler
 	sched, err := scheduler.New(workflow, projectRoot, opts)
@@ -720,6 +726,89 @@ func (s *RemoteSync) Stop() {
 			fmt.Fprintf(os.Stderr, "Warning: Failed to close log file: %v\n", err)
 		}
 	}
+}
+
+// buildCacheBackend creates a cache.Backend from the configuration.
+// Returns nil to use the default local backend.
+func buildCacheBackend(cfg config.CacheConfig, projectRoot string, log *logger.Logger) cache.Backend {
+	cacheRoot := projectRoot
+	if cfg.Dir != "" {
+		cacheRoot = cfg.Dir
+	}
+
+	local := cache.NewLocalBackend(cacheRoot)
+
+	if !cfg.Remote.Enabled || noRemoteCache {
+		return local
+	}
+
+	strategy := cache.StrategyLocalFirst
+	switch cfg.Remote.Strategy {
+	case "remote-first":
+		strategy = cache.StrategyRemoteFirst
+	case "write-through":
+		strategy = cache.StrategyWriteThrough
+	}
+
+	if cfg.Remote.Cloud {
+		cloudBackend, err := buildCloudBackend(projectRoot, log)
+		if err != nil {
+			log.Error("cloud cache not available, falling back to local", err)
+			return local
+		}
+		return cache.NewHybridBackend(local, cloudBackend, cache.HybridConfig{
+			Strategy:        strategy,
+			FallbackOnError: cfg.Remote.IsFallbackOnError(),
+		})
+	}
+
+	bucket, err := buildBucket(cfg.Remote)
+	if err != nil {
+		log.Error("failed to create remote cache, falling back to local", err)
+		return local
+	}
+
+	remoteBackend := remote.NewStorageBackend(bucket, projectRoot)
+
+	return cache.NewHybridBackend(local, remoteBackend, cache.HybridConfig{
+		Strategy:        strategy,
+		FallbackOnError: cfg.Remote.IsFallbackOnError(),
+	})
+}
+
+// buildCloudBackend creates a cloud cache backend using the Dagryn server API.
+func buildCloudBackend(projectRoot string, log *logger.Logger) (cache.Backend, error) {
+	credStore, err := client.NewCredentialsStore()
+	if err != nil {
+		return nil, fmt.Errorf("credentials store: %w", err)
+	}
+
+	creds, err := credStore.Load()
+	if err != nil {
+		return nil, fmt.Errorf("load credentials: %w", err)
+	}
+	if creds == nil {
+		return nil, fmt.Errorf("not logged in — run 'dagryn auth login' first")
+	}
+
+	projectStore := client.NewProjectConfigStore(projectRoot)
+	projectConfig, err := projectStore.Load()
+	if err != nil {
+		return nil, fmt.Errorf("load project config: %w", err)
+	}
+	if projectConfig == nil {
+		return nil, fmt.Errorf("no project linked — run 'dagryn init --remote' first")
+	}
+
+	apiClient := client.New(client.Config{
+		BaseURL: creds.ServerURL,
+		Timeout: 60 * time.Second,
+	})
+	apiClient.SetCredentials(creds)
+
+	log.Info(fmt.Sprintf("Cloud cache enabled (project: %s)", projectConfig.ProjectName))
+
+	return cloud.NewBackend(apiClient, projectConfig.ProjectID, projectRoot), nil
 }
 
 // getGitBranch returns the current git branch.

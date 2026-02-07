@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/mujhtech/dagryn/internal/dag"
+	"github.com/mujhtech/dagryn/internal/plugin"
 )
 
 // ValidationError represents a configuration validation error.
@@ -42,6 +43,8 @@ func Validate(cfg *Config) ValidationErrors {
 	errors = append(errors, validateDependencies(cfg)...)
 	errors = append(errors, validateTimeouts(cfg)...)
 	errors = append(errors, validateNoCycles(cfg)...)
+	errors = append(errors, validateCache(cfg)...)
+	errors = append(errors, validatePlugins(cfg)...)
 
 	return errors
 }
@@ -71,10 +74,19 @@ func validateTasks(cfg *Config) ValidationErrors {
 	}
 
 	for name, tc := range cfg.Tasks {
-		if tc.Command == "" {
+		// A task needs either a command or a uses spec (for composite plugins)
+		if tc.Command == "" && tc.Uses.IsEmpty() {
 			errors = append(errors, ValidationError{
 				Task:    name,
-				Message: "command is required",
+				Message: "command is required (or 'uses' for composite plugins)",
+			})
+		}
+
+		// with requires uses
+		if len(tc.With) > 0 && tc.Uses.IsEmpty() {
+			errors = append(errors, ValidationError{
+				Task:    name,
+				Message: "'with' requires 'uses' to be set",
 			})
 		}
 	}
@@ -199,6 +211,70 @@ func detectCycleDFS(g *dag.Graph) []string {
 	}
 
 	return nil
+}
+
+// validateCache validates the cache configuration.
+func validateCache(cfg *Config) ValidationErrors {
+	var errors ValidationErrors
+	rc := cfg.Cache.Remote
+
+	if !rc.Enabled {
+		return errors
+	}
+
+	// Cloud mode: server handles storage, no provider/bucket/base_path needed.
+	if !rc.Cloud {
+		switch rc.Provider {
+		case "s3":
+			if rc.Bucket == "" {
+				errors = append(errors, ValidationError{
+					Message: "cache.remote.bucket is required when provider is \"s3\"",
+				})
+			}
+		case "filesystem":
+			if rc.BasePath == "" {
+				errors = append(errors, ValidationError{
+					Message: "cache.remote.base_path is required when provider is \"filesystem\"",
+				})
+			}
+		case "":
+			errors = append(errors, ValidationError{
+				Message: "cache.remote.provider is required when remote cache is enabled",
+			})
+		default:
+			errors = append(errors, ValidationError{
+				Message: fmt.Sprintf("cache.remote.provider %q is not supported (use \"s3\" or \"filesystem\")", rc.Provider),
+			})
+		}
+	}
+
+	if rc.Strategy != "" {
+		switch rc.Strategy {
+		case "local-first", "remote-first", "write-through":
+			// valid
+		default:
+			errors = append(errors, ValidationError{
+				Message: fmt.Sprintf("cache.remote.strategy %q is not supported (use \"local-first\", \"remote-first\", or \"write-through\")", rc.Strategy),
+			})
+		}
+	}
+
+	return errors
+}
+
+// validatePlugins validates that global plugin specs are parseable.
+func validatePlugins(cfg *Config) ValidationErrors {
+	var errors ValidationErrors
+
+	for name, spec := range cfg.Plugins {
+		if _, err := plugin.Parse(spec); err != nil {
+			errors = append(errors, ValidationError{
+				Message: fmt.Sprintf("global plugin %q has invalid spec %q: %v", name, spec, err),
+			})
+		}
+	}
+
+	return errors
 }
 
 // formatCyclePath formats a cycle path as a string.

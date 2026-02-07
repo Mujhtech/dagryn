@@ -44,4 +44,7 @@ export const queryKeys = {
     ["projectWorkflows", projectId] as const,
   runWorkflow: (projectId: string, runId: string) =>
     ["runWorkflow", projectId, runId] as const,
+  cacheStats: (projectId: string) => ["cacheStats", projectId] as const,
+  cacheAnalytics: (projectId: string, days: number) =>
+    ["cacheAnalytics", projectId, days] as const,
 };

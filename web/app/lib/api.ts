@@ -241,6 +241,40 @@ export interface WorkflowTask {
   env?: Record<string, string>;
 }
 
+// Cache types
+export interface CacheStats {
+  total_entries: number;
+  total_size_bytes: number;
+  hit_count: number;
+  quota_used_pct: number;
+  top_tasks: TaskCacheStats[];
+}
+
+export interface TaskCacheStats {
+  task_name: string;
+  entries: number;
+  size_bytes: number;
+  total_hits: number;
+}
+
+export interface CacheAnalytics {
+  days: DailyUsage[];
+  total_hits: number;
+  total_misses: number;
+  hit_rate: number;
+  total_bytes_uploaded: number;
+  total_bytes_downloaded: number;
+}
+
+export interface DailyUsage {
+  date: string;
+  bytes_uploaded: number;
+  bytes_downloaded: number;
+  cache_hits: number;
+  cache_misses: number;
+  hit_rate: number;
+}
+
 // API Error
 export class ApiError extends Error {
   constructor(
@@ -699,6 +733,17 @@ class ApiClient {
   async getRunWorkflow(projectId: string, runId: string) {
     return this.fetch<Workflow>(
       `/projects/${projectId}/runs/${runId}/workflow`,
+    );
+  }
+
+  // Cache
+  async getCacheStats(projectId: string) {
+    return this.fetch<CacheStats>(`/projects/${projectId}/cache/stats`);
+  }
+
+  async getCacheAnalytics(projectId: string, days = 30) {
+    return this.fetch<CacheAnalytics>(
+      `/projects/${projectId}/cache/analytics?days=${days}`,
     );
   }
 }

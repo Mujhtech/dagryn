@@ -1,0 +1,73 @@
+[plugin]
+name = "setup-python"
+description = "Install and configure Python"
+version = "1.0.0"
+type = "composite"
+author = "dagryn"
+license = "MIT"
+
+[inputs.python-version]
+description = "Python version to install"
+default = "3.12"
+
+[inputs.cache]
+description = "Cache pip packages"
+default = "true"
+
+[[step]]
+name = "check-existing"
+command = """
+WANTED="${inputs.python-version}"
+CURRENT=$(python3 --version 2>/dev/null | awk '{print $2}' || echo "none")
+echo "Wanted: $WANTED, Current: $CURRENT"
+if echo "$CURRENT" | grep -q "^$WANTED"; then
+  echo "Python $WANTED already available"
+else
+  echo "Python $WANTED not found, installation required"
+fi
+"""
+
+[[step]]
+name = "install-python"
+command = """
+WANTED="${inputs.python-version}"
+CURRENT=$(python3 --version 2>/dev/null | awk '{print $2}' || echo "none")
+if echo "$CURRENT" | grep -q "^$WANTED"; then
+  echo "Python $WANTED already available, skipping install"
+  exit 0
+fi
+if command -v pyenv >/dev/null 2>&1; then
+  echo "Installing Python $WANTED via pyenv"
+  pyenv install -s "$WANTED"
+  pyenv local "$WANTED"
+else
+  echo "pyenv not found, attempting system package manager"
+  if command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update && sudo apt-get install -y "python${WANTED}"
+  elif command -v brew >/dev/null 2>&1; then
+    brew install "python@${WANTED}"
+  else
+    echo "ERROR: No supported package manager found to install Python $WANTED"
+    exit 1
+  fi
+fi
+"""
+
+[[step]]
+name = "setup-virtualenv"
+command = """
+if [ ! -d ".venv" ]; then
+  echo "Creating virtualenv"
+  python3 -m venv .venv
+fi
+echo "Virtualenv ready at .venv"
+echo "Activate with: source .venv/bin/activate"
+"""
+
+[[step]]
+name = "cache-pip"
+if = "${inputs.cache}"
+command = """
+PIP_CACHE=$(python3 -m pip cache dir 2>/dev/null || echo "$HOME/.cache/pip")
+echo "Pip cache at $PIP_CACHE eligible for caching"
+"""

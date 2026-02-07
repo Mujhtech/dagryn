@@ -177,6 +177,19 @@ func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHand
 						})
 					})
 
+					// Project cache
+					r.Route("/cache", func(r chi.Router) {
+						r.Get("/stats", h.GetCacheStats)
+						r.Get("/analytics", h.GetCacheAnalytics)
+						r.Post("/gc", h.TriggerCacheGC)
+						r.Route("/{taskName}/{cacheKey}", func(r chi.Router) {
+							r.Get("/", h.CheckCache)
+							r.Put("/", h.UploadCache)
+							r.Get("/download", h.DownloadCache)
+							r.Delete("/", h.DeleteCache)
+						})
+					})
+
 					// Project API keys
 					r.Route("/api-keys", func(r chi.Router) {
 						r.Get("/", h.ListProjectAPIKeys)

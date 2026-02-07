@@ -1,0 +1,42 @@
+[plugin]
+name = "golangci-lint"
+description = "Run golangci-lint for Go code analysis"
+version = "1.0.0"
+type = "composite"
+author = "dagryn"
+license = "MIT"
+
+[inputs.version]
+description = "golangci-lint version to install"
+default = "latest"
+
+[inputs.args]
+description = "Arguments to pass to golangci-lint run"
+default = "./..."
+
+[inputs.config]
+description = "Path to golangci-lint config file"
+
+[[step]]
+name = "install-golangci-lint"
+command = """
+VERSION="${inputs.version}"
+if command -v golangci-lint >/dev/null 2>&1; then
+  echo "golangci-lint already installed: $(golangci-lint --version)"
+else
+  echo "Installing golangci-lint ($VERSION)"
+  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "$(go env GOPATH)/bin" "$VERSION"
+fi
+"""
+
+[[step]]
+name = "run-golangci-lint"
+command = """
+LINT_ARGS="${inputs.args}"
+CONFIG_FLAG=""
+if [ -n "${inputs.config}" ]; then
+  CONFIG_FLAG="--config ${inputs.config}"
+fi
+echo "Running: golangci-lint run $CONFIG_FLAG $LINT_ARGS"
+golangci-lint run $CONFIG_FLAG $LINT_ARGS
+"""

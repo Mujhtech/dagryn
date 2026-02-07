@@ -9,6 +9,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/githubapp"
 	"github.com/mujhtech/dagryn/internal/job"
 	"github.com/mujhtech/dagryn/internal/server/sse"
+	"github.com/mujhtech/dagryn/internal/service"
 )
 
 // ReadyChecker can optionally be implemented by dependencies to participate in /ready.
@@ -43,6 +44,9 @@ type Handler struct {
 
 	// Workflow management
 	workflows *repo.WorkflowRepo
+
+	// Cache service (optional; nil when storage is not configured)
+	cacheService *service.CacheService
 }
 
 // New creates a new Handler with all dependencies.
@@ -68,6 +72,7 @@ func New(
 	githubApp *githubapp.Client,
 	githubInstallations *repo.GitHubInstallationRepo,
 	workflows *repo.WorkflowRepo,
+	cacheService *service.CacheService,
 ) *Handler {
 	return &Handler{
 		db:                  database,
@@ -88,5 +93,6 @@ func New(
 		githubApp:           githubApp,
 		githubInstallations: githubInstallations,
 		workflows:           workflows,
+		cacheService:        cacheService,
 	}
 }

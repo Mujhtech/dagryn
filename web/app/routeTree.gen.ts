@@ -19,6 +19,7 @@ import { Route as AuthDeviceRouteImport } from './routes/auth/device'
 import { Route as TeamsTeamIdIndexRouteImport } from './routes/teams/$teamId/index'
 import { Route as ProjectsProjectIdIndexRouteImport } from './routes/projects/$projectId/index'
 import { Route as ProjectsProjectIdSettingsRouteImport } from './routes/projects/$projectId/settings'
+import { Route as ProjectsProjectIdCacheRouteImport } from './routes/projects/$projectId/cache'
 import { Route as AuthProviderCallbackRouteImport } from './routes/auth/$provider/callback'
 import { Route as ProjectsProjectIdRunsRunIdRouteImport } from './routes/projects/$projectId/runs/$runId'
 
@@ -73,6 +74,11 @@ const ProjectsProjectIdSettingsRoute =
     path: '/projects/$projectId/settings',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ProjectsProjectIdCacheRoute = ProjectsProjectIdCacheRouteImport.update({
+  id: '/projects/$projectId/cache',
+  path: '/projects/$projectId/cache',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthProviderCallbackRoute = AuthProviderCallbackRouteImport.update({
   id: '/auth/$provider/callback',
   path: '/auth/$provider/callback',
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/projects/': typeof ProjectsIndexRoute
   '/teams/': typeof TeamsIndexRoute
   '/auth/$provider/callback': typeof AuthProviderCallbackRoute
+  '/projects/$projectId/cache': typeof ProjectsProjectIdCacheRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
   '/teams/$teamId/': typeof TeamsTeamIdIndexRoute
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   '/projects': typeof ProjectsIndexRoute
   '/teams': typeof TeamsIndexRoute
   '/auth/$provider/callback': typeof AuthProviderCallbackRoute
+  '/projects/$projectId/cache': typeof ProjectsProjectIdCacheRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/projects/$projectId': typeof ProjectsProjectIdIndexRoute
   '/teams/$teamId': typeof TeamsTeamIdIndexRoute
@@ -123,6 +131,7 @@ export interface FileRoutesById {
   '/projects/': typeof ProjectsIndexRoute
   '/teams/': typeof TeamsIndexRoute
   '/auth/$provider/callback': typeof AuthProviderCallbackRoute
+  '/projects/$projectId/cache': typeof ProjectsProjectIdCacheRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
   '/teams/$teamId/': typeof TeamsTeamIdIndexRoute
@@ -139,6 +148,7 @@ export interface FileRouteTypes {
     | '/projects/'
     | '/teams/'
     | '/auth/$provider/callback'
+    | '/projects/$projectId/cache'
     | '/projects/$projectId/settings'
     | '/projects/$projectId/'
     | '/teams/$teamId/'
@@ -153,6 +163,7 @@ export interface FileRouteTypes {
     | '/projects'
     | '/teams'
     | '/auth/$provider/callback'
+    | '/projects/$projectId/cache'
     | '/projects/$projectId/settings'
     | '/projects/$projectId'
     | '/teams/$teamId'
@@ -167,6 +178,7 @@ export interface FileRouteTypes {
     | '/projects/'
     | '/teams/'
     | '/auth/$provider/callback'
+    | '/projects/$projectId/cache'
     | '/projects/$projectId/settings'
     | '/projects/$projectId/'
     | '/teams/$teamId/'
@@ -182,6 +194,7 @@ export interface RootRouteChildren {
   ProjectsIndexRoute: typeof ProjectsIndexRoute
   TeamsIndexRoute: typeof TeamsIndexRoute
   AuthProviderCallbackRoute: typeof AuthProviderCallbackRoute
+  ProjectsProjectIdCacheRoute: typeof ProjectsProjectIdCacheRoute
   ProjectsProjectIdSettingsRoute: typeof ProjectsProjectIdSettingsRoute
   ProjectsProjectIdIndexRoute: typeof ProjectsProjectIdIndexRoute
   TeamsTeamIdIndexRoute: typeof TeamsTeamIdIndexRoute
@@ -260,6 +273,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/projects/$projectId/cache': {
+      id: '/projects/$projectId/cache'
+      path: '/projects/$projectId/cache'
+      fullPath: '/projects/$projectId/cache'
+      preLoaderRoute: typeof ProjectsProjectIdCacheRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth/$provider/callback': {
       id: '/auth/$provider/callback'
       path: '/auth/$provider/callback'
@@ -286,6 +306,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectsIndexRoute: ProjectsIndexRoute,
   TeamsIndexRoute: TeamsIndexRoute,
   AuthProviderCallbackRoute: AuthProviderCallbackRoute,
+  ProjectsProjectIdCacheRoute: ProjectsProjectIdCacheRoute,
   ProjectsProjectIdSettingsRoute: ProjectsProjectIdSettingsRoute,
   ProjectsProjectIdIndexRoute: ProjectsProjectIdIndexRoute,
   TeamsTeamIdIndexRoute: TeamsTeamIdIndexRoute,

@@ -9,6 +9,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/encrypt"
 	"github.com/mujhtech/dagryn/internal/job/handlers"
 	"github.com/mujhtech/dagryn/internal/redis"
+	"github.com/mujhtech/dagryn/internal/service"
 	"go.opentelemetry.io/otel"
 )
 
@@ -28,6 +29,7 @@ type Job struct {
 		FetchInstallationToken(ctx context.Context, installationID int64) (*handlers.InstallationToken, error)
 	}
 	githubInstallations *repo.GitHubInstallationRepo
+	cacheService        *service.CacheService
 }
 
 // Config holds the configuration for the job system.
@@ -50,6 +52,8 @@ type Config struct {
 	}
 	// GitHubInstallations is the repository for GitHub App installations.
 	GitHubInstallations *repo.GitHubInstallationRepo
+	// CacheService is the cache service for GC jobs (optional).
+	CacheService *service.CacheService
 }
 
 // DefaultConfig returns sensible defaults for job configuration.
@@ -85,6 +89,7 @@ func New(cfg Config, appCtx context.Context, rds *redis.Redis) (*Job, error) {
 		providerEncrypt:     cfg.ProviderTokenEncrypt,
 		githubApp:           cfg.GitHubAppClient,
 		githubInstallations: cfg.GitHubInstallations,
+		cacheService:        cfg.CacheService,
 	}, nil
 }
 
@@ -106,6 +111,13 @@ func (j *Job) RegisterAndStart() error {
 	if j.runs != nil && j.projects != nil {
 		execHandler := handlers.NewExecuteRunHandler(j.runs, j.projects, j.encrypter, j.providerTokens, j.providerEncrypt, j.githubApp, j.githubInstallations)
 		j.Executor.RegisterJobHandler(ExecuteRunTaskName, asynq.HandlerFunc(execHandler.Handle))
+	}
+
+	// Register cache GC handler if cache service is available
+	if j.cacheService != nil && j.projects != nil {
+		cacheGCHandler := handlers.NewCacheGCHandler(j.cacheService, j.projects)
+		j.Executor.RegisterJobHandler(CacheGCTaskName, asynq.HandlerFunc(cacheGCHandler.Handle))
+		j.Scheduler.RegisterTask("0 * * * *", ScheduleQueueName, CacheGCTaskName) // every hour
 	}
 
 	// Start scheduler

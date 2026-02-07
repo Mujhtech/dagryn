@@ -50,3 +50,62 @@ client_id = ""
 private_key = ""
 # Webhook secret configured on the GitHub App (or set GITHUB_APP_WEBHOOK_SECRET env var)
 webhook_secret = ""
+
+# Cache storage configuration (optional, enables cloud cache service)
+# Provider: "filesystem", "s3", "gcs", "azure", "r2", "minio"
+# Can also be configured via DAGRYN_CACHE_STORAGE_* environment variables.
+#
+# --- Filesystem (local development) ---
+# [cache_storage]
+# provider = "filesystem"
+# base_path = "/var/dagryn/cache-storage"
+# prefix = ""
+#
+# --- AWS S3 ---
+# [cache_storage]
+# provider = "s3"
+# bucket = "dagryn-cache"
+# region = "us-east-1"
+# access_key_id = ""      # or use AWS_ACCESS_KEY_ID env / IAM role
+# secret_access_key = ""  # or use AWS_SECRET_ACCESS_KEY env / IAM role
+# prefix = "v1/"
+#
+# --- Google Cloud Storage ---
+# [cache_storage]
+# provider = "gcs"
+# bucket = "dagryn-cache"
+# region = "us-central1"
+# credentials_file = "/path/to/service-account.json"  # or use GOOGLE_APPLICATION_CREDENTIALS env
+# prefix = "v1/"
+#
+# --- Azure Blob Storage ---
+# Uses access_key_id for account name and secret_access_key for account key.
+# Endpoint is the storage account URL (e.g. https://<account>.blob.core.windows.net).
+# Falls back to DefaultAzureCredential when keys are not set.
+# [cache_storage]
+# provider = "azure"
+# bucket = "dagryn-cache"          # container name
+# endpoint = "https://<account>.blob.core.windows.net"
+# access_key_id = ""               # storage account name
+# secret_access_key = ""           # storage account key
+# prefix = "v1/"
+#
+# --- Cloudflare R2 ---
+# Endpoint format: https://<account_id>.r2.cloudflarestorage.com
+# [cache_storage]
+# provider = "r2"
+# bucket = "dagryn-cache"
+# endpoint = "https://<account_id>.r2.cloudflarestorage.com"
+# access_key_id = ""
+# secret_access_key = ""
+# prefix = "v1/"
+#
+# --- MinIO (self-hosted S3-compatible) ---
+# [cache_storage]
+# provider = "minio"
+# bucket = "dagryn-cache"
+# endpoint = "http://minio.local:9000"
+# access_key_id = "minioadmin"
+# secret_access_key = "minioadmin"
+# use_path_style = true
+# prefix = "v1/"

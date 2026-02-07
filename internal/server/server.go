@@ -45,7 +45,9 @@ import (
 	"github.com/mujhtech/dagryn/internal/server/handlers"
 	"github.com/mujhtech/dagryn/internal/server/middleware"
 	"github.com/mujhtech/dagryn/internal/server/sse"
+	"github.com/mujhtech/dagryn/internal/service"
 	"github.com/mujhtech/dagryn/internal/telemetry"
+	"github.com/mujhtech/dagryn/pkg/storage"
 	"github.com/rs/zerolog/log"
 )
 
@@ -202,6 +204,31 @@ func (s *Server) Initialize(ctx context.Context) error {
 		providerEnc = encrypt.NewNoOpEncrypt()
 	}
 
+	// Optional cache service (when cache storage is configured)
+	var cacheService *service.CacheService
+	if s.config.CacheStorage.Provider != "" {
+		storageCfg := storage.Config{
+			Provider:        storage.ProviderType(s.config.CacheStorage.Provider),
+			Bucket:          s.config.CacheStorage.Bucket,
+			Region:          s.config.CacheStorage.Region,
+			Endpoint:        s.config.CacheStorage.Endpoint,
+			AccessKeyID:     s.config.CacheStorage.AccessKeyID,
+			SecretAccessKey: s.config.CacheStorage.SecretAccessKey,
+			UsePathStyle:    s.config.CacheStorage.UsePathStyle,
+			BasePath:        s.config.CacheStorage.BasePath,
+			Prefix:          s.config.CacheStorage.Prefix,
+			CredentialsFile: s.config.CacheStorage.CredentialsFile,
+		}
+		cacheBucket, err := storage.NewBucket(storageCfg)
+		if err != nil {
+			log.Warn().Err(err).Msg("Cache storage not initialized (invalid configuration)")
+		}
+
+		cacheRepo := repo.NewCacheRepo(database.Pool())
+		cacheService = service.NewCacheService(cacheRepo, cacheBucket, log.Logger)
+		log.Debug().Str("provider", s.config.CacheStorage.Provider).Msg("Cache service initialized")
+	}
+
 	// Create handlers
 	h := handlers.New(
 		s.db, s.repos.Users, s.repos.Tokens, s.repos.Teams, s.repos.Projects,
@@ -213,6 +240,7 @@ func (s *Server) Initialize(ctx context.Context) error {
 		s.githubApp,
 		s.repos.GitHubInstallations,
 		s.repos.Workflows,
+		cacheService,
 	)
 
 	// Create auth handler

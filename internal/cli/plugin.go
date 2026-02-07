@@ -3,9 +3,10 @@ package cli
 import (
 	"fmt"
 	"os"
-	// "path/filepath"
+	"path/filepath"
 	"text/tabwriter"
 
+	"github.com/mujhtech/dagryn/internal/config"
 	"github.com/mujhtech/dagryn/internal/plugin"
 	"github.com/spf13/cobra"
 )
@@ -20,6 +21,10 @@ func newPluginCmd() *cobra.Command {
 	cmd.AddCommand(newPluginListCmd())
 	cmd.AddCommand(newPluginCleanCmd())
 	cmd.AddCommand(newPluginInstallCmd())
+	cmd.AddCommand(newPluginInfoCmd())
+	cmd.AddCommand(newPluginUpdateCmd())
+	cmd.AddCommand(newPluginInitCmd())
+	cmd.AddCommand(newPluginValidateCmd())
 
 	return cmd
 }
@@ -145,6 +150,9 @@ This command allows you to pre-install plugins.`,
 		Example: `  # Install from GitHub releases
   dagryn plugin install github:golangci/golangci-lint@v1.55.0
 
+  # Install using short format (defaults to GitHub)
+  dagryn plugin install golangci/golangci-lint@v1.55.0
+
   # Install via go install
   dagryn plugin install go:golang.org/x/tools/cmd/goimports@latest
 
@@ -191,9 +199,336 @@ This command allows you to pre-install plugins.`,
 	}
 }
 
-// pluginDirExists checks if the plugin directory exists.
-// func pluginDirExists(projectRoot string) bool {
-// 	pluginDir := filepath.Join(projectRoot, ".dagryn", "plugins")
-// 	info, err := os.Stat(pluginDir)
-// 	return err == nil && info.IsDir()
-// }
+func newPluginInfoCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "info <owner/repo>",
+		Short: "Show plugin information",
+		Long: `Fetch and display plugin.toml metadata from a GitHub repository.
+
+Displays the plugin's name, description, type, platforms, and inputs.`,
+		Example: `  # Show info for a plugin
+  dagryn plugin info dagryn/setup-go`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ref := args[0]
+
+			// Parse as short ref with a dummy version to extract owner/repo
+			spec := ref + "@latest"
+			p, err := plugin.Parse(spec)
+			if err != nil {
+				return fmt.Errorf("invalid plugin reference %q: %w", ref, err)
+			}
+
+			if p.Source != plugin.SourceGitHub {
+				return fmt.Errorf("plugin info only supports GitHub plugins")
+			}
+
+			// Resolve the plugin to fetch its manifest
+			projectRoot, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+
+			manager := plugin.NewManager(projectRoot)
+			resolved, err := manager.Resolve(cmd.Context(), spec)
+			if err != nil {
+				return fmt.Errorf("failed to resolve plugin: %w", err)
+			}
+
+			if resolved.Manifest == nil {
+				fmt.Printf("Plugin: %s/%s\n", p.Owner, p.Repo)
+				fmt.Printf("Version: %s\n", resolved.ResolvedVersion)
+				fmt.Println("No plugin.toml manifest found.")
+				return nil
+			}
+
+			m := resolved.Manifest
+			fmt.Printf("Name:        %s\n", m.Plugin.Name)
+			fmt.Printf("Description: %s\n", m.Plugin.Description)
+			fmt.Printf("Version:     %s\n", m.Plugin.Version)
+			fmt.Printf("Type:        %s\n", pluginTypeDisplay(m))
+			if m.Plugin.Author != "" {
+				fmt.Printf("Author:      %s\n", m.Plugin.Author)
+			}
+			if m.Plugin.License != "" {
+				fmt.Printf("License:     %s\n", m.Plugin.License)
+			}
+			if m.Plugin.Homepage != "" {
+				fmt.Printf("Homepage:    %s\n", m.Plugin.Homepage)
+			}
+
+			if len(m.Platforms) > 0 {
+				fmt.Println("\nPlatforms:")
+				for platform, asset := range m.Platforms {
+					fmt.Printf("  %s -> %s\n", platform, asset)
+				}
+			}
+
+			if len(m.Inputs) > 0 {
+				fmt.Println("\nInputs:")
+				for name, input := range m.Inputs {
+					req := ""
+					if input.Required {
+						req = " (required)"
+					}
+					def := ""
+					if input.Default != "" {
+						def = fmt.Sprintf(" [default: %s]", input.Default)
+					}
+					fmt.Printf("  %s%s%s\n", name, req, def)
+					if input.Description != "" {
+						fmt.Printf("    %s\n", input.Description)
+					}
+				}
+			}
+
+			if m.IsComposite() && len(m.Steps) > 0 {
+				fmt.Printf("\nSteps: %d\n", len(m.Steps))
+				for i, step := range m.Steps {
+					fmt.Printf("  %d. %s\n", i+1, step.Name)
+				}
+			}
+
+			return nil
+		},
+	}
+}
+
+func newPluginUpdateCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "update",
+		Short: "Update plugins to latest versions",
+		Long: `Check for newer versions of installed plugins and update them.
+
+Reads plugin specs from dagryn.toml and compares with the lock file.
+Plugins with "latest" or semver range versions will be re-resolved.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			projectRoot, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+
+			// Load config to get plugin specs
+			cfg, err := config.Parse(filepath.Join(projectRoot, config.DefaultConfigFile))
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
+
+			// Collect all plugin specs from tasks
+			specs := make(map[string]bool)
+			for _, spec := range cfg.Plugins {
+				specs[spec] = true
+			}
+			for _, tc := range cfg.Tasks {
+				for _, spec := range tc.GetPlugins() {
+					// Resolve global plugin references
+					if fullSpec, ok := cfg.Plugins[spec]; ok {
+						specs[fullSpec] = true
+					} else {
+						specs[spec] = true
+					}
+				}
+			}
+
+			if len(specs) == 0 {
+				fmt.Println("No plugins configured.")
+				return nil
+			}
+
+			manager := plugin.NewManager(projectRoot)
+			updated := 0
+
+			for spec := range specs {
+				p, err := plugin.Parse(spec)
+				if err != nil {
+					fmt.Printf("  Skipping %s: %v\n", spec, err)
+					continue
+				}
+
+				// Only update non-exact versions
+				if p.IsExactVersion() {
+					continue
+				}
+
+				fmt.Printf("Checking %s...\n", spec)
+
+				// Clean existing and re-install
+				_ = manager.CleanPlugin(spec)
+
+				result, err := manager.Install(cmd.Context(), spec)
+				if err != nil {
+					fmt.Printf("  Failed to update %s: %v\n", spec, err)
+					continue
+				}
+
+				fmt.Printf("  Updated %s to %s\n", result.Plugin.Name, result.Plugin.ResolvedVersion)
+				updated++
+			}
+
+			if updated == 0 {
+				fmt.Println("All plugins are up to date.")
+			} else {
+				fmt.Printf("\nUpdated %d plugins.\n", updated)
+			}
+
+			return nil
+		},
+	}
+}
+
+func newPluginInitCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "init <name>",
+		Short: "Scaffold a new plugin project",
+		Long: `Create a new plugin project directory with a plugin.toml template,
+README.md, and a GitHub Actions release workflow.`,
+		Example: `  # Create a new tool plugin
+  dagryn plugin init my-plugin
+
+  # Create a new composite plugin
+  dagryn plugin init setup-go`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+
+			if _, err := os.Stat(name); err == nil {
+				return fmt.Errorf("directory %q already exists", name)
+			}
+
+			if err := os.MkdirAll(filepath.Join(name, ".github", "workflows"), 0755); err != nil {
+				return fmt.Errorf("failed to create directory: %w", err)
+			}
+
+			// Write plugin.toml
+			manifest := fmt.Sprintf(`[plugin]
+name = %q
+description = "A Dagryn plugin"
+version = "0.1.0"
+type = "tool"
+author = ""
+license = "MIT"
+
+[tool]
+binary = %q
+
+[platforms]
+# "darwin-arm64" = "%s-darwin-arm64.tar.gz"
+# "darwin-amd64" = "%s-darwin-amd64.tar.gz"
+# "linux-amd64"  = "%s-linux-amd64.tar.gz"
+
+# [inputs.config]
+# description = "Path to configuration file"
+# default = ""
+`, name, name, name, name, name)
+
+			if err := os.WriteFile(filepath.Join(name, "plugin.toml"), []byte(manifest), 0644); err != nil {
+				return fmt.Errorf("failed to write plugin.toml: %w", err)
+			}
+
+			// Write README.md
+			readme := fmt.Sprintf("# %s\n\nA Dagryn plugin.\n\n## Usage\n\n```toml\n[tasks.example]\nuses = \"your-org/%s@v0.1.0\"\ncommand = \"%s --help\"\n```\n", name, name, name)
+
+			if err := os.WriteFile(filepath.Join(name, "README.md"), []byte(readme), 0644); err != nil {
+				return fmt.Errorf("failed to write README.md: %w", err)
+			}
+
+			// Write GitHub Actions release workflow
+			workflow := fmt.Sprintf(`name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          # Add your build steps here
+          echo "Building %s"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            # Add your release artifacts here
+            # dist/*
+`, name)
+
+			if err := os.WriteFile(filepath.Join(name, ".github", "workflows", "release.yml"), []byte(workflow), 0644); err != nil {
+				return fmt.Errorf("failed to write release workflow: %w", err)
+			}
+
+			fmt.Printf("Created plugin project: %s/\n", name)
+			fmt.Printf("  %s/plugin.toml\n", name)
+			fmt.Printf("  %s/README.md\n", name)
+			fmt.Printf("  %s/.github/workflows/release.yml\n", name)
+			fmt.Println()
+			fmt.Println("Next steps:")
+			fmt.Println("  1. Edit plugin.toml with your plugin details")
+			fmt.Println("  2. Add your plugin code")
+			fmt.Println("  3. Push to GitHub and create a release")
+
+			return nil
+		},
+	}
+}
+
+func newPluginValidateCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "validate",
+		Short: "Validate plugin.toml",
+		Long:  `Read and validate the plugin.toml manifest in the current directory.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			data, err := os.ReadFile("plugin.toml")
+			if err != nil {
+				if os.IsNotExist(err) {
+					return fmt.Errorf("no plugin.toml found in current directory")
+				}
+				return fmt.Errorf("failed to read plugin.toml: %w", err)
+			}
+
+			m, err := plugin.ParseManifest(data)
+			if err != nil {
+				fmt.Printf("Parse error: %v\n", err)
+				return err
+			}
+
+			if err := plugin.ValidateManifest(m); err != nil {
+				fmt.Printf("Validation error: %v\n", err)
+				return err
+			}
+
+			fmt.Println("plugin.toml is valid.")
+			fmt.Printf("  Name:    %s\n", m.Plugin.Name)
+			fmt.Printf("  Version: %s\n", m.Plugin.Version)
+			fmt.Printf("  Type:    %s\n", pluginTypeDisplay(m))
+
+			if len(m.Platforms) > 0 {
+				fmt.Printf("  Platforms: %d\n", len(m.Platforms))
+			}
+			if len(m.Inputs) > 0 {
+				fmt.Printf("  Inputs:    %d\n", len(m.Inputs))
+			}
+			if m.IsComposite() {
+				fmt.Printf("  Steps:     %d\n", len(m.Steps))
+			}
+
+			return nil
+		},
+	}
+}
+
+func pluginTypeDisplay(m *plugin.Manifest) string {
+	if m.IsComposite() {
+		return "composite"
+	}
+	return "tool"
+}

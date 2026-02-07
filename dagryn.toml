@@ -86,3 +86,15 @@ command = "test -z \"$(gofmt -l .)\""
 needs = ["go-build"]
 inputs = ["**/*.go"]
 timeout = "1m"
+
+
+[cache]
+# Local cache settings
+local = true
+dir = ".dagryn/cache"
+
+[cache.remote]
+enabled = true
+# endpoint = "grpc://cache.example.com:9092"
+# Or use Dagryn Cloud cache
+cloud = true

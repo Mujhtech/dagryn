@@ -37,6 +37,7 @@ import {
   ChevronUp,
   Circle,
   Clock,
+  Database,
   GitBranch,
   GitCommit,
   Github,
@@ -354,11 +355,18 @@ function ProjectDetailPage() {
           </div>
           <p className="text-muted-foreground font-mono">{project.slug}</p>
         </div>
-        <Button variant="outline" size="icon" asChild>
-          <Link to="/projects/$projectId/settings" params={{ projectId }}>
-            <Settings className="h-4 w-4" />
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" asChild>
+            <Link to="/projects/$projectId/cache" params={{ projectId }}>
+              <Database className="h-4 w-4" />
+            </Link>
+          </Button>
+          <Button variant="outline" size="icon" asChild>
+            <Link to="/projects/$projectId/settings" params={{ projectId }}>
+              <Settings className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {project.description && (
@@ -877,6 +885,11 @@ function WorkflowDashboard({
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" asChild>
+                <Link to="/projects/$projectId/cache" params={{ projectId }}>
+                  <Database className="h-4 w-4" />
+                </Link>
+              </Button>
               <Button variant="outline" size="icon" asChild>
                 <Link to="/projects/$projectId/settings" params={{ projectId }}>
                   <Settings className="h-4 w-4" />

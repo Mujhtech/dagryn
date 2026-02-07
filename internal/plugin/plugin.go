@@ -55,6 +55,9 @@ type Plugin struct {
 
 	// Raw is the original plugin specification string.
 	Raw string
+
+	// Manifest is the parsed plugin.toml manifest (populated when available).
+	Manifest *Manifest
 }
 
 // Spec represents a plugin specification that can be a single string or array.
@@ -100,29 +103,42 @@ func (s *Spec) IsEmpty() bool {
 //   - cargo:ripgrep@14.0.3
 var pluginPattern = regexp.MustCompile(`^(github|go|npm|pip|cargo):(.+)@(.+)$`)
 
+// shortRefPattern matches short reference format "owner/repo@version" (defaults to GitHub).
+// Examples:
+//   - dagryn/setup-go@v1
+//   - golangci/golangci-lint@v1.55.0
+var shortRefPattern = regexp.MustCompile(`^([a-zA-Z0-9_-]+)/([a-zA-Z0-9_.-]+)@(.+)$`)
+
 // semverPattern matches semantic versions with optional 'v' prefix
 var semverPattern = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)(-[\w.]+)?(\+[\w.]+)?$`)
 
-// semverRangePattern matches semver ranges like ^1.0.0 or ~1.0.0
-// var semverRangePattern = regexp.MustCompile(`^[\^~]?v?(\d+)\.(\d+)\.(\d+)(-[\w.]+)?$`)
-
 // Parse parses a plugin specification string into a Plugin struct.
-// Format: "source:name@version"
-// Examples:
-//   - github:golangci/golangci-lint@v1.55.0
-//   - go:golang.org/x/tools/cmd/goimports@latest
-//   - npm:prettier@3.0.0
+// Supports two formats:
+//   - Long format:  "source:name@version" (e.g., "github:golangci/golangci-lint@v1.55.0")
+//   - Short format: "owner/repo@version" (e.g., "dagryn/setup-go@v1", defaults to GitHub)
 func Parse(spec string) (*Plugin, error) {
 	spec = strings.TrimSpace(spec)
 	if spec == "" {
 		return nil, fmt.Errorf("empty plugin specification")
 	}
 
+	// Try long format first (source:name@version)
 	matches := pluginPattern.FindStringSubmatch(spec)
-	if matches == nil {
-		return nil, fmt.Errorf("invalid plugin specification %q: must be in format 'source:name@version'", spec)
+	if matches != nil {
+		return parseLongFormat(matches, spec)
 	}
 
+	// Try short format (owner/repo@version -> implicit GitHub)
+	shortMatches := shortRefPattern.FindStringSubmatch(spec)
+	if shortMatches != nil {
+		return parseShortFormat(shortMatches, spec)
+	}
+
+	return nil, fmt.Errorf("invalid plugin specification %q: must be in format 'source:name@version' or 'owner/repo@version'", spec)
+}
+
+// parseLongFormat parses the long format "source:name@version".
+func parseLongFormat(matches []string, spec string) (*Plugin, error) {
 	source := SourceType(matches[1])
 	name := matches[2]
 	version := matches[3]
@@ -181,6 +197,23 @@ func Parse(spec string) (*Plugin, error) {
 	}
 
 	return plugin, nil
+}
+
+// parseShortFormat parses the short format "owner/repo@version" (implicit GitHub).
+func parseShortFormat(matches []string, spec string) (*Plugin, error) {
+	owner := matches[1]
+	repo := matches[2]
+	version := matches[3]
+
+	return &Plugin{
+		Source:     SourceGitHub,
+		Owner:      owner,
+		Repo:       repo,
+		Name:       repo,
+		BinaryName: repo,
+		Version:    version,
+		Raw:        spec,
+	}, nil
 }
 
 // IsExactVersion returns true if the version is an exact version (not a range).

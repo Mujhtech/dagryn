@@ -8,10 +8,11 @@ import (
 
 var (
 	// Global flags
-	verbose   bool
-	noCache   bool
-	noPlugins bool
-	cfgFile   string
+	verbose       bool
+	noCache       bool
+	noPlugins     bool
+	noRemoteCache bool
+	cfgFile       string
 )
 
 var rootCmd = &cobra.Command{
@@ -33,6 +34,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().BoolVar(&noCache, "no-cache", false, "disable caching")
 	rootCmd.PersistentFlags().BoolVar(&noPlugins, "no-plugins", false, "disable plugin installation")
+	rootCmd.PersistentFlags().BoolVar(&noRemoteCache, "no-remote-cache", false, "disable remote caching")
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "dagryn.toml", "config file")
 
 	// Add subcommands
@@ -41,6 +43,7 @@ func init() {
 	rootCmd.AddCommand(graphCmd)
 	rootCmd.AddCommand(newPluginCmd())
 	rootCmd.AddCommand(newAuthCmd())
+	rootCmd.AddCommand(newCacheCmd())
 }
 
 // getProjectRoot returns the current working directory as the project root.

@@ -93,7 +93,7 @@ type GitHubAsset struct {
 	ContentType        string `json:"content_type"`
 }
 
-// Resolve resolves the plugin version.
+// Resolve resolves the plugin version and fetches its manifest if available.
 func (r *GitHubResolver) Resolve(ctx context.Context, plugin *Plugin) (*Plugin, error) {
 	resolved := *plugin // Copy
 
@@ -120,6 +120,17 @@ func (r *GitHubResolver) Resolve(ctx context.Context, plugin *Plugin) (*Plugin, 
 		resolved.ResolvedVersion = plugin.Version
 	}
 
+	// Try to fetch plugin.toml manifest from the repo
+	tag := resolved.ResolvedVersion
+	manifest, err := r.fetchManifest(ctx, plugin.Owner, plugin.Repo, tag)
+	if err == nil && manifest != nil {
+		resolved.Manifest = manifest
+		// Use binary name from manifest if available
+		if manifest.Tool.Binary != "" {
+			resolved.BinaryName = manifest.Tool.Binary
+		}
+	}
+
 	return &resolved, nil
 }
 
@@ -144,7 +155,15 @@ func (r *GitHubResolver) Install(ctx context.Context, plugin *Plugin, installDir
 	}
 
 	// Find appropriate asset for current platform
-	asset, err := r.findAsset(release.Assets, plugin.BinaryName)
+	var asset *GitHubAsset
+	if plugin.Manifest != nil {
+		// Use manifest platforms for deterministic asset selection
+		asset, err = r.findAssetFromManifest(release.Assets, plugin.Manifest)
+	}
+	if asset == nil {
+		// Fall back to heuristic scoring if no manifest or manifest didn't match
+		asset, err = r.findAsset(release.Assets, plugin.BinaryName)
+	}
 	if err != nil {
 		result.Status = StatusFailed
 		result.Error = fmt.Errorf("no suitable asset found for %s: %w", r.platform.String(), err)
@@ -555,6 +574,64 @@ func (r *GitHubResolver) extractFromZip(archivePath, binaryName, destDir string)
 	}
 
 	return "", fmt.Errorf("binary %s not found in archive", binaryName)
+}
+
+// fetchManifest fetches plugin.toml from the repository at the given tag.
+func (r *GitHubResolver) fetchManifest(ctx context.Context, owner, repo, tag string) (*Manifest, error) {
+	url := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/plugin.toml", owner, repo, tag)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.authToken != "" {
+		req.Header.Set("Authorization", "Bearer "+r.authToken)
+	}
+
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil // No manifest, not an error
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to fetch plugin.toml: status %d", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return ParseManifest(data)
+}
+
+// findAssetFromManifest finds the asset using the manifest's platform mappings.
+func (r *GitHubResolver) findAssetFromManifest(assets []GitHubAsset, manifest *Manifest) (*GitHubAsset, error) {
+	if manifest == nil || len(manifest.Platforms) == 0 {
+		return nil, fmt.Errorf("manifest has no platform mappings")
+	}
+
+	// Build platform key: "os-arch"
+	platformKey := fmt.Sprintf("%s-%s", r.platform.OS, r.platform.Arch)
+	assetName := manifest.PlatformAsset(platformKey)
+	if assetName == "" {
+		return nil, fmt.Errorf("no platform mapping for %s in manifest", platformKey)
+	}
+
+	// Find the asset with that name
+	for i := range assets {
+		if assets[i].Name == assetName {
+			return &assets[i], nil
+		}
+	}
+
+	return nil, fmt.Errorf("asset %q from manifest not found in release assets", assetName)
 }
 
 // matchSemverRange finds the best matching version for a semver range.

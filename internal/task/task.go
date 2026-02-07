@@ -18,6 +18,7 @@ type Task struct {
 	Env     map[string]string
 	Timeout time.Duration
 	Workdir string
+	With    map[string]string // Composite plugin inputs
 }
 
 // validNameRegex defines valid task name pattern
@@ -33,11 +34,23 @@ func (t *Task) Validate() error {
 		return fmt.Errorf("task %q has invalid name: must start with a letter and contain only letters, numbers, underscores, and hyphens", t.Name)
 	}
 
-	if t.Command == "" {
+	// A task needs either a command or a uses spec (for composite plugins)
+	if t.Command == "" && len(t.Uses) == 0 {
 		return fmt.Errorf("task %q has no command", t.Name)
 	}
 
+	// with requires uses
+	if len(t.With) > 0 && len(t.Uses) == 0 {
+		return fmt.Errorf("task %q has 'with' but no 'uses'", t.Name)
+	}
+
 	return nil
+}
+
+// IsComposite returns true if this task delegates to a composite plugin
+// (has no command and uses exactly one plugin).
+func (t *Task) IsComposite() bool {
+	return t.Command == "" && len(t.Uses) == 1
 }
 
 // HasDependencies returns true if the task has dependencies
@@ -93,6 +106,13 @@ func (t *Task) Clone() *Task {
 		clone.Env = make(map[string]string, len(t.Env))
 		for k, v := range t.Env {
 			clone.Env[k] = v
+		}
+	}
+
+	if t.With != nil {
+		clone.With = make(map[string]string, len(t.With))
+		for k, v := range t.With {
+			clone.With[k] = v
 		}
 	}
 

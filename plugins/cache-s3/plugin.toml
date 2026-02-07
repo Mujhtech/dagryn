@@ -1,0 +1,72 @@
+[plugin]
+name = "cache-s3"
+description = "Cache files using Amazon S3"
+version = "1.0.0"
+type = "composite"
+author = "dagryn"
+license = "MIT"
+
+[inputs.bucket]
+required = true
+description = "S3 bucket name"
+
+[inputs.key]
+required = true
+description = "Cache key (S3 object key prefix)"
+
+[inputs.path]
+required = true
+description = "Local path to cache"
+
+[inputs.region]
+description = "AWS region"
+default = "us-east-1"
+
+[inputs.restore]
+description = "Restore cache from S3"
+default = "true"
+
+[inputs.save]
+description = "Save cache to S3"
+default = "true"
+
+[[step]]
+name = "restore-cache"
+if = "${inputs.restore}"
+command = """
+BUCKET="${inputs.bucket}"
+KEY="${inputs.key}"
+LOCAL_PATH="${inputs.path}"
+REGION="${inputs.region}"
+S3_URI="s3://$BUCKET/$KEY"
+
+echo "Restoring cache from $S3_URI to $LOCAL_PATH"
+if aws s3 cp "$S3_URI" "$LOCAL_PATH" --region "$REGION" --recursive 2>/dev/null; then
+  echo "Cache restored successfully"
+else
+  echo "No cache found at $S3_URI (this is normal for first runs)"
+fi
+"""
+[step.env]
+AWS_DEFAULT_REGION = "${inputs.region}"
+
+[[step]]
+name = "save-cache"
+if = "${inputs.save}"
+command = """
+BUCKET="${inputs.bucket}"
+KEY="${inputs.key}"
+LOCAL_PATH="${inputs.path}"
+REGION="${inputs.region}"
+S3_URI="s3://$BUCKET/$KEY"
+
+if [ -e "$LOCAL_PATH" ]; then
+  echo "Saving cache from $LOCAL_PATH to $S3_URI"
+  aws s3 cp "$LOCAL_PATH" "$S3_URI" --region "$REGION" --recursive
+  echo "Cache saved successfully"
+else
+  echo "Path $LOCAL_PATH does not exist, skipping cache save"
+fi
+"""
+[step.env]
+AWS_DEFAULT_REGION = "${inputs.region}"

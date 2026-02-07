@@ -14,6 +14,7 @@ const (
 	WebhookTaskName    TaskName = "Webhook"
 	StaleRunsTaskName  TaskName = "stale_runs:check"
 	ExecuteRunTaskName TaskName = "execute_run"
+	CacheGCTaskName    TaskName = "cache_gc:run"
 )
 
 type ClientPayload struct {

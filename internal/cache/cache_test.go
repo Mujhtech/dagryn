@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -233,9 +234,10 @@ func TestCache_CheckAndSave(t *testing.T) {
 	err = os.WriteFile(filepath.Join(tmpDir, "output.txt"), []byte("output"), 0644)
 	require.NoError(t, err)
 
-	cache := New(tmpDir, true)
+	c := New(tmpDir, true)
+	ctx := context.Background()
 
-	task := &task.Task{
+	tk := &task.Task{
 		Name:    "build",
 		Command: "cat input.txt > output.txt",
 		Inputs:  []string{"input.txt"},
@@ -243,17 +245,17 @@ func TestCache_CheckAndSave(t *testing.T) {
 	}
 
 	// First check - cache miss
-	hit, key, err := cache.Check(task)
+	hit, key, err := c.Check(ctx, tk)
 	require.NoError(t, err)
 	assert.False(t, hit)
 	assert.NotEmpty(t, key)
 
 	// Save to cache
-	err = cache.Save(task, key, time.Second)
+	err = c.Save(ctx, tk, key, time.Second)
 	require.NoError(t, err)
 
 	// Second check - cache hit
-	hit, key2, err := cache.Check(task)
+	hit, key2, err := c.Check(ctx, tk)
 	require.NoError(t, err)
 	assert.True(t, hit)
 	assert.Equal(t, key, key2)
@@ -269,9 +271,10 @@ func TestCache_Disabled(t *testing.T) {
 		}
 	}()
 
-	cache := New(tmpDir, false)
+	c := New(tmpDir, false)
+	ctx := context.Background()
 
-	task := &task.Task{
+	tk := &task.Task{
 		Name:    "build",
 		Command: "echo hello",
 		Inputs:  []string{"*.txt"},
@@ -279,12 +282,12 @@ func TestCache_Disabled(t *testing.T) {
 	}
 
 	// Check always returns miss when disabled
-	hit, key, err := cache.Check(task)
+	hit, key, err := c.Check(ctx, tk)
 	require.NoError(t, err)
 	assert.False(t, hit)
 	assert.Empty(t, key)
 
-	assert.False(t, cache.IsEnabled())
+	assert.False(t, c.IsEnabled())
 }
 
 func TestCache_NoInputsOrOutputs(t *testing.T) {
@@ -297,15 +300,16 @@ func TestCache_NoInputsOrOutputs(t *testing.T) {
 		}
 	}()
 
-	cache := New(tmpDir, true)
+	c := New(tmpDir, true)
+	ctx := context.Background()
 
 	// Task without inputs/outputs should not be cached
-	task := &task.Task{
+	tk := &task.Task{
 		Name:    "clean",
 		Command: "rm -rf dist",
 	}
 
-	hit, key, err := cache.Check(task)
+	hit, key, err := c.Check(ctx, tk)
 	require.NoError(t, err)
 	assert.False(t, hit)
 	assert.Empty(t, key)

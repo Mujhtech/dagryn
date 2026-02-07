@@ -7,6 +7,47 @@ type Config struct {
 	Workflow WorkflowConfig        `toml:"workflow"`
 	Tasks    map[string]TaskConfig `toml:"tasks"`
 	Plugins  map[string]string     `toml:"plugins"` // Global plugins available to all tasks
+	Cache    CacheConfig           `toml:"cache"`
+}
+
+// CacheConfig controls local and remote caching.
+type CacheConfig struct {
+	Enabled *bool             `toml:"enabled"` // default true when nil
+	Dir     string            `toml:"dir"`     // override local cache directory
+	Remote  RemoteCacheConfig `toml:"remote"`
+}
+
+// IsEnabled returns whether local caching is enabled (defaults to true).
+func (c CacheConfig) IsEnabled() bool {
+	if c.Enabled == nil {
+		return true
+	}
+	return *c.Enabled
+}
+
+// RemoteCacheConfig configures the remote cache backend.
+type RemoteCacheConfig struct {
+	Enabled         bool   `toml:"enabled"`
+	Cloud           bool   `toml:"cloud"`    // Use Dagryn Cloud cache API
+	Provider        string `toml:"provider"` // "s3", "filesystem" (ignored when cloud=true)
+	Bucket          string `toml:"bucket"`
+	Region          string `toml:"region"`
+	Endpoint        string `toml:"endpoint"`
+	AccessKeyID     string `toml:"access_key_id"`
+	SecretAccessKey string `toml:"secret_access_key"`
+	UsePathStyle    bool   `toml:"use_path_style"`
+	Prefix          string `toml:"prefix"`
+	BasePath        string `toml:"base_path"`
+	Strategy        string `toml:"strategy"`          // default "local-first"
+	FallbackOnError *bool  `toml:"fallback_on_error"` // default true when nil
+}
+
+// IsFallbackOnError returns whether remote errors are non-fatal (defaults to true).
+func (rc RemoteCacheConfig) IsFallbackOnError() bool {
+	if rc.FallbackOnError == nil {
+		return true
+	}
+	return *rc.FallbackOnError
 }
 
 // WorkflowConfig represents the workflow section of the config.
@@ -25,6 +66,7 @@ type TaskConfig struct {
 	Env     map[string]string `toml:"env"`
 	Timeout string            `toml:"timeout"` // e.g., "30s", "5m"
 	Workdir string            `toml:"workdir"`
+	With    map[string]string `toml:"with"` // Inputs for composite plugins
 }
 
 // HasPlugins returns true if the task has any plugin dependencies.

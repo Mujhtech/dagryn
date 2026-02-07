@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/mujhtech/dagryn/internal/plugin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -68,13 +69,62 @@ func TestValidate_EmptyCommand(t *testing.T) {
 
 	hasError := false
 	for _, e := range errors {
-		if e.Task == "build" && e.Message == "command is required" {
+		if e.Task == "build" && assert.Contains(t, e.Message, "command is required") {
 			hasError = true
 			break
 		}
 	}
 	assert.True(t, hasError)
 }
+
+func TestValidate_UsesWithoutCommand(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"setup": {
+				Uses: pluginSpec("dagryn/setup-go@v1"),
+				With: map[string]string{"go-version": "1.22"},
+			},
+			"build": {Command: "go build ./..."},
+		},
+	}
+
+	errors := Validate(cfg)
+	assert.Empty(t, errors)
+}
+
+func TestValidate_WithWithoutUses(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {
+				Command: "go build ./...",
+				With:    map[string]string{"key": "value"},
+			},
+		},
+	}
+
+	errors := Validate(cfg)
+	require.NotEmpty(t, errors)
+
+	hasError := false
+	for _, e := range errors {
+		if e.Task == "build" && assert.Contains(t, e.Message, "'with' requires 'uses'") {
+			hasError = true
+			break
+		}
+	}
+	assert.True(t, hasError)
+}
+
+// pluginSpec creates a plugin.Spec from a single string for testing.
+func pluginSpec(s string) pluginSpecType {
+	var spec pluginSpecType
+	spec.Plugins = []string{s}
+	return spec
+}
+
+type pluginSpecType = plugin.Spec
 
 func TestValidate_MissingDependency(t *testing.T) {
 	cfg, err := Parse(filepath.Join("..", "..", "testdata", "missing_dep.toml"))
@@ -120,6 +170,58 @@ func TestValidate_CyclicDependency(t *testing.T) {
 	hasError := false
 	for _, e := range errors {
 		if e.Task == "" && assert.Contains(t, e.Message, "cyclic dependency detected") {
+			hasError = true
+			break
+		}
+	}
+	assert.True(t, hasError)
+}
+
+func TestValidate_RemoteCacheCloudMode(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+		Cache: CacheConfig{
+			Remote: RemoteCacheConfig{
+				Enabled: true,
+				Cloud:   true,
+				// No provider, bucket, or base_path — cloud mode skips those
+			},
+		},
+	}
+
+	errors := Validate(cfg)
+	for _, e := range errors {
+		// Should have no cache-related validation errors
+		assert.NotContains(t, e.Message, "cache.remote.provider")
+		assert.NotContains(t, e.Message, "cache.remote.bucket")
+		assert.NotContains(t, e.Message, "cache.remote.base_path")
+	}
+}
+
+func TestValidate_RemoteCacheCloudModeInvalidStrategy(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+		Cache: CacheConfig{
+			Remote: RemoteCacheConfig{
+				Enabled:  true,
+				Cloud:    true,
+				Strategy: "invalid-strategy",
+			},
+		},
+	}
+
+	errors := Validate(cfg)
+	require.NotEmpty(t, errors)
+
+	hasError := false
+	for _, e := range errors {
+		if assert.Contains(t, e.Message, "cache.remote.strategy") {
 			hasError = true
 			break
 		}

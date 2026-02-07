@@ -627,6 +627,77 @@ func (c *Client) SyncWorkflow(ctx context.Context, projectID uuid.UUID, req Sync
 	return &result, nil
 }
 
+// --- Cache API Methods ---
+
+// CheckCache checks if a cache entry exists for the given task/key.
+// Returns true on 200, false on 404.
+func (c *Client) CheckCache(ctx context.Context, projectID uuid.UUID, taskName, cacheKey string) (bool, error) {
+	path := fmt.Sprintf("/api/v1/projects/%s/cache/%s/%s", projectID, taskName, cacheKey)
+	resp, err := c.doRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return true, nil
+	case http.StatusNotFound:
+		return false, nil
+	default:
+		return false, c.parseError(resp)
+	}
+}
+
+// UploadCache stores cache content for the given task/key.
+// The body is sent as raw bytes (tar.gz archive).
+func (c *Client) UploadCache(ctx context.Context, projectID uuid.UUID, taskName, cacheKey string, body io.Reader, size int64) error {
+	path := fmt.Sprintf("/api/v1/projects/%s/cache/%s/%s", projectID, taskName, cacheKey)
+	fullURL := c.baseURL + path
+
+	req, err := http.NewRequestWithContext(ctx, "PUT", fullURL, body)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/octet-stream")
+	if size > 0 {
+		req.ContentLength = size
+	}
+	if c.creds != nil && c.creds.AccessToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.creds.AccessToken)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return WrapNetworkError("upload cache", fullURL, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusCreated {
+		return c.parseError(resp)
+	}
+	return nil
+}
+
+// DownloadCache retrieves cache content for the given task/key.
+// Returns the response body as a stream (caller must close).
+func (c *Client) DownloadCache(ctx context.Context, projectID uuid.UUID, taskName, cacheKey string) (io.ReadCloser, error) {
+	path := fmt.Sprintf("/api/v1/projects/%s/cache/%s/%s/download", projectID, taskName, cacheKey)
+	resp, err := c.doRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return resp.Body, nil
+	default:
+		defer func() { _ = resp.Body.Close() }()
+		return nil, c.parseError(resp)
+	}
+}
+
 // --- Internal Methods ---
 
 func (c *Client) doRequest(ctx context.Context, method, path string, body any) (*http.Response, error) {
