@@ -43,9 +43,13 @@ func HashTask(t *task.Task, projectRoot string) (string, error) {
 	h.Write([]byte(t.Workdir))
 	h.Write([]byte{0})
 
-	// Hash input files
+	// Hash input files — resolve patterns relative to workdir when set
 	if len(t.Inputs) > 0 {
-		inputHash, err := HashFiles(t.Inputs, projectRoot)
+		inputRoot := projectRoot
+		if t.Workdir != "" {
+			inputRoot = filepath.Join(projectRoot, t.Workdir)
+		}
+		inputHash, err := HashFiles(t.Inputs, inputRoot)
 		if err != nil {
 			return "", fmt.Errorf("failed to hash input files: %w", err)
 		}

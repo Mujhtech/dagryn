@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/mujhtech/dagryn/internal/task"
@@ -10,9 +11,10 @@ import (
 
 // Cache provides high-level caching operations.
 type Cache struct {
-	backend Backend
-	store   *Store // retained for GetStore() backward compat
-	enabled bool
+	backend     Backend
+	store       *Store // retained for GetStore() backward compat
+	enabled     bool
+	root        string // project root directory
 }
 
 // New creates a new cache instance with the default local backend.
@@ -22,6 +24,7 @@ func New(projectRoot string, enabled bool) *Cache {
 		backend: lb,
 		store:   lb.Store(),
 		enabled: enabled,
+		root:    projectRoot,
 	}
 }
 
@@ -30,6 +33,7 @@ func NewWithBackend(projectRoot string, enabled bool, backend Backend) *Cache {
 	c := &Cache{
 		backend: backend,
 		enabled: enabled,
+		root:    projectRoot,
 	}
 	// If the backend is a LocalBackend, expose its Store for backward compat
 	if lb, ok := backend.(*LocalBackend); ok {
@@ -95,7 +99,17 @@ func (c *Cache) Save(ctx context.Context, t *task.Task, key string, duration tim
 		Duration:  duration,
 	}
 
-	return c.backend.Save(ctx, t.Name, key, t.Outputs, meta)
+	// Resolve output patterns relative to task workdir so that
+	// "node_modules/**" with workdir="web" becomes "web/node_modules/**"
+	outputs := t.Outputs
+	if t.Workdir != "" {
+		outputs = make([]string, len(t.Outputs))
+		for i, p := range t.Outputs {
+			outputs[i] = filepath.Join(t.Workdir, p)
+		}
+	}
+
+	return c.backend.Save(ctx, t.Name, key, outputs, meta)
 }
 
 // Clear removes all cached data for a task.
@@ -118,10 +132,7 @@ func (c *Cache) GetBackend() Backend {
 	return c.backend
 }
 
-// projectRoot returns the store's root, or empty string if no local store.
+// projectRoot returns the project root directory.
 func (c *Cache) projectRoot() string {
-	if c.store != nil {
-		return c.store.root
-	}
-	return ""
+	return c.root
 }

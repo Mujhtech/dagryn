@@ -69,7 +69,8 @@ func (r *Result) IsSuccess() bool {
 // Executor executes tasks.
 type Executor struct {
 	projectRoot  string
-	pluginPaths  []string // Additional paths to prepend to PATH for plugins
+	pluginPaths  []string          // Additional paths to prepend to PATH for plugins
+	extraEnv     map[string]string // Additional env vars (e.g., from composite plugin steps)
 	stdoutWriter io.Writer
 	stderrWriter io.Writer
 }
@@ -95,6 +96,14 @@ func WithStderr(w io.Writer) Option {
 func WithPluginPaths(paths []string) Option {
 	return func(e *Executor) {
 		e.pluginPaths = paths
+	}
+}
+
+// WithExtraEnv sets additional environment variables (e.g., from composite plugin setup steps).
+// These are merged before task-level env vars, so task env takes precedence.
+func WithExtraEnv(env map[string]string) Option {
+	return func(e *Executor) {
+		e.extraEnv = env
 	}
 }
 
@@ -132,10 +141,20 @@ func (e *Executor) Execute(ctx context.Context, t *task.Task) *Result {
 	// Create output capture
 	capture := NewOutputCaptureWithWriters(e.stdoutWriter, e.stderrWriter)
 
+	// Merge extra env (from composite plugin setup) with task env.
+	// Task env takes precedence over extra env.
+	mergedEnv := make(map[string]string, len(e.extraEnv)+len(t.Env))
+	for k, v := range e.extraEnv {
+		mergedEnv[k] = v
+	}
+	for k, v := range t.Env {
+		mergedEnv[k] = v
+	}
+
 	// Create command
 	cmd := exec.CommandContext(ctx, "sh", "-c", t.Command)
 	cmd.Dir = workdir
-	cmd.Env = MergeEnvWithPlugins(t.Env, e.pluginPaths)
+	cmd.Env = MergeEnvWithPlugins(mergedEnv, e.pluginPaths)
 	cmd.Stdout = capture.StdoutWriter()
 	cmd.Stderr = capture.StderrWriter()
 

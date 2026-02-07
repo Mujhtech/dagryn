@@ -115,6 +115,26 @@ func formatHeader(projectType, description string) string {
 #   workdir  - Working directory for the command
 #   env      - Environment variables as key=value pairs
 #   uses     - Plugin(s) to install before running the task
+#
+# Cache configuration:
+#   [cache]
+#   enabled = true                    # Enable/disable local caching (default: true)
+#   dir = ""             # Override local cache directory
+#
+#   [cache.remote]
+#   enabled = true                    # Enable remote cache sharing
+#   cloud = true                      # Use Dagryn Cloud cache (requires "dagryn login")
+#   strategy = "local-first"          # "local-first", "remote-first", or "write-through"
+#   fallback_on_error = true          # Fall back to local cache on remote errors
+#
+#   # Self-hosted remote cache (when cloud = false):
+#   provider = "s3"                   # "s3" or "filesystem"
+#   bucket = "my-cache-bucket"
+#   region = "us-east-1"
+#   endpoint = ""                     # Custom S3 endpoint (for R2, MinIO, etc.)
+#   access_key_id = ""
+#   secret_access_key = ""
+#   prefix = ""                       # Key prefix in the bucket
 
 `, projectType, description)
 }

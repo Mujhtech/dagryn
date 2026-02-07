@@ -201,26 +201,30 @@ This command allows you to pre-install plugins.`,
 
 func newPluginInfoCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "info <owner/repo>",
+		Use:   "info <plugin-spec>",
 		Short: "Show plugin information",
-		Long: `Fetch and display plugin.toml metadata from a GitHub repository.
+		Long: `Fetch and display plugin.toml metadata from a plugin source.
 
+Supports GitHub plugins (owner/repo), local plugins (local:path), and full specs (source:name@version).
 Displays the plugin's name, description, type, platforms, and inputs.`,
-		Example: `  # Show info for a plugin
-  dagryn plugin info dagryn/setup-go`,
+		Example: `  # Show info for a GitHub plugin
+  dagryn plugin info dagryn/setup-go
+  # Show info for a local plugin
+  dagryn plugin info local:./plugins/setup-node`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ref := args[0]
 
-			// Parse as short ref with a dummy version to extract owner/repo
-			spec := ref + "@latest"
+			// Try to parse the spec directly first (handles local: and full specs)
+			spec := ref
 			p, err := plugin.Parse(spec)
 			if err != nil {
-				return fmt.Errorf("invalid plugin reference %q: %w", ref, err)
-			}
-
-			if p.Source != plugin.SourceGitHub {
-				return fmt.Errorf("plugin info only supports GitHub plugins")
+				// Fall back to short ref with dummy version for GitHub shorthand
+				spec = ref + "@latest"
+				p, err = plugin.Parse(spec)
+				if err != nil {
+					return fmt.Errorf("invalid plugin reference %q: %w", ref, err)
+				}
 			}
 
 			// Resolve the plugin to fetch its manifest
@@ -235,8 +239,11 @@ Displays the plugin's name, description, type, platforms, and inputs.`,
 				return fmt.Errorf("failed to resolve plugin: %w", err)
 			}
 
+			_ = p // used for initial parsing
+
 			if resolved.Manifest == nil {
-				fmt.Printf("Plugin: %s/%s\n", p.Owner, p.Repo)
+				fmt.Printf("Plugin: %s\n", resolved.Name)
+				fmt.Printf("Source:  %s\n", resolved.Source)
 				fmt.Printf("Version: %s\n", resolved.ResolvedVersion)
 				fmt.Println("No plugin.toml manifest found.")
 				return nil

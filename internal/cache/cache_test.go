@@ -290,6 +290,86 @@ func TestCache_Disabled(t *testing.T) {
 	assert.False(t, c.IsEnabled())
 }
 
+func TestHashTask_WithWorkdir(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create files under a subdirectory (simulating workdir)
+	webDir := filepath.Join(tmpDir, "web")
+	require.NoError(t, os.MkdirAll(webDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(webDir, "package.json"), []byte(`{"name":"test"}`), 0644))
+
+	tk := &task.Task{
+		Name:    "web-install",
+		Command: "pnpm install",
+		Workdir: "web",
+		Inputs:  []string{"package.json"},
+	}
+
+	hash1, err := HashTask(tk, tmpDir)
+	require.NoError(t, err)
+	assert.NotEmpty(t, hash1)
+
+	// Modify the file — hash should change
+	require.NoError(t, os.WriteFile(filepath.Join(webDir, "package.json"), []byte(`{"name":"changed"}`), 0644))
+	hash2, err := HashTask(tk, tmpDir)
+	require.NoError(t, err)
+	assert.NotEqual(t, hash1, hash2, "hash should change when workdir file changes")
+
+	// Same task without workdir should not match workdir file at project root
+	tkNoWd := &task.Task{
+		Name:    "web-install",
+		Command: "pnpm install",
+		Inputs:  []string{"package.json"},
+	}
+	hashNoWd, err := HashTask(tkNoWd, tmpDir)
+	require.NoError(t, err)
+	assert.NotEqual(t, hash2, hashNoWd, "workdir and non-workdir should produce different hashes")
+}
+
+func TestCache_SaveAndRestore_WithWorkdir(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create output files under workdir subdirectory
+	webDir := filepath.Join(tmpDir, "web")
+	distDir := filepath.Join(webDir, "dist")
+	require.NoError(t, os.MkdirAll(distDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(distDir, "bundle.js"), []byte("console.log('hi')"), 0644))
+
+	c := New(tmpDir, true)
+	ctx := context.Background()
+
+	tk := &task.Task{
+		Name:    "web-build",
+		Command: "pnpm build",
+		Workdir: "web",
+		Inputs:  []string{"package.json"},
+		Outputs: []string{"dist/*"},
+	}
+
+	// Save to cache — outputs should resolve as web/dist/* (not just dist/*)
+	err := c.Save(ctx, tk, "testkey", time.Second)
+	require.NoError(t, err)
+
+	// Verify cache entry exists
+	assert.True(t, c.store.Exists("web-build", "testkey"))
+
+	// Delete original outputs
+	require.NoError(t, os.RemoveAll(distDir))
+
+	// Restore from cache
+	err = c.Restore(ctx, tk, "testkey")
+	require.NoError(t, err)
+
+	// Verify file was restored under web/dist/ (not at project root dist/)
+	content, err := os.ReadFile(filepath.Join(webDir, "dist", "bundle.js"))
+	require.NoError(t, err)
+	assert.Equal(t, "console.log('hi')", string(content))
+
+	// Verify file was NOT restored at project root
+	_, err = os.Stat(filepath.Join(tmpDir, "dist", "bundle.js"))
+	assert.True(t, os.IsNotExist(err), "output should not be restored at project root")
+}
+
 func TestCache_NoInputsOrOutputs(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "cache-test")
 	require.NoError(t, err)

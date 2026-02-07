@@ -96,6 +96,27 @@ func TestParse(t *testing.T) {
 			spec:    "unknown:package@v1.0.0",
 			wantErr: true,
 		},
+		{
+			name:       "local plugin - relative path",
+			spec:       "local:./plugins/setup-node",
+			wantSource: SourceLocal,
+			wantName:   "setup-node",
+			wantVer:    "",
+		},
+		{
+			name:       "local plugin - with version",
+			spec:       "local:./plugins/setup-go@1.0.0",
+			wantSource: SourceLocal,
+			wantName:   "setup-go",
+			wantVer:    "1.0.0",
+		},
+		{
+			name:       "local plugin - no dot slash",
+			spec:       "local:plugins/eslint",
+			wantSource: SourceLocal,
+			wantName:   "eslint",
+			wantVer:    "",
+		},
 	}
 
 	for _, tt := range tests {

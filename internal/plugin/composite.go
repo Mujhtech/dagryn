@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -114,6 +115,39 @@ func (e *CompositeExecutor) mergeInputs(manifest *Manifest, inputs map[string]st
 	}
 
 	return merged, nil
+}
+
+// CollectStepEnv extracts all environment variables defined in composite steps,
+// with plugin input variables substituted. Shell variables like $HOME and $PATH
+// are expanded using the current process environment.
+func (e *CompositeExecutor) CollectStepEnv(manifest *Manifest, inputs map[string]string) map[string]string {
+	if manifest == nil || !manifest.IsComposite() {
+		return nil
+	}
+
+	mergedInputs, err := e.mergeInputs(manifest, inputs)
+	if err != nil {
+		return nil
+	}
+
+	env := make(map[string]string)
+	for _, step := range manifest.Steps {
+		// Skip conditional steps that are explicitly false
+		if step.If != "" {
+			condResult := substituteVars(step.If, mergedInputs)
+			if condResult == "false" || condResult == "" {
+				continue
+			}
+		}
+		for k, v := range step.Env {
+			resolved := substituteVars(v, mergedInputs)
+			// Expand shell variables like $HOME, $PATH
+			resolved = os.ExpandEnv(resolved)
+			env[k] = resolved
+		}
+	}
+
+	return env
 }
 
 // substituteVars replaces ${inputs.key}, ${os}, and ${arch} in a string.

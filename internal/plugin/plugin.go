@@ -4,6 +4,7 @@ package plugin
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -22,6 +23,8 @@ const (
 	SourcePip SourceType = "pip"
 	// SourceCargo represents plugins installed via cargo install.
 	SourceCargo SourceType = "cargo"
+	// SourceLocal represents plugins from a local directory.
+	SourceLocal SourceType = "local"
 )
 
 // Plugin represents a resolved plugin with all its metadata.
@@ -103,6 +106,13 @@ func (s *Spec) IsEmpty() bool {
 //   - cargo:ripgrep@14.0.3
 var pluginPattern = regexp.MustCompile(`^(github|go|npm|pip|cargo):(.+)@(.+)$`)
 
+// localPluginPattern matches local plugin specifications.
+// Version is optional for local plugins since it comes from the manifest.
+// Examples:
+//   - local:./plugins/setup-node
+//   - local:plugins/setup-node@1.0.0
+var localPluginPattern = regexp.MustCompile(`^local:(.+?)(?:@(.+))?$`)
+
 // shortRefPattern matches short reference format "owner/repo@version" (defaults to GitHub).
 // Examples:
 //   - dagryn/setup-go@v1
@@ -122,7 +132,13 @@ func Parse(spec string) (*Plugin, error) {
 		return nil, fmt.Errorf("empty plugin specification")
 	}
 
-	// Try long format first (source:name@version)
+	// Try local format first (local:path or local:path@version)
+	localMatches := localPluginPattern.FindStringSubmatch(spec)
+	if localMatches != nil {
+		return parseLocalFormat(localMatches, spec)
+	}
+
+	// Try long format (source:name@version)
 	matches := pluginPattern.FindStringSubmatch(spec)
 	if matches != nil {
 		return parseLongFormat(matches, spec)
@@ -134,7 +150,7 @@ func Parse(spec string) (*Plugin, error) {
 		return parseShortFormat(shortMatches, spec)
 	}
 
-	return nil, fmt.Errorf("invalid plugin specification %q: must be in format 'source:name@version' or 'owner/repo@version'", spec)
+	return nil, fmt.Errorf("invalid plugin specification %q: must be in format 'source:name@version', 'owner/repo@version', or 'local:path'", spec)
 }
 
 // parseLongFormat parses the long format "source:name@version".
@@ -212,6 +228,27 @@ func parseShortFormat(matches []string, spec string) (*Plugin, error) {
 		Name:       repo,
 		BinaryName: repo,
 		Version:    version,
+		Raw:        spec,
+	}, nil
+}
+
+// parseLocalFormat parses the local format "local:path" or "local:path@version".
+func parseLocalFormat(matches []string, spec string) (*Plugin, error) {
+	path := matches[1]
+	version := matches[2]
+
+	// Extract plugin name from path (last component)
+	name := filepath.Base(path)
+	if name == "." || name == "/" {
+		return nil, fmt.Errorf("invalid local plugin path %q", path)
+	}
+
+	return &Plugin{
+		Source:     SourceLocal,
+		Name:       name,
+		Repo:       path, // Store the path in Repo
+		Version:    version,
+		BinaryName: name,
 		Raw:        spec,
 	}, nil
 }

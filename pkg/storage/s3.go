@@ -54,6 +54,12 @@ func NewS3Bucket(cfg Config) (*S3Bucket, error) {
 			o.UsePathStyle = true
 		})
 	}
+	if cfg.DisableChecksum {
+		s3OptFns = append(s3OptFns, func(o *s3.Options) {
+			o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
+			o.ResponseChecksumValidation = aws.ResponseChecksumValidationWhenRequired
+		})
+	}
 
 	client := s3.NewFromConfig(awsCfg, s3OptFns...)
 
@@ -74,8 +80,13 @@ func (b *S3Bucket) Put(ctx context.Context, key string, r io.Reader, opts *PutOp
 		Key:    aws.String(b.fullKey(key)),
 		Body:   r,
 	}
-	if opts != nil && opts.ContentType != "" {
-		input.ContentType = aws.String(opts.ContentType)
+	if opts != nil {
+		if opts.ContentType != "" {
+			input.ContentType = aws.String(opts.ContentType)
+		}
+		if opts.ContentLength > 0 {
+			input.ContentLength = aws.Int64(opts.ContentLength)
+		}
 	}
 	_, err := b.client.PutObject(ctx, input)
 	if err != nil {

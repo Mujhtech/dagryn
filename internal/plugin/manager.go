@@ -78,6 +78,7 @@ func NewManager(projectRoot string, opts ...ManagerOption) *Manager {
 	registry.Register(SourceNPM, NewNPMResolver())
 	registry.Register(SourcePip, NewPipResolver())
 	registry.Register(SourceCargo, NewCargoResolver())
+	registry.Register(SourceLocal, NewLocalResolver(projectRoot))
 
 	m := &Manager{
 		projectRoot: projectRoot,
@@ -106,11 +107,17 @@ func (m *Manager) PluginDir() string {
 func (m *Manager) Resolve(ctx context.Context, spec string) (*Plugin, error) {
 	// Check if already installed
 	m.mu.RLock()
-	if plugin, ok := m.installed[spec]; ok {
+	if p, ok := m.installed[spec]; ok {
 		m.mu.RUnlock()
-		return plugin, nil
+		// If the cached plugin has its manifest, return immediately.
+		// Otherwise fall through to re-resolve (manifest may have been lost
+		// during lock file serialization).
+		if p.Manifest != nil {
+			return p, nil
+		}
+	} else {
+		m.mu.RUnlock()
 	}
-	m.mu.RUnlock()
 
 	// Parse the specification
 	plugin, err := Parse(spec)
@@ -129,6 +136,11 @@ func (m *Manager) Resolve(ctx context.Context, spec string) (*Plugin, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve %s: %w", spec, err)
 	}
+
+	// Update the installed cache so subsequent resolves return the manifest
+	m.mu.Lock()
+	m.installed[spec] = resolved
+	m.mu.Unlock()
 
 	return resolved, nil
 }
@@ -162,8 +174,22 @@ func (m *Manager) Install(ctx context.Context, spec string) (*InstallResult, err
 	// Check if already cached on disk
 	if m.isCached(plugin, installDir) {
 		plugin.InstallPath = installDir
-		plugin.BinaryPath = m.findCachedBinary(plugin, installDir)
 
+		// Composite plugins don't need a binary — just check the directory exists
+		isComposite := plugin.Manifest != nil && plugin.Manifest.IsComposite()
+		if isComposite {
+			m.mu.Lock()
+			m.installed[spec] = plugin
+			m.mu.Unlock()
+
+			return &InstallResult{
+				Plugin:  plugin,
+				Status:  StatusCached,
+				Message: fmt.Sprintf("Plugin %s found in cache", plugin.Name),
+			}, nil
+		}
+
+		plugin.BinaryPath = m.findCachedBinary(plugin, installDir)
 		if plugin.BinaryPath != "" {
 			m.mu.Lock()
 			m.installed[spec] = plugin
@@ -201,6 +227,16 @@ func (m *Manager) Install(ctx context.Context, spec string) (*InstallResult, err
 	m.saveLockFile()
 
 	return result, nil
+}
+
+// Register adds a resolved plugin to the installed cache and persists it to the lock file.
+// This is used for composite plugins that don't need binary installation.
+func (m *Manager) Register(spec string, plugin *Plugin) {
+	m.mu.Lock()
+	m.installed[spec] = plugin
+	m.mu.Unlock()
+
+	m.saveLockFile()
 }
 
 // InstallAll installs multiple plugins in parallel.
@@ -347,6 +383,15 @@ func (m *Manager) findCachedBinary(plugin *Plugin, installDir string) string {
 	var searchPaths []string
 
 	switch plugin.Source {
+	case SourceLocal:
+		// Local composite plugins have no binary; local tool plugins
+		// have their binary inside the plugin directory.
+		if plugin.BinaryName != "" {
+			searchPaths = []string{
+				filepath.Join(installDir, plugin.BinaryName+platform.BinaryExtension()),
+				filepath.Join(installDir, "bin", plugin.BinaryName+platform.BinaryExtension()),
+			}
+		}
 	case SourceGitHub, SourceGo, SourceCargo:
 		searchPaths = []string{
 			filepath.Join(installDir, plugin.BinaryName+platform.BinaryExtension()),
@@ -392,7 +437,9 @@ type LockFileEntry struct {
 	Name            string    `json:"name"`
 	Version         string    `json:"version"`
 	ResolvedVersion string    `json:"resolved_version"`
-	BinaryPath      string    `json:"binary_path"`
+	BinaryPath      string    `json:"binary_path,omitempty"`
+	InstallPath     string    `json:"install_path,omitempty"`
+	IsComposite     bool      `json:"is_composite,omitempty"`
 	InstalledAt     time.Time `json:"installed_at"`
 }
 
@@ -417,21 +464,58 @@ func (m *Manager) loadLockFile() {
 	}
 
 	for _, entry := range lockFile.Plugins {
-		// Verify the binary still exists
+		// Composite plugins have no binary — verify install path instead
+		if entry.IsComposite {
+			installPath := entry.InstallPath
+			if installPath == "" {
+				continue
+			}
+			// Verify the plugin directory still exists
+			if _, err := os.Stat(installPath); err != nil {
+				continue
+			}
+			p := &Plugin{
+				Name:            entry.Name,
+				Source:          SourceType(entry.Source),
+				Version:         entry.Version,
+				ResolvedVersion: entry.ResolvedVersion,
+				InstallPath:     installPath,
+				Raw:             entry.Spec,
+			}
+			// Restore manifest from disk so composite plugins work on subsequent runs
+			manifestPath := filepath.Join(installPath, "plugin.toml")
+			if data, err := os.ReadFile(manifestPath); err == nil {
+				if manifest, err := ParseManifest(data); err == nil {
+					p.Manifest = manifest
+				}
+			}
+			m.installed[entry.Spec] = p
+			continue
+		}
+
+		// Binary plugins — verify the binary still exists
+		if entry.BinaryPath == "" {
+			continue
+		}
 		if _, err := os.Stat(entry.BinaryPath); err != nil {
 			continue // Binary removed, skip
 		}
 
-		plugin := &Plugin{
+		installPath := entry.InstallPath
+		if installPath == "" {
+			installPath = filepath.Dir(filepath.Dir(entry.BinaryPath))
+		}
+
+		p := &Plugin{
 			Name:            entry.Name,
 			Source:          SourceType(entry.Source),
 			Version:         entry.Version,
 			ResolvedVersion: entry.ResolvedVersion,
 			BinaryPath:      entry.BinaryPath,
-			InstallPath:     filepath.Dir(filepath.Dir(entry.BinaryPath)),
+			InstallPath:     installPath,
 			Raw:             entry.Spec,
 		}
-		m.installed[entry.Spec] = plugin
+		m.installed[entry.Spec] = p
 	}
 }
 
@@ -448,6 +532,7 @@ func (m *Manager) saveLockFile() {
 	}
 
 	for spec, plugin := range m.installed {
+		isComposite := plugin.Manifest != nil && plugin.Manifest.IsComposite()
 		lockFile.Plugins = append(lockFile.Plugins, LockFileEntry{
 			Spec:            spec,
 			Source:          string(plugin.Source),
@@ -455,6 +540,8 @@ func (m *Manager) saveLockFile() {
 			Version:         plugin.Version,
 			ResolvedVersion: plugin.ResolvedVersion,
 			BinaryPath:      plugin.BinaryPath,
+			InstallPath:     plugin.InstallPath,
+			IsComposite:     isComposite,
 			InstalledAt:     time.Now(),
 		})
 	}
@@ -467,20 +554,3 @@ func (m *Manager) saveLockFile() {
 	_ = os.WriteFile(lockPath, data, 0644)
 }
 
-// ResolveGlobalPlugins resolves global plugin references to their full specs.
-// This handles the case where a task uses a plugin name that refers to a global plugin.
-func (m *Manager) ResolveGlobalPlugins(taskPlugins []string, globalPlugins map[string]string) []string {
-	resolved := make([]string, 0, len(taskPlugins))
-
-	for _, p := range taskPlugins {
-		// Check if it's a reference to a global plugin
-		if spec, ok := globalPlugins[p]; ok {
-			resolved = append(resolved, spec)
-		} else {
-			// It's a direct plugin spec
-			resolved = append(resolved, p)
-		}
-	}
-
-	return resolved
-}

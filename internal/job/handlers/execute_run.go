@@ -411,7 +411,7 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	h.notifyGitHub(ctx, run, project, models.RunStatusRunning)
 
 	opts := scheduler.DefaultOptions()
-	opts.NoPlugins = true
+	opts.NoPlugins = false
 	opts.NoCache = false
 
 	// Build cloud cache backend when config says cloud=true and cache service is available
