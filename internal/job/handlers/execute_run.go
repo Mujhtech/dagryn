@@ -18,6 +18,8 @@ import (
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
+	"github.com/mujhtech/dagryn/internal/cache"
+	"github.com/mujhtech/dagryn/internal/cache/cloud"
 	"github.com/mujhtech/dagryn/internal/config"
 	"github.com/mujhtech/dagryn/internal/dag"
 	"github.com/mujhtech/dagryn/internal/db/models"
@@ -27,6 +29,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/githubapp"
 	"github.com/mujhtech/dagryn/internal/notification"
 	"github.com/mujhtech/dagryn/internal/scheduler"
+	"github.com/mujhtech/dagryn/internal/service"
 )
 
 // githubAppClientAdapter adapts githubapp.Client to GitHubAppClient interface.
@@ -62,6 +65,7 @@ type ExecuteRunHandler struct {
 	providerEncrypt     encrypt.Encrypt
 	githubApp           GitHubAppClient
 	githubInstallations *repo.GitHubInstallationRepo
+	cacheService        *service.CacheService
 }
 
 // GitHubAppClient is an interface for fetching installation tokens.
@@ -84,7 +88,7 @@ func NewGitHubAppClientAdapter(client *githubapp.Client) GitHubAppClient {
 }
 
 // NewExecuteRunHandler creates an ExecuteRun handler.
-func NewExecuteRunHandler(runs *repo.RunRepo, projects *repo.ProjectRepo, encrypter encrypt.Encrypt, providerTokens *repo.ProviderTokenRepo, providerEncrypt encrypt.Encrypt, githubApp GitHubAppClient, githubInstallations *repo.GitHubInstallationRepo) *ExecuteRunHandler {
+func NewExecuteRunHandler(runs *repo.RunRepo, projects *repo.ProjectRepo, encrypter encrypt.Encrypt, providerTokens *repo.ProviderTokenRepo, providerEncrypt encrypt.Encrypt, githubApp GitHubAppClient, githubInstallations *repo.GitHubInstallationRepo, cacheService *service.CacheService) *ExecuteRunHandler {
 	return &ExecuteRunHandler{
 		runs:                runs,
 		projects:            projects,
@@ -93,6 +97,7 @@ func NewExecuteRunHandler(runs *repo.RunRepo, projects *repo.ProjectRepo, encryp
 		providerEncrypt:     providerEncrypt,
 		githubApp:           githubApp,
 		githubInstallations: githubInstallations,
+		cacheService:        cacheService,
 	}
 }
 
@@ -408,6 +413,29 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	opts := scheduler.DefaultOptions()
 	opts.NoPlugins = true
 	opts.NoCache = false
+
+	// Build cloud cache backend when config says cloud=true and cache service is available
+	if cfg.Cache.Remote.Enabled && cfg.Cache.Remote.Cloud && h.cacheService != nil {
+		local := cache.NewLocalBackend(workDir)
+		serverBackend := cloud.NewServerBackend(h.cacheService, projectID, workDir)
+
+		strategy := cache.StrategyLocalFirst
+		switch cfg.Cache.Remote.Strategy {
+		case "remote-first":
+			strategy = cache.StrategyRemoteFirst
+		case "write-through":
+			strategy = cache.StrategyWriteThrough
+		}
+
+		opts.CacheBackend = cache.NewHybridBackend(local, serverBackend, cache.HybridConfig{
+			Strategy:        strategy,
+			FallbackOnError: cfg.Cache.Remote.IsFallbackOnError(),
+			OnError: func(op string, err error) {
+				slog.Warn("execute_run: remote cache error (non-fatal)", "op", op, "error", err)
+			},
+		})
+	}
+
 	sched, err := scheduler.New(workflow, workDir, opts)
 	if err != nil {
 		msg := fmt.Sprintf("scheduler: %v", err)

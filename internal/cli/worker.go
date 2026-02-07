@@ -19,6 +19,8 @@ import (
 	jobhandlers "github.com/mujhtech/dagryn/internal/job/handlers"
 	"github.com/mujhtech/dagryn/internal/redis"
 	"github.com/mujhtech/dagryn/internal/server"
+	"github.com/mujhtech/dagryn/internal/service"
+	"github.com/mujhtech/dagryn/pkg/storage"
 )
 
 func init() {
@@ -107,12 +109,14 @@ func runWorker(opts WorkerConfigOpts) error {
 	rds := redis.New(cfg.Redis)
 
 	// Connect to database for RunRepo, ProjectRepo, ProviderTokenRepo (required for ExecuteRun and stale_runs)
+	var database *db.DB
 	var runRepo *repo.RunRepo
 	var projectRepo *repo.ProjectRepo
 	var providerTokenRepo *repo.ProviderTokenRepo
 	var githubInstallations *repo.GitHubInstallationRepo
 	if cfg.Database.URL != "" {
-		database, err := db.New(ctx, cfg.Database)
+		var err error
+		database, err = db.New(ctx, cfg.Database)
 		if err != nil {
 			return fmt.Errorf("database: %w", err)
 		}
@@ -153,6 +157,31 @@ func runWorker(opts WorkerConfigOpts) error {
 		}
 	}
 
+	// Initialize cache service for GC jobs (if cache storage is configured)
+	var cacheService *service.CacheService
+	if cfg.CacheStorage.Provider != "" && database != nil {
+		storageCfg := storage.Config{
+			Provider:        storage.ProviderType(cfg.CacheStorage.Provider),
+			Bucket:          cfg.CacheStorage.Bucket,
+			Region:          cfg.CacheStorage.Region,
+			Endpoint:        cfg.CacheStorage.Endpoint,
+			AccessKeyID:     cfg.CacheStorage.AccessKeyID,
+			SecretAccessKey: cfg.CacheStorage.SecretAccessKey,
+			UsePathStyle:    cfg.CacheStorage.UsePathStyle,
+			BasePath:        cfg.CacheStorage.BasePath,
+			Prefix:          cfg.CacheStorage.Prefix,
+			CredentialsFile: cfg.CacheStorage.CredentialsFile,
+		}
+		cacheBucket, err := storage.NewBucket(storageCfg)
+		if err != nil {
+			log.Warn().Err(err).Msg("Cache storage not initialized (invalid configuration)")
+		} else {
+			cacheRepo := repo.NewCacheRepo(database.Pool())
+			cacheService = service.NewCacheService(cacheRepo, cacheBucket, log.Logger)
+			log.Debug().Str("provider", cfg.CacheStorage.Provider).Msg("Cache service initialized for GC")
+		}
+	}
+
 	// Create job configuration
 	jobCfg := job.Config{
 		Concurrency:          cfg.Job.Concurrency,
@@ -163,6 +192,7 @@ func runWorker(opts WorkerConfigOpts) error {
 		ProviderTokenEncrypt: providerEncrypt,
 		GitHubAppClient:      githubAppClient,
 		GitHubInstallations:  githubInstallations,
+		CacheService:         cacheService,
 	}
 
 	// Create job system

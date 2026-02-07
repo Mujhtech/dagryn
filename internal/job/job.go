@@ -109,7 +109,7 @@ func (j *Job) RegisterAndStart() error {
 
 	// Register ExecuteRun handler when RunRepo and ProjectRepo are available
 	if j.runs != nil && j.projects != nil {
-		execHandler := handlers.NewExecuteRunHandler(j.runs, j.projects, j.encrypter, j.providerTokens, j.providerEncrypt, j.githubApp, j.githubInstallations)
+		execHandler := handlers.NewExecuteRunHandler(j.runs, j.projects, j.encrypter, j.providerTokens, j.providerEncrypt, j.githubApp, j.githubInstallations, j.cacheService)
 		j.Executor.RegisterJobHandler(ExecuteRunTaskName, asynq.HandlerFunc(execHandler.Handle))
 	}
 

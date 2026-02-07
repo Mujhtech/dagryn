@@ -64,10 +64,14 @@ import {
   ResponsiveContainer,
   ComposedChart,
 } from "recharts";
+import { cn } from "~/lib/utils";
 
 export const Route = createFileRoute("/projects/$projectId/")({
   component: ProjectDetailPage,
 });
+
+const SCROLLBAR_CLASS =
+  "scrollbar-foreground scrollbar-track-transparent scrollbar-thin";
 
 function ProjectDetailPage() {
   const { projectId } = Route.useParams();
@@ -687,7 +691,12 @@ function WorkflowDashboard({
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Left Sidebar - Filters */}
-      <div className="w-64 border-r bg-muted/30 overflow-y-auto scrollbar-foreground scrollbar-track-transparent scrollbar-thin">
+      <div
+        className={cn(
+          "w-64 border-r bg-muted/30 overflow-y-auto",
+          SCROLLBAR_CLASS,
+        )}
+      >
         <div className="p-4 space-y-6">
           <div>
             <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-3">
@@ -763,7 +772,12 @@ function WorkflowDashboard({
               onChange={(e) => setUserSearch(e.target.value)}
               className="mb-2 h-8"
             />
-            <div className="space-y-1 max-h-64 overflow-y-auto">
+            <div
+              className={cn(
+                "space-y-1 max-h-64 overflow-y-auto",
+                SCROLLBAR_CLASS,
+              )}
+            >
               {filteredUsers.map((user) => (
                 <button
                   key={user.id}
@@ -824,7 +838,12 @@ function WorkflowDashboard({
               onChange={(e) => setWorkflowSearch(e.target.value)}
               className="mb-2 h-8"
             />
-            <div className="space-y-1 max-h-48 overflow-y-auto">
+            <div
+              className={cn(
+                "space-y-1 max-h-48 overflow-y-auto",
+                SCROLLBAR_CLASS,
+              )}
+            >
               {filteredWorkflows.map((workflow) => (
                 <label
                   key={workflow}
@@ -855,7 +874,12 @@ function WorkflowDashboard({
               onChange={(e) => setBranchSearch(e.target.value)}
               className="mb-2 h-8"
             />
-            <div className="space-y-1 max-h-48 overflow-y-auto">
+            <div
+              className={cn(
+                "space-y-1 max-h-48 overflow-y-auto",
+                SCROLLBAR_CLASS,
+              )}
+            >
               {filteredBranches.map((branch) => (
                 <label
                   key={branch}
@@ -874,7 +898,7 @@ function WorkflowDashboard({
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto scrollbar-foreground scrollbar-track-transparent scrollbar-thin">
+      <div className={cn("flex-1 overflow-y-auto", SCROLLBAR_CLASS)}>
         <div className="p-6 space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
