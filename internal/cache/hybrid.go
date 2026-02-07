@@ -21,7 +21,8 @@ const (
 // HybridConfig configures the HybridBackend behavior.
 type HybridConfig struct {
 	Strategy        Strategy
-	FallbackOnError bool // when true, remote errors are non-fatal
+	FallbackOnError bool                       // when true, remote errors are non-fatal
+	OnError         func(op string, err error) // optional callback for non-fatal remote errors
 }
 
 // DefaultHybridConfig returns sensible defaults.
@@ -48,6 +49,13 @@ func NewHybridBackend(local, remote Backend, cfg HybridConfig) *HybridBackend {
 	}
 }
 
+// logError calls the OnError callback if set.
+func (h *HybridBackend) logError(op string, err error) {
+	if h.cfg.OnError != nil {
+		h.cfg.OnError(op, err)
+	}
+}
+
 func (h *HybridBackend) Check(ctx context.Context, taskName, key string) (bool, error) {
 	switch h.cfg.Strategy {
 	case StrategyRemoteFirst:
@@ -69,6 +77,7 @@ func (h *HybridBackend) checkLocalFirst(ctx context.Context, taskName, key strin
 	hit, err = h.remote.Check(ctx, taskName, key)
 	if err != nil {
 		if h.cfg.FallbackOnError {
+			h.logError("remote check", err)
 			return false, nil
 		}
 		return false, fmt.Errorf("hybrid cache: remote check: %w", err)
@@ -80,7 +89,7 @@ func (h *HybridBackend) checkRemoteFirst(ctx context.Context, taskName, key stri
 	hit, err := h.remote.Check(ctx, taskName, key)
 	if err != nil {
 		if h.cfg.FallbackOnError {
-			// Fall back to local
+			h.logError("remote check", err)
 			return h.local.Check(ctx, taskName, key)
 		}
 		return false, fmt.Errorf("hybrid cache: remote check: %w", err)
@@ -182,6 +191,7 @@ func (h *HybridBackend) saveLocalFirst(ctx context.Context, taskName, key string
 	// Then save to remote
 	if err := h.remote.Save(ctx, taskName, key, outputPatterns, meta); err != nil {
 		if h.cfg.FallbackOnError {
+			h.logError("remote save", err)
 			return nil
 		}
 		return fmt.Errorf("hybrid cache: remote save: %w", err)
@@ -194,7 +204,7 @@ func (h *HybridBackend) saveRemoteFirst(ctx context.Context, taskName, key strin
 	// Save to remote first
 	if err := h.remote.Save(ctx, taskName, key, outputPatterns, meta); err != nil {
 		if h.cfg.FallbackOnError {
-			// Fall back to local-only save
+			h.logError("remote save", err)
 			return h.local.Save(ctx, taskName, key, outputPatterns, meta)
 		}
 		return fmt.Errorf("hybrid cache: remote save: %w", err)
@@ -214,6 +224,7 @@ func (h *HybridBackend) Clear(ctx context.Context, taskName string) error {
 	}
 	if err := h.remote.Clear(ctx, taskName); err != nil {
 		if h.cfg.FallbackOnError {
+			h.logError("remote clear", err)
 			return nil
 		}
 		return fmt.Errorf("hybrid cache: remote clear: %w", err)
@@ -227,6 +238,7 @@ func (h *HybridBackend) ClearAll(ctx context.Context) error {
 	}
 	if err := h.remote.ClearAll(ctx); err != nil {
 		if h.cfg.FallbackOnError {
+			h.logError("remote clear all", err)
 			return nil
 		}
 		return fmt.Errorf("hybrid cache: remote clear all: %w", err)

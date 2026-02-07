@@ -33,6 +33,10 @@ func NewBucket(cfg Config) (Bucket, error) {
 			return nil, fmt.Errorf("storage: r2 provider requires endpoint (https://<account_id>.r2.cloudflarestorage.com)")
 		}
 		cfg.UsePathStyle = false
+		cfg.DisableChecksum = true
+		if cfg.Region == "" {
+			cfg.Region = "auto"
+		}
 		return NewS3Bucket(cfg)
 	case ProviderMinIO:
 		if cfg.Bucket == "" {
@@ -42,6 +46,10 @@ func NewBucket(cfg Config) (Bucket, error) {
 			return nil, fmt.Errorf("storage: minio provider requires endpoint")
 		}
 		cfg.UsePathStyle = true
+		cfg.DisableChecksum = true
+		if cfg.Region == "" {
+			cfg.Region = "us-east-1"
+		}
 		return NewS3Bucket(cfg)
 	default:
 		return nil, fmt.Errorf("storage: unknown provider %q", cfg.Provider)

@@ -129,7 +129,8 @@ func (s *CacheService) Upload(ctx context.Context, projectID uuid.UUID, taskName
 
 	// Store in a temporary key first, then rename after hashing
 	tempKey := fmt.Sprintf("_tmp/%s/%s", projectID.String(), uuid.New().String())
-	if err := s.bucket.Put(ctx, tempKey, tee, nil); err != nil {
+	putOpts := &storage.PutOptions{ContentLength: size}
+	if err := s.bucket.Put(ctx, tempKey, tee, putOpts); err != nil {
 		return fmt.Errorf("cache: upload blob: %w", err)
 	}
 
@@ -149,7 +150,7 @@ func (s *CacheService) Upload(ctx context.Context, projectID uuid.UUID, taskName
 		if err != nil {
 			return fmt.Errorf("cache: read temp blob: %w", err)
 		}
-		if err := s.bucket.Put(ctx, blobKey, rc, nil); err != nil {
+		if err := s.bucket.Put(ctx, blobKey, rc, putOpts); err != nil {
 			_ = rc.Close()
 			return fmt.Errorf("cache: store cas blob: %w", err)
 		}

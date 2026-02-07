@@ -750,6 +750,10 @@ func buildCacheBackend(cfg config.CacheConfig, projectRoot string, log *logger.L
 		strategy = cache.StrategyWriteThrough
 	}
 
+	onRemoteErr := func(op string, err error) {
+		log.Error(fmt.Sprintf("remote cache %s (non-fatal, using local)", op), err)
+	}
+
 	if cfg.Remote.Cloud {
 		cloudBackend, err := buildCloudBackend(projectRoot, log)
 		if err != nil {
@@ -759,6 +763,7 @@ func buildCacheBackend(cfg config.CacheConfig, projectRoot string, log *logger.L
 		return cache.NewHybridBackend(local, cloudBackend, cache.HybridConfig{
 			Strategy:        strategy,
 			FallbackOnError: cfg.Remote.IsFallbackOnError(),
+			OnError:         onRemoteErr,
 		})
 	}
 
@@ -773,6 +778,7 @@ func buildCacheBackend(cfg config.CacheConfig, projectRoot string, log *logger.L
 	return cache.NewHybridBackend(local, remoteBackend, cache.HybridConfig{
 		Strategy:        strategy,
 		FallbackOnError: cfg.Remote.IsFallbackOnError(),
+		OnError:         onRemoteErr,
 	})
 }
 

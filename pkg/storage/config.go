@@ -24,6 +24,7 @@ type Config struct {
 	AccessKeyID     string
 	SecretAccessKey string
 	UsePathStyle    bool   // s3 provider: use path-style addressing
+	DisableChecksum bool   // s3 provider: disable request checksum (for R2/MinIO compat)
 	Prefix          string // key prefix applied to all operations
 	CredentialsFile string // gcs provider: path to service account JSON
 }

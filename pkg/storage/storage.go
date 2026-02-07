@@ -8,7 +8,8 @@ import (
 
 // PutOptions configures a Put operation.
 type PutOptions struct {
-	ContentType string
+	ContentType   string
+	ContentLength int64 // if > 0, sets Content-Length explicitly (required by some S3-compat stores)
 }
 
 // ListOptions configures a List operation.
