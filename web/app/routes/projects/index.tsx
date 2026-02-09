@@ -31,7 +31,7 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { FolderKanban, Plus, Users, Loader2, Github } from "lucide-react";
+import { Icons } from "~/components/icons";
 import type { GitHubRepo, GitHubAppInstallation } from "~/lib/api";
 
 export const Route = createFileRoute("/projects/")({
@@ -228,7 +228,7 @@ function ProjectsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Icons.Loader className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -254,7 +254,7 @@ function ProjectsPage() {
       <Dialog open={isCreateOpen} onOpenChange={handleOpenChange}>
         <DialogTrigger asChild>
           <Button>
-            <Plus className="mr-2 h-4 w-4" />
+            <Icons.Plus className="mr-2 h-4 w-4" />
             New Project
           </Button>
         </DialogTrigger>
@@ -351,7 +351,7 @@ function ProjectsPage() {
             >
               {createProjectMutation.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
                   Creating...
                 </>
               ) : (
@@ -364,7 +364,7 @@ function ProjectsPage() {
       <Dialog open={isImportOpen} onOpenChange={handleImportOpenChange}>
         <DialogTrigger asChild>
           <Button variant="outline">
-            <Github className="mr-2 h-4 w-4" />
+            <Icons.Github className="mr-2 h-4 w-4" />
             Import from GitHub
           </Button>
         </DialogTrigger>
@@ -379,7 +379,7 @@ function ProjectsPage() {
           </DialogHeader>
           {githubReposLoading || installationsLoading || appReposLoading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+<Icons.Loader className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : needsGitHubLogin ? (
             <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 text-sm">
@@ -453,7 +453,7 @@ function ProjectsPage() {
                 >
                   {createProjectMutation.isPending ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+<Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
                       Creating...
                     </>
                   ) : (
@@ -575,7 +575,7 @@ function ProjectsPage() {
       {projects.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <FolderKanban className="h-12 w-12 text-muted-foreground mb-4" />
+            <Icons.Folder className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold">No projects yet</h3>
             <p className="text-muted-foreground text-center mt-1 mb-4">
               Create your first project to get started with Dagryn
@@ -619,7 +619,7 @@ function ProjectsPage() {
                     </p>
                   )}
                   <div className="flex items-center text-sm text-muted-foreground">
-                    <Users className="mr-1 h-4 w-4" />
+                    <Icons.Users className="mr-1 h-4 w-4" />
                     {project.member_count} member
                     {project.member_count !== 1 ? "s" : ""}
                   </div>

@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  IconDotsVertical,
-  IconSettings,
-  IconLogout,
-} from "@tabler/icons-react";
+import { Icons } from "./icons";
 import { useNavigate } from "@tanstack/react-router";
 import { api } from "~/lib/api";
 import { useAuth } from "~/lib/auth";
@@ -85,7 +81,7 @@ export function NavUser({
                   {user.email}
                 </span>
               </div>
-              <IconDotsVertical className="ml-auto size-4" />
+              <Icons.DotsVertical className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -113,13 +109,13 @@ export function NavUser({
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem onClick={handleSettings}>
-                <IconSettings className="mr-2 h-4 w-4" />
+                <Icons.Settings className="mr-2 h-4 w-4" />
                 Settings
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
-              <IconLogout className="mr-2 h-4 w-4" />
+              <Icons.Logout className="mr-2 h-4 w-4" />
               Log out
             </DropdownMenuItem>
           </DropdownMenuContent>

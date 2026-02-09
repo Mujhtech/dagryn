@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
@@ -345,6 +346,10 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 	// Get plugin paths for this task
 	pluginPaths := s.getPluginPathsForTask(t)
 
+	// Run composite plugin setup steps before the task command.
+	// This handles tasks like web-install that have both uses=["setup-node"] and a command.
+	compositeEnv := s.runCompositeSetup(ctx, t)
+
 	// Set up output writers, wrapping with LineWriter if log callback is set
 	stdoutWriter, stderrWriter := s.stdout, s.stderr
 	var stdoutLW, stderrLW *executor.LineWriter
@@ -366,6 +371,7 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 		executor.WithStdout(stdoutWriter),
 		executor.WithStderr(stderrWriter),
 		executor.WithPluginPaths(pluginPaths),
+		executor.WithExtraEnv(compositeEnv),
 	)
 
 	// Execute task
@@ -431,7 +437,7 @@ func (s *Scheduler) executeCompositeTask(ctx context.Context, t *task.Task, cach
 	// Determine working directory
 	workdir := s.projectRoot
 	if t.Workdir != "" {
-		workdir = t.Workdir
+		workdir = filepath.Join(s.projectRoot, t.Workdir)
 	}
 
 	// Execute the composite steps
@@ -525,8 +531,9 @@ func (s *Scheduler) installPluginsForPlan(ctx context.Context, plan *dag.Executi
 			return fmt.Errorf("failed to resolve plugin %s: %w", spec, err)
 		}
 
-		// Composite plugins don't need binary installation
+		// Composite plugins don't need binary installation but still need registration
 		if resolved.Manifest != nil && resolved.Manifest.IsComposite() {
+			s.pluginManager.Register(spec, resolved)
 			if s.onPluginDone != nil {
 				s.onPluginDone(spec, &plugin.InstallResult{
 					Plugin:  resolved,
@@ -559,6 +566,46 @@ func (s *Scheduler) getPluginPathsForTask(t *task.Task) []string {
 		return nil
 	}
 	return s.pluginManager.GetBinPaths(t.Uses)
+}
+
+// runCompositeSetup runs composite plugin setup steps for a task that has both
+// a command and composite plugin uses. Returns collected environment variables
+// from the composite steps (e.g., PATH modifications).
+func (s *Scheduler) runCompositeSetup(ctx context.Context, t *task.Task) map[string]string {
+	if len(t.Uses) == 0 {
+		return nil
+	}
+
+	env := make(map[string]string)
+
+	workdir := s.projectRoot
+	if t.Workdir != "" {
+		workdir = filepath.Join(s.projectRoot, t.Workdir)
+	}
+
+	for _, spec := range t.Uses {
+		resolved, err := s.pluginManager.Resolve(ctx, spec)
+		if err != nil || resolved.Manifest == nil || !resolved.Manifest.IsComposite() {
+			continue
+		}
+
+		// Execute the composite steps (e.g., download and install Node.js)
+		if err := s.compositeExecutor.Execute(ctx, resolved.Manifest, t.With, t.Env, workdir); err != nil {
+			// Log but don't fail — the task command will likely fail with a clear error
+			continue
+		}
+
+		// Collect environment variables from composite steps
+		stepEnv := s.compositeExecutor.CollectStepEnv(resolved.Manifest, t.With)
+		for k, v := range stepEnv {
+			env[k] = v
+		}
+	}
+
+	if len(env) == 0 {
+		return nil
+	}
+	return env
 }
 
 // GetPluginManager returns the plugin manager.

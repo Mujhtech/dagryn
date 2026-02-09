@@ -1,16 +1,6 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  Loader2,
-  Save,
-  Trash2,
-  FolderCog,
-  AlertTriangle,
-  Github,
-  Link2,
-  Check,
-} from "lucide-react";
+import { FolderCog } from "lucide-react";
 
 import { useAuth } from "~/lib/auth";
 import { useProject, useProjectAPIKeys } from "~/hooks/queries";
@@ -53,8 +43,8 @@ import {
 } from "~/components/ui/alert-dialog";
 import { Separator } from "~/components/ui/separator";
 import { Badge } from "~/components/ui/badge";
-import { Copy, KeyRound } from "lucide-react";
 import { api, type GitHubAppInstallation, type GitHubRepo } from "~/lib/api";
+import { Icons } from "~/components/icons";
 
 export const Route = createFileRoute("/projects/$projectId/settings")({
   component: ProjectSettingsPage,
@@ -244,7 +234,7 @@ function ProjectSettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Icons.Loader className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -266,7 +256,7 @@ function ProjectSettingsPage() {
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
           <Link to="/projects/$projectId" params={{ projectId }}>
-            <ArrowLeft className="h-4 w-4" />
+            <Icons.ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
         <div>
@@ -364,12 +354,12 @@ function ProjectSettingsPage() {
             >
               {updateProjectMutation.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
                   Saving...
                 </>
               ) : (
                 <>
-                  <Save className="mr-2 h-4 w-4" />
+                  <Icons.FloppyDisk className="mr-2 h-4 w-4" />
                   Save Changes
                 </>
               )}
@@ -381,7 +371,7 @@ function ProjectSettingsPage() {
         <Card className="py-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <KeyRound className="h-5 w-5" />
+              <Icons.Key className="h-5 w-5" />
               API Tokens
             </CardTitle>
             <CardDescription>
@@ -435,7 +425,7 @@ function ProjectSettingsPage() {
               >
                 {createAPIKeyMutation.isPending ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
                     Creating...
                   </>
                 ) : (
@@ -445,7 +435,7 @@ function ProjectSettingsPage() {
 
               {createdKey && (
                 <div className="flex flex-1 items-center gap-2 rounded-md bg-muted px-3 py-2">
-                  <KeyRound className="h-4 w-4 text-muted-foreground" />
+                  <Icons.Key className="h-4 w-4 text-muted-foreground" />
                   <span className="font-mono text-xs truncate">
                     {createdKey}
                   </span>
@@ -456,7 +446,7 @@ function ProjectSettingsPage() {
                     className="h-7 w-7"
                     onClick={handleCopyKey}
                   >
-                    <Copy className="h-3 w-3" />
+                    <Icons.Copy className="h-3 w-3" />
                   </Button>
                 </div>
               )}
@@ -468,7 +458,7 @@ function ProjectSettingsPage() {
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium">Existing tokens</p>
                 {apiKeysLoading && (
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <Icons.Loader className="h-4 w-4 animate-spin text-muted-foreground" />
                 )}
               </div>
 
@@ -538,7 +528,7 @@ function ProjectSettingsPage() {
         <Card className="py-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Github className="h-5 w-5" />
+              <Icons.Github className="h-5 w-5" />
               GitHub Integration
             </CardTitle>
             <CardDescription>
@@ -550,7 +540,7 @@ function ProjectSettingsPage() {
             {isProjectConnected ? (
               <div className="rounded-md bg-green-500/10 p-4 space-y-2">
                 <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                  <Check className="h-4 w-4" />
+                  <Icons.Check className="h-4 w-4" />
                   <span className="font-medium">Connected to GitHub</span>
                 </div>
                 {project.repo_url && (
@@ -560,7 +550,7 @@ function ProjectSettingsPage() {
                     rel="noreferrer"
                     className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
                   >
-                    <Link2 className="h-3 w-3" />
+                    <Icons.Link2 className="h-3 w-3" />
                     {project.repo_url}
                   </a>
                 )}
@@ -569,7 +559,7 @@ function ProjectSettingsPage() {
               <>
                 {loadingInstallations ? (
                   <div className="flex items-center gap-2 text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Icons.Loader className="h-4 w-4 animate-spin" />
                     Loading installations...
                   </div>
                 ) : installations.length === 0 ? (
@@ -611,7 +601,7 @@ function ProjectSettingsPage() {
                           rel="noreferrer"
                           className="text-primary hover:underline inline-flex items-center gap-1"
                         >
-                          <Github className="h-3 w-3" />
+                          <Icons.Github className="h-3 w-3" />
                           Add GitHub Account
                         </a>
                         {" · "}
@@ -631,7 +621,7 @@ function ProjectSettingsPage() {
                         <Label htmlFor="repo">Repository</Label>
                         {loadingRepos ? (
                           <div className="flex items-center gap-2 text-muted-foreground">
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Icons.Loader className="h-4 w-4 animate-spin" />
                             Loading repositories...
                           </div>
                         ) : (
@@ -679,12 +669,12 @@ function ProjectSettingsPage() {
                     >
                       {connectToGitHubMutation.isPending ? (
                         <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
                           Connecting...
                         </>
                       ) : (
                         <>
-                          <Github className="mr-2 h-4 w-4" />
+                          <Icons.Github className="mr-2 h-4 w-4" />
                           Connect to GitHub
                         </>
                       )}
@@ -700,7 +690,7 @@ function ProjectSettingsPage() {
         <Card className="border-destructive/50 py-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" />
+              <Icons.Warning className="h-5 w-5" />
               Danger Zone
             </CardTitle>
             <CardDescription>
@@ -719,7 +709,7 @@ function ProjectSettingsPage() {
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive">
-                    <Trash2 className="mr-2 h-4 w-4" />
+                    <Icons.Trash className="mr-2 h-4 w-4" />
                     Delete Project
                   </Button>
                 </AlertDialogTrigger>
@@ -770,7 +760,7 @@ function ProjectSettingsPage() {
                     >
                       {deleteProjectMutation.isPending ? (
                         <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
                           Deleting...
                         </>
                       ) : (

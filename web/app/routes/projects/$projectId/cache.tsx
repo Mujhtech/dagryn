@@ -34,17 +34,7 @@ import {
   YAxis,
   CartesianGrid,
 } from "recharts";
-import {
-  ArrowLeft,
-  Database,
-  HardDrive,
-  Loader2,
-  Settings,
-  TrendingUp,
-  Upload,
-  Download,
-  Target,
-} from "lucide-react";
+import { Icons } from "~/components/icons";
 
 export const Route = createFileRoute("/projects/$projectId/cache")({
   component: CacheAnalyticsPage,
@@ -83,7 +73,7 @@ function CacheAnalyticsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Icons.Loader className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -124,7 +114,7 @@ function CacheAnalyticsPage() {
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
           <Link to="/projects/$projectId" params={{ projectId }}>
-            <ArrowLeft className="h-4 w-4" />
+            <Icons.ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
         <div className="flex-1">
@@ -155,7 +145,7 @@ function CacheAnalyticsPage() {
           </Select>
           <Button variant="outline" size="icon" asChild>
             <Link to="/projects/$projectId/settings" params={{ projectId }}>
-              <Settings className="h-4 w-4" />
+              <Icons.Settings className="h-4 w-4" />
             </Link>
           </Button>
         </div>
@@ -166,11 +156,11 @@ function CacheAnalyticsPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Hit Rate</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
+            <Icons.Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {analyticsLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Icons.Loader className="h-4 w-4 animate-spin" />
             ) : (
               <>
                 <div className="text-2xl font-bold">
@@ -190,11 +180,11 @@ function CacheAnalyticsPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Storage Used</CardTitle>
-            <HardDrive className="h-4 w-4 text-muted-foreground" />
+            <Icons.HardDrive className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {statsLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Icons.Loader className="h-4 w-4 animate-spin" />
             ) : (
               <>
                 <div className="text-2xl font-bold">
@@ -217,11 +207,11 @@ function CacheAnalyticsPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Cache Entries</CardTitle>
-            <Database className="h-4 w-4 text-muted-foreground" />
+            <Icons.Database className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {statsLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Icons.Loader className="h-4 w-4 animate-spin" />
             ) : (
               <>
                 <div className="text-2xl font-bold">
@@ -238,11 +228,11 @@ function CacheAnalyticsPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Bandwidth</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <Icons.TrendUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {analyticsLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Icons.Loader className="h-4 w-4 animate-spin" />
             ) : (
               <>
                 <div className="text-2xl font-bold">
@@ -253,11 +243,11 @@ function CacheAnalyticsPage() {
                 </div>
                 <div className="flex items-center gap-3 mt-1">
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Upload className="h-3 w-3" />
+                    <Icons.Upload className="h-3 w-3" />
                     {formatBytes(analytics?.total_bytes_uploaded ?? 0)}
                   </span>
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Download className="h-3 w-3" />
+                    <Icons.Download className="h-3 w-3" />
                     {formatBytes(analytics?.total_bytes_downloaded ?? 0)}
                   </span>
                 </div>
@@ -278,7 +268,7 @@ function CacheAnalyticsPage() {
           <CardContent>
             {analyticsLoading ? (
               <div className="flex items-center justify-center h-[300px]">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <Icons.Loader className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : analytics?.days && analytics.days.length > 0 ? (
               <ChartContainer config={hitRateChartConfig} className="h-[300px]">
@@ -328,7 +318,7 @@ function CacheAnalyticsPage() {
           <CardContent>
             {analyticsLoading ? (
               <div className="flex items-center justify-center h-[300px]">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <Icons.Loader className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : analytics?.days && analytics.days.length > 0 ? (
               <ChartContainer

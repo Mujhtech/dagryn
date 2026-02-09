@@ -1,10 +1,5 @@
 import { useLocation } from "@tanstack/react-router";
-import {
-  IconDashboard,
-  IconFolder,
-  IconListDetails,
-  IconUsers,
-} from "@tabler/icons-react";
+import { Icons } from "./icons";
 
 import { useAuth } from "~/lib/auth";
 import {
@@ -23,22 +18,22 @@ const navItems = [
   {
     title: "Dashboard",
     url: "/",
-    icon: IconDashboard,
+    icon: Icons.Dashboard,
   },
   {
     title: "Projects",
     url: "/projects",
-    icon: IconFolder,
+    icon: Icons.Folder,
   },
   {
     title: "Teams",
     url: "/teams",
-    icon: IconUsers,
+    icon: Icons.Users,
   },
   {
     title: "Invitations",
     url: "/invitations",
-    icon: IconListDetails,
+    icon: Icons.ListDetails,
   },
 ];
 

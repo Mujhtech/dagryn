@@ -4,7 +4,7 @@ import { useAuth } from "~/lib/auth";
 import { usePackageManagerTab } from "~/hooks/use-url-filters";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
-import { Copy, Loader2, MessageCircle } from "lucide-react";
+import { Icons } from "~/components/icons";
 
 export const Route = createFileRoute("/")({
   component: IndexPage,
@@ -35,7 +35,7 @@ function IndexPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Icons.Loader className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -70,7 +70,7 @@ function IndexPage() {
             </h1>
             <Button variant="ghost" size="sm" asChild>
               <Link to="/projects">
-                <MessageCircle className="mr-2 h-4 w-4" />
+                <Icons.MessageCircle className="mr-2 h-4 w-4" />
                 I'm stuck!
               </Link>
             </Button>
@@ -156,7 +156,7 @@ function IndexPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-semibold">3. Waiting for tasks</h2>
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <Icons.Loader className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
             <p className="text-sm text-muted-foreground">
               This page will automatically refresh.
@@ -194,7 +194,7 @@ function CodeBlock({
             Copied!
           </span>
         ) : (
-          <Copy className="h-4 w-4" />
+          <Icons.Copy className="h-4 w-4" />
         )}
       </Button>
     </div>

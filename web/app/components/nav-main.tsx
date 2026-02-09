@@ -1,6 +1,8 @@
 "use client";
 
-import { IconCirclePlusFilled, type Icon } from "@tabler/icons-react";
+import { Icons } from "./icons";
+import type { FunctionComponent } from "react";
+import type { IconProps } from "@phosphor-icons/react";
 
 import {
   SidebarGroup,
@@ -18,7 +20,7 @@ export function NavMain({
   items: {
     title: string;
     url: string;
-    icon?: Icon;
+    icon?: FunctionComponent<IconProps>;
   }[];
   isActive: (url: string) => boolean;
 }) {
@@ -31,7 +33,7 @@ export function NavMain({
               tooltip="Quick Create"
               className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground min-w-8 duration-200 ease-linear"
             >
-              <IconCirclePlusFilled />
+              <Icons.Plus />
               <span>Create Project</span>
             </SidebarMenuButton>
           </SidebarMenuItem>

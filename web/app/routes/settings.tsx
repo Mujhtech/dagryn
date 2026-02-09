@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
-import { User, Mail, Save, Loader2 } from "lucide-react";
 
 import { useAuth } from "~/lib/auth";
 import { useUpdateUser } from "~/hooks/mutations";
@@ -18,6 +17,7 @@ import {
 } from "~/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Separator } from "~/components/ui/separator";
+import { Icons } from "~/components/icons";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -69,7 +69,7 @@ function SettingsPage() {
   if (authLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Icons.Loader className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -92,7 +92,7 @@ function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
+              <Icons.User className="h-5 w-5" />
               Profile
             </CardTitle>
             <CardDescription>Update your personal information.</CardDescription>
@@ -130,7 +130,7 @@ function SettingsPage() {
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-muted-foreground" />
+                <Icons.Mail className="h-4 w-4 text-muted-foreground" />
                 <Input
                   id="email"
                   value={user.email}
@@ -162,12 +162,12 @@ function SettingsPage() {
             >
               {updateUserMutation.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
                   Saving...
                 </>
               ) : (
                 <>
-                  <Save className="mr-2 h-4 w-4" />
+                  <Icons.FloppyDisk className="mr-2 h-4 w-4" />
                   Save Changes
                 </>
               )}

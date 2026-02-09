@@ -38,8 +38,8 @@ import {
   TableRow,
 } from "~/components/ui/table";
 import { Badge } from "~/components/ui/badge";
-import { Users, Mail, Loader2, Trash2, UserMinus } from "lucide-react";
 import type { Team, TeamMember, Invitation } from "~/lib/api";
+import { Icons } from "~/components/icons";
 
 export const Route = createFileRoute("/teams/$teamId/")({
   component: TeamDetailPage,
@@ -125,7 +125,7 @@ function TeamDetailPage() {
   if (loading && !team) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Icons.Loader className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -222,11 +222,11 @@ function TeamDetailPage() {
       <Tabs defaultValue="members">
         <TabsList>
           <TabsTrigger value="members">
-            <Users className="mr-2 h-4 w-4" />
+            <Icons.Users className="mr-2 h-4 w-4" />
             Members ({membersList.length})
           </TabsTrigger>
           <TabsTrigger value="invitations">
-            <Mail className="mr-2 h-4 w-4" />
+            <Icons.Mail className="mr-2 h-4 w-4" />
             Invitations (
             {invitationsList.filter((i) => i.status === "pending").length})
           </TabsTrigger>
@@ -239,7 +239,7 @@ function TeamDetailPage() {
             </CardHeader>
             <CardContent>
               {membersLoading ? (
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <Icons.Loader className="h-6 w-6 animate-spin text-muted-foreground" />
               ) : membersList.length === 0 ? (
                 <p className="text-muted-foreground">No members yet.</p>
               ) : (
@@ -280,7 +280,7 @@ function TeamDetailPage() {
                             }}
                             disabled={removeMemberMutation.isPending}
                           >
-                            <UserMinus className="h-4 w-4" />
+                            <Icons.UserMinus className="h-4 w-4" />
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -301,7 +301,7 @@ function TeamDetailPage() {
               <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm">
-                    <Mail className="mr-2 h-4 w-4" />
+                    <Icons.Mail className="mr-2 h-4 w-4" />
                     Invite
                   </Button>
                 </DialogTrigger>
@@ -363,7 +363,7 @@ function TeamDetailPage() {
             </CardHeader>
             <CardContent>
               {invitationsLoading ? (
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <Icons.Loader className="h-6 w-6 animate-spin text-muted-foreground" />
               ) : invitationsList.length === 0 ? (
                 <p className="text-muted-foreground">No pending invitations.</p>
               ) : (
@@ -400,7 +400,7 @@ function TeamDetailPage() {
                               }}
                               disabled={revokeInvitationMutation.isPending}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Icons.Trash className="h-4 w-4" />
                             </Button>
                           )}
                         </TableCell>

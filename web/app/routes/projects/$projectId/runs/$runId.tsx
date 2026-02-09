@@ -21,23 +21,9 @@ import { Badge } from "~/components/ui/badge";
 import { Progress } from "~/components/ui/progress";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import {
-  ArrowLeft,
-  CheckCircle2,
-  Circle,
-  Clock,
-  Database,
-  Download,
-  Loader2,
-  Radio,
-  Search,
-  Square,
-  Terminal,
-  WifiOff,
-  XCircle,
-} from "lucide-react";
 import { Input } from "~/components/ui/input";
 import { cn } from "~/lib/utils";
+import { Icons } from "~/components/icons";
 
 export const Route = createFileRoute("/projects/$projectId/runs/$runId")({
   component: RunDetailPage,
@@ -116,7 +102,7 @@ function RunDetailPage() {
           stream: log.stream,
           line: log.content,
           line_num: log.line_num,
-        })
+        }),
       );
       setLogs(histLogs);
       // Track the last log ID for incremental updates
@@ -137,8 +123,8 @@ function RunDetailPage() {
               cache_hit: data.cache_hit ?? false,
               cache_key: data.cache_key,
             }
-          : t
-      )
+          : t,
+      ),
     );
   }, []);
 
@@ -172,7 +158,7 @@ function RunDetailPage() {
           return prev.map((t) =>
             t.task_name === data.task_name
               ? { ...t, status: "running" as const }
-              : t
+              : t,
           );
         }
         return [
@@ -256,7 +242,7 @@ function RunDetailPage() {
 
   // Get unique task names for the filter dropdown
   const uniqueTasks = Array.from(
-    new Set(logs.map((l) => l.task_name).filter(Boolean))
+    new Set(logs.map((l) => l.task_name).filter(Boolean)),
   );
 
   const handleDownloadLogs = () => {
@@ -302,7 +288,7 @@ function RunDetailPage() {
   const isClientDisconnected =
     clientDisconnected || run.data.client_disconnected;
   const completedTasks = tasks.filter(
-    (t) => t.status === "success" || t.status === "cached"
+    (t) => t.status === "success" || t.status === "cached",
   ).length;
   const isRunning = currentStatus === "running" || currentStatus === "pending";
   const progress = tasks.length > 0 ? (completedTasks / tasks.length) * 100 : 0;
@@ -317,7 +303,7 @@ function RunDetailPage() {
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
           <Link to="/projects/$projectId" params={{ projectId }}>
-            <ArrowLeft className="h-4 w-4" />
+            <Icons.ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
         <div className="flex-1">
@@ -340,10 +326,10 @@ function RunDetailPage() {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <Radio
+            <Icons.BroadCast
               className={cn(
                 "h-3 w-3",
-                connected ? "text-green-500" : "text-gray-400"
+                connected ? "text-green-500" : "text-gray-400",
               )}
             />
             <span className="text-sm text-muted-foreground">
@@ -357,9 +343,9 @@ function RunDetailPage() {
               disabled={cancelRunMutation.isPending}
             >
               {cancelRunMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                <Square className="mr-2 h-4 w-4" />
+                <Icons.Square className="mr-2 h-4 w-4" />
               )}
               Cancel
             </Button>
@@ -371,7 +357,7 @@ function RunDetailPage() {
       {isClientDisconnected && isRunning && (
         <div className="rounded-none border border-yellow-500/50 bg-yellow-500/10 p-4">
           <div className="flex items-start gap-3">
-            <WifiOff className="h-5 w-5 text-yellow-500 mt-0.5" />
+            <Icons.WifiOff className="h-5 w-5 text-yellow-500 mt-0.5" />
             <div>
               <h3 className="font-medium text-yellow-500">Connection Lost</h3>
               <p className="text-sm text-muted-foreground">
@@ -410,11 +396,11 @@ function RunDetailPage() {
       <Tabs defaultValue="logs" className="space-y-4">
         <TabsList>
           <TabsTrigger value="logs" className="gap-2">
-            <Terminal className="h-4 w-4" />
+            <Icons.Terminal className="h-4 w-4" />
             Logs
           </TabsTrigger>
           <TabsTrigger value="tasks" className="gap-2">
-            <CheckCircle2 className="h-4 w-4" />
+            <Icons.CheckCircle className="h-4 w-4" />
             Tasks ({tasks.length})
           </TabsTrigger>
         </TabsList>
@@ -426,7 +412,7 @@ function RunDetailPage() {
                 <CardTitle className="text-sm text-zinc-400">Output</CardTitle>
                 <div className="flex items-center gap-2 flex-1 max-w-xl">
                   <div className="relative flex-1">
-                    <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                    <Icons.Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
                     <Input
                       placeholder="Search logs..."
                       value={searchQuery}
@@ -463,7 +449,7 @@ function RunDetailPage() {
                     className="h-8 text-zinc-400 hover:text-zinc-100"
                     disabled={logs.length === 0}
                   >
-                    <Download className="h-4 w-4" />
+                    <Icons.Download className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
@@ -472,7 +458,7 @@ function RunDetailPage() {
               <div className="p-4 font-mono text-sm">
                 {logsLoading ? (
                   <div className="flex items-center justify-center h-32 text-zinc-500">
-                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    <Icons.Loader className="h-5 w-5 animate-spin mr-2" />
                     Loading logs...
                   </div>
                 ) : filteredLogs.length === 0 ? (
@@ -489,7 +475,7 @@ function RunDetailPage() {
                       key={log.id || index}
                       className={cn(
                         "flex gap-2 hover:bg-zinc-900/50 px-2 -mx-2 rounded",
-                        log.stream === "stderr" && "text-red-400"
+                        log.stream === "stderr" && "text-red-400",
                       )}
                     >
                       <span className="select-none text-zinc-600 w-10 text-right shrink-0">
@@ -533,13 +519,13 @@ function RunDetailPage() {
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             {task.duration_ms != null && (
                               <span className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
+                                <Icons.Clock className="h-3 w-3" />
                                 {formatDuration(task.duration_ms)}
                               </span>
                             )}
                             {task.cache_hit && (
                               <span className="flex items-center gap-1 text-purple-500">
-                                <Database className="h-3 w-3" />
+                                <Icons.Database className="h-3 w-3" />
                                 cached
                               </span>
                             )}
@@ -568,38 +554,38 @@ function RunStatusIcon({
 }) {
   switch (status) {
     case "success":
-      return <CheckCircle2 className={cn("text-green-500", className)} />;
+      return <Icons.CheckCircle className={cn("text-green-500", className)} />;
     case "failed":
-      return <XCircle className={cn("text-red-500", className)} />;
+      return <Icons.XCircle className={cn("text-red-500", className)} />;
     case "running":
       return (
-        <Loader2 className={cn("text-blue-500 animate-spin", className)} />
+        <Icons.Loader className={cn("text-blue-500 animate-spin", className)} />
       );
     case "pending":
-      return <Circle className={cn("text-yellow-500", className)} />;
+      return <Icons.Circle className={cn("text-yellow-500", className)} />;
     case "cancelled":
-      return <XCircle className={cn("text-gray-500", className)} />;
+      return <Icons.XCircle className={cn("text-gray-500", className)} />;
     case "stale":
-      return <WifiOff className={cn("text-yellow-500", className)} />;
+      return <Icons.WifiOff className={cn("text-yellow-500", className)} />;
     default:
-      return <Circle className={cn("text-gray-400", className)} />;
+      return <Icons.Circle className={cn("text-gray-400", className)} />;
   }
 }
 
 function TaskStatusIcon({ status }: { status: string }) {
   switch (status) {
     case "success":
-      return <CheckCircle2 className="h-5 w-5 text-green-500" />;
+      return <Icons.CheckCircle className="h-5 w-5 text-green-500" />;
     case "failed":
-      return <XCircle className="h-5 w-5 text-red-500" />;
+      return <Icons.XCircle className="h-5 w-5 text-red-500" />;
     case "running":
-      return <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />;
+      return <Icons.Loader className="h-5 w-5 text-blue-500 animate-spin" />;
     case "cached":
-      return <Database className="h-5 w-5 text-purple-500" />;
+      return <Icons.Database className="h-5 w-5 text-purple-500" />;
     case "pending":
-      return <Circle className="h-5 w-5 text-yellow-500" />;
+      return <Icons.Circle className="h-5 w-5 text-yellow-500" />;
     default:
-      return <Circle className="h-5 w-5 text-gray-400" />;
+      return <Icons.Circle className="h-5 w-5 text-gray-400" />;
   }
 }
 

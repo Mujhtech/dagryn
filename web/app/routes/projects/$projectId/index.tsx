@@ -27,27 +27,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "~/components/ui/dialog";
-import {
-  ArrowLeft,
-  Calendar,
-  CheckCircle2,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
-  Circle,
-  Clock,
-  Database,
-  GitBranch,
-  GitCommit,
-  Github,
-  GitPullRequest,
-  Loader2,
-  Network,
-  Play,
-  Settings,
-  XCircle,
-} from "lucide-react";
+import { Icons } from "~/components/icons";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Progress } from "~/components/ui/progress";
 import {
@@ -269,7 +249,7 @@ function ProjectDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Icons.Loader className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -341,7 +321,7 @@ function ProjectDetailPage() {
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
           <Link to="/projects">
-            <ArrowLeft className="h-4 w-4" />
+            <Icons.ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
         <div className="flex-1">
@@ -362,12 +342,12 @@ function ProjectDetailPage() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" asChild>
             <Link to="/projects/$projectId/cache" params={{ projectId }}>
-              <Database className="h-4 w-4" />
+              <Icons.Database className="h-4 w-4" />
             </Link>
           </Button>
           <Button variant="outline" size="icon" asChild>
             <Link to="/projects/$projectId/settings" params={{ projectId }}>
-              <Settings className="h-4 w-4" />
+              <Icons.Settings className="h-4 w-4" />
             </Link>
           </Button>
         </div>
@@ -387,7 +367,7 @@ function ProjectDetailPage() {
           <Dialog open={triggerDialogOpen} onOpenChange={setTriggerDialogOpen}>
             <DialogTrigger asChild>
               <Button>
-                <Play className="mr-2 h-4 w-4" />
+                <Icons.Play className="mr-2 h-4 w-4" />
                 Trigger Run
               </Button>
             </DialogTrigger>
@@ -449,7 +429,7 @@ function ProjectDetailPage() {
                 >
                   {triggerRunMutation.isPending ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
                       Triggering...
                     </>
                   ) : (
@@ -463,12 +443,12 @@ function ProjectDetailPage() {
 
         {runsLoading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Icons.Loader className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : filteredRuns.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
-              <Play className="h-12 w-12 text-muted-foreground mb-4" />
+              <Icons.Play className="h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold">No runs yet</h3>
               <p className="text-muted-foreground text-center mt-1 mb-4">
                 Run <code className="bg-muted px-1 rounded">dagryn run</code> to
@@ -507,7 +487,7 @@ function ProjectDetailPage() {
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page === 1 || runsLoading}
                   >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    <Icons.ChevronLeft className="h-4 w-4 mr-1" />
                     Previous
                   </Button>
                   <div className="flex items-center gap-1 px-2">
@@ -522,7 +502,7 @@ function ProjectDetailPage() {
                     disabled={page === totalPages || runsLoading}
                   >
                     Next
-                    <ChevronRight className="h-4 w-4 ml-1" />
+                    <Icons.ChevronRight className="h-4 w-4 ml-1" />
                   </Button>
                 </div>
               </div>
@@ -739,25 +719,25 @@ function WorkflowDashboard({
                 label="Pull Request"
                 checked={eventFilters.has("pull_request")}
                 onCheckedChange={() => toggleEventFilter("pull_request")}
-                icon={<GitPullRequest className="h-4 w-4" />}
+                icon={<Icons.GitPullRequest className="h-4 w-4" />}
               />
               <EventFilterButton
                 label="Schedule"
                 checked={eventFilters.has("schedule")}
                 onCheckedChange={() => toggleEventFilter("schedule")}
-                icon={<Calendar className="h-4 w-4" />}
+                icon={<Icons.Calendar className="h-4 w-4" />}
               />
               <EventFilterButton
                 label="Workflow Dispatch"
                 checked={eventFilters.has("workflow_dispatch")}
                 onCheckedChange={() => toggleEventFilter("workflow_dispatch")}
-                icon={<Play className="h-4 w-4" />}
+                icon={<Icons.Play className="h-4 w-4" />}
               />
               <EventFilterButton
                 label="Push"
                 checked={eventFilters.has("push")}
                 onCheckedChange={() => toggleEventFilter("push")}
-                icon={<GitCommit className="h-4 w-4" />}
+                icon={<Icons.GitCommit className="h-4 w-4" />}
               />
             </div>
           </div>
@@ -793,7 +773,7 @@ function WorkflowDashboard({
                   </Avatar>
                   <span className="flex-1 text-left truncate">{user.name}</span>
                   {selectedUsers.has(user.id) && (
-                    <CheckCircle2 className="h-4 w-4 text-primary" />
+                    <Icons.Circle className="h-4 w-4 text-primary" />
                   )}
                 </button>
               ))}
@@ -817,7 +797,7 @@ function WorkflowDashboard({
             />
             {repoName && (
               <div className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted">
-                <Github className="h-4 w-4" />
+                <Icons.Github className="h-4 w-4" />
                 <span className="text-sm flex-1 text-left">{repoName}</span>
               </div>
             )}
@@ -911,12 +891,12 @@ function WorkflowDashboard({
             <div className="flex items-center gap-2">
               <Button variant="outline" size="icon" asChild>
                 <Link to="/projects/$projectId/cache" params={{ projectId }}>
-                  <Database className="h-4 w-4" />
+                  <Icons.Database className="h-4 w-4" />
                 </Link>
               </Button>
               <Button variant="outline" size="icon" asChild>
                 <Link to="/projects/$projectId/settings" params={{ projectId }}>
-                  <Settings className="h-4 w-4" />
+                  <Icons.Settings className="h-4 w-4" />
                 </Link>
               </Button>
               <Dialog
@@ -925,7 +905,7 @@ function WorkflowDashboard({
               >
                 <DialogTrigger asChild>
                   <Button>
-                    <Play className="mr-2 h-4 w-4" />
+                    <Icons.Play className="mr-2 h-4 w-4" />
                     Trigger Run
                   </Button>
                 </DialogTrigger>
@@ -987,7 +967,7 @@ function WorkflowDashboard({
                     >
                       {triggerRunMutation.isPending ? (
                         <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
                           Triggering...
                         </>
                       ) : (
@@ -1089,7 +1069,7 @@ function WorkflowDashboard({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Network className="h-4 w-4 text-muted-foreground" />
+                    <Icons.Network className="h-4 w-4 text-muted-foreground" />
                     <CardTitle className="text-sm font-semibold uppercase">
                       WORKFLOW DAG
                     </CardTitle>
@@ -1098,9 +1078,9 @@ function WorkflowDashboard({
                     </Badge>
                   </div>
                   {workflowExpanded ? (
-                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                    <Icons.ChevronUp className="h-4 w-4 text-muted-foreground" />
                   ) : (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    <Icons.ChevronDown className="h-4 w-4 text-muted-foreground" />
                   )}
                 </div>
               </CardHeader>
@@ -1118,12 +1098,12 @@ function WorkflowDashboard({
           {/* Runs List */}
           {runsLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Icons.Loader className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : runs.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
-                <Play className="h-12 w-12 text-muted-foreground mb-4" />
+                <Icons.Play className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-semibold">No runs yet</h3>
                 <p className="text-muted-foreground text-center mt-1 mb-4">
                   Runs will appear here once triggered
@@ -1165,7 +1145,7 @@ function WorkflowDashboard({
                       onClick={() => setPage(Math.max(1, page - 1))}
                       disabled={page === 1 || runsLoading}
                     >
-                      <ChevronLeft className="h-4 w-4 mr-1" />
+                      <Icons.ChevronLeft className="h-4 w-4 mr-1" />
                       Previous
                     </Button>
                     <div className="flex items-center gap-1 px-2">
@@ -1180,7 +1160,7 @@ function WorkflowDashboard({
                       disabled={page === totalPages || runsLoading}
                     >
                       Next
-                      <ChevronRight className="h-4 w-4 ml-1" />
+                      <Icons.ChevronRight className="h-4 w-4 ml-1" />
                     </Button>
                   </div>
                 </div>
@@ -1288,12 +1268,12 @@ function RunCard({
               {/* Repository and Branch */}
               <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
                 <div className="flex items-center gap-1">
-                  <Github className="h-4 w-4" />
+                  <Icons.Github className="h-4 w-4" />
                   <span>{repoLabel}</span>
                 </div>
                 {branch && (
                   <div className="flex items-center gap-1">
-                    <GitBranch className="h-4 w-4" />
+                    <Icons.GitBranch className="h-4 w-4" />
                     <span>{branch}</span>
                   </div>
                 )}
@@ -1303,7 +1283,7 @@ function RunCard({
               <div className="flex items-center gap-4">
                 {run.duration_ms != null && (
                   <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <Clock className="h-4 w-4" />
+                    <Icons.Clock className="h-4 w-4" />
                     <span>{formatDuration(run.duration_ms)}</span>
                   </div>
                 )}
@@ -1370,14 +1350,14 @@ function getTriggerInfo(
 function EventIcon({ eventType }: { eventType: string; prNumber?: number }) {
   switch (eventType) {
     case "pull_request":
-      return <GitPullRequest className="h-4 w-4 text-muted-foreground" />;
+      return <Icons.GitPullRequest className="h-4 w-4 text-muted-foreground" />;
     case "schedule":
-      return <Calendar className="h-4 w-4 text-muted-foreground" />;
+      return <Icons.Calendar className="h-4 w-4 text-muted-foreground" />;
     case "workflow_dispatch":
-      return <Play className="h-4 w-4 text-muted-foreground" />;
+      return <Icons.Play className="h-4 w-4 text-muted-foreground" />;
     case "push":
     default:
-      return <GitCommit className="h-4 w-4 text-muted-foreground" />;
+      return <Icons.GitCommit className="h-4 w-4 text-muted-foreground" />;
   }
 }
 
@@ -1396,7 +1376,7 @@ function FilterCheckbox({
     <label className="flex items-center gap-2 cursor-pointer">
       <Checkbox checked={checked} onCheckedChange={onCheckedChange} />
       <div className="flex items-center gap-2">
-        <Circle className={`h-3 w-3 fill-current ${color || ""}`} />
+        <Icons.Circle className={`h-3 w-3 fill-current ${color || ""}`} />
         <span className="text-sm">{label}</span>
       </div>
     </label>
@@ -1431,17 +1411,17 @@ function EventFilterButton({
 function RunStatusIcon({ status }: { status: string }) {
   switch (status) {
     case "success":
-      return <CheckCircle2 className="h-5 w-5 text-green-500" />;
+      return <Icons.CheckCircle className="h-5 w-5 text-green-500" />;
     case "failed":
-      return <XCircle className="h-5 w-5 text-red-500" />;
+      return <Icons.XCircle className="h-5 w-5 text-red-500" />;
     case "running":
-      return <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />;
+      return <Icons.Loader className="h-5 w-5 text-blue-500 animate-spin" />;
     case "pending":
-      return <Circle className="h-5 w-5 text-yellow-500" />;
+      return <Icons.Circle className="h-5 w-5 text-yellow-500" />;
     case "cancelled":
-      return <XCircle className="h-5 w-5 text-gray-500" />;
+      return <Icons.XCircle className="h-5 w-5 text-gray-500" />;
     default:
-      return <Circle className="h-5 w-5 text-gray-400" />;
+      return <Icons.Circle className="h-5 w-5 text-gray-400" />;
   }
 }
 

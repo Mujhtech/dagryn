@@ -12,7 +12,7 @@ import {
 } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
-import { Mail, Loader2, Check, X } from "lucide-react";
+import { Icons } from "~/components/icons";
 import type { Invitation } from "~/lib/api";
 
 export const Route = createFileRoute("/invitations/")({
@@ -58,7 +58,7 @@ function InvitationsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Icons.Loader className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -88,7 +88,7 @@ function InvitationsPage() {
       {list.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <Mail className="h-12 w-12 text-muted-foreground mb-4" />
+            <Icons.Mail className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold">No invitations</h3>
             <p className="text-muted-foreground text-center mt-1">
               When someone invites you to a team or project, it will appear
@@ -144,10 +144,10 @@ function InvitationsPage() {
                       }
                     >
                       {acceptMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Icons.Loader className="h-4 w-4 animate-spin" />
                       ) : (
                         <>
-                          <Check className="mr-1 h-4 w-4" />
+                          <Icons.Check className="mr-1 h-4 w-4" />
                           Accept
                         </>
                       )}
@@ -160,7 +160,7 @@ function InvitationsPage() {
                         acceptMutation.isPending || declineMutation.isPending
                       }
                     >
-                      <X className="mr-1 h-4 w-4" />
+                      <Icons.Close className="mr-1 h-4 w-4" />
                       Decline
                     </Button>
                   </div>

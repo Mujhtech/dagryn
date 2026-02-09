@@ -22,7 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "~/components/ui/dialog";
-import { Users, Plus, Loader2 } from "lucide-react";
+import { Icons } from "~/components/icons";
 
 function slugify(text: string): string {
   return text
@@ -105,7 +105,7 @@ function TeamsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Icons.Loader className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -131,7 +131,7 @@ function TeamsPage() {
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button>
-              <Plus className="mr-2 h-4 w-4" />
+              <Icons.Plus className="mr-2 h-4 w-4" />
               New Team
             </Button>
           </DialogTrigger>
@@ -197,7 +197,7 @@ function TeamsPage() {
               >
                 {createTeamMutation.isPending ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
                     Creating...
                   </>
                 ) : (
@@ -212,13 +212,13 @@ function TeamsPage() {
       {teams.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <Users className="h-12 w-12 text-muted-foreground mb-4" />
+            <Icons.Users className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold">No teams yet</h3>
             <p className="text-muted-foreground text-center mt-1 mb-4">
               Create a team to collaborate and manage projects together
             </p>
             <Button onClick={() => setIsCreateOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
+              <Icons.Plus className="mr-2 h-4 w-4" />
               New Team
             </Button>
           </CardContent>
@@ -253,7 +253,7 @@ function TeamsPage() {
                       </p>
                     )}
                     <div className="flex items-center text-sm text-muted-foreground">
-                      <Users className="mr-1 h-4 w-4" />
+                      <Icons.Users className="mr-1 h-4 w-4" />
                       {team.member_count} member
                       {team.member_count !== 1 ? "s" : ""}
                     </div>
