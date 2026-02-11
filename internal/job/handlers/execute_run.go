@@ -30,6 +30,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/notification"
 	"github.com/mujhtech/dagryn/internal/scheduler"
 	"github.com/mujhtech/dagryn/internal/service"
+	"github.com/mujhtech/dagryn/internal/task"
 )
 
 // githubAppClientAdapter adapts githubapp.Client to GitHubAppClient interface.
@@ -66,11 +67,19 @@ type ExecuteRunHandler struct {
 	githubApp           GitHubAppClient
 	githubInstallations *repo.GitHubInstallationRepo
 	cacheService        *service.CacheService
+	artifactService     *service.ArtifactService
+	cancelManager       CancelManager
 }
 
 // GitHubAppClient is an interface for fetching installation tokens.
 type GitHubAppClient interface {
 	FetchInstallationToken(ctx context.Context, installationID int64) (*InstallationToken, error)
+}
+
+// CancelManager coordinates cancellation signals for running jobs.
+type CancelManager interface {
+	Watch(ctx context.Context, runID string) <-chan struct{}
+	Clear(ctx context.Context, runID string) error
 }
 
 // InstallationToken represents a GitHub App installation access token.
@@ -88,7 +97,7 @@ func NewGitHubAppClientAdapter(client *githubapp.Client) GitHubAppClient {
 }
 
 // NewExecuteRunHandler creates an ExecuteRun handler.
-func NewExecuteRunHandler(runs *repo.RunRepo, projects *repo.ProjectRepo, encrypter encrypt.Encrypt, providerTokens *repo.ProviderTokenRepo, providerEncrypt encrypt.Encrypt, githubApp GitHubAppClient, githubInstallations *repo.GitHubInstallationRepo, cacheService *service.CacheService) *ExecuteRunHandler {
+func NewExecuteRunHandler(runs *repo.RunRepo, projects *repo.ProjectRepo, encrypter encrypt.Encrypt, providerTokens *repo.ProviderTokenRepo, providerEncrypt encrypt.Encrypt, githubApp GitHubAppClient, githubInstallations *repo.GitHubInstallationRepo, cacheService *service.CacheService, artifactService *service.ArtifactService, cancelManager CancelManager) *ExecuteRunHandler {
 	return &ExecuteRunHandler{
 		runs:                runs,
 		projects:            projects,
@@ -98,6 +107,8 @@ func NewExecuteRunHandler(runs *repo.RunRepo, projects *repo.ProjectRepo, encryp
 		githubApp:           githubApp,
 		githubInstallations: githubInstallations,
 		cacheService:        cacheService,
+		artifactService:     artifactService,
+		cancelManager:       cancelManager,
 	}
 }
 
@@ -205,6 +216,32 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 			return nil
 		}
 		return err
+	}
+
+	if run.Status == models.RunStatusCancelled {
+		slog.Info("execute_run: run already cancelled", "run_id", runID)
+		return nil
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	if h.cancelManager != nil {
+		cancelCh := h.cancelManager.Watch(ctx, runID.String())
+		go func() {
+			select {
+			case <-cancelCh:
+				cancel()
+			case <-ctx.Done():
+			}
+		}()
+		defer func() {
+			_ = h.cancelManager.Clear(context.Background(), runID.String())
+		}()
+	}
+
+	if ctx.Err() != nil {
+		h.markRunCancelled(runID, project, "Cancelled by user")
+		return nil
 	}
 
 	repoURL := payload.RepoURL
@@ -543,6 +580,11 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	summary, err := sched.Run(ctx, targets)
 	flushLogs()
 
+	if ctx.Err() == context.Canceled {
+		h.markRunCancelled(runID, project, "Cancelled by user")
+		return nil
+	}
+
 	if err != nil {
 		msg := err.Error()
 		_ = h.runs.Complete(ctx, runID, models.RunStatusFailed, &msg)
@@ -559,9 +601,97 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		return nil
 	}
 
+	if h.artifactService != nil && summary != nil {
+		h.collectArtifacts(ctx, projectID, runID, workflow, summary, workDir)
+	}
+
 	_ = h.runs.Complete(ctx, runID, models.RunStatusSuccess, nil)
 	h.notifyGitHub(ctx, run, project, models.RunStatusSuccess)
 	return nil
+}
+
+func (h *ExecuteRunHandler) markRunCancelled(runID uuid.UUID, project *models.Project, reason string) {
+	ctx := context.Background()
+	run, err := h.runs.GetByID(ctx, runID)
+	if err != nil {
+		slog.Warn("execute_run: failed to reload run for cancellation", "run_id", runID, "error", err)
+		return
+	}
+	if run.Status != models.RunStatusRunning && run.Status != models.RunStatusPending {
+		return
+	}
+	now := time.Now()
+	run.Status = models.RunStatusCancelled
+	run.FinishedAt = &now
+	run.ErrorMessage = &reason
+	if err := h.runs.Update(ctx, run); err != nil {
+		slog.Warn("execute_run: failed to mark run cancelled", "run_id", runID, "error", err)
+		return
+	}
+	h.notifyGitHub(ctx, run, project, models.RunStatusCancelled)
+}
+
+func (h *ExecuteRunHandler) collectArtifacts(ctx context.Context, projectID, runID uuid.UUID, workflow *task.Workflow, summary *scheduler.RunSummary, workDir string) {
+	if h.artifactService == nil || workflow == nil || summary == nil {
+		return
+	}
+
+	resultStatus := make(map[string]executor.Status, len(summary.Results))
+	for _, res := range summary.Results {
+		resultStatus[res.Task] = res.Status
+	}
+
+	for _, tsk := range workflow.ListTasks() {
+		status, ok := resultStatus[tsk.Name]
+		if !ok || (status != executor.Success && status != executor.Cached) {
+			continue
+		}
+		if !tsk.HasOutputs() {
+			continue
+		}
+
+		outputs := tsk.Outputs
+		if tsk.Workdir != "" {
+			outputs = make([]string, len(tsk.Outputs))
+			for i, p := range tsk.Outputs {
+				outputs[i] = filepath.Join(tsk.Workdir, p)
+			}
+		}
+
+		seen := make(map[string]struct{})
+		for _, pattern := range outputs {
+			matches, err := filepath.Glob(filepath.Join(workDir, pattern))
+			if err != nil {
+				continue
+			}
+			for _, path := range matches {
+				if _, ok := seen[path]; ok {
+					continue
+				}
+				seen[path] = struct{}{}
+
+				info, err := os.Stat(path)
+				if err != nil || info.IsDir() {
+					continue
+				}
+
+				relPath, err := filepath.Rel(workDir, path)
+				if err != nil {
+					continue
+				}
+				fileName := filepath.Base(relPath)
+				f, err := os.Open(path)
+				if err != nil {
+					continue
+				}
+				_, err = h.artifactService.Upload(ctx, projectID, runID, tsk.Name, relPath, fileName, f, info.Size(), 0, "")
+				_ = f.Close()
+				if err != nil {
+					slog.Warn("execute_run: artifact upload failed", "run_id", runID, "task", tsk.Name, "file", relPath, "error", err)
+				}
+			}
+		}
+	}
 }
 
 func executorStatusToTaskStatus(s executor.Status) models.TaskStatus {
@@ -732,7 +862,59 @@ func (h *ExecuteRunHandler) notifyGitHub(ctx context.Context, run *models.Run, p
 		slog.Error("github_status_update_failed", "run_id", run.ID, "error", err)
 	}
 
+	// Check run (create/update)
+	checkStatus, conclusion := mapGitHubCheckRunState(status)
+	checkOutput := buildGitHubCheckRunOutput(run, status)
+
+	if run.GitHubCheckRunID == nil || *run.GitHubCheckRunID == 0 {
+		req := notification.CheckRunRequest{
+			Name:       "Dagryn / workflow",
+			HeadSHA:    sha,
+			Status:     checkStatus,
+			Conclusion: conclusion,
+			DetailsURL: targetURL,
+			Output:     checkOutput,
+		}
+		now := time.Now()
+		if checkStatus == "in_progress" {
+			req.StartedAt = &now
+		}
+		if checkStatus == "completed" {
+			req.CompletedAt = &now
+		}
+
+		checkRunID, err := notification.CreateCheckRun(ctx, accessToken, owner, repoName, req)
+		if err != nil {
+			slog.Error("github_check_run_create_failed", "run_id", run.ID, "error", err)
+		} else if checkRunID != 0 {
+			run.GitHubCheckRunID = &checkRunID
+			if err := h.runs.UpdateGitHubCheckRunID(ctx, run.ID, checkRunID); err != nil {
+				slog.Error("github_check_run_id_persist_failed", "run_id", run.ID, "error", err)
+			}
+		}
+	} else {
+		req := notification.CheckRunRequest{
+			Status:     checkStatus,
+			Conclusion: conclusion,
+			DetailsURL: targetURL,
+			Output:     checkOutput,
+		}
+		if checkStatus == "completed" {
+			now := time.Now()
+			req.CompletedAt = &now
+		}
+		if err := notification.UpdateCheckRun(ctx, accessToken, owner, repoName, *run.GitHubCheckRunID, req); err != nil {
+			slog.Error("github_check_run_update_failed", "run_id", run.ID, "error", err)
+		}
+	}
+
 	// 2) PR summary comment (create once, then update same comment)
+	// if run.PRNumber == nil {
+	// 	slog.Debug("github_pr_comment_skipped_no_pr", "run_id", run.ID)
+	// 	slog.Info("github_notification_sent", "run_id", run.ID, "status", status, "sha", sha)
+	// 	return
+	// }
+
 	commentBody := map[string]string{
 		"body": buildGitHubPRComment(run, status, targetURL),
 	}
@@ -764,6 +946,35 @@ func (h *ExecuteRunHandler) notifyGitHub(ctx context.Context, run *models.Run, p
 	}
 
 	slog.Info("github_notification_sent", "run_id", run.ID, "status", status, "sha", sha)
+}
+
+func mapGitHubCheckRunState(status models.RunStatus) (checkStatus string, conclusion string) {
+	switch status {
+	case models.RunStatusRunning:
+		return "in_progress", ""
+	case models.RunStatusSuccess:
+		return "completed", "success"
+	case models.RunStatusFailed:
+		return "completed", "failure"
+	case models.RunStatusCancelled:
+		return "completed", "cancelled"
+	default:
+		return "queued", ""
+	}
+}
+
+func buildGitHubCheckRunOutput(run *models.Run, status models.RunStatus) *notification.CheckRunOutput {
+	title := fmt.Sprintf("Dagryn run %s", status)
+	summary := fmt.Sprintf("Status: %s\nTasks: %d/%d\nFailed: %d\nCache hits: %d",
+		status, run.CompletedTasks, run.TotalTasks, run.FailedTasks, run.CacheHits,
+	)
+	if run.DurationMs != nil {
+		summary = fmt.Sprintf("%s\nDuration: %s", summary, formatDurationMs(*run.DurationMs))
+	}
+	return &notification.CheckRunOutput{
+		Title:   title,
+		Summary: summary,
+	}
 }
 
 // buildGitHubPRComment constructs a human-friendly summary comment for a run.

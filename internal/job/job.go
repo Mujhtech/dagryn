@@ -20,6 +20,7 @@ type Job struct {
 	Client          *Client
 	Executor        *Executor
 	Scheduler       *Scheduler
+	CancelManager   *CancelManager
 	encrypter       encrypt.Encrypt
 	runs            *repo.RunRepo
 	projects        *repo.ProjectRepo
@@ -30,6 +31,7 @@ type Job struct {
 	}
 	githubInstallations *repo.GitHubInstallationRepo
 	cacheService        *service.CacheService
+	artifactService     *service.ArtifactService
 }
 
 // Config holds the configuration for the job system.
@@ -54,6 +56,10 @@ type Config struct {
 	GitHubInstallations *repo.GitHubInstallationRepo
 	// CacheService is the cache service for GC jobs (optional).
 	CacheService *service.CacheService
+	// ArtifactService is the artifact service for uploads/cleanup (optional).
+	ArtifactService *service.ArtifactService
+	// CancelManager is optional; if nil and Redis is available, a default will be created.
+	CancelManager *CancelManager
 }
 
 // DefaultConfig returns sensible defaults for job configuration.
@@ -78,11 +84,17 @@ func New(cfg Config, appCtx context.Context, rds *redis.Redis) (*Job, error) {
 		enc = encrypt.NewNoOpEncrypt()
 	}
 
+	cancelMgr := cfg.CancelManager
+	if cancelMgr == nil && rds != nil {
+		cancelMgr = NewCancelManager(rds)
+	}
+
 	return &Job{
 		encrypter:           enc,
 		Client:              NewClient(rds, enc),
 		Executor:            NewExecutor(appCtx, rds, cfg.Concurrency),
 		Scheduler:           NewScheduler(rds),
+		CancelManager:       cancelMgr,
 		runs:                cfg.RunRepo,
 		projects:            cfg.ProjectRepo,
 		providerTokens:      cfg.ProviderTokenRepo,
@@ -90,6 +102,7 @@ func New(cfg Config, appCtx context.Context, rds *redis.Redis) (*Job, error) {
 		githubApp:           cfg.GitHubAppClient,
 		githubInstallations: cfg.GitHubInstallations,
 		cacheService:        cfg.CacheService,
+		artifactService:     cfg.ArtifactService,
 	}, nil
 }
 
@@ -109,7 +122,7 @@ func (j *Job) RegisterAndStart() error {
 
 	// Register ExecuteRun handler when RunRepo and ProjectRepo are available
 	if j.runs != nil && j.projects != nil {
-		execHandler := handlers.NewExecuteRunHandler(j.runs, j.projects, j.encrypter, j.providerTokens, j.providerEncrypt, j.githubApp, j.githubInstallations, j.cacheService)
+		execHandler := handlers.NewExecuteRunHandler(j.runs, j.projects, j.encrypter, j.providerTokens, j.providerEncrypt, j.githubApp, j.githubInstallations, j.cacheService, j.artifactService, j.CancelManager)
 		j.Executor.RegisterJobHandler(ExecuteRunTaskName, asynq.HandlerFunc(execHandler.Handle))
 	}
 
@@ -118,6 +131,13 @@ func (j *Job) RegisterAndStart() error {
 		cacheGCHandler := handlers.NewCacheGCHandler(j.cacheService, j.projects)
 		j.Executor.RegisterJobHandler(CacheGCTaskName, asynq.HandlerFunc(cacheGCHandler.Handle))
 		j.Scheduler.RegisterTask("0 * * * *", ScheduleQueueName, CacheGCTaskName) // every hour
+	}
+
+	// Register artifact cleanup handler if artifact service is available
+	if j.artifactService != nil {
+		artifactCleanupHandler := handlers.NewArtifactCleanupHandler(j.artifactService)
+		j.Executor.RegisterJobHandler(ArtifactCleanupTaskName, asynq.HandlerFunc(artifactCleanupHandler.Handle))
+		j.Scheduler.RegisterTask("0 2 * * *", ScheduleQueueName, ArtifactCleanupTaskName) // daily at 02:00
 	}
 
 	// Start scheduler

@@ -83,6 +83,7 @@ type Repositories struct {
 	APIKeys             *repo.APIKeyRepo
 	Invitations         *repo.InvitationRepo
 	Runs                *repo.RunRepo
+	Artifacts           *repo.ArtifactRepo
 	ProviderTokens      *repo.ProviderTokenRepo
 	GitHubInstallations *repo.GitHubInstallationRepo
 	Workflows           *repo.WorkflowRepo
@@ -131,6 +132,7 @@ func (s *Server) Initialize(ctx context.Context) error {
 		APIKeys:             repo.NewAPIKeyRepo(database.Pool()),
 		Invitations:         repo.NewInvitationRepo(database.Pool()),
 		Runs:                repo.NewRunRepo(database.Pool()),
+		Artifacts:           repo.NewArtifactRepo(database.Pool()),
 		ProviderTokens:      repo.NewProviderTokenRepo(database.Pool()),
 		GitHubInstallations: repo.NewGitHubInstallationRepo(database.Pool()),
 		Workflows:           repo.NewWorkflowRepo(database.Pool()),
@@ -229,6 +231,36 @@ func (s *Server) Initialize(ctx context.Context) error {
 		log.Debug().Str("provider", s.config.CacheStorage.Provider).Msg("Cache service initialized")
 	}
 
+	// Optional artifact service (when artifact storage is configured)
+	var artifactService *service.ArtifactService
+	if s.config.ArtifactStorage.Provider != "" {
+		storageCfg := storage.Config{
+			Provider:        storage.ProviderType(s.config.ArtifactStorage.Provider),
+			Bucket:          s.config.ArtifactStorage.Bucket,
+			Region:          s.config.ArtifactStorage.Region,
+			Endpoint:        s.config.ArtifactStorage.Endpoint,
+			AccessKeyID:     s.config.ArtifactStorage.AccessKeyID,
+			SecretAccessKey: s.config.ArtifactStorage.SecretAccessKey,
+			UsePathStyle:    s.config.ArtifactStorage.UsePathStyle,
+			BasePath:        s.config.ArtifactStorage.BasePath,
+			Prefix:          s.config.ArtifactStorage.Prefix,
+			CredentialsFile: s.config.ArtifactStorage.CredentialsFile,
+		}
+		artifactBucket, err := storage.NewBucket(storageCfg)
+		if err != nil {
+			log.Warn().Err(err).Msg("Artifact storage not initialized (invalid configuration)")
+		}
+		if artifactBucket != nil {
+			artifactService = service.NewArtifactService(s.repos.Artifacts, artifactBucket, log.Logger)
+			log.Debug().Str("provider", s.config.ArtifactStorage.Provider).Msg("Artifact service initialized")
+		}
+	}
+
+	var cancelManager *job.CancelManager
+	if rds != nil {
+		cancelManager = job.NewCancelManager(rds)
+	}
+
 	// Create handlers
 	h := handlers.New(
 		s.db, s.repos.Users, s.repos.Tokens, s.repos.Teams, s.repos.Projects,
@@ -241,6 +273,8 @@ func (s *Server) Initialize(ctx context.Context) error {
 		s.repos.GitHubInstallations,
 		s.repos.Workflows,
 		cacheService,
+		artifactService,
+		cancelManager,
 	)
 
 	// Create auth handler

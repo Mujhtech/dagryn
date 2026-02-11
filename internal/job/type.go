@@ -11,10 +11,11 @@ const (
 	QueueNameDefault  QueueName = "DefaultQueue"
 	ScheduleQueueName QueueName = "ScheduleQueue"
 
-	WebhookTaskName    TaskName = "Webhook"
-	StaleRunsTaskName  TaskName = "stale_runs:check"
-	ExecuteRunTaskName TaskName = "execute_run"
-	CacheGCTaskName    TaskName = "cache_gc:run"
+	WebhookTaskName         TaskName = "Webhook"
+	StaleRunsTaskName       TaskName = "stale_runs:check"
+	ExecuteRunTaskName      TaskName = "execute_run"
+	CacheGCTaskName         TaskName = "cache_gc:run"
+	ArtifactCleanupTaskName TaskName = "artifact_cleanup:daily"
 )
 
 type ClientPayload struct {

@@ -3,8 +3,11 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/mujhtech/dagryn/internal/config"
 	"github.com/mujhtech/dagryn/internal/db/models"
 	"github.com/mujhtech/dagryn/internal/server/response"
 )
@@ -66,6 +69,82 @@ func (h *Handler) SyncProjectWorkflow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Parse request
+	var req SyncWorkflowRequest
+	if err := ParseJSON(r, &req); err != nil {
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
+		return
+	}
+
+	h.syncWorkflowWithRequest(w, r, projectID, req)
+}
+
+// SyncProjectWorkflowFromToml syncs a workflow from raw TOML.
+// @Summary Sync workflow from TOML
+// @Description Sync workflow configuration from raw TOML to server
+// @Tags workflows
+// @Accept json
+// @Produce json
+// @Param projectID path string true "Project ID"
+// @Param request body SyncWorkflowFromTomlRequest true "Workflow TOML"
+// @Success 200 {object} SyncWorkflowResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Security BearerAuth
+// @Router /projects/{projectID}/workflows/sync-from-toml [post]
+func (h *Handler) SyncProjectWorkflowFromToml(w http.ResponseWriter, r *http.Request) {
+	projectID, err := ParseUUID(chi.URLParam(r, "projectID"))
+	if err != nil {
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
+		return
+	}
+
+	var req SyncWorkflowFromTomlRequest
+	if err := ParseJSON(r, &req); err != nil {
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
+		return
+	}
+	if strings.TrimSpace(req.RawConfig) == "" {
+		_ = response.BadRequest(w, r, errors.New("raw_config is required"))
+		return
+	}
+
+	cfg, err := config.ParseBytes([]byte(req.RawConfig))
+	if err != nil {
+		_ = response.BadRequest(w, r, errors.New("failed to parse dagryn.toml"))
+		return
+	}
+
+	syncReq := SyncWorkflowRequest{
+		Name:      cfg.Workflow.Name,
+		IsDefault: cfg.Workflow.Default,
+		RawConfig: req.RawConfig,
+		Tasks:     make([]SyncWorkflowTaskData, 0, len(cfg.Tasks)),
+	}
+	if syncReq.Name == "" {
+		syncReq.Name = "default"
+	}
+	for name, taskCfg := range cfg.Tasks {
+		taskData := SyncWorkflowTaskData{
+			Name:    name,
+			Command: taskCfg.Command,
+			Needs:   taskCfg.Needs,
+			Inputs:  taskCfg.Inputs,
+			Outputs: taskCfg.Outputs,
+			Plugins: taskCfg.GetPlugins(),
+			Env:     taskCfg.Env,
+		}
+		if taskCfg.Workdir != "" {
+			taskData.Workdir = &taskCfg.Workdir
+		}
+		syncReq.Tasks = append(syncReq.Tasks, taskData)
+	}
+
+	h.syncWorkflowWithRequest(w, r, projectID, syncReq)
+}
+
+func (h *Handler) syncWorkflowWithRequest(w http.ResponseWriter, r *http.Request, projectID uuid.UUID, req SyncWorkflowRequest) {
 	// Verify project exists
 	project, err := h.projects.GetByID(r.Context(), projectID)
 	if err != nil {
@@ -74,13 +153,6 @@ func (h *Handler) SyncProjectWorkflow(w http.ResponseWriter, r *http.Request) {
 	}
 	if project == nil {
 		_ = response.NotFound(w, r, errors.New("project not found"))
-		return
-	}
-
-	// Parse request
-	var req SyncWorkflowRequest
-	if err := ParseJSON(r, &req); err != nil {
-		_ = response.BadRequest(w, r, errors.New("invalid request body"))
 		return
 	}
 

@@ -585,6 +585,88 @@ func (h *Handler) enrichRunWithGitHubCommit(ctx context.Context, run *models.Run
 	}
 }
 
+// enrichRunWithGitHubPR attempts to populate PR metadata for a run using the GitHub API.
+func (h *Handler) enrichRunWithGitHubPR(ctx context.Context, run *models.Run, project *models.Project, currentUserID uuid.UUID) {
+	if h.providerTokens == nil || h.providerEncrypt == nil {
+		return
+	}
+	if project.RepoURL == nil || *project.RepoURL == "" {
+		return
+	}
+	if run.PRNumber != nil || run.GitCommit == nil || *run.GitCommit == "" {
+		return
+	}
+
+	// Prefer the user who linked the repo (stable access), fallback to current user.
+	tokenUserID := currentUserID
+	if project.RepoLinkedByUserID != nil {
+		tokenUserID = *project.RepoLinkedByUserID
+	}
+
+	tok, err := h.providerTokens.GetByUserAndProvider(ctx, tokenUserID, "github")
+	if err != nil || tok == nil {
+		return
+	}
+	accessToken, err := h.providerEncrypt.Decrypt(tok.AccessTokenEncrypted)
+	if err != nil {
+		return
+	}
+
+	h.enrichRunWithGitHubPRUsingToken(ctx, run, project, accessToken)
+}
+
+// enrichRunWithGitHubPRUsingToken populates PR metadata using a provided GitHub access token.
+func (h *Handler) enrichRunWithGitHubPRUsingToken(ctx context.Context, run *models.Run, project *models.Project, accessToken string) {
+	if project.RepoURL == nil || *project.RepoURL == "" {
+		return
+	}
+	if run.PRNumber != nil || run.GitCommit == nil || *run.GitCommit == "" {
+		return
+	}
+
+	owner, repoName, err := parseGitHubOwnerRepo(*project.RepoURL)
+	if err != nil {
+		return
+	}
+
+	u := fmt.Sprintf("https://api.github.com/repos/%s/%s/commits/%s/pulls", owner, repoName, *run.GitCommit)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		_, _ = io.ReadAll(resp.Body)
+		return
+	}
+
+	var prs []struct {
+		Number int    `json:"number"`
+		Title  string `json:"title"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&prs); err != nil {
+		return
+	}
+	if len(prs) == 0 || prs[0].Number == 0 {
+		return
+	}
+
+	n := prs[0].Number
+	run.PRNumber = &n
+	if prs[0].Title != "" {
+		title := prs[0].Title
+		run.PRTitle = &title
+	}
+}
+
 // enrichRunWithGitHubCommitUsingToken enriches a run with commit metadata using a provided GitHub access token.
 // This is used when we have an installation token from the GitHub App.
 func (h *Handler) enrichRunWithGitHubCommitUsingToken(ctx context.Context, run *models.Run, project *models.Project, accessToken, requestedBranch string) {
@@ -791,6 +873,51 @@ func (h *Handler) notifyGitHubForRun(ctx context.Context, projectID, runID uuid.
 	if err := notification.CommitStatus(ctx, accessToken, owner, repoName, sha, state, desc, targetURL); err != nil {
 		slog.Error("github_status_update_failed", "run_id", run.ID, "error", err)
 	}
+
+	// 2) Check run (create/update)
+	checkStatus, conclusion := mapGitHubCheckRunState(status)
+	checkOutput := buildGitHubCheckRunOutput(run, status)
+	if run.GitHubCheckRunID == nil || *run.GitHubCheckRunID == 0 {
+		req := notification.CheckRunRequest{
+			Name:       "Dagryn / workflow",
+			HeadSHA:    sha,
+			Status:     checkStatus,
+			Conclusion: conclusion,
+			DetailsURL: targetURL,
+			Output:     checkOutput,
+		}
+		now := time.Now()
+		if checkStatus == "in_progress" {
+			req.StartedAt = &now
+		}
+		if checkStatus == "completed" {
+			req.CompletedAt = &now
+		}
+		checkRunID, err := notification.CreateCheckRun(ctx, accessToken, owner, repoName, req)
+		if err != nil {
+			slog.Error("github_check_run_create_failed", "run_id", run.ID, "error", err)
+		} else if checkRunID != 0 {
+			run.GitHubCheckRunID = &checkRunID
+			if err := h.runs.UpdateGitHubCheckRunID(ctx, run.ID, checkRunID); err != nil {
+				slog.Error("github_check_run_id_persist_failed", "run_id", run.ID, "error", err)
+			}
+		}
+	} else {
+		req := notification.CheckRunRequest{
+			Status:     checkStatus,
+			Conclusion: conclusion,
+			DetailsURL: targetURL,
+			Output:     checkOutput,
+		}
+		if checkStatus == "completed" {
+			now := time.Now()
+			req.CompletedAt = &now
+		}
+		if err := notification.UpdateCheckRun(ctx, accessToken, owner, repoName, *run.GitHubCheckRunID, req); err != nil {
+			slog.Error("github_check_run_update_failed", "run_id", run.ID, "error", err)
+		}
+	}
+
 	// 2) PR summary comment (create once, then update same comment)
 	commentBody := map[string]string{
 		"body": buildGitHubPRComment(run, status, targetURL),
@@ -823,6 +950,35 @@ func (h *Handler) notifyGitHubForRun(ctx context.Context, projectID, runID uuid.
 	}
 
 	return nil
+}
+
+func mapGitHubCheckRunState(status models.RunStatus) (checkStatus string, conclusion string) {
+	switch status {
+	case models.RunStatusRunning:
+		return "in_progress", ""
+	case models.RunStatusSuccess:
+		return "completed", "success"
+	case models.RunStatusFailed:
+		return "completed", "failure"
+	case models.RunStatusCancelled:
+		return "completed", "cancelled"
+	default:
+		return "queued", ""
+	}
+}
+
+func buildGitHubCheckRunOutput(run *models.Run, status models.RunStatus) *notification.CheckRunOutput {
+	title := fmt.Sprintf("Dagryn run %s", status)
+	summary := fmt.Sprintf("Status: %s\nTasks: %d/%d\nFailed: %d\nCache hits: %d",
+		status, run.CompletedTasks, run.TotalTasks, run.FailedTasks, run.CacheHits,
+	)
+	if run.DurationMs != nil {
+		summary = fmt.Sprintf("%s\nDuration: %s", summary, formatDurationMs(*run.DurationMs))
+	}
+	return &notification.CheckRunOutput{
+		Title:   title,
+		Summary: summary,
+	}
 }
 
 // buildGitHubPRComment constructs a human-friendly summary comment for a run.
@@ -967,6 +1123,12 @@ func (h *Handler) CancelRun(w http.ResponseWriter, r *http.Request) {
 	if err := h.runs.Update(ctx, run); err != nil {
 		_ = response.InternalServerError(w, r, errors.New("failed to cancel run"))
 		return
+	}
+
+	if h.cancelManager != nil {
+		if err := h.cancelManager.Signal(ctx, runID.String()); err != nil {
+			slog.Warn("cancel_run: failed to signal worker", "run_id", runID, "error", err)
+		}
 	}
 
 	// Publish cancellation event via SSE

@@ -5,6 +5,7 @@ import { useAuth } from "~/lib/auth";
 import {
   useGitHubAppInstallations,
   useGitHubAppRepos,
+  useGitHubWorkflowTranslation,
   useProjects,
 } from "~/hooks/queries";
 import { useCreateProject } from "~/hooks/mutations";
@@ -21,6 +22,8 @@ import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import { Textarea } from "~/components/ui/textarea";
+import { Checkbox } from "~/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +48,21 @@ function slugify(text: string): string {
     .replace(/[^\w\s-]/g, "")
     .replace(/[\s_-]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function buildDagrynConfigFromSnippet(snippet: string): string {
+  const trimmed = snippet.trim();
+  if (trimmed.startsWith("[workflow]") || trimmed.includes("\n[workflow]")) {
+    return `${trimmed}\n`;
+  }
+  return [
+    "[workflow]",
+    'name = "default"',
+    "default = true",
+    "",
+    trimmed,
+    "",
+  ].join("\n");
 }
 
 function ProjectsPage() {
@@ -83,6 +101,11 @@ function ProjectsPage() {
   const [importSlug, setImportSlug] = useState("");
   const [importSlugEdited, setImportSlugEdited] = useState(false);
   const [repoSearch, setRepoSearch] = useState("");
+  const [useDetectedWorkflow, setUseDetectedWorkflow] = useState(true);
+  const [workflowDraft, setWorkflowDraft] = useState("");
+  const [workflowSyncError, setWorkflowSyncError] = useState("");
+  const [workflowShowFull, setWorkflowShowFull] = useState(false);
+  const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
 
   // Legacy OAuth-based GitHub repos (fallback)
   const {
@@ -111,6 +134,36 @@ function ProjectsPage() {
     isLoading: appReposLoading,
     // error: appReposError,
   } = useGitHubAppRepos(selectedInstallation ? selectedInstallation.id : null);
+
+  const {
+    data: workflowTranslation,
+    isLoading: workflowTranslationLoading,
+    error: workflowTranslationError,
+  } = useGitHubWorkflowTranslation(
+    selectedGitHubRepo ? selectedGitHubRepo.full_name : null,
+    selectedInstallation?.id ?? null,
+  );
+
+  useEffect(() => {
+    if (!selectedGitHubRepo) {
+      setWorkflowDraft("");
+      setUseDetectedWorkflow(false);
+      setWorkflowSyncError("");
+      setWorkflowShowFull(false);
+      setPendingProjectId(null);
+      return;
+    }
+    if (workflowTranslation?.detected) {
+      setWorkflowDraft(workflowTranslation.tasks_toml.trim());
+      setUseDetectedWorkflow(true);
+    } else {
+      setWorkflowDraft("");
+      setUseDetectedWorkflow(false);
+    }
+    setWorkflowSyncError("");
+    setWorkflowShowFull(false);
+    setPendingProjectId(null);
+  }, [selectedGitHubRepo, workflowTranslation]);
 
   useEffect(() => {
     if (selectedGitHubRepo && !importSlugEdited) {
@@ -186,6 +239,11 @@ function ProjectsPage() {
       setImportSlug("");
       setImportSlugEdited(false);
       setRepoSearch("");
+      setWorkflowDraft("");
+      setUseDetectedWorkflow(false);
+      setWorkflowSyncError("");
+      setWorkflowShowFull(false);
+      setPendingProjectId(null);
     }
   };
 
@@ -198,27 +256,49 @@ function ProjectsPage() {
       )
     : effectiveRepos;
 
-  const handleCreateFromGitHub = () => {
+  const handleCreateFromGitHub = async () => {
     if (!selectedGitHubRepo || !importName.trim() || !importSlug.trim()) return;
-    createProjectMutation.mutate(
-      {
+    setWorkflowSyncError("");
+
+    try {
+      const project = await createProjectMutation.mutateAsync({
         name: importName.trim(),
         slug: importSlug.trim(),
         repo_url: selectedGitHubRepo.clone_url,
         github_installation_id: selectedInstallation?.id ?? "",
         github_repo_id: selectedGitHubRepo.id,
         visibility: "private",
-      },
-      {
-        onSuccess: (project) => {
-          handleImportOpenChange(false);
-          navigate({
-            to: "/projects/$projectId",
-            params: { projectId: project.id },
-          });
-        },
-      },
-    );
+      });
+
+      let syncError = "";
+      if (useDetectedWorkflow && workflowDraft.trim()) {
+        const rawConfig = buildDagrynConfigFromSnippet(workflowDraft);
+        try {
+          await api.syncProjectWorkflowFromToml(project.id, rawConfig);
+        } catch (err) {
+          syncError =
+            err instanceof Error
+              ? err.message
+              : "Failed to sync workflow from detected configuration.";
+        }
+      }
+
+      if (syncError) {
+        setWorkflowSyncError(syncError);
+        setPendingProjectId(project.id);
+        return;
+      }
+
+      handleImportOpenChange(false);
+      navigate({
+        to: "/projects/$projectId",
+        params: { projectId: project.id },
+      });
+    } catch (err) {
+      setWorkflowSyncError(
+        err instanceof Error ? err.message : "Failed to create project.",
+      );
+    }
   };
 
   const loading = authLoading || projectsLoading;
@@ -368,7 +448,7 @@ function ProjectsPage() {
             Import from GitHub
           </Button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[1200px] max-h-[calc(100vh-10rem)] overflow-y-auto scrollbar-foreground scrollbar-track-transparent scrollbar-thin ">
           <DialogHeader>
             <DialogTitle>Import from GitHub</DialogTitle>
             <DialogDescription>
@@ -379,7 +459,7 @@ function ProjectsPage() {
           </DialogHeader>
           {githubReposLoading || installationsLoading || appReposLoading ? (
             <div className="flex items-center justify-center py-8">
-<Icons.Loader className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Icons.Loader className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : needsGitHubLogin ? (
             <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 text-sm">
@@ -396,71 +476,177 @@ function ProjectsPage() {
               Failed to load GitHub App installations.
             </div>
           ) : selectedGitHubRepo ? (
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label>Repository</Label>
-                <p className="text-sm text-muted-foreground font-mono">
-                  {selectedGitHubRepo.full_name}
-                </p>
-              </div>
-              <div className="grid gap-2">
-                <Label>Repo URL (stored for runs and webhooks)</Label>
-                <p className="text-xs text-muted-foreground font-mono break-all bg-muted/50 rounded px-2 py-1.5">
-                  {selectedGitHubRepo.clone_url}
-                </p>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="import-name">Project name</Label>
-                <Input
-                  id="import-name"
-                  value={importName}
-                  onChange={(e) => setImportName(e.target.value)}
-                  placeholder="My Project"
-                  disabled={createProjectMutation.isPending}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="import-slug">Slug</Label>
-                <Input
-                  id="import-slug"
-                  value={importSlug}
-                  onChange={(e) => {
-                    setImportSlug(e.target.value);
-                    setImportSlugEdited(true);
-                  }}
-                  placeholder="my-project"
-                  disabled={createProjectMutation.isPending}
-                  className="font-mono"
-                />
-              </div>
-              {createProjectMutation.error && (
-                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                  {createProjectMutation.error.message}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-4 py-4 col-span-1">
+                <div className="grid gap-2">
+                  <Label>Repository</Label>
+                  <p className="text-sm text-muted-foreground font-mono">
+                    {selectedGitHubRepo.full_name}
+                  </p>
                 </div>
-              )}
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setSelectedGitHubRepo(null)}
-                  disabled={createProjectMutation.isPending}
-                >
-                  Back
-                </Button>
-                <Button
-                  onClick={handleCreateFromGitHub}
-                  disabled={createProjectMutation.isPending}
-                >
-                  {createProjectMutation.isPending ? (
-                    <>
-<Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
-                      Creating...
-                    </>
+                <div className="grid gap-2">
+                  <Label>Repo URL (stored for runs and webhooks)</Label>
+                  <Input
+                    id="repo-url"
+                    value={selectedGitHubRepo.clone_url}
+                    placeholder="Repo URL"
+                    readOnly={true}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="import-name">Project name</Label>
+                  <Input
+                    id="import-name"
+                    value={importName}
+                    onChange={(e) => setImportName(e.target.value)}
+                    placeholder="My Project"
+                    disabled={createProjectMutation.isPending}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="import-slug">Slug</Label>
+                  <Input
+                    id="import-slug"
+                    value={importSlug}
+                    onChange={(e) => {
+                      setImportSlug(e.target.value);
+                      setImportSlugEdited(true);
+                    }}
+                    placeholder="my-project"
+                    disabled={createProjectMutation.isPending}
+                    className="font-mono"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-4 py-4 col-span-1">
+                <div className="grid gap-2">
+                  <Label>GitHub workflow detection</Label>
+                  {workflowTranslationLoading ? (
+                    <p className="text-sm text-muted-foreground">
+                      Checking .github/workflows...
+                    </p>
+                  ) : workflowTranslationError ? (
+                    <p className="text-sm text-destructive">
+                      Failed to inspect workflows.
+                    </p>
+                  ) : workflowTranslation?.detected ? (
+                    <div className="rounded-md border bg-muted/40 p-3 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="use-detected-workflow"
+                          checked={useDetectedWorkflow}
+                          onCheckedChange={(checked) =>
+                            setUseDetectedWorkflow(Boolean(checked))
+                          }
+                        />
+                        <Label
+                          htmlFor="use-detected-workflow"
+                          className="text-sm"
+                        >
+                          Use detected workflow (auto-sync after create)
+                        </Label>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Found {workflowTranslation.workflows.length} workflow
+                        {workflowTranslation.workflows.length === 1 ? "" : "s"}.
+                        You can edit the generated tasks before creating the
+                        project.
+                      </p>
+                      {useDetectedWorkflow && (
+                        <>
+                          <Textarea
+                            value={workflowDraft}
+                            onChange={(e) => setWorkflowDraft(e.target.value)}
+                            className="min-h-[220px] font-mono text-xs"
+                          />
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setWorkflowShowFull((prev) => !prev)
+                              }
+                            >
+                              {workflowShowFull
+                                ? "Hide full dagryn.toml"
+                                : "Preview full dagryn.toml"}
+                            </Button>
+                          </div>
+                          {workflowShowFull && (
+                            <Textarea
+                              value={buildDagrynConfigFromSnippet(
+                                workflowDraft,
+                              )}
+                              readOnly
+                              className="min-h-[220px] font-mono text-xs"
+                            />
+                          )}
+                        </>
+                      )}
+                    </div>
                   ) : (
-                    "Create Project"
+                    <p className="text-sm text-muted-foreground">
+                      No workflow configuration found in the selected
+                      repository.
+                    </p>
                   )}
-                </Button>
-              </DialogFooter>
+                </div>
+                {workflowSyncError && (
+                  <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                    <p>{workflowSyncError}</p>
+                    {pendingProjectId && (
+                      <div className="mt-2 flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const id = pendingProjectId;
+                            handleImportOpenChange(false);
+                            navigate({
+                              to: "/projects/$projectId",
+                              params: { projectId: id },
+                            });
+                          }}
+                        >
+                          Continue anyway
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {createProjectMutation.error && (
+                  <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                    {createProjectMutation.error.message}
+                  </div>
+                )}
+              </div>
+              <div className="col-span-2">
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setSelectedGitHubRepo(null)}
+                    disabled={createProjectMutation.isPending}
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    onClick={handleCreateFromGitHub}
+                    disabled={createProjectMutation.isPending}
+                  >
+                    {createProjectMutation.isPending ? (
+                      <>
+                        <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      "Create Project"
+                    )}
+                  </Button>
+                </DialogFooter>
+              </div>
             </div>
           ) : (
             <>

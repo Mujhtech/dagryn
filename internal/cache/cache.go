@@ -11,10 +11,10 @@ import (
 
 // Cache provides high-level caching operations.
 type Cache struct {
-	backend     Backend
-	store       *Store // retained for GetStore() backward compat
-	enabled     bool
-	root        string // project root directory
+	backend Backend
+	store   *Store // retained for GetStore() backward compat
+	enabled bool
+	root    string // project root directory
 }
 
 // New creates a new cache instance with the default local backend.

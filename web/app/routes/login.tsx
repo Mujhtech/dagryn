@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "~/components/ui/card";
 import { cn } from "~/lib/utils";
+import { Logo } from "~/components/logo";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -74,19 +75,7 @@ function LoginPage() {
         {/* Logo */}
         <div className="mb-8 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-            <svg
-              className="h-6 w-6 text-primary-foreground"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 10V3L4 14h7v7l9-11h-7z"
-              />
-            </svg>
+            <Logo />
           </div>
           <h1 className="mt-4 text-2xl font-bold">Dagryn</h1>
           <p className="text-muted-foreground">

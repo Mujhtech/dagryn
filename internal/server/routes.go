@@ -124,6 +124,7 @@ func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHand
 			r.Route("/providers", func(r chi.Router) {
 				r.Route("/github", func(r chi.Router) {
 					r.Get("/repos", h.ListGitHubRepos)
+					r.Post("/workflows/translate", h.TranslateGitHubWorkflows)
 					r.Route("/app", func(r chi.Router) {
 						r.Get("/installations", h.ListGitHubAppInstallations)
 						r.Get("/installations/{installationID}/repos", h.ListGitHubAppRepos)
@@ -174,6 +175,16 @@ func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHand
 							r.Post("/logs", h.AppendLog)                     // Append log lines
 							r.Post("/heartbeat", h.Heartbeat)                // Heartbeat for offline detection
 							r.Get("/workflow", h.GetRunWorkflow)             // Get workflow snapshot for this run
+
+							r.Route("/artifacts", func(r chi.Router) {
+								r.Get("/", h.ListRunArtifacts)
+								r.Post("/", h.UploadArtifact)
+								r.Route("/{artifactID}", func(r chi.Router) {
+									r.Get("/", h.GetArtifact)
+									r.Get("/download", h.DownloadArtifact)
+									r.Delete("/", h.DeleteArtifact)
+								})
+							})
 						})
 					})
 
@@ -201,6 +212,7 @@ func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHand
 					r.Route("/workflows", func(r chi.Router) {
 						r.Get("/", h.ListProjectWorkflows)
 						r.Post("/sync", h.SyncProjectWorkflow)
+						r.Post("/sync-from-toml", h.SyncProjectWorkflowFromToml)
 					})
 				})
 			})

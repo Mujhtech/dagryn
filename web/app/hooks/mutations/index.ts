@@ -14,6 +14,7 @@ export { useAcceptInvitation } from "./use-accept-invitation";
 export { useDeclineInvitation } from "./use-decline-invitation";
 export { useCancelRun } from "./use-cancel-run";
 export { useTriggerRun } from "./use-trigger-run";
+export { useDeleteArtifact } from "./use-delete-artifact";
 export { useCreateProjectAPIKey } from "./use-create-project-api-key";
 export { useRevokeProjectAPIKey } from "./use-revoke-project-api-key";
 export { useConnectProjectToGitHub } from "./use-connect-project-to-github";

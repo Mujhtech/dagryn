@@ -42,13 +42,13 @@ func (r *RunRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Run, error
 		SELECT id, project_id, targets, status, total_tasks, completed_tasks, failed_tasks, cache_hits,
 		       duration_ms, error_message, triggered_by, triggered_by_user_id, git_branch, git_commit,
 		       pr_title, pr_number, commit_message, commit_author_name, commit_author_email,
-		       github_pr_comment_id,
+		       github_pr_comment_id, github_check_run_id,
 		       started_at, finished_at, last_heartbeat_at, client_disconnected, created_at
 		FROM runs WHERE id = $1
 	`, id).Scan(&run.ID, &run.ProjectID, &run.Targets, &run.Status, &run.TotalTasks, &run.CompletedTasks,
 		&run.FailedTasks, &run.CacheHits, &run.DurationMs, &run.ErrorMessage, &run.TriggeredBy,
 		&run.TriggeredByUserID, &run.GitBranch, &run.GitCommit, &run.PRTitle, &run.PRNumber,
-		&run.CommitMessage, &run.CommitAuthorName, &run.CommitAuthorEmail, &run.GitHubPRCommentID,
+		&run.CommitMessage, &run.CommitAuthorName, &run.CommitAuthorEmail, &run.GitHubPRCommentID, &run.GitHubCheckRunID,
 		&run.StartedAt, &run.FinishedAt, &run.LastHeartbeatAt, &run.ClientDisconnected, &run.CreatedAt)
 
 	if err != nil {
@@ -65,11 +65,25 @@ func (r *RunRepo) Update(ctx context.Context, run *models.Run) error {
 	result, err := r.pool.Exec(ctx, `
 		UPDATE runs SET status = $1, total_tasks = $2, completed_tasks = $3, failed_tasks = $4, cache_hits = $5,
 		       duration_ms = $6, error_message = $7, started_at = $8, finished_at = $9,
-		       github_pr_comment_id = $10, git_commit = $11, git_branch = $12
-		WHERE id = $13
+		       github_pr_comment_id = $10, github_check_run_id = $11, git_commit = $12, git_branch = $13
+		WHERE id = $14
 	`, run.Status, run.TotalTasks, run.CompletedTasks, run.FailedTasks, run.CacheHits, run.DurationMs,
-		run.ErrorMessage, run.StartedAt, run.FinishedAt, run.GitHubPRCommentID, run.GitCommit, run.GitBranch, run.ID)
+		run.ErrorMessage, run.StartedAt, run.FinishedAt, run.GitHubPRCommentID, run.GitHubCheckRunID, run.GitCommit, run.GitBranch, run.ID)
 
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// UpdateGitHubCheckRunID updates the GitHub check run ID for a run.
+func (r *RunRepo) UpdateGitHubCheckRunID(ctx context.Context, id uuid.UUID, checkRunID int64) error {
+	result, err := r.pool.Exec(ctx, `
+		UPDATE runs SET github_check_run_id = $1 WHERE id = $2
+	`, checkRunID, id)
 	if err != nil {
 		return err
 	}
@@ -159,7 +173,7 @@ func (r *RunRepo) ListByProject(ctx context.Context, projectID uuid.UUID, limit,
 		SELECT id, project_id, targets, status, total_tasks, completed_tasks, failed_tasks, cache_hits,
 		       duration_ms, error_message, triggered_by, triggered_by_user_id, git_branch, git_commit,
 		       pr_title, pr_number, commit_message, commit_author_name, commit_author_email,
-		       github_pr_comment_id,
+		       github_pr_comment_id, github_check_run_id,
 		       started_at, finished_at, last_heartbeat_at, client_disconnected, created_at
 		FROM runs WHERE project_id = $1
 		ORDER BY created_at DESC
@@ -176,7 +190,7 @@ func (r *RunRepo) ListByProject(ctx context.Context, projectID uuid.UUID, limit,
 		if err := rows.Scan(&run.ID, &run.ProjectID, &run.Targets, &run.Status, &run.TotalTasks, &run.CompletedTasks,
 			&run.FailedTasks, &run.CacheHits, &run.DurationMs, &run.ErrorMessage, &run.TriggeredBy,
 			&run.TriggeredByUserID, &run.GitBranch, &run.GitCommit, &run.PRTitle, &run.PRNumber,
-			&run.CommitMessage, &run.CommitAuthorName, &run.CommitAuthorEmail, &run.GitHubPRCommentID,
+			&run.CommitMessage, &run.CommitAuthorName, &run.CommitAuthorEmail, &run.GitHubPRCommentID, &run.GitHubCheckRunID,
 			&run.StartedAt, &run.FinishedAt, &run.LastHeartbeatAt, &run.ClientDisconnected, &run.CreatedAt); err != nil {
 			return nil, 0, err
 		}
@@ -191,7 +205,7 @@ func (r *RunRepo) GetActiveByProject(ctx context.Context, projectID uuid.UUID) (
 		SELECT id, project_id, targets, status, total_tasks, completed_tasks, failed_tasks, cache_hits,
 		       duration_ms, error_message, triggered_by, triggered_by_user_id, git_branch, git_commit,
 		       pr_title, pr_number, commit_message, commit_author_name, commit_author_email,
-		       github_pr_comment_id,
+		       github_pr_comment_id, github_check_run_id,
 		       started_at, finished_at, last_heartbeat_at, client_disconnected, created_at
 		FROM runs WHERE project_id = $1 AND status IN ('pending', 'running')
 		ORDER BY created_at DESC
@@ -207,7 +221,7 @@ func (r *RunRepo) GetActiveByProject(ctx context.Context, projectID uuid.UUID) (
 		if err := rows.Scan(&run.ID, &run.ProjectID, &run.Targets, &run.Status, &run.TotalTasks, &run.CompletedTasks,
 			&run.FailedTasks, &run.CacheHits, &run.DurationMs, &run.ErrorMessage, &run.TriggeredBy,
 			&run.TriggeredByUserID, &run.GitBranch, &run.GitCommit, &run.PRTitle, &run.PRNumber,
-			&run.CommitMessage, &run.CommitAuthorName, &run.CommitAuthorEmail, &run.GitHubPRCommentID,
+			&run.CommitMessage, &run.CommitAuthorName, &run.CommitAuthorEmail, &run.GitHubPRCommentID, &run.GitHubCheckRunID,
 			&run.StartedAt, &run.FinishedAt, &run.LastHeartbeatAt, &run.ClientDisconnected, &run.CreatedAt); err != nil {
 			return nil, err
 		}

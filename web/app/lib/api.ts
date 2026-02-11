@@ -86,6 +86,19 @@ export interface GitHubAppInstallation {
   account_type: string;
 }
 
+export interface GitHubWorkflowSummary {
+  file: string;
+  name: string;
+  task_count: number;
+}
+
+export interface GitHubWorkflowTranslateResponse {
+  detected: boolean;
+  workflows: GitHubWorkflowSummary[];
+  plugins: Record<string, string>;
+  tasks_toml: string;
+}
+
 // Project types
 export interface Project {
   id: string;
@@ -153,6 +166,22 @@ export interface RunDetail extends Run {
   error_message?: string;
   client_disconnected?: boolean;
   last_heartbeat_at?: string;
+}
+
+export interface Artifact {
+  id: string;
+  project_id: string;
+  run_id: string;
+  task_name?: string;
+  name: string;
+  file_name: string;
+  content_type: string;
+  size_bytes: number;
+  storage_key?: string;
+  digest_sha256?: string;
+  expires_at?: string;
+  created_at: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface TaskResult {
@@ -239,6 +268,14 @@ export interface WorkflowTask {
   timeout_seconds?: number;
   workdir?: string;
   env?: Record<string, string>;
+}
+
+export interface SyncWorkflowResponse {
+  workflow_id: string;
+  name: string;
+  task_count: number;
+  changed: boolean;
+  message: string;
 }
 
 // Cache types
@@ -359,6 +396,37 @@ class ApiClient {
       data: T;
       message?: string;
     };
+  }
+
+  private async fetchBlob(
+    path: string,
+  ): Promise<{ blob: Blob; filename?: string; contentType?: string }> {
+    const headers: HeadersInit = {};
+    if (this.token) {
+      (headers as Record<string, string>)["Authorization"] =
+        `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(`${API_BASE}${path}`, { headers });
+    if (!response.ok) {
+      const error = await response
+        .json()
+        .catch(() => ({ error: "unknown", message: "Request failed" }));
+      const message =
+        response.status >= 400 && response.status < 500 && error.error
+          ? error.error
+          : error.message || `HTTP ${response.status}`;
+      throw new ApiError(response.status, error.error || "unknown", message);
+    }
+
+    const contentType =
+      response.headers.get("Content-Type") || "application/octet-stream";
+    const contentDisposition =
+      response.headers.get("Content-Disposition") || "";
+    const filenameMatch = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
+    const filename = filenameMatch ? filenameMatch[1] : undefined;
+    const blob = await response.blob();
+    return { blob, filename, contentType };
   }
 
   // Auth
@@ -567,6 +635,19 @@ class ApiClient {
     );
   }
 
+  async translateGitHubWorkflows(data: {
+    repo_full_name: string;
+    github_installation_id?: string;
+  }) {
+    return this.fetch<GitHubWorkflowTranslateResponse>(
+      "/providers/github/workflows/translate",
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    );
+  }
+
   async createProject(data: {
     name: string;
     slug: string;
@@ -671,6 +752,39 @@ class ApiClient {
     );
   }
 
+  // Artifacts
+  async listRunArtifacts(
+    projectId: string,
+    runId: string,
+    options?: { task?: string; limit?: number; offset?: number },
+  ) {
+    const params = new URLSearchParams();
+    if (options?.task) params.set("task", options.task);
+    if (options?.limit) params.set("limit", String(options.limit));
+    if (options?.offset) params.set("offset", String(options.offset));
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return this.fetch<Artifact[]>(
+      `/projects/${projectId}/runs/${runId}/artifacts${query}`,
+    );
+  }
+
+  async deleteArtifact(projectId: string, runId: string, artifactId: string) {
+    await this.fetch(
+      `/projects/${projectId}/runs/${runId}/artifacts/${artifactId}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async downloadArtifact(
+    projectId: string,
+    runId: string,
+    artifactId: string,
+  ) {
+    return this.fetchBlob(
+      `/projects/${projectId}/runs/${runId}/artifacts/${artifactId}/download`,
+    );
+  }
+
   // Projects management
   async updateProject(
     id: string,
@@ -728,6 +842,16 @@ class ApiClient {
   // Workflows
   async listProjectWorkflows(projectId: string) {
     return this.fetch<Workflow[]>(`/projects/${projectId}/workflows`);
+  }
+
+  async syncProjectWorkflowFromToml(projectId: string, rawConfig: string) {
+    return this.fetch<SyncWorkflowResponse>(
+      `/projects/${projectId}/workflows/sync-from-toml`,
+      {
+        method: "POST",
+        body: JSON.stringify({ raw_config: rawConfig }),
+      },
+    );
   }
 
   async getRunWorkflow(projectId: string, runId: string) {

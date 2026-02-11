@@ -182,6 +182,31 @@ func runWorker(opts WorkerConfigOpts) error {
 		}
 	}
 
+	// Initialize artifact service (if artifact storage is configured)
+	var artifactService *service.ArtifactService
+	if cfg.ArtifactStorage.Provider != "" && database != nil {
+		storageCfg := storage.Config{
+			Provider:        storage.ProviderType(cfg.ArtifactStorage.Provider),
+			Bucket:          cfg.ArtifactStorage.Bucket,
+			Region:          cfg.ArtifactStorage.Region,
+			Endpoint:        cfg.ArtifactStorage.Endpoint,
+			AccessKeyID:     cfg.ArtifactStorage.AccessKeyID,
+			SecretAccessKey: cfg.ArtifactStorage.SecretAccessKey,
+			UsePathStyle:    cfg.ArtifactStorage.UsePathStyle,
+			BasePath:        cfg.ArtifactStorage.BasePath,
+			Prefix:          cfg.ArtifactStorage.Prefix,
+			CredentialsFile: cfg.ArtifactStorage.CredentialsFile,
+		}
+		artifactBucket, err := storage.NewBucket(storageCfg)
+		if err != nil {
+			log.Warn().Err(err).Msg("Artifact storage not initialized (invalid configuration)")
+		} else {
+			artifactRepo := repo.NewArtifactRepo(database.Pool())
+			artifactService = service.NewArtifactService(artifactRepo, artifactBucket, log.Logger)
+			log.Debug().Str("provider", cfg.ArtifactStorage.Provider).Msg("Artifact service initialized")
+		}
+	}
+
 	// Create job configuration
 	jobCfg := job.Config{
 		Concurrency:          cfg.Job.Concurrency,
@@ -193,6 +218,7 @@ func runWorker(opts WorkerConfigOpts) error {
 		GitHubAppClient:      githubAppClient,
 		GitHubInstallations:  githubInstallations,
 		CacheService:         cacheService,
+		ArtifactService:      artifactService,
 	}
 
 	// Create job system

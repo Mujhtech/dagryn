@@ -177,6 +177,30 @@ type ConnectGitHubRequest struct {
 	RepoURL              string    `json:"repo_url" binding:"required" example:"https://github.com/org/repo"`
 }
 
+// GitHubWorkflowTranslateRequest represents a request to translate GitHub workflows.
+// @Description Request payload for GitHub Actions workflow translation
+type GitHubWorkflowTranslateRequest struct {
+	RepoFullName         string     `json:"repo_full_name" binding:"required" example:"owner/repo"`
+	GitHubInstallationID *uuid.UUID `json:"github_installation_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
+}
+
+// GitHubWorkflowSummary is a minimal summary of a translated workflow file.
+// @Description Summary of a GitHub Actions workflow file
+type GitHubWorkflowSummary struct {
+	File      string `json:"file" example:"ci.yml"`
+	Name      string `json:"name" example:"CI"`
+	TaskCount int    `json:"task_count" example:"3"`
+}
+
+// GitHubWorkflowTranslateResponse contains the translated Dagryn TOML snippet.
+// @Description Translation result for GitHub Actions workflows
+type GitHubWorkflowTranslateResponse struct {
+	Detected  bool                    `json:"detected" example:"true"`
+	Workflows []GitHubWorkflowSummary `json:"workflows"`
+	Plugins   map[string]string       `json:"plugins"`
+	TasksToml string                  `json:"tasks_toml"`
+}
+
 // ProjectMemberResponse represents a project member in API responses.
 // @Description Project member information
 type ProjectMemberResponse struct {
@@ -330,6 +354,26 @@ type RunDetailResponse struct {
 	ErrorMessage   string               `json:"error_message,omitempty" example:"Task 'test' failed with exit code 1"`
 }
 
+// --- Artifact types ---
+
+// ArtifactResponse represents a stored artifact.
+// @Description Artifact metadata
+type ArtifactResponse struct {
+	ID           uuid.UUID       `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ProjectID    uuid.UUID       `json:"project_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	RunID        uuid.UUID       `json:"run_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	TaskName     string          `json:"task_name,omitempty" example:"build"`
+	Name         string          `json:"name" example:"dist/app"`
+	FileName     string          `json:"file_name" example:"app"`
+	ContentType  string          `json:"content_type" example:"application/octet-stream"`
+	SizeBytes    int64           `json:"size_bytes" example:"1024"`
+	StorageKey   string          `json:"storage_key,omitempty" example:"artifacts/.../app"`
+	DigestSHA256 string          `json:"digest_sha256,omitempty" example:"deadbeef"`
+	ExpiresAt    *time.Time      `json:"expires_at,omitempty"`
+	CreatedAt    time.Time       `json:"created_at"`
+	Metadata     json.RawMessage `json:"metadata,omitempty"`
+}
+
 // --- Run Status Update Types ---
 
 // UpdateRunStatusRequest represents a request to update run status.
@@ -402,6 +446,12 @@ type SyncWorkflowRequest struct {
 	ConfigHash string                 `json:"config_hash" example:"sha256:abc123..."`
 	RawConfig  string                 `json:"raw_config,omitempty"`
 	Tasks      []SyncWorkflowTaskData `json:"tasks" binding:"required"`
+}
+
+// SyncWorkflowFromTomlRequest represents a request to sync workflow from a TOML snippet.
+// @Description Sync workflow request from raw TOML
+type SyncWorkflowFromTomlRequest struct {
+	RawConfig string `json:"raw_config" binding:"required"`
 }
 
 // SyncWorkflowTaskData represents task data in a sync request.

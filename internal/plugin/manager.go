@@ -553,4 +553,3 @@ func (m *Manager) saveLockFile() {
 
 	_ = os.WriteFile(lockPath, data, 0644)
 }
-

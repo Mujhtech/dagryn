@@ -229,12 +229,15 @@ func (h *Handler) handleGitHubPush(ctx context.Context, payload *GitHubPushEvent
 		token, err := h.githubApp.FetchInstallationToken(ctx, payload.Installation.ID)
 		if err == nil && token != nil {
 			h.enrichRunWithGitHubCommitUsingToken(ctx, run, project, token.Token, branch)
+			h.enrichRunWithGitHubPRUsingToken(ctx, run, project, token.Token)
 		} else {
 			// Fallback to OAuth token if installation token fetch fails
 			h.enrichRunWithGitHubCommit(ctx, run, project, projectOwnerForWebhook(project), branch)
+			h.enrichRunWithGitHubPR(ctx, run, project, projectOwnerForWebhook(project))
 		}
 	} else {
 		h.enrichRunWithGitHubCommit(ctx, run, project, projectOwnerForWebhook(project), branch)
+		h.enrichRunWithGitHubPR(ctx, run, project, projectOwnerForWebhook(project))
 	}
 
 	if err := h.runs.Create(ctx, run); err != nil {

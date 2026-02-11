@@ -14,16 +14,17 @@ import (
 
 // Config holds all server configuration.
 type Config struct {
-	Server       ServerConfig     `toml:"server"`
-	Database     db.Config        `toml:"database"`
-	Redis        redis.Config     `toml:"redis"`
-	Auth         AuthConfig       `toml:"auth"`
-	OAuth        OAuthConfig      `toml:"oauth"`
-	Telemetry    telemetry.Config `toml:"telemetry"`
-	Job          JobConfig        `toml:"job"`
-	Health       HealthConfig     `toml:"health"`
-	GitHubApp    GitHubAppConfig  `toml:"github_app"`
-	CacheStorage StorageConfig    `toml:"cache_storage"`
+	Server          ServerConfig     `toml:"server"`
+	Database        db.Config        `toml:"database"`
+	Redis           redis.Config     `toml:"redis"`
+	Auth            AuthConfig       `toml:"auth"`
+	OAuth           OAuthConfig      `toml:"oauth"`
+	Telemetry       telemetry.Config `toml:"telemetry"`
+	Job             JobConfig        `toml:"job"`
+	Health          HealthConfig     `toml:"health"`
+	GitHubApp       GitHubAppConfig  `toml:"github_app"`
+	CacheStorage    StorageConfig    `toml:"cache_storage"`
+	ArtifactStorage StorageConfig    `toml:"artifact_storage"`
 }
 
 // StorageConfig holds cache storage backend configuration.
@@ -323,6 +324,38 @@ func applyEnvVars(cfg *Config) {
 	}
 	if v := os.Getenv("DAGRYN_CACHE_STORAGE_USE_PATH_STYLE"); v == "true" || v == "1" {
 		cfg.CacheStorage.UsePathStyle = true
+	}
+
+	// Artifact Storage
+	if v := getEnvAny("DAGRYN_ARTIFACT_STORAGE_PROVIDER"); v != "" {
+		cfg.ArtifactStorage.Provider = v
+	}
+	if v := getEnvAny("DAGRYN_ARTIFACT_STORAGE_BUCKET"); v != "" {
+		cfg.ArtifactStorage.Bucket = v
+	}
+	if v := getEnvAny("DAGRYN_ARTIFACT_STORAGE_REGION"); v != "" {
+		cfg.ArtifactStorage.Region = v
+	}
+	if v := getEnvAny("DAGRYN_ARTIFACT_STORAGE_ENDPOINT"); v != "" {
+		cfg.ArtifactStorage.Endpoint = v
+	}
+	if v := getEnvAny("DAGRYN_ARTIFACT_STORAGE_ACCESS_KEY_ID"); v != "" {
+		cfg.ArtifactStorage.AccessKeyID = v
+	}
+	if v := getEnvAny("DAGRYN_ARTIFACT_STORAGE_SECRET_ACCESS_KEY"); v != "" {
+		cfg.ArtifactStorage.SecretAccessKey = v
+	}
+	if v := getEnvAny("DAGRYN_ARTIFACT_STORAGE_BASE_PATH"); v != "" {
+		cfg.ArtifactStorage.BasePath = v
+	}
+	if v := getEnvAny("DAGRYN_ARTIFACT_STORAGE_PREFIX"); v != "" {
+		cfg.ArtifactStorage.Prefix = v
+	}
+	if v := getEnvAny("DAGRYN_ARTIFACT_STORAGE_CREDENTIALS_FILE"); v != "" {
+		cfg.ArtifactStorage.CredentialsFile = v
+	}
+	if v := os.Getenv("DAGRYN_ARTIFACT_STORAGE_USE_PATH_STYLE"); v == "true" || v == "1" {
+		cfg.ArtifactStorage.UsePathStyle = true
 	}
 
 	// Health

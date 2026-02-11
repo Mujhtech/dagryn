@@ -36,10 +36,14 @@ export const queryKeys = {
     ["runs", projectId, page] as const,
   runDetail: (projectId: string, runId: string) =>
     ["runDetail", projectId, runId] as const,
+  runArtifacts: (projectId: string, runId: string) =>
+    ["runArtifacts", projectId, runId] as const,
   githubRepos: ["githubRepos"] as const,
   githubAppInstallations: ["githubAppInstallations"] as const,
   githubAppRepos: (installationId: string) =>
     ["githubAppRepos", installationId] as const,
+  githubWorkflowTranslation: (repoFullName: string, installationId?: string) =>
+    ["githubWorkflowTranslation", repoFullName, installationId ?? "none"] as const,
   projectWorkflows: (projectId: string) =>
     ["projectWorkflows", projectId] as const,
   runWorkflow: (projectId: string, runId: string) =>

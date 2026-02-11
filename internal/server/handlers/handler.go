@@ -47,6 +47,12 @@ type Handler struct {
 
 	// Cache service (optional; nil when storage is not configured)
 	cacheService *service.CacheService
+
+	// Artifact service (optional; nil when storage is not configured)
+	artifactService *service.ArtifactService
+
+	// Cancel manager (optional; nil when Redis is not configured)
+	cancelManager *job.CancelManager
 }
 
 // New creates a new Handler with all dependencies.
@@ -73,6 +79,8 @@ func New(
 	githubInstallations *repo.GitHubInstallationRepo,
 	workflows *repo.WorkflowRepo,
 	cacheService *service.CacheService,
+	artifactService *service.ArtifactService,
+	cancelManager *job.CancelManager,
 ) *Handler {
 	return &Handler{
 		db:                  database,
@@ -94,5 +102,7 @@ func New(
 		githubInstallations: githubInstallations,
 		workflows:           workflows,
 		cacheService:        cacheService,
+		artifactService:     artifactService,
+		cancelManager:       cancelManager,
 	}
 }

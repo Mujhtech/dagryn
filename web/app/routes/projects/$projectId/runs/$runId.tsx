@@ -1,9 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useAuth } from "~/lib/auth";
-import { useRunDetail, useRunLogs } from "~/hooks/queries";
-import { useCancelRun } from "~/hooks/mutations";
-import type { TaskResult, LogEntry } from "~/lib/api";
+import { useRunArtifacts, useRunDetail, useRunLogs } from "~/hooks/queries";
+import { useCancelRun, useDeleteArtifact } from "~/hooks/mutations";
+import type { Artifact, TaskResult, LogEntry } from "~/lib/api";
+import { api } from "~/lib/api";
 import {
   RunStreamClient,
   type LogEventData,
@@ -57,8 +58,15 @@ function RunDetailPage() {
     refetch: refetchLogs,
   } = useRunLogs(projectId, runId, { perPage: 2000, enabled: !!run });
 
+  const {
+    data: artifacts,
+    isLoading: artifactsLoading,
+    refetch: refetchArtifacts,
+  } = useRunArtifacts(projectId, runId);
+
   // Use mutation for cancelling runs
   const cancelRunMutation = useCancelRun();
+  const deleteArtifactMutation = useDeleteArtifact();
 
   // Local state for real-time updates via SSE
   const [tasks, setTasks] = useState<TaskResult[]>([]);
@@ -140,15 +148,19 @@ function RunDetailPage() {
 
     stream.onRunCompleted(() => {
       setRunStatus("success");
+      refetchArtifacts();
     });
 
     stream.onRunFailed((data) => {
       setRunStatus("failed");
       setErrorMessage(data.error_message);
+      refetchArtifacts();
     });
 
-    stream.onRunCancelled(() => {
+    stream.onRunCancelled((data) => {
       setRunStatus("cancelled");
+      setErrorMessage(data.error_message);
+      refetchArtifacts();
     });
 
     stream.onTaskStarted((data) => {
@@ -215,10 +227,18 @@ function RunDetailPage() {
     const interval = setInterval(() => {
       refetchRunDetail();
       refetchLogs();
+      refetchArtifacts();
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [connected, run, runStatus, refetchRunDetail, refetchLogs]);
+  }, [
+    connected,
+    run,
+    runStatus,
+    refetchRunDetail,
+    refetchLogs,
+    refetchArtifacts,
+  ]);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -259,7 +279,41 @@ function RunDetailPage() {
   };
 
   const handleCancel = () => {
-    cancelRunMutation.mutate({ projectId, runId });
+    cancelRunMutation.mutate(
+      { projectId, runId },
+      {
+        onSuccess: () => {
+          setRunStatus("cancelled");
+          setErrorMessage("Cancelled by user");
+        },
+      },
+    );
+  };
+
+  const handleDownloadArtifact = async (artifact: Artifact) => {
+    const result = await api.downloadArtifact(
+      projectId,
+      runId,
+      artifact.id,
+    );
+    const url = URL.createObjectURL(result.blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = result.filename || artifact.file_name || "artifact";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDeleteArtifact = (artifact: Artifact) => {
+    const confirmed = window.confirm(
+      `Delete artifact "${artifact.name}"? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+    deleteArtifactMutation.mutate({
+      projectId,
+      runId,
+      artifactId: artifact.id,
+    });
   };
 
   if (authLoading || runLoading) {
@@ -292,6 +346,7 @@ function RunDetailPage() {
   ).length;
   const isRunning = currentStatus === "running" || currentStatus === "pending";
   const progress = tasks.length > 0 ? (completedTasks / tasks.length) * 100 : 0;
+  const artifactsList = artifacts?.data ?? [];
 
   // Determine the display status (show 'stale' if client is disconnected while running)
   const displayStatus =
@@ -347,7 +402,7 @@ function RunDetailPage() {
               ) : (
                 <Icons.Square className="mr-2 h-4 w-4" />
               )}
-              Cancel
+              {cancelRunMutation.isPending ? "Cancelling..." : "Cancel"}
             </Button>
           )}
         </div>
@@ -402,6 +457,10 @@ function RunDetailPage() {
           <TabsTrigger value="tasks" className="gap-2">
             <Icons.CheckCircle className="h-4 w-4" />
             Tasks ({tasks.length})
+          </TabsTrigger>
+          <TabsTrigger value="artifacts" className="gap-2">
+            <Icons.HardDrive className="h-4 w-4" />
+            Artifacts ({artifactsList.length})
           </TabsTrigger>
         </TabsList>
 
@@ -540,6 +599,77 @@ function RunDetailPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="artifacts">
+          <Card>
+            <CardHeader>
+              <CardTitle>Artifacts</CardTitle>
+              <CardDescription>
+                Files captured from task outputs for this run.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {artifactsLoading ? (
+                <div className="flex items-center justify-center h-32 text-muted-foreground">
+                  <Icons.Loader className="h-5 w-5 animate-spin mr-2" />
+                  Loading artifacts...
+                </div>
+              ) : artifactsList.length === 0 ? (
+                <div className="flex items-center justify-center h-32 text-muted-foreground">
+                  No artifacts yet
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {artifactsList.map((artifact) => (
+                    <div
+                      key={artifact.id}
+                      className="flex items-center justify-between p-3 rounded-none border"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium truncate">
+                            {artifact.name}
+                          </p>
+                          {artifact.task_name && (
+                            <Badge variant="secondary">
+                              {artifact.task_name}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span>{artifact.file_name}</span>
+                          <span>{formatBytes(artifact.size_bytes)}</span>
+                          <span>
+                            {new Date(artifact.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDownloadArtifact(artifact)}
+                          className="h-8"
+                        >
+                          <Icons.Download className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteArtifact(artifact)}
+                          className="h-8 text-destructive hover:text-destructive"
+                          disabled={deleteArtifactMutation.isPending}
+                        >
+                          <Icons.Trash className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
@@ -624,4 +754,15 @@ function formatDuration(ms: number): string {
   const minutes = Math.floor(ms / 60000);
   const seconds = Math.floor((ms % 60000) / 1000);
   return `${minutes}m ${seconds}s`;
+}
+
+function formatBytes(bytes: number): string {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const exp = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1,
+  );
+  const value = bytes / Math.pow(1024, exp);
+  return `${value.toFixed(value >= 10 || exp === 0 ? 0 : 1)} ${units[exp]}`;
 }

@@ -6,15 +6,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/mujhtech/dagryn/internal/client"
 	"github.com/mujhtech/dagryn/internal/config"
+	"github.com/mujhtech/dagryn/internal/workflow/ghactions"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 var initCmd = &cobra.Command{
@@ -214,14 +213,9 @@ func maybeSuggestGitHubWorkflows(projectRoot, configPath string) error {
 	defer func() { _ = f.Close() }()
 
 	var b strings.Builder
-	var tasksBuf strings.Builder
-	plugins := make(map[string]string)
 
 	b.WriteString("\n\n")
-	b.WriteString("# -----------------------------------------------------------------------------\n")
-	b.WriteString("# Tasks generated from existing GitHub Actions workflows\n")
-	b.WriteString("# You can tweak commands / dependencies to better fit Dagryn.\n")
-	b.WriteString("# -----------------------------------------------------------------------------\n")
+	files := make(map[string][]byte)
 
 	for _, fname := range workflowFiles {
 		path := filepath.Join(workflowsDir, fname)
@@ -230,95 +224,17 @@ func maybeSuggestGitHubWorkflows(projectRoot, configPath string) error {
 			fmt.Printf("Warning: failed to read workflow %s: %v\n", fname, err)
 			continue
 		}
-
-		var wf githubWorkflow
-		if err := yaml.Unmarshal(content, &wf); err != nil {
-			fmt.Printf("Warning: failed to parse workflow %s: %v\n", fname, err)
-			continue
-		}
-
-		workflowName := wf.Name
-		if workflowName == "" {
-			workflowName = strings.TrimSuffix(strings.TrimSuffix(fname, ".yml"), ".yaml")
-		}
-		workflowPrefix := sanitizeWorkflowName(workflowName)
-
-		if len(wf.Jobs) == 0 {
-			continue
-		}
-
-		tasksBuf.WriteString("\n")
-		tasksBuf.WriteString(fmt.Sprintf("# Workflow: %s (from .github/workflows/%s)\n", workflowName, fname))
-
-		for jobID, job := range wf.Jobs {
-			taskName := sanitizeWorkflowName(workflowPrefix + "_" + jobID)
-
-			var commands []string
-			var taskUses []string
-
-			for _, step := range job.Steps {
-				if strings.TrimSpace(step.Uses) != "" {
-					if key, spec := pluginFromUses(step.Uses); key != "" && spec != "" {
-						if _, exists := plugins[key]; !exists {
-							plugins[key] = spec
-						}
-						// add to taskUses if not already present
-						found := false
-						for _, existing := range taskUses {
-							if existing == key {
-								found = true
-								break
-							}
-						}
-						if !found {
-							taskUses = append(taskUses, key)
-						}
-					}
-				}
-
-				if strings.TrimSpace(step.Run) != "" {
-					commands = append(commands, strings.TrimSpace(step.Run))
-				}
-			}
-
-			if len(commands) == 0 {
-				continue
-			}
-
-			joined := strings.Join(commands, " && ")
-			escapedCmd := escapeForTomlString(joined)
-
-			tasksBuf.WriteString(fmt.Sprintf("[tasks.%s]\n", taskName))
-			if job.Name != "" {
-				tasksBuf.WriteString(fmt.Sprintf("description = \"%s\"\n", escapeForTomlString(job.Name)))
-			}
-			if len(taskUses) > 0 {
-				quoted := make([]string, len(taskUses))
-				for i, u := range taskUses {
-					quoted[i] = fmt.Sprintf("\"%s\"", u)
-				}
-				tasksBuf.WriteString(fmt.Sprintf("uses = [%s]\n", strings.Join(quoted, ", ")))
-			}
-			tasksBuf.WriteString(fmt.Sprintf("command = \"%s\"\n", escapedCmd))
-			tasksBuf.WriteString("inputs = [\"**/*\"]\n\n")
-		}
+		files[fname] = content
 	}
 
-	// If we discovered any plugins via uses:, emit them before tasks.
-	if len(plugins) > 0 {
-		b.WriteString("\n[plugins]\n")
-		keys := make([]string, 0, len(plugins))
-		for k := range plugins {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		for _, k := range keys {
-			b.WriteString(fmt.Sprintf("%s = \"%s\"\n", k, plugins[k]))
-		}
-		b.WriteString("\n")
+	translated, err := ghactions.TranslateWorkflows(files)
+	if err != nil {
+		return err
 	}
-
-	b.WriteString(tasksBuf.String())
+	if translated.TasksToml == "" {
+		return nil
+	}
+	b.WriteString(translated.TasksToml)
 
 	if _, err := f.WriteString(b.String()); err != nil {
 		return err
@@ -329,73 +245,73 @@ func maybeSuggestGitHubWorkflows(projectRoot, configPath string) error {
 }
 
 // sanitizeWorkflowName converts a workflow file name into a safe task prefix.
-func sanitizeWorkflowName(name string) string {
-	name = strings.ToLower(name)
-	var b strings.Builder
-	for _, r := range name {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-			b.WriteRune(r)
-		} else {
-			b.WriteRune('_')
-		}
-	}
-	return strings.Trim(b.String(), "_")
-}
+// func sanitizeWorkflowName(name string) string {
+// 	name = strings.ToLower(name)
+// 	var b strings.Builder
+// 	for _, r := range name {
+// 		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+// 			b.WriteRune(r)
+// 		} else {
+// 			b.WriteRune('_')
+// 		}
+// 	}
+// 	return strings.Trim(b.String(), "_")
+// }
 
 // githubWorkflow is a minimal subset of a GitHub Actions workflow used for translation.
-type githubWorkflow struct {
-	Name string                       `yaml:"name"`
-	Jobs map[string]githubWorkflowJob `yaml:"jobs"`
-}
+// type githubWorkflow struct {
+// 	Name string                       `yaml:"name"`
+// 	Jobs map[string]githubWorkflowJob `yaml:"jobs"`
+// }
 
-type githubWorkflowJob struct {
-	Name  string               `yaml:"name"`
-	Steps []githubWorkflowStep `yaml:"steps"`
-}
+// type githubWorkflowJob struct {
+// 	Name  string               `yaml:"name"`
+// 	Steps []githubWorkflowStep `yaml:"steps"`
+// }
 
-type githubWorkflowStep struct {
-	Name string `yaml:"name"`
-	Run  string `yaml:"run"`
-	Uses string `yaml:"uses"`
-}
+// type githubWorkflowStep struct {
+// 	Name string `yaml:"name"`
+// 	Run  string `yaml:"run"`
+// 	Uses string `yaml:"uses"`
+// }
 
 // pluginFromUses converts a GitHub Actions "uses:" value into a Dagryn plugin
 // key and specification (github:owner/repo@version).
-func pluginFromUses(uses string) (string, string) {
-	uses = strings.TrimSpace(uses)
-	if uses == "" {
-		return "", ""
-	}
+// func pluginFromUses(uses string) (string, string) {
+// 	uses = strings.TrimSpace(uses)
+// 	if uses == "" {
+// 		return "", ""
+// 	}
 
-	parts := strings.Split(uses, "@")
-	name := strings.TrimSpace(parts[0])
-	if name == "" {
-		return "", ""
-	}
-	version := "latest"
-	if len(parts) > 1 && strings.TrimSpace(parts[1]) != "" {
-		version = strings.TrimSpace(parts[1])
-	}
+// 	parts := strings.Split(uses, "@")
+// 	name := strings.TrimSpace(parts[0])
+// 	if name == "" {
+// 		return "", ""
+// 	}
+// 	version := "latest"
+// 	if len(parts) > 1 && strings.TrimSpace(parts[1]) != "" {
+// 		version = strings.TrimSpace(parts[1])
+// 	}
 
-	ownerRepo := name
-	if !strings.Contains(ownerRepo, "/") {
-		// Common shorthand like "checkout@v4"
-		ownerRepo = "actions/" + ownerRepo
-	}
+// 	ownerRepo := name
+// 	if !strings.Contains(ownerRepo, "/") {
+// 		// Common shorthand like "checkout@v4"
+// 		ownerRepo = "actions/" + ownerRepo
+// 	}
 
-	spec := fmt.Sprintf("github:%s@%s", ownerRepo, version)
-	// Plugin key like actions_checkout
-	key := sanitizeWorkflowName(strings.ReplaceAll(ownerRepo, "/", "_"))
-	return key, spec
-}
+// 	spec := fmt.Sprintf("github:%s@%s", ownerRepo, version)
+// 	// Plugin key like actions_checkout
+// 	key := sanitizeWorkflowName(strings.ReplaceAll(ownerRepo, "/", "_"))
+// 	return key, spec
+// }
 
 // escapeForTomlString escapes a string for use inside a double-quoted TOML string.
-func escapeForTomlString(s string) string {
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	s = strings.ReplaceAll(s, `"`, `\"`)
-	s = strings.ReplaceAll(s, "\n", " ")
-	return s
-}
+// func escapeForTomlString(s string) string {
+// 	s = strings.ReplaceAll(s, `\`, `\\`)
+// 	s = strings.ReplaceAll(s, `"`, `\"`)
+// 	s = strings.ReplaceAll(s, "\n", " ")
+// 	return s
+// }
 
 // handleGitignore handles adding .dagryn/ to .gitignore based on flags
 func handleGitignore(projectRoot string) {

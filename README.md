@@ -120,15 +120,15 @@ needs = ["install"]
 
 ### Task Options
 
-| Option    | Description                              | Example                        |
-|-----------|------------------------------------------|--------------------------------|
-| `command` | Shell command to execute                 | `"npm run build"`              |
-| `needs`   | Dependencies (other task names)          | `["install", "setup"]`         |
-| `inputs`  | Input file patterns (for caching)        | `["src/**", "*.json"]`         |
-| `outputs` | Output file patterns (for caching)       | `["dist/**"]`                  |
-| `timeout` | Max execution time                       | `"5m"`, `"30s"`                |
-| `workdir` | Working directory (relative to root)     | `"./packages/app"`             |
-| `env`     | Environment variables                    | `{ CI = "true" }`              |
+| Option    | Description                          | Example                |
+| --------- | ------------------------------------ | ---------------------- |
+| `command` | Shell command to execute             | `"npm run build"`      |
+| `needs`   | Dependencies (other task names)      | `["install", "setup"]` |
+| `inputs`  | Input file patterns (for caching)    | `["src/**", "*.json"]` |
+| `outputs` | Output file patterns (for caching)   | `["dist/**"]`          |
+| `timeout` | Max execution time                   | `"5m"`, `"30s"`        |
+| `workdir` | Working directory (relative to root) | `"./packages/app"`     |
+| `env`     | Environment variables                | `{ CI = "true" }`      |
 
 ---
 
@@ -147,11 +147,11 @@ dagryn run -v            # Verbose output
 
 ### Global Flags
 
-| Flag           | Description                      |
-|----------------|----------------------------------|
-| `-c, --config` | Config file (default: dagryn.toml) |
-| `-v, --verbose`| Verbose output                   |
-| `--no-cache`   | Disable caching                  |
+| Flag            | Description                        |
+| --------------- | ---------------------------------- |
+| `-c, --config`  | Config file (default: dagryn.toml) |
+| `-v, --verbose` | Verbose output                     |
+| `--no-cache`    | Disable caching                    |
 
 ---
 
@@ -179,13 +179,13 @@ Task Dependency Graph
 ┌───────────┐
 │  install  │
 └───────────┘
-     │      
-     ▼      
+     │
+     ▼
 ┌───────────┐  ┌───────────┐
 │   build   │  │   lint    │
 └───────────┘  └───────────┘
-     │      
-     ▼      
+     │
+     ▼
 ┌───────────┐
 │   test    │
 └───────────┘
@@ -207,11 +207,13 @@ Dagryn automatically caches task outputs based on:
 Cache is stored in `.dagryn/cache/` in your project root.
 
 To disable caching:
+
 ```bash
 dagryn run --no-cache build
 ```
 
 To clear cache:
+
 ```bash
 rm -rf .dagryn/cache
 ```
