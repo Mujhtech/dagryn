@@ -102,6 +102,98 @@ func (h *Handler) ListRuns(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetRunDashboardSummary godoc
+// @Summary Get non-paginated run dashboard summary
+// @Description Returns stable chart and facet data for the project run dashboard.
+// @Tags runs
+// @Security BearerAuth
+// @Security APIKeyAuth
+// @Produce json
+// @Param projectID path string true "Project ID" format(uuid)
+// @Param days query int false "Number of trailing days for chart data" default(30)
+// @Success 200 {object} RunDashboardSummaryResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/projects/{projectID}/runs/summary [get]
+func (h *Handler) GetRunDashboardSummary(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := serverctx.GetUser(ctx)
+	if user == nil {
+		_ = response.Unauthorized(w, r, errors.New("authentication required"))
+		return
+	}
+
+	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
+	if err != nil {
+		_ = response.BadRequest(w, r, errors.New("invalid project ID"))
+		return
+	}
+
+	role, err := h.projects.GetUserRole(ctx, projectID, user.ID)
+	if err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			_ = response.Forbidden(w, r, errors.New("you don't have access to this project"))
+			return
+		}
+		_ = response.InternalServerError(w, r, errors.New("failed to check access"))
+		return
+	}
+	if !role.HasPermission(models.PermissionRunView) {
+		_ = response.Forbidden(w, r, errors.New("you don't have permission to view runs"))
+		return
+	}
+
+	days := 30
+	if rawDays := r.URL.Query().Get("days"); rawDays != "" {
+		if parsed, err := strconv.Atoi(rawDays); err == nil && parsed > 0 && parsed <= 365 {
+			days = parsed
+		}
+	}
+
+	chartPoints, err := h.runs.GetDashboardChartByProject(ctx, projectID, days)
+	if err != nil {
+		_ = response.InternalServerError(w, r, errors.New("failed to load run chart summary"))
+		return
+	}
+
+	facets, err := h.runs.GetDashboardFacetsByProject(ctx, projectID)
+	if err != nil {
+		_ = response.InternalServerError(w, r, errors.New("failed to load run facets"))
+		return
+	}
+
+	resp := RunDashboardSummaryResponse{
+		Chart:        make([]RunDashboardChartPointResponse, 0, len(chartPoints)),
+		Users:        make([]RunDashboardUserFacetResponse, 0, len(facets.Users)),
+		Workflows:    facets.Workflows,
+		Branches:     facets.Branches,
+		StatusCounts: facets.StatusCount,
+	}
+
+	for _, point := range chartPoints {
+		resp.Chart = append(resp.Chart, RunDashboardChartPointResponse{
+			Date:       point.Date.Format("2006-01-02"),
+			Success:    point.Success,
+			Failed:     point.Failed,
+			DurationMs: point.DurationMs,
+		})
+	}
+
+	for _, userFacet := range facets.Users {
+		userResp := RunDashboardUserFacetResponse{
+			ID:   userFacet.ID,
+			Name: userFacet.Name,
+		}
+		if userFacet.AvatarURL != nil {
+			userResp.AvatarURL = *userFacet.AvatarURL
+		}
+		resp.Users = append(resp.Users, userResp)
+	}
+
+	_ = response.Ok(w, r, "Success", resp)
+}
+
 // GetRun godoc
 // @Summary Get a run
 // @Description Returns a workflow run by ID

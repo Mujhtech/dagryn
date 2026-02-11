@@ -63,15 +63,16 @@ func (c *Config) ToWorkflow() (*task.Workflow, error) {
 // taskConfigToTask converts a TaskConfig to a Task.
 func taskConfigToTask(name string, tc TaskConfig, globalPlugins map[string]string) (*task.Task, error) {
 	t := &task.Task{
-		Name:    name,
-		Command: tc.Command,
-		Uses:    resolvePluginRefs(tc.GetPlugins(), globalPlugins),
-		Inputs:  tc.Inputs,
-		Outputs: tc.Outputs,
-		Needs:   tc.Needs,
-		Env:     tc.Env,
-		Workdir: tc.Workdir,
-		With:    tc.With,
+		Name:      name,
+		Command:   tc.Command,
+		Uses:      resolvePluginRefs(tc.GetPlugins(), globalPlugins),
+		Inputs:    tc.Inputs,
+		Outputs:   tc.Outputs,
+		Needs:     tc.Needs,
+		Env:       tc.Env,
+		Workdir:   tc.Workdir,
+		With:      tc.With,
+		Container: tc.Container,
 	}
 
 	// Parse timeout if specified

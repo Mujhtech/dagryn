@@ -32,6 +32,7 @@ type Job struct {
 	githubInstallations *repo.GitHubInstallationRepo
 	cacheService        *service.CacheService
 	artifactService     *service.ArtifactService
+	containerDefaults   *handlers.ContainerDefaults
 }
 
 // Config holds the configuration for the job system.
@@ -60,6 +61,8 @@ type Config struct {
 	ArtifactService *service.ArtifactService
 	// CancelManager is optional; if nil and Redis is available, a default will be created.
 	CancelManager *CancelManager
+	// ContainerDefaults holds server-level container isolation defaults (optional).
+	ContainerDefaults *handlers.ContainerDefaults
 }
 
 // DefaultConfig returns sensible defaults for job configuration.
@@ -103,6 +106,7 @@ func New(cfg Config, appCtx context.Context, rds *redis.Redis) (*Job, error) {
 		githubInstallations: cfg.GitHubInstallations,
 		cacheService:        cfg.CacheService,
 		artifactService:     cfg.ArtifactService,
+		containerDefaults:   cfg.ContainerDefaults,
 	}, nil
 }
 
@@ -122,7 +126,7 @@ func (j *Job) RegisterAndStart() error {
 
 	// Register ExecuteRun handler when RunRepo and ProjectRepo are available
 	if j.runs != nil && j.projects != nil {
-		execHandler := handlers.NewExecuteRunHandler(j.runs, j.projects, j.encrypter, j.providerTokens, j.providerEncrypt, j.githubApp, j.githubInstallations, j.cacheService, j.artifactService, j.CancelManager)
+		execHandler := handlers.NewExecuteRunHandler(j.runs, j.projects, j.encrypter, j.providerTokens, j.providerEncrypt, j.githubApp, j.githubInstallations, j.cacheService, j.artifactService, j.CancelManager, j.containerDefaults)
 		j.Executor.RegisterJobHandler(ExecuteRunTaskName, asynq.HandlerFunc(execHandler.Handle))
 	}
 

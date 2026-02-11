@@ -12,19 +12,29 @@ import (
 	"github.com/mujhtech/dagryn/internal/telemetry"
 )
 
+// ContainerServerConfig holds server-level container isolation defaults.
+type ContainerServerConfig struct {
+	Enabled      bool   `toml:"enabled"`
+	DefaultImage string `toml:"default_image"`
+	MemoryLimit  string `toml:"memory_limit"`
+	CPULimit     string `toml:"cpu_limit"`
+	Network      string `toml:"network"`
+}
+
 // Config holds all server configuration.
 type Config struct {
-	Server          ServerConfig     `toml:"server"`
-	Database        db.Config        `toml:"database"`
-	Redis           redis.Config     `toml:"redis"`
-	Auth            AuthConfig       `toml:"auth"`
-	OAuth           OAuthConfig      `toml:"oauth"`
-	Telemetry       telemetry.Config `toml:"telemetry"`
-	Job             JobConfig        `toml:"job"`
-	Health          HealthConfig     `toml:"health"`
-	GitHubApp       GitHubAppConfig  `toml:"github_app"`
-	CacheStorage    StorageConfig    `toml:"cache_storage"`
-	ArtifactStorage StorageConfig    `toml:"artifact_storage"`
+	Server          ServerConfig          `toml:"server"`
+	Database        db.Config             `toml:"database"`
+	Redis           redis.Config          `toml:"redis"`
+	Auth            AuthConfig            `toml:"auth"`
+	OAuth           OAuthConfig           `toml:"oauth"`
+	Telemetry       telemetry.Config      `toml:"telemetry"`
+	Job             JobConfig             `toml:"job"`
+	Health          HealthConfig          `toml:"health"`
+	GitHubApp       GitHubAppConfig       `toml:"github_app"`
+	CacheStorage    StorageConfig         `toml:"cache_storage"`
+	ArtifactStorage StorageConfig         `toml:"artifact_storage"`
+	Container       ContainerServerConfig `toml:"container"`
 }
 
 // StorageConfig holds cache storage backend configuration.
@@ -356,6 +366,23 @@ func applyEnvVars(cfg *Config) {
 	}
 	if v := os.Getenv("DAGRYN_ARTIFACT_STORAGE_USE_PATH_STYLE"); v == "true" || v == "1" {
 		cfg.ArtifactStorage.UsePathStyle = true
+	}
+
+	// Container
+	if v := os.Getenv("DAGRYN_CONTAINER_ENABLED"); v == "true" || v == "1" {
+		cfg.Container.Enabled = true
+	}
+	if v := getEnvAny("DAGRYN_CONTAINER_DEFAULT_IMAGE"); v != "" {
+		cfg.Container.DefaultImage = v
+	}
+	if v := getEnvAny("DAGRYN_CONTAINER_MEMORY_LIMIT"); v != "" {
+		cfg.Container.MemoryLimit = v
+	}
+	if v := getEnvAny("DAGRYN_CONTAINER_CPU_LIMIT"); v != "" {
+		cfg.Container.CPULimit = v
+	}
+	if v := getEnvAny("DAGRYN_CONTAINER_NETWORK"); v != "" {
+		cfg.Container.Network = v
 	}
 
 	// Health

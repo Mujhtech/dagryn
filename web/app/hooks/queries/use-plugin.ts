@@ -2,13 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "~/lib/api";
 import { queryKeys } from "~/lib/query-client";
 
-export function useProjects(enabled = true) {
+export function usePlugin(pluginName: string) {
   return useQuery({
-    queryKey: queryKeys.projects,
+    queryKey: queryKeys.plugin(pluginName),
     queryFn: async () => {
-      const response = await api.listProjects();
-      return response.data;
+      const { data } = await api.getPlugin(pluginName);
+      return data;
     },
-    enabled,
+    enabled: !!pluginName,
   });
 }

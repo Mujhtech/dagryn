@@ -1,6 +1,5 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { useAuth } from "~/lib/auth";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { useProject, useCacheStats, useCacheAnalytics } from "~/hooks/queries";
 import {
   Card,
@@ -36,7 +35,9 @@ import {
 } from "recharts";
 import { Icons } from "~/components/icons";
 
-export const Route = createFileRoute("/projects/$projectId/cache")({
+export const Route = createFileRoute(
+  "/_dashboard_layout/projects/$projectId/cache",
+)({
   component: CacheAnalyticsPage,
 });
 
@@ -50,8 +51,6 @@ function formatBytes(bytes: number): string {
 
 function CacheAnalyticsPage() {
   const { projectId } = Route.useParams();
-  const navigate = useNavigate();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [days, setDays] = useState(30);
 
@@ -62,13 +61,7 @@ function CacheAnalyticsPage() {
     days,
   );
 
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      navigate({ to: "/login" });
-    }
-  }, [isAuthenticated, authLoading, navigate]);
-
-  const loading = authLoading || projectLoading;
+  const loading = projectLoading;
 
   if (loading) {
     return (

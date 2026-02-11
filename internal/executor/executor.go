@@ -66,6 +66,13 @@ func (r *Result) IsSuccess() bool {
 	return r.Status == Success || r.Status == Cached
 }
 
+// TaskExecutor is the interface for executing tasks.
+// Both the host Executor and container.ContainerExecutor implement this.
+type TaskExecutor interface {
+	Execute(ctx context.Context, t *task.Task) *Result
+	DryRun(t *task.Task) *Result
+}
+
 // Executor executes tasks.
 type Executor struct {
 	projectRoot  string

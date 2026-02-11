@@ -9,28 +9,33 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as Dashboard_layoutRouteImport } from './routes/_dashboard_layout'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as TeamsIndexRouteImport } from './routes/teams/index'
-import { Route as ProjectsIndexRouteImport } from './routes/projects/index'
-import { Route as InvitationsIndexRouteImport } from './routes/invitations/index'
 import { Route as AuthDeviceRouteImport } from './routes/auth/device'
-import { Route as TeamsTeamIdIndexRouteImport } from './routes/teams/$teamId/index'
-import { Route as ProjectsProjectIdIndexRouteImport } from './routes/projects/$projectId/index'
-import { Route as ProjectsProjectIdSettingsRouteImport } from './routes/projects/$projectId/settings'
-import { Route as ProjectsProjectIdCacheRouteImport } from './routes/projects/$projectId/cache'
+import { Route as Dashboard_layoutSettingsRouteImport } from './routes/_dashboard_layout/settings'
+import { Route as Dashboard_layoutDashboardRouteImport } from './routes/_dashboard_layout/dashboard'
+import { Route as Dashboard_layoutTeamsIndexRouteImport } from './routes/_dashboard_layout/teams/index'
+import { Route as Dashboard_layoutProjectsIndexRouteImport } from './routes/_dashboard_layout/projects/index'
+import { Route as Dashboard_layoutInvitationsIndexRouteImport } from './routes/_dashboard_layout/invitations/index'
 import { Route as AuthProviderCallbackRouteImport } from './routes/auth/$provider/callback'
-import { Route as ProjectsProjectIdRunsRunIdRouteImport } from './routes/projects/$projectId/runs/$runId'
+import { Route as Dashboard_layoutPluginsBrowseRouteImport } from './routes/_dashboard_layout/plugins/browse'
+import { Route as Dashboard_layoutPluginsPluginNameRouteImport } from './routes/_dashboard_layout/plugins/$pluginName'
+import { Route as Dashboard_layoutTeamsTeamIdIndexRouteImport } from './routes/_dashboard_layout/teams/$teamId/index'
+import { Route as Dashboard_layoutProjectsProjectIdIndexRouteImport } from './routes/_dashboard_layout/projects/$projectId/index'
+import { Route as Dashboard_layoutProjectsNewGithubRouteImport } from './routes/_dashboard_layout/projects/new/github'
+import { Route as Dashboard_layoutProjectsProjectIdSettingsRouteImport } from './routes/_dashboard_layout/projects/$projectId/settings'
+import { Route as Dashboard_layoutProjectsProjectIdPluginsRouteImport } from './routes/_dashboard_layout/projects/$projectId/plugins'
+import { Route as Dashboard_layoutProjectsProjectIdCacheRouteImport } from './routes/_dashboard_layout/projects/$projectId/cache'
+import { Route as Dashboard_layoutProjectsProjectIdRunsRunIdRouteImport } from './routes/_dashboard_layout/projects/$projectId/runs/$runId'
 
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Dashboard_layoutRoute = Dashboard_layoutRouteImport.update({
+  id: '/_dashboard_layout',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -38,118 +43,181 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TeamsIndexRoute = TeamsIndexRouteImport.update({
-  id: '/teams/',
-  path: '/teams/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProjectsIndexRoute = ProjectsIndexRouteImport.update({
-  id: '/projects/',
-  path: '/projects/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InvitationsIndexRoute = InvitationsIndexRouteImport.update({
-  id: '/invitations/',
-  path: '/invitations/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthDeviceRoute = AuthDeviceRouteImport.update({
   id: '/auth/device',
   path: '/auth/device',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TeamsTeamIdIndexRoute = TeamsTeamIdIndexRouteImport.update({
-  id: '/teams/$teamId/',
-  path: '/teams/$teamId/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProjectsProjectIdIndexRoute = ProjectsProjectIdIndexRouteImport.update({
-  id: '/projects/$projectId/',
-  path: '/projects/$projectId/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProjectsProjectIdSettingsRoute =
-  ProjectsProjectIdSettingsRouteImport.update({
-    id: '/projects/$projectId/settings',
-    path: '/projects/$projectId/settings',
-    getParentRoute: () => rootRouteImport,
+const Dashboard_layoutSettingsRoute =
+  Dashboard_layoutSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => Dashboard_layoutRoute,
   } as any)
-const ProjectsProjectIdCacheRoute = ProjectsProjectIdCacheRouteImport.update({
-  id: '/projects/$projectId/cache',
-  path: '/projects/$projectId/cache',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const Dashboard_layoutDashboardRoute =
+  Dashboard_layoutDashboardRouteImport.update({
+    id: '/dashboard',
+    path: '/dashboard',
+    getParentRoute: () => Dashboard_layoutRoute,
+  } as any)
+const Dashboard_layoutTeamsIndexRoute =
+  Dashboard_layoutTeamsIndexRouteImport.update({
+    id: '/teams/',
+    path: '/teams/',
+    getParentRoute: () => Dashboard_layoutRoute,
+  } as any)
+const Dashboard_layoutProjectsIndexRoute =
+  Dashboard_layoutProjectsIndexRouteImport.update({
+    id: '/projects/',
+    path: '/projects/',
+    getParentRoute: () => Dashboard_layoutRoute,
+  } as any)
+const Dashboard_layoutInvitationsIndexRoute =
+  Dashboard_layoutInvitationsIndexRouteImport.update({
+    id: '/invitations/',
+    path: '/invitations/',
+    getParentRoute: () => Dashboard_layoutRoute,
+  } as any)
 const AuthProviderCallbackRoute = AuthProviderCallbackRouteImport.update({
   id: '/auth/$provider/callback',
   path: '/auth/$provider/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectsProjectIdRunsRunIdRoute =
-  ProjectsProjectIdRunsRunIdRouteImport.update({
+const Dashboard_layoutPluginsBrowseRoute =
+  Dashboard_layoutPluginsBrowseRouteImport.update({
+    id: '/plugins/browse',
+    path: '/plugins/browse',
+    getParentRoute: () => Dashboard_layoutRoute,
+  } as any)
+const Dashboard_layoutPluginsPluginNameRoute =
+  Dashboard_layoutPluginsPluginNameRouteImport.update({
+    id: '/plugins/$pluginName',
+    path: '/plugins/$pluginName',
+    getParentRoute: () => Dashboard_layoutRoute,
+  } as any)
+const Dashboard_layoutTeamsTeamIdIndexRoute =
+  Dashboard_layoutTeamsTeamIdIndexRouteImport.update({
+    id: '/teams/$teamId/',
+    path: '/teams/$teamId/',
+    getParentRoute: () => Dashboard_layoutRoute,
+  } as any)
+const Dashboard_layoutProjectsProjectIdIndexRoute =
+  Dashboard_layoutProjectsProjectIdIndexRouteImport.update({
+    id: '/projects/$projectId/',
+    path: '/projects/$projectId/',
+    getParentRoute: () => Dashboard_layoutRoute,
+  } as any)
+const Dashboard_layoutProjectsNewGithubRoute =
+  Dashboard_layoutProjectsNewGithubRouteImport.update({
+    id: '/projects/new/github',
+    path: '/projects/new/github',
+    getParentRoute: () => Dashboard_layoutRoute,
+  } as any)
+const Dashboard_layoutProjectsProjectIdSettingsRoute =
+  Dashboard_layoutProjectsProjectIdSettingsRouteImport.update({
+    id: '/projects/$projectId/settings',
+    path: '/projects/$projectId/settings',
+    getParentRoute: () => Dashboard_layoutRoute,
+  } as any)
+const Dashboard_layoutProjectsProjectIdPluginsRoute =
+  Dashboard_layoutProjectsProjectIdPluginsRouteImport.update({
+    id: '/projects/$projectId/plugins',
+    path: '/projects/$projectId/plugins',
+    getParentRoute: () => Dashboard_layoutRoute,
+  } as any)
+const Dashboard_layoutProjectsProjectIdCacheRoute =
+  Dashboard_layoutProjectsProjectIdCacheRouteImport.update({
+    id: '/projects/$projectId/cache',
+    path: '/projects/$projectId/cache',
+    getParentRoute: () => Dashboard_layoutRoute,
+  } as any)
+const Dashboard_layoutProjectsProjectIdRunsRunIdRoute =
+  Dashboard_layoutProjectsProjectIdRunsRunIdRouteImport.update({
     id: '/projects/$projectId/runs/$runId',
     path: '/projects/$projectId/runs/$runId',
-    getParentRoute: () => rootRouteImport,
+    getParentRoute: () => Dashboard_layoutRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/settings': typeof SettingsRoute
+  '/dashboard': typeof Dashboard_layoutDashboardRoute
+  '/settings': typeof Dashboard_layoutSettingsRoute
   '/auth/device': typeof AuthDeviceRoute
-  '/invitations/': typeof InvitationsIndexRoute
-  '/projects/': typeof ProjectsIndexRoute
-  '/teams/': typeof TeamsIndexRoute
+  '/plugins/$pluginName': typeof Dashboard_layoutPluginsPluginNameRoute
+  '/plugins/browse': typeof Dashboard_layoutPluginsBrowseRoute
   '/auth/$provider/callback': typeof AuthProviderCallbackRoute
-  '/projects/$projectId/cache': typeof ProjectsProjectIdCacheRoute
-  '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
-  '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
-  '/teams/$teamId/': typeof TeamsTeamIdIndexRoute
-  '/projects/$projectId/runs/$runId': typeof ProjectsProjectIdRunsRunIdRoute
+  '/invitations/': typeof Dashboard_layoutInvitationsIndexRoute
+  '/projects/': typeof Dashboard_layoutProjectsIndexRoute
+  '/teams/': typeof Dashboard_layoutTeamsIndexRoute
+  '/projects/$projectId/cache': typeof Dashboard_layoutProjectsProjectIdCacheRoute
+  '/projects/$projectId/plugins': typeof Dashboard_layoutProjectsProjectIdPluginsRoute
+  '/projects/$projectId/settings': typeof Dashboard_layoutProjectsProjectIdSettingsRoute
+  '/projects/new/github': typeof Dashboard_layoutProjectsNewGithubRoute
+  '/projects/$projectId/': typeof Dashboard_layoutProjectsProjectIdIndexRoute
+  '/teams/$teamId/': typeof Dashboard_layoutTeamsTeamIdIndexRoute
+  '/projects/$projectId/runs/$runId': typeof Dashboard_layoutProjectsProjectIdRunsRunIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/settings': typeof SettingsRoute
+  '/dashboard': typeof Dashboard_layoutDashboardRoute
+  '/settings': typeof Dashboard_layoutSettingsRoute
   '/auth/device': typeof AuthDeviceRoute
-  '/invitations': typeof InvitationsIndexRoute
-  '/projects': typeof ProjectsIndexRoute
-  '/teams': typeof TeamsIndexRoute
+  '/plugins/$pluginName': typeof Dashboard_layoutPluginsPluginNameRoute
+  '/plugins/browse': typeof Dashboard_layoutPluginsBrowseRoute
   '/auth/$provider/callback': typeof AuthProviderCallbackRoute
-  '/projects/$projectId/cache': typeof ProjectsProjectIdCacheRoute
-  '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
-  '/projects/$projectId': typeof ProjectsProjectIdIndexRoute
-  '/teams/$teamId': typeof TeamsTeamIdIndexRoute
-  '/projects/$projectId/runs/$runId': typeof ProjectsProjectIdRunsRunIdRoute
+  '/invitations': typeof Dashboard_layoutInvitationsIndexRoute
+  '/projects': typeof Dashboard_layoutProjectsIndexRoute
+  '/teams': typeof Dashboard_layoutTeamsIndexRoute
+  '/projects/$projectId/cache': typeof Dashboard_layoutProjectsProjectIdCacheRoute
+  '/projects/$projectId/plugins': typeof Dashboard_layoutProjectsProjectIdPluginsRoute
+  '/projects/$projectId/settings': typeof Dashboard_layoutProjectsProjectIdSettingsRoute
+  '/projects/new/github': typeof Dashboard_layoutProjectsNewGithubRoute
+  '/projects/$projectId': typeof Dashboard_layoutProjectsProjectIdIndexRoute
+  '/teams/$teamId': typeof Dashboard_layoutTeamsTeamIdIndexRoute
+  '/projects/$projectId/runs/$runId': typeof Dashboard_layoutProjectsProjectIdRunsRunIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_dashboard_layout': typeof Dashboard_layoutRouteWithChildren
   '/login': typeof LoginRoute
-  '/settings': typeof SettingsRoute
+  '/_dashboard_layout/dashboard': typeof Dashboard_layoutDashboardRoute
+  '/_dashboard_layout/settings': typeof Dashboard_layoutSettingsRoute
   '/auth/device': typeof AuthDeviceRoute
-  '/invitations/': typeof InvitationsIndexRoute
-  '/projects/': typeof ProjectsIndexRoute
-  '/teams/': typeof TeamsIndexRoute
+  '/_dashboard_layout/plugins/$pluginName': typeof Dashboard_layoutPluginsPluginNameRoute
+  '/_dashboard_layout/plugins/browse': typeof Dashboard_layoutPluginsBrowseRoute
   '/auth/$provider/callback': typeof AuthProviderCallbackRoute
-  '/projects/$projectId/cache': typeof ProjectsProjectIdCacheRoute
-  '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
-  '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
-  '/teams/$teamId/': typeof TeamsTeamIdIndexRoute
-  '/projects/$projectId/runs/$runId': typeof ProjectsProjectIdRunsRunIdRoute
+  '/_dashboard_layout/invitations/': typeof Dashboard_layoutInvitationsIndexRoute
+  '/_dashboard_layout/projects/': typeof Dashboard_layoutProjectsIndexRoute
+  '/_dashboard_layout/teams/': typeof Dashboard_layoutTeamsIndexRoute
+  '/_dashboard_layout/projects/$projectId/cache': typeof Dashboard_layoutProjectsProjectIdCacheRoute
+  '/_dashboard_layout/projects/$projectId/plugins': typeof Dashboard_layoutProjectsProjectIdPluginsRoute
+  '/_dashboard_layout/projects/$projectId/settings': typeof Dashboard_layoutProjectsProjectIdSettingsRoute
+  '/_dashboard_layout/projects/new/github': typeof Dashboard_layoutProjectsNewGithubRoute
+  '/_dashboard_layout/projects/$projectId/': typeof Dashboard_layoutProjectsProjectIdIndexRoute
+  '/_dashboard_layout/teams/$teamId/': typeof Dashboard_layoutTeamsTeamIdIndexRoute
+  '/_dashboard_layout/projects/$projectId/runs/$runId': typeof Dashboard_layoutProjectsProjectIdRunsRunIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/login'
+    | '/dashboard'
     | '/settings'
     | '/auth/device'
+    | '/plugins/$pluginName'
+    | '/plugins/browse'
+    | '/auth/$provider/callback'
     | '/invitations/'
     | '/projects/'
     | '/teams/'
-    | '/auth/$provider/callback'
     | '/projects/$projectId/cache'
+    | '/projects/$projectId/plugins'
     | '/projects/$projectId/settings'
+    | '/projects/new/github'
     | '/projects/$projectId/'
     | '/teams/$teamId/'
     | '/projects/$projectId/runs/$runId'
@@ -157,64 +225,67 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/dashboard'
     | '/settings'
     | '/auth/device'
+    | '/plugins/$pluginName'
+    | '/plugins/browse'
+    | '/auth/$provider/callback'
     | '/invitations'
     | '/projects'
     | '/teams'
-    | '/auth/$provider/callback'
     | '/projects/$projectId/cache'
+    | '/projects/$projectId/plugins'
     | '/projects/$projectId/settings'
+    | '/projects/new/github'
     | '/projects/$projectId'
     | '/teams/$teamId'
     | '/projects/$projectId/runs/$runId'
   id:
     | '__root__'
     | '/'
+    | '/_dashboard_layout'
     | '/login'
-    | '/settings'
+    | '/_dashboard_layout/dashboard'
+    | '/_dashboard_layout/settings'
     | '/auth/device'
-    | '/invitations/'
-    | '/projects/'
-    | '/teams/'
+    | '/_dashboard_layout/plugins/$pluginName'
+    | '/_dashboard_layout/plugins/browse'
     | '/auth/$provider/callback'
-    | '/projects/$projectId/cache'
-    | '/projects/$projectId/settings'
-    | '/projects/$projectId/'
-    | '/teams/$teamId/'
-    | '/projects/$projectId/runs/$runId'
+    | '/_dashboard_layout/invitations/'
+    | '/_dashboard_layout/projects/'
+    | '/_dashboard_layout/teams/'
+    | '/_dashboard_layout/projects/$projectId/cache'
+    | '/_dashboard_layout/projects/$projectId/plugins'
+    | '/_dashboard_layout/projects/$projectId/settings'
+    | '/_dashboard_layout/projects/new/github'
+    | '/_dashboard_layout/projects/$projectId/'
+    | '/_dashboard_layout/teams/$teamId/'
+    | '/_dashboard_layout/projects/$projectId/runs/$runId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  Dashboard_layoutRoute: typeof Dashboard_layoutRouteWithChildren
   LoginRoute: typeof LoginRoute
-  SettingsRoute: typeof SettingsRoute
   AuthDeviceRoute: typeof AuthDeviceRoute
-  InvitationsIndexRoute: typeof InvitationsIndexRoute
-  ProjectsIndexRoute: typeof ProjectsIndexRoute
-  TeamsIndexRoute: typeof TeamsIndexRoute
   AuthProviderCallbackRoute: typeof AuthProviderCallbackRoute
-  ProjectsProjectIdCacheRoute: typeof ProjectsProjectIdCacheRoute
-  ProjectsProjectIdSettingsRoute: typeof ProjectsProjectIdSettingsRoute
-  ProjectsProjectIdIndexRoute: typeof ProjectsProjectIdIndexRoute
-  TeamsTeamIdIndexRoute: typeof TeamsTeamIdIndexRoute
-  ProjectsProjectIdRunsRunIdRoute: typeof ProjectsProjectIdRunsRunIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_dashboard_layout': {
+      id: '/_dashboard_layout'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof Dashboard_layoutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -224,27 +295,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/teams/': {
-      id: '/teams/'
-      path: '/teams'
-      fullPath: '/teams/'
-      preLoaderRoute: typeof TeamsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/projects/': {
-      id: '/projects/'
-      path: '/projects'
-      fullPath: '/projects/'
-      preLoaderRoute: typeof ProjectsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/invitations/': {
-      id: '/invitations/'
-      path: '/invitations'
-      fullPath: '/invitations/'
-      preLoaderRoute: typeof InvitationsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/auth/device': {
       id: '/auth/device'
       path: '/auth/device'
@@ -252,33 +302,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthDeviceRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/teams/$teamId/': {
-      id: '/teams/$teamId/'
-      path: '/teams/$teamId'
-      fullPath: '/teams/$teamId/'
-      preLoaderRoute: typeof TeamsTeamIdIndexRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_dashboard_layout/settings': {
+      id: '/_dashboard_layout/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof Dashboard_layoutSettingsRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
     }
-    '/projects/$projectId/': {
-      id: '/projects/$projectId/'
-      path: '/projects/$projectId'
-      fullPath: '/projects/$projectId/'
-      preLoaderRoute: typeof ProjectsProjectIdIndexRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_dashboard_layout/dashboard': {
+      id: '/_dashboard_layout/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof Dashboard_layoutDashboardRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
     }
-    '/projects/$projectId/settings': {
-      id: '/projects/$projectId/settings'
-      path: '/projects/$projectId/settings'
-      fullPath: '/projects/$projectId/settings'
-      preLoaderRoute: typeof ProjectsProjectIdSettingsRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_dashboard_layout/teams/': {
+      id: '/_dashboard_layout/teams/'
+      path: '/teams'
+      fullPath: '/teams/'
+      preLoaderRoute: typeof Dashboard_layoutTeamsIndexRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
     }
-    '/projects/$projectId/cache': {
-      id: '/projects/$projectId/cache'
-      path: '/projects/$projectId/cache'
-      fullPath: '/projects/$projectId/cache'
-      preLoaderRoute: typeof ProjectsProjectIdCacheRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_dashboard_layout/projects/': {
+      id: '/_dashboard_layout/projects/'
+      path: '/projects'
+      fullPath: '/projects/'
+      preLoaderRoute: typeof Dashboard_layoutProjectsIndexRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
+    }
+    '/_dashboard_layout/invitations/': {
+      id: '/_dashboard_layout/invitations/'
+      path: '/invitations'
+      fullPath: '/invitations/'
+      preLoaderRoute: typeof Dashboard_layoutInvitationsIndexRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
     }
     '/auth/$provider/callback': {
       id: '/auth/$provider/callback'
@@ -287,30 +344,122 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthProviderCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/projects/$projectId/runs/$runId': {
-      id: '/projects/$projectId/runs/$runId'
+    '/_dashboard_layout/plugins/browse': {
+      id: '/_dashboard_layout/plugins/browse'
+      path: '/plugins/browse'
+      fullPath: '/plugins/browse'
+      preLoaderRoute: typeof Dashboard_layoutPluginsBrowseRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
+    }
+    '/_dashboard_layout/plugins/$pluginName': {
+      id: '/_dashboard_layout/plugins/$pluginName'
+      path: '/plugins/$pluginName'
+      fullPath: '/plugins/$pluginName'
+      preLoaderRoute: typeof Dashboard_layoutPluginsPluginNameRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
+    }
+    '/_dashboard_layout/teams/$teamId/': {
+      id: '/_dashboard_layout/teams/$teamId/'
+      path: '/teams/$teamId'
+      fullPath: '/teams/$teamId/'
+      preLoaderRoute: typeof Dashboard_layoutTeamsTeamIdIndexRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
+    }
+    '/_dashboard_layout/projects/$projectId/': {
+      id: '/_dashboard_layout/projects/$projectId/'
+      path: '/projects/$projectId'
+      fullPath: '/projects/$projectId/'
+      preLoaderRoute: typeof Dashboard_layoutProjectsProjectIdIndexRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
+    }
+    '/_dashboard_layout/projects/new/github': {
+      id: '/_dashboard_layout/projects/new/github'
+      path: '/projects/new/github'
+      fullPath: '/projects/new/github'
+      preLoaderRoute: typeof Dashboard_layoutProjectsNewGithubRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
+    }
+    '/_dashboard_layout/projects/$projectId/settings': {
+      id: '/_dashboard_layout/projects/$projectId/settings'
+      path: '/projects/$projectId/settings'
+      fullPath: '/projects/$projectId/settings'
+      preLoaderRoute: typeof Dashboard_layoutProjectsProjectIdSettingsRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
+    }
+    '/_dashboard_layout/projects/$projectId/plugins': {
+      id: '/_dashboard_layout/projects/$projectId/plugins'
+      path: '/projects/$projectId/plugins'
+      fullPath: '/projects/$projectId/plugins'
+      preLoaderRoute: typeof Dashboard_layoutProjectsProjectIdPluginsRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
+    }
+    '/_dashboard_layout/projects/$projectId/cache': {
+      id: '/_dashboard_layout/projects/$projectId/cache'
+      path: '/projects/$projectId/cache'
+      fullPath: '/projects/$projectId/cache'
+      preLoaderRoute: typeof Dashboard_layoutProjectsProjectIdCacheRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
+    }
+    '/_dashboard_layout/projects/$projectId/runs/$runId': {
+      id: '/_dashboard_layout/projects/$projectId/runs/$runId'
       path: '/projects/$projectId/runs/$runId'
       fullPath: '/projects/$projectId/runs/$runId'
-      preLoaderRoute: typeof ProjectsProjectIdRunsRunIdRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof Dashboard_layoutProjectsProjectIdRunsRunIdRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
     }
   }
 }
 
+interface Dashboard_layoutRouteChildren {
+  Dashboard_layoutDashboardRoute: typeof Dashboard_layoutDashboardRoute
+  Dashboard_layoutSettingsRoute: typeof Dashboard_layoutSettingsRoute
+  Dashboard_layoutPluginsPluginNameRoute: typeof Dashboard_layoutPluginsPluginNameRoute
+  Dashboard_layoutPluginsBrowseRoute: typeof Dashboard_layoutPluginsBrowseRoute
+  Dashboard_layoutInvitationsIndexRoute: typeof Dashboard_layoutInvitationsIndexRoute
+  Dashboard_layoutProjectsIndexRoute: typeof Dashboard_layoutProjectsIndexRoute
+  Dashboard_layoutTeamsIndexRoute: typeof Dashboard_layoutTeamsIndexRoute
+  Dashboard_layoutProjectsProjectIdCacheRoute: typeof Dashboard_layoutProjectsProjectIdCacheRoute
+  Dashboard_layoutProjectsProjectIdPluginsRoute: typeof Dashboard_layoutProjectsProjectIdPluginsRoute
+  Dashboard_layoutProjectsProjectIdSettingsRoute: typeof Dashboard_layoutProjectsProjectIdSettingsRoute
+  Dashboard_layoutProjectsNewGithubRoute: typeof Dashboard_layoutProjectsNewGithubRoute
+  Dashboard_layoutProjectsProjectIdIndexRoute: typeof Dashboard_layoutProjectsProjectIdIndexRoute
+  Dashboard_layoutTeamsTeamIdIndexRoute: typeof Dashboard_layoutTeamsTeamIdIndexRoute
+  Dashboard_layoutProjectsProjectIdRunsRunIdRoute: typeof Dashboard_layoutProjectsProjectIdRunsRunIdRoute
+}
+
+const Dashboard_layoutRouteChildren: Dashboard_layoutRouteChildren = {
+  Dashboard_layoutDashboardRoute: Dashboard_layoutDashboardRoute,
+  Dashboard_layoutSettingsRoute: Dashboard_layoutSettingsRoute,
+  Dashboard_layoutPluginsPluginNameRoute:
+    Dashboard_layoutPluginsPluginNameRoute,
+  Dashboard_layoutPluginsBrowseRoute: Dashboard_layoutPluginsBrowseRoute,
+  Dashboard_layoutInvitationsIndexRoute: Dashboard_layoutInvitationsIndexRoute,
+  Dashboard_layoutProjectsIndexRoute: Dashboard_layoutProjectsIndexRoute,
+  Dashboard_layoutTeamsIndexRoute: Dashboard_layoutTeamsIndexRoute,
+  Dashboard_layoutProjectsProjectIdCacheRoute:
+    Dashboard_layoutProjectsProjectIdCacheRoute,
+  Dashboard_layoutProjectsProjectIdPluginsRoute:
+    Dashboard_layoutProjectsProjectIdPluginsRoute,
+  Dashboard_layoutProjectsProjectIdSettingsRoute:
+    Dashboard_layoutProjectsProjectIdSettingsRoute,
+  Dashboard_layoutProjectsNewGithubRoute:
+    Dashboard_layoutProjectsNewGithubRoute,
+  Dashboard_layoutProjectsProjectIdIndexRoute:
+    Dashboard_layoutProjectsProjectIdIndexRoute,
+  Dashboard_layoutTeamsTeamIdIndexRoute: Dashboard_layoutTeamsTeamIdIndexRoute,
+  Dashboard_layoutProjectsProjectIdRunsRunIdRoute:
+    Dashboard_layoutProjectsProjectIdRunsRunIdRoute,
+}
+
+const Dashboard_layoutRouteWithChildren =
+  Dashboard_layoutRoute._addFileChildren(Dashboard_layoutRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  Dashboard_layoutRoute: Dashboard_layoutRouteWithChildren,
   LoginRoute: LoginRoute,
-  SettingsRoute: SettingsRoute,
   AuthDeviceRoute: AuthDeviceRoute,
-  InvitationsIndexRoute: InvitationsIndexRoute,
-  ProjectsIndexRoute: ProjectsIndexRoute,
-  TeamsIndexRoute: TeamsIndexRoute,
   AuthProviderCallbackRoute: AuthProviderCallbackRoute,
-  ProjectsProjectIdCacheRoute: ProjectsProjectIdCacheRoute,
-  ProjectsProjectIdSettingsRoute: ProjectsProjectIdSettingsRoute,
-  ProjectsProjectIdIndexRoute: ProjectsProjectIdIndexRoute,
-  TeamsTeamIdIndexRoute: TeamsTeamIdIndexRoute,
-  ProjectsProjectIdRunsRunIdRoute: ProjectsProjectIdRunsRunIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

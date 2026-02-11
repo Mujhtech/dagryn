@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
 
 	"github.com/mujhtech/dagryn/internal/cache"
+	"github.com/mujhtech/dagryn/internal/container"
 	"github.com/mujhtech/dagryn/internal/dag"
 	"github.com/mujhtech/dagryn/internal/executor"
 	"github.com/mujhtech/dagryn/internal/plugin"
@@ -18,12 +20,13 @@ import (
 
 // Options configures the scheduler behavior.
 type Options struct {
-	Parallelism  int           // Max concurrent tasks (default: NumCPU)
-	NoCache      bool          // Disable caching
-	NoPlugins    bool          // Disable plugin installation
-	FailFast     bool          // Stop on first failure
-	DryRun       bool          // Show plan without executing
-	CacheBackend cache.Backend // Optional custom cache backend
+	Parallelism     int               // Max concurrent tasks (default: NumCPU)
+	NoCache         bool              // Disable caching
+	NoPlugins       bool              // Disable plugin installation
+	FailFast        bool              // Stop on first failure
+	DryRun          bool              // Show plan without executing
+	CacheBackend    cache.Backend     // Optional custom cache backend
+	ContainerConfig *container.Config // Optional container isolation config
 }
 
 // DefaultOptions returns the default scheduler options.
@@ -67,12 +70,16 @@ type taskState struct {
 type Scheduler struct {
 	workflow          *task.Workflow
 	graph             *dag.Graph
-	executor          *executor.Executor
+	executor          executor.TaskExecutor
 	cache             *cache.Cache
 	pluginManager     *plugin.Manager
 	compositeExecutor *plugin.CompositeExecutor
 	opts              Options
 	projectRoot       string
+
+	// Container isolation
+	containerRuntime container.Runtime
+	containerConfig  *container.Config
 
 	// Callbacks
 	onTaskStart    TaskCallback
@@ -114,7 +121,7 @@ func New(workflow *task.Workflow, projectRoot string, opts Options) (*Scheduler,
 		c = cache.New(projectRoot, !opts.NoCache)
 	}
 
-	return &Scheduler{
+	s := &Scheduler{
 		workflow:          workflow,
 		graph:             g,
 		executor:          executor.New(projectRoot),
@@ -123,7 +130,24 @@ func New(workflow *task.Workflow, projectRoot string, opts Options) (*Scheduler,
 		compositeExecutor: plugin.NewCompositeExecutor(projectRoot, nil),
 		opts:              opts,
 		projectRoot:       projectRoot,
-	}, nil
+	}
+
+	// Initialize container runtime if configured
+	if opts.ContainerConfig != nil && opts.ContainerConfig.Enabled {
+		rt, err := container.NewDockerRuntime()
+		if err != nil {
+			slog.Warn("container runtime not available, falling back to host execution", "error", err)
+		} else if !rt.Available(context.Background()) {
+			slog.Warn("container runtime not reachable, falling back to host execution")
+			_ = rt.Close()
+		} else {
+			s.containerRuntime = rt
+			s.containerConfig = opts.ContainerConfig
+			slog.Info("container isolation enabled", "image", opts.ContainerConfig.Image)
+		}
+	}
+
+	return s, nil
 }
 
 // SetOutput sets the output writers for task execution.
@@ -366,16 +390,27 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 		stderrWriter = stderrLW
 	}
 
-	// Create executor with appropriate options
-	taskExecutor := executor.New(s.projectRoot,
-		executor.WithStdout(stdoutWriter),
-		executor.WithStderr(stderrWriter),
-		executor.WithPluginPaths(pluginPaths),
-		executor.WithExtraEnv(compositeEnv),
-	)
+	// Choose executor: container (if available and configured) or host
+	var taskExec executor.TaskExecutor
+	if s.containerRuntime != nil && s.containerConfig != nil {
+		taskExec = container.NewContainerExecutor(
+			s.containerRuntime, s.projectRoot, s.containerConfig,
+			container.WithContainerStdout(stdoutWriter),
+			container.WithContainerStderr(stderrWriter),
+			container.WithPluginPaths(pluginPaths),
+			container.WithExtraEnv(compositeEnv),
+		)
+	} else {
+		taskExec = executor.New(s.projectRoot,
+			executor.WithStdout(stdoutWriter),
+			executor.WithStderr(stderrWriter),
+			executor.WithPluginPaths(pluginPaths),
+			executor.WithExtraEnv(compositeEnv),
+		)
+	}
 
 	// Execute task
-	result := taskExecutor.Execute(ctx, t)
+	result := taskExec.Execute(ctx, t)
 
 	// Flush any partial lines from LineWriters
 	if stdoutLW != nil {

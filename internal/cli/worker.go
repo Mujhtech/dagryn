@@ -208,6 +208,18 @@ func runWorker(opts WorkerConfigOpts) error {
 	}
 
 	// Create job configuration
+	// Build container defaults from server config
+	var containerDefaults *jobhandlers.ContainerDefaults
+	if cfg.Container.Enabled {
+		containerDefaults = &jobhandlers.ContainerDefaults{
+			Enabled:      cfg.Container.Enabled,
+			DefaultImage: cfg.Container.DefaultImage,
+			MemoryLimit:  cfg.Container.MemoryLimit,
+			CPULimit:     cfg.Container.CPULimit,
+			Network:      cfg.Container.Network,
+		}
+	}
+
 	jobCfg := job.Config{
 		Concurrency:          cfg.Job.Concurrency,
 		EncryptionKey:        cfg.Job.EncryptionKey,
@@ -219,6 +231,7 @@ func runWorker(opts WorkerConfigOpts) error {
 		GitHubInstallations:  githubInstallations,
 		CacheService:         cacheService,
 		ArtifactService:      artifactService,
+		ContainerDefaults:    containerDefaults,
 	}
 
 	// Create job system

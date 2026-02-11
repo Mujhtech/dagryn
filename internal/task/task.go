@@ -18,7 +18,16 @@ type Task struct {
 	Env     map[string]string
 	Timeout time.Duration
 	Workdir string
-	With    map[string]string // Composite plugin inputs
+	With      map[string]string    // Composite plugin inputs
+	Container *TaskContainerConfig // Optional per-task container settings
+}
+
+// TaskContainerConfig holds per-task container overrides.
+type TaskContainerConfig struct {
+	Image       string `toml:"image"`
+	MemoryLimit string `toml:"memory_limit"`
+	CPULimit    string `toml:"cpu_limit"`
+	Network     string `toml:"network"`
 }
 
 // validNameRegex defines valid task name pattern
@@ -114,6 +123,11 @@ func (t *Task) Clone() *Task {
 		for k, v := range t.With {
 			clone.With[k] = v
 		}
+	}
+
+	if t.Container != nil {
+		c := *t.Container
+		clone.Container = &c
 	}
 
 	return clone

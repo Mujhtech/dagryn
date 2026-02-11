@@ -168,6 +168,27 @@ export interface RunDetail extends Run {
   last_heartbeat_at?: string;
 }
 
+export interface RunDashboardChartPoint {
+  date: string;
+  success: number;
+  failed: number;
+  duration_ms: number;
+}
+
+export interface RunDashboardUserFacet {
+  id: string;
+  name: string;
+  avatar_url?: string;
+}
+
+export interface RunDashboardSummary {
+  chart: RunDashboardChartPoint[];
+  users: RunDashboardUserFacet[];
+  workflows: string[];
+  branches: string[];
+  status_counts: Record<string, number>;
+}
+
 export interface Artifact {
   id: string;
   project_id: string;
@@ -310,6 +331,37 @@ export interface DailyUsage {
   cache_hits: number;
   cache_misses: number;
   hit_rate: number;
+}
+
+// Plugin types
+export interface PluginInputDef {
+  description: string;
+  required: boolean;
+  default?: string;
+}
+
+export interface PluginOutputDef {
+  description: string;
+}
+
+export interface PluginStep {
+  name: string;
+  command: string;
+  if?: string;
+}
+
+export interface PluginInfo {
+  name: string;
+  source: string;
+  version: string;
+  description: string;
+  type: string;
+  author?: string;
+  license?: string;
+  installed: boolean;
+  inputs?: Record<string, PluginInputDef>;
+  outputs?: Record<string, PluginOutputDef>;
+  steps?: PluginStep[];
 }
 
 // API Error
@@ -691,6 +743,12 @@ class ApiClient {
     );
   }
 
+  async getRunDashboardSummary(projectId: string, days = 30) {
+    return this.fetch<RunDashboardSummary>(
+      `/projects/${projectId}/runs/summary?days=${days}`,
+    );
+  }
+
   async getRun(projectId: string, runId: string) {
     return this.fetch<Run>(`/projects/${projectId}/runs/${runId}`);
   }
@@ -869,6 +927,24 @@ class ApiClient {
     return this.fetch<CacheAnalytics>(
       `/projects/${projectId}/cache/analytics?days=${days}`,
     );
+  }
+
+  // Plugins
+  async listOfficialPlugins(params?: { q?: string; type?: string; sort?: string }) {
+    const query = new URLSearchParams();
+    if (params?.q) query.set("q", params.q);
+    if (params?.type) query.set("type", params.type);
+    if (params?.sort) query.set("sort", params.sort);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return this.fetch<{ plugins: PluginInfo[] }>(`/plugins/official${suffix}`);
+  }
+
+  async getPlugin(pluginName: string) {
+    return this.fetch<PluginInfo>(`/plugins/${pluginName}`);
+  }
+
+  async listProjectPlugins(projectId: string) {
+    return this.fetch<{ plugins: PluginInfo[] }>(`/projects/${projectId}/plugins`);
   }
 }
 

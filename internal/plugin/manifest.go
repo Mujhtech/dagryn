@@ -15,6 +15,7 @@ type Manifest struct {
 	Inputs    map[string]InputDef  `toml:"inputs"`
 	Outputs   map[string]OutputDef `toml:"outputs"`
 	Steps     []CompositeStep      `toml:"step"`
+	Cleanup   []CompositeStep      `toml:"cleanup"` // Cleanup steps run in reverse order after main steps
 }
 
 // ManifestPlugin holds plugin metadata.

@@ -1,6 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { useAuth } from "~/lib/auth";
+import { createFileRoute } from "@tanstack/react-router";
 import { usePendingInvitations } from "~/hooks/queries";
 import { useAcceptInvitation, useDeclineInvitation } from "~/hooks/mutations";
 import {
@@ -15,13 +13,11 @@ import { Badge } from "~/components/ui/badge";
 import { Icons } from "~/components/icons";
 import type { Invitation } from "~/lib/api";
 
-export const Route = createFileRoute("/invitations/")({
+export const Route = createFileRoute("/_dashboard_layout/invitations/")({
   component: InvitationsPage,
 });
 
 function InvitationsPage() {
-  const navigate = useNavigate();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const {
     data: invitations,
     isLoading: invitationsLoading,
@@ -29,12 +25,6 @@ function InvitationsPage() {
   } = usePendingInvitations();
   const acceptMutation = useAcceptInvitation();
   const declineMutation = useDeclineInvitation();
-
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      navigate({ to: "/login" });
-    }
-  }, [isAuthenticated, authLoading, navigate]);
 
   const list = (invitations as Invitation[] | undefined) ?? [];
   // const pending = list.filter((i) => i.status === "pending");
@@ -53,7 +43,7 @@ function InvitationsPage() {
     });
   };
 
-  const loading = authLoading || invitationsLoading;
+  const loading = invitationsLoading;
 
   if (loading) {
     return (

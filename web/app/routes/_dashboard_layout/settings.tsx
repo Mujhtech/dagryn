@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { useAuth } from "~/lib/auth";
@@ -19,29 +18,17 @@ import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Separator } from "~/components/ui/separator";
 import { Icons } from "~/components/icons";
 
-export const Route = createFileRoute("/settings")({
+export const Route = createFileRoute("/_dashboard_layout/settings")({
   component: SettingsPage,
 });
 
 function SettingsPage() {
-  const navigate = useNavigate();
-  const {
-    user,
-    isLoading: authLoading,
-    isAuthenticated,
-    refreshUser,
-  } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [name, setName] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Use TanStack Query mutation for updating user
   const updateUserMutation = useUpdateUser();
-
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      navigate({ to: "/login" });
-    }
-  }, [isAuthenticated, authLoading, navigate]);
 
   useEffect(() => {
     if (user) {
@@ -65,14 +52,6 @@ function SettingsPage() {
       },
     );
   };
-
-  if (authLoading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Icons.Loader className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
 
   if (!user) {
     return null;

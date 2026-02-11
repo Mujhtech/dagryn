@@ -160,6 +160,7 @@ func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHand
 					// Project runs
 					r.Route("/runs", func(r chi.Router) {
 						r.Get("/", h.ListRuns)
+						r.Get("/summary", h.GetRunDashboardSummary)
 						r.Post("/", h.TriggerRun)
 						r.Route("/{runID}", func(r chi.Router) {
 							r.Get("/", h.GetRun)
@@ -214,6 +215,13 @@ func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHand
 						r.Post("/sync", h.SyncProjectWorkflow)
 						r.Post("/sync-from-toml", h.SyncProjectWorkflowFromToml)
 					})
+
+					// Project plugins
+					r.Route("/plugins", func(r chi.Router) {
+						r.Get("/", h.ListProjectPlugins)
+						r.Post("/", h.InstallPlugin)
+						r.Delete("/{pluginName}", h.UninstallPlugin)
+					})
 				})
 			})
 
@@ -222,6 +230,14 @@ func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHand
 				r.Get("/", h.ListUserAPIKeys)
 				r.Post("/", h.CreateUserAPIKey)
 				r.Delete("/{keyID}", h.RevokeUserAPIKey)
+			})
+
+			// Plugin management routes
+			r.Route("/plugins", func(r chi.Router) {
+				r.Get("/", h.ListPlugins)
+				r.Get("/official", h.ListOfficialPlugins)
+				r.Get("/{publisher}/{name}", h.GetPluginByPublisherName)
+				r.Get("/{pluginName}", h.GetPluginManifest)
 			})
 
 			// Invitations (for accepting)

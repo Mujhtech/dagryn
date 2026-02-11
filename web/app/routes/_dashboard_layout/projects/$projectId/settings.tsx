@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { FolderCog } from "lucide-react";
-
-import { useAuth } from "~/lib/auth";
 import { useProject, useProjectAPIKeys } from "~/hooks/queries";
 import {
   useUpdateProject,
@@ -46,14 +44,15 @@ import { Badge } from "~/components/ui/badge";
 import { api, type GitHubAppInstallation, type GitHubRepo } from "~/lib/api";
 import { Icons } from "~/components/icons";
 
-export const Route = createFileRoute("/projects/$projectId/settings")({
+export const Route = createFileRoute(
+  "/_dashboard_layout/projects/$projectId/settings",
+)({
   component: ProjectSettingsPage,
 });
 
 function ProjectSettingsPage() {
   const { projectId } = Route.useParams();
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   // Fetch project data
   const {
@@ -95,13 +94,6 @@ function ProjectSettingsPage() {
     isLoading: apiKeysLoading,
     error: apiKeysError,
   } = useProjectAPIKeys(projectId);
-
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      navigate({ to: "/login" });
-    }
-  }, [isAuthenticated, authLoading, navigate]);
 
   // Initialize form with project data
   useEffect(() => {
@@ -149,7 +141,7 @@ function ProjectSettingsPage() {
     loadRepos();
   }, [selectedInstallation]);
 
-  const loading = authLoading || projectLoading;
+  const loading = projectLoading;
   const error = projectError?.message;
 
   const handleSave = async () => {

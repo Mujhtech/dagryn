@@ -27,6 +27,8 @@ func NewCompositeExecutor(projectRoot string, logger Logger) *CompositeExecutor 
 }
 
 // Execute runs all steps of a composite plugin sequentially.
+// Cleanup steps are guaranteed to run in reverse order after main steps,
+// regardless of success or failure.
 func (e *CompositeExecutor) Execute(ctx context.Context, manifest *Manifest, inputs, env map[string]string, workdir string) error {
 	if manifest == nil {
 		return fmt.Errorf("manifest is nil")
@@ -40,6 +42,19 @@ func (e *CompositeExecutor) Execute(ctx context.Context, manifest *Manifest, inp
 	if err != nil {
 		return err
 	}
+
+	// Track cleanup context (environment variables set during execution)
+	cleanupEnv := make(map[string]string)
+	for k, v := range env {
+		cleanupEnv[k] = v
+	}
+
+	// Ensure cleanup steps run in reverse order, even on failure
+	defer func() {
+		if len(manifest.Cleanup) > 0 {
+			e.executeCleanup(ctx, manifest.Cleanup, mergedInputs, cleanupEnv, workdir)
+		}
+	}()
 
 	// Execute each step
 	for i, step := range manifest.Steps {
@@ -59,12 +74,14 @@ func (e *CompositeExecutor) Execute(ctx context.Context, manifest *Manifest, inp
 
 		// Build environment
 		stepEnv := make([]string, 0)
-		for k, v := range env {
+		for k, v := range cleanupEnv {
 			stepEnv = append(stepEnv, fmt.Sprintf("%s=%s", k, v))
 		}
 		for k, v := range step.Env {
 			resolved := substituteVars(v, mergedInputs)
 			stepEnv = append(stepEnv, fmt.Sprintf("%s=%s", k, resolved))
+			// Track for cleanup
+			cleanupEnv[k] = resolved
 		}
 
 		// Execute via shell
@@ -87,6 +104,62 @@ func (e *CompositeExecutor) Execute(ctx context.Context, manifest *Manifest, inp
 	}
 
 	return nil
+}
+
+// executeCleanup runs cleanup steps in reverse order (LIFO).
+// Errors are logged but do not fail the cleanup process.
+func (e *CompositeExecutor) executeCleanup(ctx context.Context, cleanupSteps []CompositeStep, inputs, env map[string]string, workdir string) {
+	e.logger.Info("running cleanup steps (%d total)", len(cleanupSteps))
+
+	// Execute in reverse order (LIFO - like defer)
+	for i := len(cleanupSteps) - 1; i >= 0; i-- {
+		step := cleanupSteps[i]
+
+		// Evaluate conditional
+		if step.If != "" {
+			condResult := substituteVars(step.If, inputs)
+			if condResult == "false" || condResult == "" {
+				e.logger.Debug("skipping cleanup step %d (%s): condition not met", i, step.Name)
+				continue
+			}
+		}
+
+		// Substitute variables in command
+		command := substituteVars(step.Command, inputs)
+
+		e.logger.Info("running cleanup step %d: %s", i, step.Name)
+
+		// Build environment
+		stepEnv := make([]string, 0)
+		for k, v := range env {
+			stepEnv = append(stepEnv, fmt.Sprintf("%s=%s", k, v))
+		}
+		for k, v := range step.Env {
+			resolved := substituteVars(v, inputs)
+			stepEnv = append(stepEnv, fmt.Sprintf("%s=%s", k, resolved))
+		}
+
+		// Execute via shell
+		cmd := exec.CommandContext(ctx, "sh", "-c", command)
+		if workdir != "" {
+			cmd.Dir = workdir
+		} else {
+			cmd.Dir = e.projectRoot
+		}
+		if len(stepEnv) > 0 {
+			cmd.Env = append(cmd.Environ(), stepEnv...)
+		}
+
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			// Log error but continue with other cleanup steps
+			e.logger.Warn("cleanup step %d (%s) failed (continuing): %v\nOutput: %s", i, step.Name, err, string(output))
+		} else {
+			e.logger.Debug("cleanup step %d output: %s", i, string(output))
+		}
+	}
+
+	e.logger.Info("cleanup completed")
 }
 
 // mergeInputs validates required inputs and applies defaults from the manifest.

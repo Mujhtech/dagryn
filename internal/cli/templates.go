@@ -6,9 +6,9 @@ import "fmt"
 func GetTemplate(projectType ProjectType, pm PackageManager) string {
 	switch projectType {
 	case ProjectGo:
-		return formatHeader("Go Project", "This configuration defines a CI workflow for Go projects.\n# Customize the tasks below to match your project structure.") + templateGo
+		return formatHeader("Go Project", "# This configuration defines a CI workflow for Go projects.\n# Customize the tasks below to match your project structure.") + templateGo
 	case ProjectRust:
-		return formatHeader("Rust Project", "This configuration defines a CI workflow for Rust projects using Cargo.\n# Customize the tasks below to match your project structure.") + templateRust
+		return formatHeader("Rust Project", "# This configuration defines a CI workflow for Rust projects using Cargo.\n# Customize the tasks below to match your project structure.") + templateRust
 	case ProjectPython:
 		return getPythonTemplate(pm)
 	case ProjectNode:
@@ -16,17 +16,17 @@ func GetTemplate(projectType ProjectType, pm PackageManager) string {
 	case ProjectJava:
 		return getJavaTemplate(pm)
 	case ProjectRuby:
-		return formatHeader("Ruby Project", "This configuration defines a CI workflow for Ruby projects using Bundler.\n# Ruby tools like rubocop are typically managed via Gemfile and run via\n# \"bundle exec\". The [plugins] section can be used for tools not in your Gemfile.") + templateRuby
+		return formatHeader("Ruby Project", "# This configuration defines a CI workflow for Ruby projects using Bundler.\n# Ruby tools like rubocop are typically managed via Gemfile and run via\n# \"bundle exec\". The [plugins] section can be used for tools not in your Gemfile.") + templateRuby
 	case ProjectPHP:
-		return formatHeader("PHP Project", "This configuration defines a CI workflow for PHP projects using Composer.\n# Customize the tasks below to match your project structure.") + templatePHP
+		return formatHeader("PHP Project", "# This configuration defines a CI workflow for PHP projects using Composer.\n# Customize the tasks below to match your project structure.") + templatePHP
 	case ProjectElixir:
-		return formatHeader("Elixir Project", "This configuration defines a CI workflow for Elixir projects using Mix.\n# Customize the tasks below to match your project structure.") + templateElixir
+		return formatHeader("Elixir Project", "# This configuration defines a CI workflow for Elixir projects using Mix.\n# Customize the tasks below to match your project structure.") + templateElixir
 	case ProjectSwift:
-		return formatHeader("Swift Project", "This configuration defines a CI workflow for Swift projects using SPM.\n# Customize the tasks below to match your project structure.") + templateSwift
+		return formatHeader("Swift Project", "# This configuration defines a CI workflow for Swift projects using SPM.\n# Customize the tasks below to match your project structure.") + templateSwift
 	case ProjectCpp:
 		return getCppTemplate(pm)
 	default:
-		return formatHeader("Generic Project", "Dagryn couldn't auto-detect your project type.\n# Customize the tasks below to match your build system.") + templateGeneric
+		return formatHeader("Generic Project", "# Dagryn couldn't auto-detect your project type.\n# Customize the tasks below to match your build system.") + templateGeneric
 	}
 }
 
@@ -57,13 +57,13 @@ func GetAllTemplateInfos() []TemplateInfo {
 func getPythonTemplate(pm PackageManager) string {
 	switch pm {
 	case PMPoetry:
-		return formatHeader("Python Project (Poetry)", "This configuration defines a CI workflow for Python projects using Poetry.\n# Poetry manages project dependencies, so tools like ruff/black are typically\n# included in pyproject.toml dev-dependencies and run via \"poetry run\".\n# Alternatively, use the [plugins] section to auto-install tools independently.") + templatePythonPoetry
+		return formatHeader("Python Project (Poetry)", "# This configuration defines a CI workflow for Python projects using Poetry.\n# Poetry manages project dependencies, so tools like ruff/black are typically\n# included in pyproject.toml dev-dependencies and run via \"poetry run\".\n# Alternatively, use the [plugins] section to auto-install tools independently.") + templatePythonPoetry
 	case PMPipenv:
-		return formatHeader("Python Project (Pipenv)", "This configuration defines a CI workflow for Python projects using Pipenv.\n# Pipenv manages project dependencies, so tools like ruff/black are typically\n# included in Pipfile dev-dependencies and run via \"pipenv run\".") + templatePythonPipenv
+		return formatHeader("Python Project (Pipenv)", "# This configuration defines a CI workflow for Python projects using Pipenv.\n# Pipenv manages project dependencies, so tools like ruff/black are typically\n# included in Pipfile dev-dependencies and run via \"pipenv run\".") + templatePythonPipenv
 	case PMUv:
-		return formatHeader("Python Project (uv)", "This configuration defines a CI workflow for Python projects using uv.\n# uv is a fast Python package installer and resolver.\n# uv manages project dependencies, so tools like ruff are typically\n# included in pyproject.toml and run via \"uv run\".") + templatePythonUv
+		return formatHeader("Python Project (uv)", "# This configuration defines a CI workflow for Python projects using uv.\n# uv is a fast Python package installer and resolver.\n# uv manages project dependencies, so tools like ruff are typically\n# included in pyproject.toml and run via \"uv run\".") + templatePythonUv
 	default:
-		return formatHeader("Python Project (pip)", "This configuration defines a CI workflow for Python projects using pip.\n# Customize the tasks below to match your project structure.") + templatePythonPip
+		return formatHeader("Python Project (pip)", "# This configuration defines a CI workflow for Python projects using pip.\n# Customize the tasks below to match your project structure.") + templatePythonPip
 	}
 }
 
@@ -71,11 +71,11 @@ func getPythonTemplate(pm PackageManager) string {
 func getNodeTemplate(pm PackageManager) string {
 	switch pm {
 	case PMYarn:
-		return formatHeader("Node.js Project (Yarn)", "This configuration defines a CI workflow for Node.js projects using Yarn.\n# Node.js tools like eslint/prettier are typically managed via package.json\n# and run via yarn scripts. The [plugins] section can be used for tools\n# not in your package.json (e.g., global CLI tools).") + templateNodeYarn
+		return formatHeader("Node.js Project (Yarn)", "# This configuration defines a CI workflow for Node.js projects using Yarn.\n# Node.js tools like eslint/prettier are typically managed via package.json\n# and run via yarn scripts. The [plugins] section can be used for tools\n# not in your package.json (e.g., global CLI tools).") + templateNodeYarn
 	case PMPnpm:
-		return formatHeader("Node.js Project (pnpm)", "This configuration defines a CI workflow for Node.js projects using pnpm.\n# Node.js tools like eslint/prettier are typically managed via package.json\n# and run via pnpm scripts. The [plugins] section can be used for tools\n# not in your package.json (e.g., global CLI tools).") + templateNodePnpm
+		return formatHeader("Node.js Project (pnpm)", "# This configuration defines a CI workflow for Node.js projects using pnpm.\n# Node.js tools like eslint/prettier are typically managed via package.json\n# and run via pnpm scripts. The [plugins] section can be used for tools\n# not in your package.json (e.g., global CLI tools).") + templateNodePnpm
 	default:
-		return formatHeader("Node.js Project (npm)", "This configuration defines a CI workflow for Node.js projects using npm.\n# Node.js tools like eslint/prettier are typically managed via package.json\n# and run via npm scripts. The [plugins] section can be used for tools\n# not in your package.json (e.g., global CLI tools).") + templateNodeNpm
+		return formatHeader("Node.js Project (npm)", "# This configuration defines a CI workflow for Node.js projects using npm.\n# Node.js tools like eslint/prettier are typically managed via package.json\n# and run via npm scripts. The [plugins] section can be used for tools\n# not in your package.json (e.g., global CLI tools).") + templateNodeNpm
 	}
 }
 
@@ -83,9 +83,9 @@ func getNodeTemplate(pm PackageManager) string {
 func getJavaTemplate(pm PackageManager) string {
 	switch pm {
 	case PMGradle:
-		return formatHeader("Java Project (Gradle)", "This configuration defines a CI workflow for Java projects using Gradle.\n# Customize the tasks below to match your project structure.") + templateJavaGradle
+		return formatHeader("Java Project (Gradle)", "# This configuration defines a CI workflow for Java projects using Gradle.\n# Customize the tasks below to match your project structure.") + templateJavaGradle
 	default:
-		return formatHeader("Java Project (Maven)", "This configuration defines a CI workflow for Java projects using Maven.\n# Customize the tasks below to match your project structure.") + templateJavaMaven
+		return formatHeader("Java Project (Maven)", "# This configuration defines a CI workflow for Java projects using Maven.\n# Customize the tasks below to match your project structure.") + templateJavaMaven
 	}
 }
 
@@ -93,9 +93,9 @@ func getJavaTemplate(pm PackageManager) string {
 func getCppTemplate(pm PackageManager) string {
 	switch pm {
 	case PMMeson:
-		return formatHeader("C/C++ Project (Meson)", "This configuration defines a CI workflow for C/C++ projects using Meson.\n# Customize the tasks below to match your project structure.") + templateCppMeson
+		return formatHeader("C/C++ Project (Meson)", "# This configuration defines a CI workflow for C/C++ projects using Meson.\n# Customize the tasks below to match your project structure.") + templateCppMeson
 	default:
-		return formatHeader("C/C++ Project (CMake)", "This configuration defines a CI workflow for C/C++ projects using CMake.\n# Customize the tasks below to match your project structure.") + templateCppCMake
+		return formatHeader("C/C++ Project (CMake)", "# This configuration defines a CI workflow for C/C++ projects using CMake.\n# Customize the tasks below to match your project structure.") + templateCppCMake
 	}
 }
 

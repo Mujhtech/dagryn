@@ -1,6 +1,5 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useAuth } from "~/lib/auth";
 import { useRunArtifacts, useRunDetail, useRunLogs } from "~/hooks/queries";
 import { useCancelRun, useDeleteArtifact } from "~/hooks/mutations";
 import type { Artifact, TaskResult, LogEntry } from "~/lib/api";
@@ -26,7 +25,9 @@ import { Input } from "~/components/ui/input";
 import { cn } from "~/lib/utils";
 import { Icons } from "~/components/icons";
 
-export const Route = createFileRoute("/projects/$projectId/runs/$runId")({
+export const Route = createFileRoute(
+  "/_dashboard_layout/projects/$projectId/runs/$runId",
+)({
   component: RunDetailPage,
 });
 
@@ -40,8 +41,6 @@ interface LogLine {
 
 function RunDetailPage() {
   const { projectId, runId } = Route.useParams();
-  const navigate = useNavigate();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   // Use TanStack Query for initial data fetch
   const {
@@ -82,12 +81,6 @@ function RunDetailPage() {
   const streamRef = useRef<RunStreamClient | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const lastLogIdRef = useRef<number>(0);
-
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      navigate({ to: "/login" });
-    }
-  }, [isAuthenticated, authLoading, navigate]);
 
   // Sync initial data from query to local state
   useEffect(() => {
@@ -137,7 +130,7 @@ function RunDetailPage() {
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated || !run) return;
+    if (!run) return;
 
     // Connect to SSE for real-time updates
     const stream = new RunStreamClient();
@@ -207,7 +200,7 @@ function RunDetailPage() {
     return () => {
       stream.disconnect();
     };
-  }, [projectId, runId, isAuthenticated, run, updateTaskStatus]);
+  }, [projectId, runId, run, updateTaskStatus]);
 
   // Fallback polling when SSE is not connected (e.g. server-side worker runs).
   useEffect(() => {
@@ -291,11 +284,7 @@ function RunDetailPage() {
   };
 
   const handleDownloadArtifact = async (artifact: Artifact) => {
-    const result = await api.downloadArtifact(
-      projectId,
-      runId,
-      artifact.id,
-    );
+    const result = await api.downloadArtifact(projectId, runId, artifact.id);
     const url = URL.createObjectURL(result.blob);
     const a = document.createElement("a");
     a.href = url;
@@ -316,7 +305,7 @@ function RunDetailPage() {
     });
   };
 
-  if (authLoading || runLoading) {
+  if (runLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>

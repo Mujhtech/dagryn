@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"errors"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +15,29 @@ import (
 // RunRepo handles run database operations.
 type RunRepo struct {
 	pool *pgxpool.Pool
+}
+
+// RunDashboardChartPoint is an aggregated daily run summary.
+type RunDashboardChartPoint struct {
+	Date       time.Time
+	Success    int
+	Failed     int
+	DurationMs int64
+}
+
+// RunDashboardUserFacet is a selectable user facet in run dashboards.
+type RunDashboardUserFacet struct {
+	ID        string
+	Name      string
+	AvatarURL *string
+}
+
+// RunDashboardFacets contains stable, non-paginated run filters.
+type RunDashboardFacets struct {
+	Users       []RunDashboardUserFacet
+	Workflows   []string
+	Branches    []string
+	StatusCount map[string]int
 }
 
 // NewRunRepo creates a new run repository.
@@ -197,6 +221,186 @@ func (r *RunRepo) ListByProject(ctx context.Context, projectID uuid.UUID, limit,
 		runs = append(runs, run)
 	}
 	return runs, total, rows.Err()
+}
+
+// GetDashboardChartByProject returns daily aggregated run counts and duration.
+func (r *RunRepo) GetDashboardChartByProject(ctx context.Context, projectID uuid.UUID, days int) ([]RunDashboardChartPoint, error) {
+	if days <= 0 {
+		days = 30
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT
+			DATE(created_at) AS day,
+			COUNT(*) FILTER (WHERE status = 'success') AS success_count,
+			COUNT(*) FILTER (WHERE status = 'failed') AS failed_count,
+			COALESCE(ROUND(AVG(duration_ms)), 0)::bigint AS avg_duration_ms
+		FROM runs
+		WHERE project_id = $1
+		  AND created_at >= NOW() - ($2::int * INTERVAL '1 day')
+		GROUP BY day
+		ORDER BY day ASC
+	`, projectID, days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	points := make([]RunDashboardChartPoint, 0)
+	for rows.Next() {
+		var p RunDashboardChartPoint
+		if err := rows.Scan(&p.Date, &p.Success, &p.Failed, &p.DurationMs); err != nil {
+			return nil, err
+		}
+		points = append(points, p)
+	}
+	return points, rows.Err()
+}
+
+// GetDashboardFacetsByProject returns stable, non-paginated filter facets.
+func (r *RunRepo) GetDashboardFacetsByProject(ctx context.Context, projectID uuid.UUID) (*RunDashboardFacets, error) {
+	facets := &RunDashboardFacets{
+		Users:       make([]RunDashboardUserFacet, 0),
+		Workflows:   make([]string, 0),
+		Branches:    make([]string, 0),
+		StatusCount: map[string]int{},
+	}
+
+	// Status counts
+	statusRows, err := r.pool.Query(ctx, `
+		SELECT status, COUNT(*)::int
+		FROM runs
+		WHERE project_id = $1
+		GROUP BY status
+	`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer statusRows.Close()
+	for statusRows.Next() {
+		var status string
+		var count int
+		if err := statusRows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+		facets.StatusCount[status] = count
+	}
+	if err := statusRows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Workflow names: prefer stored workflow_name, fallback to first target.
+	workflowRows, err := r.pool.Query(ctx, `
+		SELECT DISTINCT COALESCE(NULLIF(workflow_name, ''), NULLIF(targets[1], '')) AS workflow
+		FROM runs
+		WHERE project_id = $1
+		  AND COALESCE(NULLIF(workflow_name, ''), NULLIF(targets[1], '')) IS NOT NULL
+		ORDER BY workflow ASC
+	`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer workflowRows.Close()
+	for workflowRows.Next() {
+		var workflow string
+		if err := workflowRows.Scan(&workflow); err != nil {
+			return nil, err
+		}
+		facets.Workflows = append(facets.Workflows, workflow)
+	}
+	if err := workflowRows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Branches
+	branchRows, err := r.pool.Query(ctx, `
+		SELECT DISTINCT git_branch
+		FROM runs
+		WHERE project_id = $1
+		  AND git_branch IS NOT NULL
+		  AND git_branch <> ''
+		ORDER BY git_branch ASC
+	`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer branchRows.Close()
+	for branchRows.Next() {
+		var branch string
+		if err := branchRows.Scan(&branch); err != nil {
+			return nil, err
+		}
+		facets.Branches = append(facets.Branches, branch)
+	}
+	if err := branchRows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Users from triggered_by_user_id joined against users.
+	userIndex := make(map[string]RunDashboardUserFacet)
+	userRows, err := r.pool.Query(ctx, `
+		SELECT DISTINCT
+			u.id::text AS id,
+			COALESCE(NULLIF(u.name, ''), u.email) AS name,
+			u.avatar_url
+		FROM runs r
+		JOIN users u ON u.id = r.triggered_by_user_id
+		WHERE r.project_id = $1
+	`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer userRows.Close()
+	for userRows.Next() {
+		var user RunDashboardUserFacet
+		if err := userRows.Scan(&user.ID, &user.Name, &user.AvatarURL); err != nil {
+			return nil, err
+		}
+		userIndex[user.ID] = user
+	}
+	if err := userRows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Commit authors as additional filter users.
+	authorRows, err := r.pool.Query(ctx, `
+		SELECT DISTINCT
+			COALESCE(NULLIF(commit_author_email, ''), NULLIF(commit_author_name, '')) AS id,
+			COALESCE(NULLIF(commit_author_name, ''), commit_author_email) AS name
+		FROM runs
+		WHERE project_id = $1
+		  AND COALESCE(NULLIF(commit_author_email, ''), NULLIF(commit_author_name, '')) IS NOT NULL
+		  AND COALESCE(NULLIF(commit_author_name, ''), commit_author_email) IS NOT NULL
+	`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer authorRows.Close()
+	for authorRows.Next() {
+		var id, name string
+		if err := authorRows.Scan(&id, &name); err != nil {
+			return nil, err
+		}
+		if _, exists := userIndex[id]; !exists {
+			userIndex[id] = RunDashboardUserFacet{
+				ID:   id,
+				Name: name,
+			}
+		}
+	}
+	if err := authorRows.Err(); err != nil {
+		return nil, err
+	}
+
+	facets.Users = make([]RunDashboardUserFacet, 0, len(userIndex))
+	for _, user := range userIndex {
+		facets.Users = append(facets.Users, user)
+	}
+	sort.Slice(facets.Users, func(i, j int) bool {
+		return facets.Users[i].Name < facets.Users[j].Name
+	})
+
+	return facets, nil
 }
 
 // GetActiveByProject returns currently running/pending runs for a project.

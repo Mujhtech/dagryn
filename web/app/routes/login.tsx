@@ -3,13 +3,6 @@ import { useEffect, useState } from "react";
 import { useAuth } from "~/lib/auth";
 import { useAuthProviders } from "~/hooks/queries";
 import { Button } from "~/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card";
 import { cn } from "~/lib/utils";
 import { Logo } from "~/components/logo";
 
@@ -70,7 +63,7 @@ function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-muted/50 p-4">
+    <div className="bg-background flex min-h-screen flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="mb-8 text-center">
@@ -83,57 +76,49 @@ function LoginPage() {
           </p>
         </div>
 
-        <Card>
-          <CardHeader className="text-center">
-            <CardTitle className="text-xl">Welcome back</CardTitle>
-            <CardDescription>
-              Sign in to your account to continue
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {providersLoading ? (
-              <div className="text-center text-muted-foreground py-4">
-                Loading providers...
-              </div>
-            ) : (
-              providers.map((provider) => (
-                <Button
-                  key={provider.name}
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => handleOAuthLogin(provider.auth_url)}
-                  disabled={loadingProvider !== null}
-                >
-                  {loadingProvider === provider.name ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
-                  ) : (
-                    <ProviderIcon
-                      provider={provider.name}
-                      className="mr-2 h-4 w-4"
-                    />
-                  )}
-                  Continue with {provider.name}
-                </Button>
-              ))
-            )}
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">Or</span>
-              </div>
+        <div className="space-y-4">
+          {providersLoading ? (
+            <div className="text-center text-muted-foreground py-4">
+              Loading providers...
             </div>
+          ) : (
+            providers.map((provider) => (
+              <Button
+                key={provider.name}
+                variant="outline"
+                className="w-full"
+                onClick={() => handleOAuthLogin(provider.auth_url)}
+                disabled={loadingProvider !== null}
+              >
+                {loadingProvider === provider.name ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+                ) : (
+                  <ProviderIcon
+                    provider={provider.name}
+                    className="mr-2 h-4 w-4"
+                  />
+                )}
+                Continue with {provider.name}
+              </Button>
+            ))
+          )}
 
-            <div className="text-center text-sm text-muted-foreground">
-              <p>Use the CLI to authenticate:</p>
-              <code className="mt-2 block rounded bg-muted p-2 text-xs">
-                dagryn auth login
-              </code>
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
             </div>
-          </CardContent>
-        </Card>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">Or</span>
+            </div>
+          </div>
+
+          <div className="text-center text-sm text-muted-foreground">
+            <p>Use the CLI to authenticate:</p>
+            <code className="mt-2 block rounded bg-muted p-2 text-xs">
+              dagryn auth login
+            </code>
+          </div>
+        </div>
 
         <p className="mt-4 text-center text-sm text-muted-foreground">
           By signing in, you agree to our{" "}

@@ -34,6 +34,8 @@ export const queryKeys = {
   invitations: ["invitations"] as const,
   runs: (projectId: string, page?: number) =>
     ["runs", projectId, page] as const,
+  runDashboardSummary: (projectId: string, days: number) =>
+    ["runDashboardSummary", projectId, days] as const,
   runDetail: (projectId: string, runId: string) =>
     ["runDetail", projectId, runId] as const,
   runArtifacts: (projectId: string, runId: string) =>
@@ -51,4 +53,8 @@ export const queryKeys = {
   cacheStats: (projectId: string) => ["cacheStats", projectId] as const,
   cacheAnalytics: (projectId: string, days: number) =>
     ["cacheAnalytics", projectId, days] as const,
+  officialPlugins: (q?: string, type?: string, sort?: string) =>
+    ["officialPlugins", q ?? "", type ?? "", sort ?? ""] as const,
+  plugin: (pluginName: string) => ["plugin", pluginName] as const,
+  projectPlugins: (projectId: string) => ["projectPlugins", projectId] as const,
 };

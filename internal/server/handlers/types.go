@@ -354,6 +354,33 @@ type RunDetailResponse struct {
 	ErrorMessage   string               `json:"error_message,omitempty" example:"Task 'test' failed with exit code 1"`
 }
 
+// RunDashboardChartPointResponse is a daily aggregate for run dashboards.
+// @Description Daily chart point for project runs
+type RunDashboardChartPointResponse struct {
+	Date       string `json:"date" example:"2026-02-11"`
+	Success    int    `json:"success" example:"12"`
+	Failed     int    `json:"failed" example:"2"`
+	DurationMs int64  `json:"duration_ms" example:"95000"`
+}
+
+// RunDashboardUserFacetResponse is a user facet for run filters.
+// @Description Filterable user value for run dashboards
+type RunDashboardUserFacetResponse struct {
+	ID        string `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Name      string `json:"name" example:"Jane Doe"`
+	AvatarURL string `json:"avatar_url,omitempty" example:"https://example.com/avatar.png"`
+}
+
+// RunDashboardSummaryResponse contains non-paginated data for charts/facets.
+// @Description Stable run dashboard data independent of pagination
+type RunDashboardSummaryResponse struct {
+	Chart        []RunDashboardChartPointResponse `json:"chart"`
+	Users        []RunDashboardUserFacetResponse  `json:"users"`
+	Workflows    []string                         `json:"workflows"`
+	Branches     []string                         `json:"branches"`
+	StatusCounts map[string]int                   `json:"status_counts"`
+}
+
 // --- Artifact types ---
 
 // ArtifactResponse represents a stored artifact.

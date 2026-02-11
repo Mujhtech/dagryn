@@ -1,6 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useAuth } from "~/lib/auth";
 import { useTeam, useTeamMembers, useTeamInvitations } from "~/hooks/queries";
 import {
   useUpdateTeam,
@@ -41,14 +40,13 @@ import { Badge } from "~/components/ui/badge";
 import type { Team, TeamMember, Invitation } from "~/lib/api";
 import { Icons } from "~/components/icons";
 
-export const Route = createFileRoute("/teams/$teamId/")({
+export const Route = createFileRoute("/_dashboard_layout/teams/$teamId/")({
   component: TeamDetailPage,
 });
 
 function TeamDetailPage() {
   const { teamId } = Route.useParams();
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const {
     data: team,
@@ -71,12 +69,6 @@ function TeamDetailPage() {
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [isEditOpen, setIsEditOpen] = useState(false);
-
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      navigate({ to: "/login" });
-    }
-  }, [isAuthenticated, authLoading, navigate]);
 
   useEffect(() => {
     if (team) {
@@ -118,7 +110,7 @@ function TeamDetailPage() {
     );
   };
 
-  const loading = authLoading || teamLoading;
+  const loading = teamLoading;
   const membersList = (members as TeamMember[] | undefined) ?? [];
   const invitationsList = (invitations as Invitation[] | undefined) ?? [];
 

@@ -1,6 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useAuth } from "~/lib/auth";
 import { useTeams } from "~/hooks/queries";
 import { useCreateTeam } from "~/hooks/mutations";
 import {
@@ -33,13 +32,13 @@ function slugify(text: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-export const Route = createFileRoute("/teams/")({
+export const Route = createFileRoute("/_dashboard_layout/teams/")({
   component: TeamsPage,
 });
 
 function TeamsPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+
   const {
     data: teamsData,
     isLoading: teamsLoading,
@@ -52,12 +51,6 @@ function TeamsPage() {
   const [createSlug, setCreateSlug] = useState("");
   const [createDescription, setCreateDescription] = useState("");
   const [slugEdited, setSlugEdited] = useState(false);
-
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      navigate({ to: "/login" });
-    }
-  }, [isAuthenticated, authLoading, navigate]);
 
   useEffect(() => {
     if (!slugEdited && createName) {
@@ -86,7 +79,7 @@ function TeamsPage() {
     );
   };
 
-  const loading = authLoading || teamsLoading;
+  const loading = teamsLoading;
   const teams =
     (
       teamsData as

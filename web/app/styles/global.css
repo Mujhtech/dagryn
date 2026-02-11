@@ -391,3 +391,258 @@ html:active-view-transition-type(warp) {
     transform: scale(1) rotate(0deg);
   }
 }
+
+/* Landing page motion */
+.landing-shell {
+  background:
+    radial-gradient(
+      circle at 12% 18%,
+      color-mix(in oklab, var(--chart-2) 26%, transparent),
+      transparent 38%
+    ),
+    radial-gradient(
+      circle at 88% 10%,
+      color-mix(in oklab, var(--chart-1) 22%, transparent),
+      transparent 34%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--background) 90%, black),
+      var(--background)
+    );
+}
+
+.landing-grid {
+  display: grid;
+  gap: 1.75rem;
+}
+
+.landing-glow {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(48px);
+  opacity: 0.22;
+  pointer-events: none;
+  animation: landing-drift 11s ease-in-out infinite alternate;
+}
+
+.landing-glow-a {
+  width: 18rem;
+  height: 18rem;
+  background: color-mix(in oklab, var(--chart-2) 52%, transparent);
+  top: 8%;
+  left: 4%;
+}
+
+.landing-glow-b {
+  width: 14rem;
+  height: 14rem;
+  background: color-mix(in oklab, var(--chart-1) 50%, transparent);
+  top: 18%;
+  right: 6%;
+  animation-delay: 0.8s;
+}
+
+.landing-reveal {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: landing-reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+.landing-card {
+  transition:
+    transform 220ms ease,
+    border-color 220ms ease,
+    background-color 220ms ease;
+}
+
+.landing-card:hover {
+  transform: translateY(-2px);
+  background: color-mix(in oklab, var(--card) 74%, transparent);
+}
+
+.landing-badge {
+  border-color: color-mix(in oklab, var(--foreground) 26%, transparent);
+  background: color-mix(in oklab, var(--card) 52%, transparent);
+}
+
+.landing-title {
+  text-wrap: balance;
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+}
+
+.landing-terminal {
+  overflow: hidden;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--card) 72%, black),
+      color-mix(in oklab, var(--background) 84%, black)
+    ),
+    linear-gradient(
+      90deg,
+      color-mix(in oklab, var(--foreground) 2%, transparent),
+      transparent
+    );
+}
+
+.landing-terminal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  backdrop-filter: blur(2px);
+}
+
+.landing-terminal-dot {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--muted-foreground) 30%, transparent);
+}
+
+.landing-terminal-dot:nth-child(1):hover {
+  background: color-mix(in oklab, var(--chart-5) 50%, transparent);
+}
+
+.landing-terminal-dot:nth-child(2):hover {
+  background: color-mix(in oklab, var(--chart-3) 50%, transparent);
+}
+
+.landing-terminal-dot:nth-child(3):hover {
+  background: color-mix(in oklab, var(--chart-2) 50%, transparent);
+}
+
+.landing-rerun-button {
+  border: 1px solid color-mix(in oklab, var(--border) 88%, transparent);
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--background) 82%, black);
+  padding: 0.45rem 0.9rem;
+  font-size: 0.92rem;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease;
+  cursor: pointer;
+}
+
+.landing-rerun-button:hover {
+  border-color: color-mix(in oklab, var(--foreground) 35%, transparent);
+  background: color-mix(in oklab, var(--background) 68%, black);
+}
+
+.landing-rerun-button:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--ring) 80%, transparent);
+  outline-offset: 2px;
+}
+
+.landing-terminal-body {
+  min-height: 24rem;
+}
+
+.landing-terminal-line {
+  animation: terminal-line-in 260ms ease forwards;
+}
+
+.landing-terminal-accent {
+  color: color-mix(in oklab, var(--chart-3) 88%, orange);
+}
+
+.landing-terminal-ready {
+  color: color-mix(in oklab, var(--chart-3) 88%, orange);
+}
+
+.landing-terminal-cursor {
+  animation: terminal-cursor 0.9s steps(1, end) infinite;
+}
+
+.landing-footer {
+  position: relative;
+}
+
+.landing-wordmark-wrap {
+  margin-top: 1.2rem;
+  height: clamp(7rem, 14vw, 13rem);
+  overflow: hidden;
+  border-top: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
+  padding-top: 0.5rem;
+}
+
+.landing-wordmark-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.landing-wordmark-svg-text {
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  font-size: 248px;
+  font-weight: 620;
+  letter-spacing: -0.035em;
+  dominant-baseline: alphabetic;
+}
+
+@keyframes landing-reveal {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(8px, -10px, 0) scale(1.06);
+  }
+}
+
+@keyframes terminal-cursor {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes terminal-line-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-glow,
+  .landing-reveal,
+  .landing-card {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1;
+    transform: none;
+  }
+
+  .landing-terminal-line,
+  .landing-terminal-cursor {
+    animation: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .landing-terminal-body {
+    min-height: 21rem;
+  }
+
+  .landing-wordmark-wrap {
+    margin-top: 0.9rem;
+    height: clamp(6rem, 20vw, 9rem);
+  }
+}

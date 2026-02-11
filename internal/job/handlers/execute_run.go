@@ -21,6 +21,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/cache"
 	"github.com/mujhtech/dagryn/internal/cache/cloud"
 	"github.com/mujhtech/dagryn/internal/config"
+	"github.com/mujhtech/dagryn/internal/container"
 	"github.com/mujhtech/dagryn/internal/dag"
 	"github.com/mujhtech/dagryn/internal/db/models"
 	"github.com/mujhtech/dagryn/internal/db/repo"
@@ -57,6 +58,15 @@ const (
 	logBufferSize    = 50
 )
 
+// ContainerDefaults holds server-level container isolation defaults.
+type ContainerDefaults struct {
+	Enabled      bool
+	DefaultImage string
+	MemoryLimit  string
+	CPULimit     string
+	Network      string
+}
+
 // ExecuteRunHandler handles the execute_run job: clone repo, load config, run workflow, report status.
 type ExecuteRunHandler struct {
 	runs                *repo.RunRepo
@@ -69,6 +79,7 @@ type ExecuteRunHandler struct {
 	cacheService        *service.CacheService
 	artifactService     *service.ArtifactService
 	cancelManager       CancelManager
+	containerDefaults   *ContainerDefaults
 }
 
 // GitHubAppClient is an interface for fetching installation tokens.
@@ -97,7 +108,7 @@ func NewGitHubAppClientAdapter(client *githubapp.Client) GitHubAppClient {
 }
 
 // NewExecuteRunHandler creates an ExecuteRun handler.
-func NewExecuteRunHandler(runs *repo.RunRepo, projects *repo.ProjectRepo, encrypter encrypt.Encrypt, providerTokens *repo.ProviderTokenRepo, providerEncrypt encrypt.Encrypt, githubApp GitHubAppClient, githubInstallations *repo.GitHubInstallationRepo, cacheService *service.CacheService, artifactService *service.ArtifactService, cancelManager CancelManager) *ExecuteRunHandler {
+func NewExecuteRunHandler(runs *repo.RunRepo, projects *repo.ProjectRepo, encrypter encrypt.Encrypt, providerTokens *repo.ProviderTokenRepo, providerEncrypt encrypt.Encrypt, githubApp GitHubAppClient, githubInstallations *repo.GitHubInstallationRepo, cacheService *service.CacheService, artifactService *service.ArtifactService, cancelManager CancelManager, containerDefaults *ContainerDefaults) *ExecuteRunHandler {
 	return &ExecuteRunHandler{
 		runs:                runs,
 		projects:            projects,
@@ -109,6 +120,7 @@ func NewExecuteRunHandler(runs *repo.RunRepo, projects *repo.ProjectRepo, encryp
 		cacheService:        cacheService,
 		artifactService:     artifactService,
 		cancelManager:       cancelManager,
+		containerDefaults:   containerDefaults,
 	}
 }
 
@@ -473,6 +485,13 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		})
 	}
 
+	// Build container config: merge server defaults with project config.
+	// Project config takes precedence over server defaults.
+	containerCfg := h.buildContainerConfig(cfg)
+	if containerCfg != nil {
+		opts.ContainerConfig = containerCfg
+	}
+
 	sched, err := scheduler.New(workflow, workDir, opts)
 	if err != nil {
 		msg := fmt.Sprintf("scheduler: %v", err)
@@ -608,6 +627,42 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	_ = h.runs.Complete(ctx, runID, models.RunStatusSuccess, nil)
 	h.notifyGitHub(ctx, run, project, models.RunStatusSuccess)
 	return nil
+}
+
+// buildContainerConfig merges server-level defaults with project-level config.
+// Returns nil if container isolation is not enabled.
+func (h *ExecuteRunHandler) buildContainerConfig(cfg *config.Config) *container.Config {
+	// Start with server defaults
+	result := &container.Config{}
+	if h.containerDefaults != nil {
+		result.Enabled = h.containerDefaults.Enabled
+		result.Image = h.containerDefaults.DefaultImage
+		result.MemoryLimit = h.containerDefaults.MemoryLimit
+		result.CPULimit = h.containerDefaults.CPULimit
+		result.Network = h.containerDefaults.Network
+	}
+
+	// Project config overrides server defaults
+	if cfg.Container.Enabled {
+		result.Enabled = true
+	}
+	if cfg.Container.Image != "" {
+		result.Image = cfg.Container.Image
+	}
+	if cfg.Container.MemoryLimit != "" {
+		result.MemoryLimit = cfg.Container.MemoryLimit
+	}
+	if cfg.Container.CPULimit != "" {
+		result.CPULimit = cfg.Container.CPULimit
+	}
+	if cfg.Container.Network != "" {
+		result.Network = cfg.Container.Network
+	}
+
+	if !result.Enabled {
+		return nil
+	}
+	return result
 }
 
 func (h *ExecuteRunHandler) markRunCancelled(runID uuid.UUID, project *models.Project, reason string) {

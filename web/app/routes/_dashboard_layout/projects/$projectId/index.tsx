@@ -1,7 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "~/lib/auth";
-import { useProject, useRuns, useProjectWorkflows } from "~/hooks/queries";
+import {
+  useProject,
+  useRuns,
+  useProjectWorkflows,
+  useRunDashboardSummary,
+} from "~/hooks/queries";
 import { useTriggerRun } from "~/hooks/mutations";
 import { useRunFilters } from "~/hooks/use-url-filters";
 import type { RunStatus, TriggerRunRequest, Run } from "~/lib/api";
@@ -46,9 +51,11 @@ import {
 } from "recharts";
 import { cn } from "~/lib/utils";
 
-export const Route = createFileRoute("/projects/$projectId/")({
-  component: ProjectDetailPage,
-});
+export const Route = createFileRoute("/_dashboard_layout/projects/$projectId/")(
+  {
+    component: ProjectDetailPage,
+  },
+);
 
 const SCROLLBAR_CLASS =
   "scrollbar-foreground scrollbar-track-transparent scrollbar-thin";
@@ -56,11 +63,7 @@ const SCROLLBAR_CLASS =
 function ProjectDetailPage() {
   const { projectId } = Route.useParams();
   const navigate = useNavigate();
-  const {
-    isAuthenticated,
-    isLoading: authLoading,
-    user: currentUser,
-  } = useAuth();
+  const { user: currentUser } = useAuth();
 
   // URL-persisted pagination and filter state
   const {
@@ -104,15 +107,10 @@ function ProjectDetailPage() {
     page,
     perPage,
   );
+  const { data: runSummary } = useRunDashboardSummary(projectId, 30, true);
 
   // Mutation for triggering runs
   const triggerRunMutation = useTriggerRun(projectId);
-
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      navigate({ to: "/login" });
-    }
-  }, [isAuthenticated, authLoading, navigate]);
 
   const handleTriggerRun = () => {
     const request: TriggerRunRequest = {};
@@ -144,50 +142,23 @@ function ProjectDetailPage() {
     });
   };
 
-  const loading = authLoading || projectLoading;
+  const loading = projectLoading;
   const allRuns = runsData?.data ?? [];
 
   // Extract unique values for filters
-  const uniqueUsers = useMemo(() => {
-    const users = new Map<string, { name: string; avatar?: string }>();
-    allRuns.forEach((run) => {
-      if (run.triggered_by_user) {
-        users.set(run.triggered_by_user.id, {
-          name: run.triggered_by_user.name,
-          avatar: run.triggered_by_user.avatar_url,
-        });
-      }
-      if (run.commit_author_name) {
-        const key = run.commit_author_email || run.commit_author_name;
-        if (!users.has(key)) {
-          users.set(key, {
-            name: run.commit_author_name,
-            avatar: undefined,
-          });
-        }
-      }
-    });
-    return Array.from(users.entries()).map(([id, info]) => ({ id, ...info }));
-  }, [allRuns]);
+  const uniqueUsers = useMemo(
+    () =>
+      (runSummary?.users ?? []).map((user) => ({
+        id: user.id,
+        name: user.name,
+        avatar: user.avatar_url,
+      })),
+    [runSummary?.users],
+  );
 
-  const uniqueWorkflows = useMemo(() => {
-    const workflows = new Set<string>();
-    allRuns.forEach((run) => {
-      if (run.workflow_name) workflows.add(run.workflow_name);
-    });
-    return Array.from(workflows).sort();
-  }, [allRuns]);
-
-  const uniqueBranches = useMemo(() => {
-    const branches = new Set<string>();
-    allRuns.forEach((run) => {
-      if (run.trigger_ref) {
-        const branch = run.trigger_ref.replace("refs/heads/", "");
-        branches.add(branch);
-      }
-    });
-    return Array.from(branches).sort();
-  }, [allRuns]);
+  const uniqueWorkflows = runSummary?.workflows ?? [];
+  const uniqueBranches = runSummary?.branches ?? [];
+  const dashboardChartData = runSummary?.chart ?? [];
 
   // Apply filters
   const filteredRuns = useMemo(() => {
@@ -271,6 +242,7 @@ function ProjectDetailPage() {
       <WorkflowDashboard
         project={project}
         projectId={projectId}
+        chartData={dashboardChartData}
         runs={filteredRuns}
         runsLoading={runsLoading}
         page={page}
@@ -518,6 +490,7 @@ function ProjectDetailPage() {
 function WorkflowDashboard({
   project,
   projectId,
+  chartData,
   runs,
   runsLoading,
   page,
@@ -561,6 +534,12 @@ function WorkflowDashboard({
 }: {
   project: { id: string; name: string; slug: string; repo_url?: string };
   projectId: string;
+  chartData: Array<{
+    date: string;
+    success: number;
+    failed: number;
+    duration_ms: number;
+  }>;
   runs: Run[];
   runsLoading: boolean;
   page: number;
@@ -607,43 +586,6 @@ function WorkflowDashboard({
     avatar_url?: string;
   } | null;
 }) {
-  // Prepare chart data (group runs by date)
-  const chartData = useMemo(() => {
-    const dataMap = new Map<
-      string,
-      {
-        date: string;
-        success: number;
-        failed: number;
-        duration: number;
-        count: number;
-      }
-    >();
-    runs.forEach((run) => {
-      const date = new Date(run.created_at).toLocaleDateString();
-      if (!dataMap.has(date)) {
-        dataMap.set(date, {
-          date,
-          success: 0,
-          failed: 0,
-          duration: 0,
-          count: 0,
-        });
-      }
-      const entry = dataMap.get(date)!;
-      entry.count++;
-      if (run.status === "success") entry.success++;
-      if (run.status === "failed") entry.failed++;
-      if (run.duration_ms) {
-        entry.duration =
-          (entry.duration * (entry.count - 1) + run.duration_ms) / entry.count;
-      }
-    });
-    return Array.from(dataMap.values()).sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
-    );
-  }, [runs]);
-
   // Fetch workflow data
   const { data: workflows } = useProjectWorkflows(projectId);
   const latestWorkflow = workflows?.[0];
@@ -998,7 +940,14 @@ function WorkflowDashboard({
                   className="h-[300px]"
                 >
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={chartData}>
+                    <ComposedChart
+                      data={chartData.map((point) => ({
+                        date: point.date,
+                        success: point.success,
+                        failed: point.failed,
+                        duration: point.duration_ms,
+                      }))}
+                    >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
                       <YAxis
