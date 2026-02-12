@@ -327,7 +327,7 @@ function TerminalPreview() {
           "linear-gradient(black 50%, rgba(0, 0, 0, 0.5) 75%, transparent 100%)",
       }}
     >
-      <div className="landing-terminal border border-border/70 bg-card/30 h-full max-h-[700px] flex flex-col">
+      <div className="landing-terminal border border-border/70 bg-card/30 h-full max-h-175 flex flex-col">
         <div className="landing-terminal-head border-b border-border/70 px-4 py-3 md:px-6">
           <div className="flex items-center gap-2">
             <span className="landing-terminal-dot" />
@@ -415,7 +415,7 @@ function StepTile({
         {step}
       </p>
       <p className="mt-2 text-sm font-semibold">{title}</p>
-      <code className="mt-3 block rounded-lg bg-background/70 px-2 py-1 text-xs">
+      <code className="mt-3 block bg-background/90 px-2 py-1 text-xs">
         {command}
       </code>
       <p className="mt-2 text-xs text-muted-foreground">{description}</p>

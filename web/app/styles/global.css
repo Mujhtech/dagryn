@@ -397,12 +397,12 @@ html:active-view-transition-type(warp) {
   background:
     radial-gradient(
       circle at 12% 18%,
-      color-mix(in oklab, var(--chart-2) 26%, transparent),
+      color-mix(in oklab, var(--foreground) 26%, transparent),
       transparent 38%
     ),
     radial-gradient(
       circle at 88% 10%,
-      color-mix(in oklab, var(--chart-1) 22%, transparent),
+      color-mix(in oklab, var(--background) 22%, transparent),
       transparent 34%
     ),
     linear-gradient(
@@ -429,7 +429,7 @@ html:active-view-transition-type(warp) {
 .landing-glow-a {
   width: 18rem;
   height: 18rem;
-  background: color-mix(in oklab, var(--chart-2) 52%, transparent);
+  background: color-mix(in oklab, var(--foreground) 52%, transparent);
   top: 8%;
   left: 4%;
 }
@@ -437,7 +437,7 @@ html:active-view-transition-type(warp) {
 .landing-glow-b {
   width: 14rem;
   height: 14rem;
-  background: color-mix(in oklab, var(--chart-1) 50%, transparent);
+  background: color-mix(in oklab, var(--foreground) 50%, transparent);
   top: 18%;
   right: 6%;
   animation-delay: 0.8s;
