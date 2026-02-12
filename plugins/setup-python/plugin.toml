@@ -14,6 +14,10 @@ default = "3.12"
 description = "Cache pip packages"
 default = "true"
 
+[inputs.cleanup-python-version-file]
+description = "Remove .python-version after execution (for pyenv local setups)"
+default = "false"
+
 [[step]]
 name = "check-existing"
 command = """
@@ -70,4 +74,21 @@ if = "${inputs.cache}"
 command = """
 PIP_CACHE=$(python3 -m pip cache dir 2>/dev/null || echo "$HOME/.cache/pip")
 echo "Pip cache at $PIP_CACHE eligible for caching"
+"""
+
+[[cleanup]]
+name = "remove-python-version-file"
+if = "${inputs.cleanup-python-version-file}"
+command = """
+if [ -f ".python-version" ] && grep -q "^${inputs.python-version}" ".python-version"; then
+  rm -f ".python-version"
+  echo "Removed .python-version created for ${inputs.python-version}"
+fi
+"""
+
+[[cleanup]]
+name = "shell-cache-reset"
+command = """
+hash -r 2>/dev/null || true
+echo "setup-python cleanup complete"
 """

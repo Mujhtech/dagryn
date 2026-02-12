@@ -5,6 +5,7 @@ version = "1.0.0"
 type = "composite"
 author = "dagryn"
 license = "MIT"
+homepage = "https://github.com/mujhtech/dagryn/plugins/cache-s3"
 
 [inputs.bucket]
 required = true

@@ -56,3 +56,10 @@ else
   echo "No Go module cache found yet"
 fi
 """
+
+[[cleanup]]
+name = "shell-cache-reset"
+command = """
+hash -r 2>/dev/null || true
+echo "setup-go cleanup complete"
+"""

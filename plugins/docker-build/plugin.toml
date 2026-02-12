@@ -25,6 +25,10 @@ default = "false"
 [inputs.build-args]
 description = "Comma-separated build args (e.g. FOO=bar,BAZ=qux)"
 
+[inputs.cleanup-local-images]
+description = "Remove built local images during cleanup"
+default = "false"
+
 [[step]]
 name = "check-docker"
 command = """
@@ -68,5 +72,32 @@ TAGS="${inputs.tags}"
 IFS=',' ; for tag in $TAGS; do
   echo "Pushing: $tag"
   docker push "$tag"
+done
+"""
+
+[[cleanup]]
+name = "logout-registries"
+command = """
+TAGS="${inputs.tags}"
+IFS=',' ; for tag in $TAGS; do
+  IMAGE="${tag%%:*}"
+  REGISTRY="${IMAGE%%/*}"
+  case "$REGISTRY" in
+    *.*|*:*|localhost)
+      echo "Logging out of registry: $REGISTRY"
+      docker logout "$REGISTRY" >/dev/null 2>&1 || true
+      ;;
+  esac
+done
+"""
+
+[[cleanup]]
+name = "remove-local-images"
+if = "${inputs.cleanup-local-images}"
+command = """
+TAGS="${inputs.tags}"
+IFS=',' ; for tag in $TAGS; do
+  echo "Removing local image: $tag"
+  docker image rm "$tag" >/dev/null 2>&1 || true
 done
 """

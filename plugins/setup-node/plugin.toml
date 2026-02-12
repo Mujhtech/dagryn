@@ -64,3 +64,10 @@ else
   echo "No lock file found, skipping cache"
 fi
 """
+
+[[cleanup]]
+name = "shell-cache-reset"
+command = """
+hash -r 2>/dev/null || true
+echo "setup-node cleanup complete"
+"""
