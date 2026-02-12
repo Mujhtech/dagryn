@@ -13,19 +13,55 @@
 #   workdir  - Working directory for the command
 #   env      - Environment variables as key=value pairs
 #   uses     - Plugin(s) to install before running the task
+#
+# Cache configuration:
+#   [cache]
+#   enabled = true                    # Enable/disable local caching (default: true)
+#   dir = ""             # Override local cache directory
+#
+#   [cache.remote]
+#   enabled = true                    # Enable remote cache sharing
+#   cloud = true                      # Use Dagryn Cloud cache (requires "dagryn login")
+#   strategy = "local-first"          # "local-first", "remote-first", or "write-through"
+#   fallback_on_error = true          # Fall back to local cache on remote errors
+#
+#   # Self-hosted remote cache (when cloud = false):
+#   provider = "s3"                   # "s3" or "filesystem"
+#   bucket = "my-cache-bucket"
+#   region = "us-east-1"
+#   endpoint = ""                     # Custom S3 endpoint (for R2, MinIO, etc.)
+#   access_key_id = ""
+#   secret_access_key = ""
+#   prefix = ""                       # Key prefix in the bucket
 
 [workflow]
 name = "ci"
 default = true
 
+[workflow.trigger]
+[workflow.trigger.push]
+branches = [
+    "main",
+    "design",
+] # Match branches for push events (e.g., "main", "develop")
+[workflow.trigger.pull_request]
+branches = [
+    "main",
+    "design",
+] # Match branches for PR events (e.g., "main", "develop")
+types = ["opened", "synchronize"] # PR event types to match     
+
 # Global plugins (available to all tasks by reference name)
 [plugins]
 golangci-lint = "github:golangci/golangci-lint@v2.8.0"
+setup-node = "local:./plugins/setup-node"
+setup-go = "local:./plugins/setup-go"
 
 # Install dependencies
 [tasks.web-install]
 workdir = "web"
 command = "pnpm install --frozen-lockfile"
+uses = ["setup-node"]
 inputs = ["package.json", "pnpm-lock.yaml"]
 outputs = ["node_modules/**"]
 timeout = "5m"
@@ -59,6 +95,7 @@ timeout = "2m"
 # Build the Go application
 [tasks.go-build]
 command = "go build -v ./..."
+uses = ["setup-go"]
 needs = ["web-build"]
 inputs = ["**/*.go", "go.mod", "go.sum"]
 outputs = ["bin/**"]
@@ -91,7 +128,7 @@ timeout = "1m"
 [cache]
 # Local cache settings
 local = true
-dir = ".dagryn/cache"
+dir = ""
 
 [cache.remote]
 enabled = true

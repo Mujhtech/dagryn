@@ -109,3 +109,22 @@ webhook_secret = ""
 # secret_access_key = "minioadmin"
 # use_path_style = true
 # prefix = "v1/"
+
+# Artifact storage configuration (optional, enables artifact uploads)
+# Provider: "filesystem", "s3", "gcs", "azure", "r2", "minio"
+# Can also be configured via DAGRYN_ARTIFACT_STORAGE_* environment variables.
+#
+# --- Filesystem (local development) ---
+# [artifact_storage]
+# provider = "filesystem"
+# base_path = "/var/dagryn/artifacts"
+# prefix = ""
+#
+# --- AWS S3 ---
+# [artifact_storage]
+# provider = "s3"
+# bucket = "dagryn-artifacts"
+# region = "us-east-1"
+# access_key_id = ""      # or use AWS_ACCESS_KEY_ID env / IAM role
+# secret_access_key = ""  # or use AWS_SECRET_ACCESS_KEY env / IAM role
+# prefix = "v1/"
