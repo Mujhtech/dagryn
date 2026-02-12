@@ -25,10 +25,12 @@ type ClientPayload struct {
 
 // ExecuteRunPayload is the payload for the execute_run job (project ID, run ID, targets, git ref).
 type ExecuteRunPayload struct {
-	ProjectID string   `json:"project_id"`
-	RunID     string   `json:"run_id"`
-	Targets   []string `json:"targets"`
-	GitBranch string   `json:"git_branch,omitempty"`
-	GitCommit string   `json:"git_commit,omitempty"`
-	RepoURL   string   `json:"repo_url,omitempty"`
+	ProjectID   string   `json:"project_id"`
+	RunID       string   `json:"run_id"`
+	Targets     []string `json:"targets"`
+	GitBranch   string   `json:"git_branch,omitempty"`
+	GitCommit   string   `json:"git_commit,omitempty"`
+	RepoURL     string   `json:"repo_url,omitempty"`
+	EventType   string   `json:"event_type,omitempty"`   // "push", "pull_request"
+	EventAction string   `json:"event_action,omitempty"` // "opened", "synchronize", etc.
 }

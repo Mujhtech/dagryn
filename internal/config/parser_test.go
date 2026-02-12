@@ -88,3 +88,91 @@ func TestConfig_ToWorkflow_InvalidTimeout(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid timeout")
 }
+
+func TestParseBytes_WithTriggers(t *testing.T) {
+	toml := `
+[workflow]
+name = "ci"
+
+[workflow.trigger.push]
+branches = ["main", "develop"]
+
+[workflow.trigger.pull_request]
+branches = ["main"]
+types = ["opened", "synchronize"]
+
+[tasks.build]
+command = "go build ./..."
+`
+	cfg, err := ParseBytes([]byte(toml))
+	require.NoError(t, err)
+	require.NotNil(t, cfg.Workflow.Trigger)
+	require.NotNil(t, cfg.Workflow.Trigger.Push)
+	assert.Equal(t, []string{"main", "develop"}, cfg.Workflow.Trigger.Push.Branches)
+	require.NotNil(t, cfg.Workflow.Trigger.PullRequest)
+	assert.Equal(t, []string{"main"}, cfg.Workflow.Trigger.PullRequest.Branches)
+	assert.Equal(t, []string{"opened", "synchronize"}, cfg.Workflow.Trigger.PullRequest.Types)
+}
+
+func TestParseBytes_WithoutTriggers(t *testing.T) {
+	toml := `
+[workflow]
+name = "ci"
+
+[tasks.build]
+command = "go build ./..."
+`
+	cfg, err := ParseBytes([]byte(toml))
+	require.NoError(t, err)
+	assert.Nil(t, cfg.Workflow.Trigger)
+}
+
+func TestParseBytes_WithGroupAndIf(t *testing.T) {
+	toml := `
+[workflow]
+name = "ci"
+
+[tasks.build]
+command = "go build ./..."
+group = "backend"
+
+[tasks.deploy]
+command = "make deploy"
+group = "backend"
+if = "branch == 'main'"
+needs = ["build"]
+`
+	cfg, err := ParseBytes([]byte(toml))
+	require.NoError(t, err)
+
+	build := cfg.Tasks["build"]
+	assert.Equal(t, "backend", build.Group)
+	assert.Empty(t, build.If)
+
+	deploy := cfg.Tasks["deploy"]
+	assert.Equal(t, "backend", deploy.Group)
+	assert.Equal(t, "branch == 'main'", deploy.If)
+}
+
+func TestConfig_ToWorkflow_GroupAndIf(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build":  {Command: "go build ./...", Group: "backend"},
+			"deploy": {Command: "make deploy", Group: "backend", If: "branch == 'main'"},
+		},
+	}
+
+	w, err := cfg.ToWorkflow()
+	require.NoError(t, err)
+
+	build, ok := w.GetTask("build")
+	require.True(t, ok)
+	assert.Equal(t, "backend", build.Group)
+	assert.Empty(t, build.If)
+
+	deploy, ok := w.GetTask("deploy")
+	require.True(t, ok)
+	assert.Equal(t, "backend", deploy.Group)
+	assert.Equal(t, "branch == 'main'", deploy.If)
+}

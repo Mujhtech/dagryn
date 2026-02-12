@@ -20,6 +20,7 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/mujhtech/dagryn/internal/cache"
 	"github.com/mujhtech/dagryn/internal/cache/cloud"
+	"github.com/mujhtech/dagryn/internal/condition"
 	"github.com/mujhtech/dagryn/internal/config"
 	"github.com/mujhtech/dagryn/internal/container"
 	"github.com/mujhtech/dagryn/internal/dag"
@@ -30,6 +31,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/githubapp"
 	"github.com/mujhtech/dagryn/internal/notification"
 	"github.com/mujhtech/dagryn/internal/scheduler"
+	"github.com/mujhtech/dagryn/internal/server/sse"
 	"github.com/mujhtech/dagryn/internal/service"
 	"github.com/mujhtech/dagryn/internal/task"
 )
@@ -71,6 +73,7 @@ type ContainerDefaults struct {
 type ExecuteRunHandler struct {
 	runs                *repo.RunRepo
 	projects            *repo.ProjectRepo
+	workflows           *repo.WorkflowRepo
 	encrypter           encrypt.Encrypt
 	providerTokens      *repo.ProviderTokenRepo
 	providerEncrypt     encrypt.Encrypt
@@ -80,6 +83,7 @@ type ExecuteRunHandler struct {
 	artifactService     *service.ArtifactService
 	cancelManager       CancelManager
 	containerDefaults   *ContainerDefaults
+	eventPublisher      sse.EventPublisher
 }
 
 // GitHubAppClient is an interface for fetching installation tokens.
@@ -108,10 +112,14 @@ func NewGitHubAppClientAdapter(client *githubapp.Client) GitHubAppClient {
 }
 
 // NewExecuteRunHandler creates an ExecuteRun handler.
-func NewExecuteRunHandler(runs *repo.RunRepo, projects *repo.ProjectRepo, encrypter encrypt.Encrypt, providerTokens *repo.ProviderTokenRepo, providerEncrypt encrypt.Encrypt, githubApp GitHubAppClient, githubInstallations *repo.GitHubInstallationRepo, cacheService *service.CacheService, artifactService *service.ArtifactService, cancelManager CancelManager, containerDefaults *ContainerDefaults) *ExecuteRunHandler {
+func NewExecuteRunHandler(runs *repo.RunRepo, projects *repo.ProjectRepo, workflows *repo.WorkflowRepo, encrypter encrypt.Encrypt, providerTokens *repo.ProviderTokenRepo, providerEncrypt encrypt.Encrypt, githubApp GitHubAppClient, githubInstallations *repo.GitHubInstallationRepo, cacheService *service.CacheService, artifactService *service.ArtifactService, cancelManager CancelManager, containerDefaults *ContainerDefaults, eventPublisher sse.EventPublisher) *ExecuteRunHandler {
+	if eventPublisher == nil {
+		eventPublisher = sse.NoOpEventPublisher{}
+	}
 	return &ExecuteRunHandler{
 		runs:                runs,
 		projects:            projects,
+		workflows:           workflows,
 		encrypter:           encrypter,
 		providerTokens:      providerTokens,
 		providerEncrypt:     providerEncrypt,
@@ -121,6 +129,7 @@ func NewExecuteRunHandler(runs *repo.RunRepo, projects *repo.ProjectRepo, encryp
 		artifactService:     artifactService,
 		cancelManager:       cancelManager,
 		containerDefaults:   containerDefaults,
+		eventPublisher:      eventPublisher,
 	}
 }
 
@@ -191,12 +200,14 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	var payload struct {
-		ProjectID string   `json:"project_id"`
-		RunID     string   `json:"run_id"`
-		Targets   []string `json:"targets"`
-		GitBranch string   `json:"git_branch,omitempty"`
-		GitCommit string   `json:"git_commit,omitempty"`
-		RepoURL   string   `json:"repo_url,omitempty"`
+		ProjectID   string   `json:"project_id"`
+		RunID       string   `json:"run_id"`
+		Targets     []string `json:"targets"`
+		GitBranch   string   `json:"git_branch,omitempty"`
+		GitCommit   string   `json:"git_commit,omitempty"`
+		RepoURL     string   `json:"repo_url,omitempty"`
+		EventType   string   `json:"event_type,omitempty"`
+		EventAction string   `json:"event_action,omitempty"`
 	}
 	if err := json.Unmarshal([]byte(plaintext), &payload); err != nil {
 		slog.Error("execute_run: parse payload failed", "error", err)
@@ -252,7 +263,7 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	if ctx.Err() != nil {
-		h.markRunCancelled(runID, project, "Cancelled by user")
+		h.markRunCancelled(runID, projectID, project, "Cancelled by user")
 		return nil
 	}
 
@@ -276,11 +287,15 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	// Track cleanup as a synthetic task
 	cleanupStart := time.Now()
 	defer func() {
+		removeErr := os.RemoveAll(workDir)
+
 		// Create and complete cleanup task
 		if createErr := h.createSyntheticTask(ctx, runID, models.SyntheticTaskCleanup); createErr != nil {
 			slog.Warn("execute_run: create cleanup task failed", "run_id", runID, "error", createErr)
+			if removeErr != nil {
+				slog.Warn("execute_run: remove temp dir failed", "run_id", runID, "dir", workDir, "error", removeErr)
+			}
 		} else {
-			removeErr := os.RemoveAll(workDir)
 			cleanupDuration := time.Since(cleanupStart)
 			cleanupStatus := models.TaskStatusSuccess
 			cleanupLogs := []string{fmt.Sprintf("Removing temp directory: %s", workDir)}
@@ -393,6 +408,21 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("workflow: %w", err)
 	}
 
+	// Link workflow snapshot to run (best-effort)
+	if run.WorkflowID == nil && h.workflows != nil {
+		wfName := workflow.Name
+		if wfName == "" {
+			wfName = "default"
+		}
+		if wf, err := h.workflows.GetByProjectAndName(ctx, projectID, wfName); err == nil && wf != nil {
+			run.WorkflowID = &wf.ID
+			run.WorkflowName = &wf.Name
+			if updateErr := h.runs.Update(ctx, run); updateErr != nil {
+				slog.Warn("execute_run: failed to link workflow to run", "run_id", runID, "error", updateErr)
+			}
+		}
+	}
+
 	targets := payload.Targets
 	if len(targets) == 0 {
 		targets = run.Targets
@@ -415,6 +445,9 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		_ = h.runs.Complete(ctx, runID, models.RunStatusFailed, &msg)
 		return nil
 	}
+
+	// Resolve group names to task names
+	targets = workflow.ResolveTargets(targets)
 
 	for _, name := range targets {
 		if _, ok := workflow.GetTask(name); !ok {
@@ -456,6 +489,9 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("start run: %w", err)
 	}
 
+	// Publish SSE event: run started
+	h.eventPublisher.PublishRunEvent(ctx, sse.EventRunStarted, runID, projectID, string(models.RunStatusRunning), "")
+
 	// Notify GitHub that run has started
 	h.notifyGitHub(ctx, run, project, models.RunStatusRunning)
 
@@ -491,6 +527,18 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	if containerCfg != nil {
 		opts.ContainerConfig = containerCfg
 	}
+
+	// Build condition context from run metadata + payload
+	condCtx := &condition.Context{
+		Branch:      payload.GitBranch,
+		Event:       payload.EventType,
+		EventAction: payload.EventAction,
+		Trigger:     string(run.TriggeredBy),
+	}
+	if run.PRNumber != nil {
+		condCtx.PRNumber = *run.PRNumber
+	}
+	opts.ConditionContext = condCtx
 
 	sched, err := scheduler.New(workflow, workDir, opts)
 	if err != nil {
@@ -529,6 +577,7 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 			slog.Warn("execute_run: create task failed", "task", name, "error", err)
 			return
 		}
+		h.eventPublisher.PublishTaskEvent(ctx, sse.EventTaskStarted, runID, name, string(models.TaskStatusRunning), nil, nil, false, "")
 		logMu.Lock()
 		lineNums[name] = 0
 		logMu.Unlock()
@@ -551,6 +600,21 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		if err := h.runs.UpdateTaskResult(ctx, tr); err != nil {
 			slog.Warn("execute_run: update task failed", "task", name, "error", err)
 		}
+
+		// Publish SSE event for task completion
+		sseEventType := sse.EventTaskCompleted
+		switch result.Status {
+		case executor.Failed, executor.TimedOut:
+			sseEventType = sse.EventTaskFailed
+		case executor.Cached:
+			sseEventType = sse.EventTaskCached
+		case executor.Skipped:
+			sseEventType = sse.EventTaskSkipped
+		case executor.Cancelled:
+			sseEventType = sse.EventTaskFailed
+		}
+		h.eventPublisher.PublishTaskEvent(ctx, sseEventType, runID, name, string(status), &result.ExitCode, &dur, cacheHit, "")
+
 		if result.Status == executor.Failed || result.Status == executor.TimedOut || result.Status == executor.Cancelled {
 			_ = h.runs.IncrementFailed(ctx, runID)
 		} else {
@@ -575,9 +639,11 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 			logBuffer = logBuffer[:0]
 			logMu.Unlock()
 			_ = h.runs.AppendLogs(ctx, toSend)
-			return
+		} else {
+			logMu.Unlock()
 		}
-		logMu.Unlock()
+		// Publish log line to SSE immediately (independent of DB batch writes)
+		h.eventPublisher.PublishLogEvent(ctx, runID, taskName, stream, line, ln)
 	})
 
 	// Periodic log flush
@@ -600,13 +666,14 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	flushLogs()
 
 	if ctx.Err() == context.Canceled {
-		h.markRunCancelled(runID, project, "Cancelled by user")
+		h.markRunCancelled(runID, projectID, project, "Cancelled by user")
 		return nil
 	}
 
 	if err != nil {
 		msg := err.Error()
 		_ = h.runs.Complete(ctx, runID, models.RunStatusFailed, &msg)
+		h.eventPublisher.PublishRunEvent(ctx, sse.EventRunFailed, runID, projectID, string(models.RunStatusFailed), msg)
 		h.notifyGitHub(ctx, run, project, models.RunStatusFailed)
 		return err
 	}
@@ -616,6 +683,7 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	if summary != nil && summary.Failures > 0 {
 		msg := fmt.Sprintf("%d task(s) failed", summary.Failures)
 		_ = h.runs.Complete(ctx, runID, models.RunStatusFailed, &msg)
+		h.eventPublisher.PublishRunEvent(ctx, sse.EventRunFailed, runID, projectID, string(models.RunStatusFailed), msg)
 		h.notifyGitHub(ctx, run, project, models.RunStatusFailed)
 		return nil
 	}
@@ -625,6 +693,7 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	_ = h.runs.Complete(ctx, runID, models.RunStatusSuccess, nil)
+	h.eventPublisher.PublishRunEvent(ctx, sse.EventRunCompleted, runID, projectID, string(models.RunStatusSuccess), "")
 	h.notifyGitHub(ctx, run, project, models.RunStatusSuccess)
 	return nil
 }
@@ -665,7 +734,7 @@ func (h *ExecuteRunHandler) buildContainerConfig(cfg *config.Config) *container.
 	return result
 }
 
-func (h *ExecuteRunHandler) markRunCancelled(runID uuid.UUID, project *models.Project, reason string) {
+func (h *ExecuteRunHandler) markRunCancelled(runID, projectID uuid.UUID, project *models.Project, reason string) {
 	ctx := context.Background()
 	run, err := h.runs.GetByID(ctx, runID)
 	if err != nil {
@@ -683,6 +752,7 @@ func (h *ExecuteRunHandler) markRunCancelled(runID uuid.UUID, project *models.Pr
 		slog.Warn("execute_run: failed to mark run cancelled", "run_id", runID, "error", err)
 		return
 	}
+	h.eventPublisher.PublishRunEvent(ctx, sse.EventRunCancelled, runID, projectID, string(models.RunStatusCancelled), reason)
 	h.notifyGitHub(ctx, run, project, models.RunStatusCancelled)
 }
 
@@ -889,21 +959,21 @@ func (h *ExecuteRunHandler) notifyGitHub(ctx context.Context, run *models.Run, p
 	sha := *run.GitCommit
 
 	// Map status to GitHub state
-	state := "pending"
-	switch status {
-	case models.RunStatusSuccess:
-		state = "success"
-	case models.RunStatusFailed:
-		state = "failure"
-	case models.RunStatusCancelled:
-		state = "error"
-	}
+	// state := "pending"
+	// switch status {
+	// case models.RunStatusSuccess:
+	// 	state = "success"
+	// case models.RunStatusFailed:
+	// 	state = "failure"
+	// case models.RunStatusCancelled:
+	// 	state = "error"
+	// }
 
 	// Build description
-	desc := fmt.Sprintf("Dagryn run %s", status)
-	if run.DurationMs != nil {
-		desc = fmt.Sprintf("Dagryn run %s in %dms", status, *run.DurationMs)
-	}
+	// desc := fmt.Sprintf("Dagryn run %s", status)
+	// if run.DurationMs != nil {
+	// 	desc = fmt.Sprintf("Dagryn run %s in %dms", status, *run.DurationMs)
+	// }
 
 	// Build target URL (link back to Dagryn run detail)
 	baseURL := "https://dagryn.mujhtech.xyz" // optional: derive from config later
@@ -913,9 +983,9 @@ func (h *ExecuteRunHandler) notifyGitHub(ctx context.Context, run *models.Run, p
 	}
 
 	// Post commit status
-	if err := notification.CommitStatus(ctx, accessToken, owner, repoName, sha, state, desc, targetURL); err != nil {
-		slog.Error("github_status_update_failed", "run_id", run.ID, "error", err)
-	}
+	// if err := notification.CommitStatus(ctx, accessToken, owner, repoName, sha, state, desc, targetURL); err != nil {
+	// 	slog.Error("github_status_update_failed", "run_id", run.ID, "error", err)
+	// }
 
 	// Check run (create/update)
 	checkStatus, conclusion := mapGitHubCheckRunState(status)

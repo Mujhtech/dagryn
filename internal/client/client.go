@@ -592,6 +592,8 @@ type SyncWorkflowTaskData struct {
 	TimeoutSeconds *int              `json:"timeout_seconds,omitempty"`
 	Workdir        *string           `json:"workdir,omitempty"`
 	Env            map[string]string `json:"env,omitempty"`
+	Group          string            `json:"group,omitempty"`
+	Condition      string            `json:"condition,omitempty"`
 }
 
 // SyncWorkflowResponse represents the response after syncing a workflow.

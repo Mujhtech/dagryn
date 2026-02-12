@@ -13,11 +13,12 @@ import {
 } from "~/components/ui/sidebar";
 import { NavUser } from "./nav-user";
 import { NavMain } from "./nav-main";
+import { Logo } from "./logo";
 
 const navItems = [
   {
     title: "Dashboard",
-    url: "/",
+    url: "/dashboard",
     icon: Icons.Dashboard,
   },
   {
@@ -34,6 +35,11 @@ const navItems = [
     title: "Invitations",
     url: "/invitations",
     icon: Icons.ListDetails,
+  },
+  {
+    title: "Plugins",
+    url: "/plugins/browse",
+    icon: Icons.Package,
   },
 ];
 
@@ -55,11 +61,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              className="data-[slot=sidebar-menu-button]:p-1.5!"
+              className="data-[slot=sidebar-menu-button]:p-1.5! h-fit! [&>svg]:size-5"
             >
               <a href="#">
                 {/* <IconInnerShadowTop className="!size-5" /> */}
-                <span className="text-base font-semibold">Acme Inc.</span>
+                <Logo />
+                <span className="text-base font-semibold">DAGRYN.</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>

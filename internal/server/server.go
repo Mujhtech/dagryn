@@ -72,6 +72,9 @@ type Server struct {
 
 	// SSE Hub for real-time events
 	sseHub *sse.Hub
+
+	// SSE Redis subscriber (nil when Redis is unavailable)
+	sseSubscriber *sse.RedisSubscriber
 }
 
 // Repositories holds all repository instances.
@@ -166,6 +169,13 @@ func (s *Server) Initialize(ctx context.Context) error {
 	var rds *redis.Redis
 	if s.config.Redis.Host != "" || s.config.Redis.Port != 0 {
 		rds = redis.New(s.config.Redis)
+	}
+
+	// Start SSE Redis subscriber to receive events published by the worker
+	if rds != nil {
+		s.sseSubscriber = sse.NewRedisSubscriber(rds, s.sseHub)
+		s.sseSubscriber.Start(ctx)
+		log.Debug().Msg("SSE Redis subscriber started")
 	}
 
 	// Optional job client for enqueueing ExecuteRun
@@ -408,6 +418,12 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	// Shutdown HTTP server
 	if err := s.server.Shutdown(shutdownCtx); err != nil {
 		log.Error().Err(err).Msg("Error shutting down HTTP server")
+	}
+
+	// Stop SSE Redis subscriber before stopping the hub
+	if s.sseSubscriber != nil {
+		s.sseSubscriber.Stop()
+		log.Debug().Msg("SSE Redis subscriber stopped")
 	}
 
 	// Stop SSE hub

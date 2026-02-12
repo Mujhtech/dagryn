@@ -103,3 +103,75 @@ func (w *Workflow) Validate() error {
 func (w *Workflow) Size() int {
 	return len(w.Tasks)
 }
+
+// TasksByGroup returns all tasks that belong to the given group.
+func (w *Workflow) TasksByGroup(group string) []*Task {
+	var tasks []*Task
+	for _, t := range w.Tasks {
+		if t.Group == group {
+			tasks = append(tasks, t)
+		}
+	}
+	return tasks
+}
+
+// GroupNames returns all unique group names in the workflow.
+func (w *Workflow) GroupNames() []string {
+	seen := make(map[string]bool)
+	var names []string
+	for _, t := range w.Tasks {
+		if t.Group != "" && !seen[t.Group] {
+			seen[t.Group] = true
+			names = append(names, t.Group)
+		}
+	}
+	return names
+}
+
+// HasGroup returns true if any task belongs to the given group.
+func (w *Workflow) HasGroup(name string) bool {
+	for _, t := range w.Tasks {
+		if t.Group == name {
+			return true
+		}
+	}
+	return false
+}
+
+// ResolveTargets expands group names to task names, passes through direct task names,
+// and deduplicates the result. A target is treated as a group name if it matches a
+// group and does not match a task name (groups must not collide with task names per validation).
+func (w *Workflow) ResolveTargets(targets []string) []string {
+	seen := make(map[string]bool)
+	var resolved []string
+
+	for _, target := range targets {
+		// If it's a direct task name, keep it
+		if _, ok := w.Tasks[target]; ok {
+			if !seen[target] {
+				seen[target] = true
+				resolved = append(resolved, target)
+			}
+			continue
+		}
+
+		// Try to expand as a group
+		if w.HasGroup(target) {
+			for _, t := range w.TasksByGroup(target) {
+				if !seen[t.Name] {
+					seen[t.Name] = true
+					resolved = append(resolved, t.Name)
+				}
+			}
+			continue
+		}
+
+		// Neither a task nor a group - pass through for later validation
+		if !seen[target] {
+			seen[target] = true
+			resolved = append(resolved, target)
+		}
+	}
+
+	return resolved
+}

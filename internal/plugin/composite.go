@@ -7,12 +7,21 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 )
+
+const compositeCleanupTimeout = 30 * time.Second
 
 // CompositeExecutor executes composite plugin steps.
 type CompositeExecutor struct {
 	projectRoot string
 	logger      Logger
+}
+
+// CompositeSetupResult carries state from setup execution to cleanup.
+type CompositeSetupResult struct {
+	Inputs map[string]string
+	Env    map[string]string
 }
 
 // NewCompositeExecutor creates a new composite executor.
@@ -37,10 +46,31 @@ func (e *CompositeExecutor) Execute(ctx context.Context, manifest *Manifest, inp
 		return fmt.Errorf("manifest is not a composite plugin")
 	}
 
+	setup, err := e.ExecuteSetup(ctx, manifest, inputs, env, workdir)
+
+	// Ensure cleanup steps run in reverse order, even on failure
+	defer func() {
+		if setup != nil {
+			e.RunCleanup(manifest, setup, workdir)
+		}
+	}()
+
+	return err
+}
+
+// ExecuteSetup runs only main steps and returns context required for deferred cleanup.
+func (e *CompositeExecutor) ExecuteSetup(ctx context.Context, manifest *Manifest, inputs, env map[string]string, workdir string) (*CompositeSetupResult, error) {
+	if manifest == nil {
+		return nil, fmt.Errorf("manifest is nil")
+	}
+	if !manifest.IsComposite() {
+		return nil, fmt.Errorf("manifest is not a composite plugin")
+	}
+
 	// Validate required inputs
 	mergedInputs, err := e.mergeInputs(manifest, inputs)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Track cleanup context (environment variables set during execution)
@@ -48,13 +78,6 @@ func (e *CompositeExecutor) Execute(ctx context.Context, manifest *Manifest, inp
 	for k, v := range env {
 		cleanupEnv[k] = v
 	}
-
-	// Ensure cleanup steps run in reverse order, even on failure
-	defer func() {
-		if len(manifest.Cleanup) > 0 {
-			e.executeCleanup(ctx, manifest.Cleanup, mergedInputs, cleanupEnv, workdir)
-		}
-	}()
 
 	// Execute each step
 	for i, step := range manifest.Steps {
@@ -97,13 +120,36 @@ func (e *CompositeExecutor) Execute(ctx context.Context, manifest *Manifest, inp
 
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("step %d (%s) failed: %w\nOutput: %s", i, step.Name, err, string(output))
+			return &CompositeSetupResult{
+				Inputs: mergedInputs,
+				Env:    cleanupEnv,
+			}, fmt.Errorf("step %d (%s) failed: %w\nOutput: %s", i, step.Name, err, string(output))
 		}
 
 		e.logger.Debug("step %d output: %s", i, string(output))
 	}
 
-	return nil
+	return &CompositeSetupResult{
+		Inputs: mergedInputs,
+		Env:    cleanupEnv,
+	}, nil
+}
+
+// RunCleanup executes cleanup steps for a previously completed setup.
+func (e *CompositeExecutor) RunCleanup(manifest *Manifest, setup *CompositeSetupResult, workdir string) {
+	if manifest == nil || !manifest.IsComposite() || len(manifest.Cleanup) == 0 {
+		return
+	}
+	if setup == nil {
+		e.logger.Warn("cleanup skipped: missing setup context")
+		return
+	}
+
+	// Use a bounded background context so cleanup still runs when the
+	// execution context is canceled, while preventing unbounded hangs.
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), compositeCleanupTimeout)
+	defer cancel()
+	e.executeCleanup(cleanupCtx, manifest.Cleanup, setup.Inputs, setup.Env, workdir)
 }
 
 // executeCleanup runs cleanup steps in reverse order (LIFO).

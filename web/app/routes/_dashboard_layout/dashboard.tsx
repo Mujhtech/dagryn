@@ -99,85 +99,95 @@ function IndexPage() {
               Quick overview of all your projects
             </p>
           </div>
-          <Button asChild>
-            <Link to="/projects">
-              <Icons.Folder className="mr-2 h-4 w-4" />
-              Manage Projects
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" asChild>
+              <Link to="/plugins/browse">
+                <Icons.Package className="mr-2 h-4 w-4" />
+                Browse Plugins
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link to="/projects">
+                <Icons.Folder className="mr-2 h-4 w-4" />
+                Manage Projects
+              </Link>
+            </Button>
+          </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            title="Total projects"
-            value={stats.total}
-            icon={Icons.Folder}
+        {recentProjects.length === 0 ? (
+          <SetupGuide
+            pm={pm}
+            setPm={setPm}
+            commands={commands}
+            copiedStep={copiedStep}
+            onCopy={copyToClipboard}
           />
-          <StatCard
-            title="Connected repos"
-            value={stats.connected}
-            icon={Icons.Github}
-          />
-          <StatCard
-            title="Private projects"
-            value={stats.privateCount}
-            icon={Icons.Key}
-          />
-          <StatCard
-            title="Team projects"
-            value={stats.teamOwned}
-            icon={Icons.Users}
-          />
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent project activity</CardTitle>
-            <CardDescription>
-              Your latest updated projects across all teams
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {recentProjects.length === 0 ? (
-              <SetupGuide
-                pm={pm}
-                setPm={setPm}
-                commands={commands}
-                copiedStep={copiedStep}
-                onCopy={copyToClipboard}
+        ) : (
+          <>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard
+                title="Total projects"
+                value={stats.total}
+                icon={Icons.Folder}
               />
-            ) : (
-              <div className="space-y-3">
-                {recentProjects.map((project) => (
-                  <Link
-                    key={project.id}
-                    to="/projects/$projectId"
-                    params={{ projectId: project.id }}
-                    className="flex items-center justify-between rounded-none border p-3 transition-colors hover:bg-accent/40"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium truncate">{project.name}</p>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {project.description || project.slug}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 pl-3">
-                      <Badge variant="outline">{project.visibility}</Badge>
-                      {project.repo_url ? (
-                        <Badge variant="secondary">Connected</Badge>
-                      ) : (
-                        <Badge variant="outline">No repo</Badge>
-                      )}
-                      <span className="text-xs text-muted-foreground">
-                        {formatRelativeDate(project.updated_at)}
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              <StatCard
+                title="Connected repos"
+                value={stats.connected}
+                icon={Icons.Github}
+              />
+              <StatCard
+                title="Private projects"
+                value={stats.privateCount}
+                icon={Icons.Key}
+              />
+              <StatCard
+                title="Team projects"
+                value={stats.teamOwned}
+                icon={Icons.Users}
+              />
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent project activity</CardTitle>
+                <CardDescription>
+                  Your latest updated projects across all teams
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {recentProjects.map((project) => (
+                    <Link
+                      key={project.id}
+                      to="/projects/$projectId"
+                      params={{ projectId: project.id }}
+                      className="flex items-center justify-between rounded-none border p-3 transition-colors hover:bg-accent/40"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{project.name}</p>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {project.description || project.slug}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 pl-3">
+                        <Badge variant="outline">{project.visibility}</Badge>
+                        {project.repo_url ? (
+                          <Badge variant="secondary">Connected</Badge>
+                        ) : (
+                          <Badge variant="outline">No repo</Badge>
+                        )}
+                        <span className="text-xs text-muted-foreground">
+                          {formatRelativeDate(project.updated_at)}
+                        </span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
     </div>
   );

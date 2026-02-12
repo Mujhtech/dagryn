@@ -10,5 +10,14 @@ export function useRuns(projectId: string, page = 1, perPage = 20) {
       return data;
     },
     enabled: !!projectId,
+    // Auto-poll every 3 seconds when there are active (running/pending) runs
+    refetchInterval: (query) => {
+      const runs = query.state.data?.data ?? [];
+      const hasActive = runs.some(
+        (r: { status: string }) =>
+          r.status === "running" || r.status === "pending",
+      );
+      return hasActive ? 3000 : false;
+    },
   });
 }

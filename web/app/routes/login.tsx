@@ -12,22 +12,24 @@ export const Route = createFileRoute("/login")({
   //   const post = await fetchPost(params.postId)
   //   return { post }
   // },
-  // head: ({ loaderData }) => ({
-  //   meta: [
-  //     { title: loaderData.post.title },
-  //     { name: 'description', content: loaderData.post.excerpt },
-  //     // Open Graph
-  //     { property: 'og:title', content: loaderData.post.title },
-  //     { property: 'og:description', content: loaderData.post.excerpt },
-  //     { property: 'og:image', content: loaderData.post.coverImage },
-  //     { property: 'og:type', content: 'article' },
-  //     // Twitter Card
-  //     { name: 'twitter:card', content: 'summary_large_image' },
-  //     { name: 'twitter:title', content: loaderData.post.title },
-  //     { name: 'twitter:description', content: loaderData.post.excerpt },
-  //     { name: 'twitter:image', content: loaderData.post.coverImage },
-  //   ],
-  // }),
+  head: ({}) => {
+    return {
+      meta: [
+        { title: "Login" },
+        { name: "description", content: "Login to your Dagryn account" },
+        // Open Graph
+        // { property: "og:title", content: loaderData.post.title },
+        // { property: "og:description", content: loaderData.post.excerpt },
+        // { property: "og:image", content: loaderData.post.coverImage },
+        // { property: "og:type", content: "article" },
+        // // Twitter Card
+        // { name: "twitter:card", content: "summary_large_image" },
+        // { name: "twitter:title", content: loaderData.post.title },
+        // { name: "twitter:description", content: loaderData.post.excerpt },
+        // { name: "twitter:image", content: loaderData.post.coverImage },
+      ],
+    };
+  },
 });
 
 function LoginPage() {
@@ -39,7 +41,7 @@ function LoginPage() {
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      navigate({ to: "/" });
+      navigate({ to: "/dashboard" });
     }
   }, [isAuthenticated, isLoading, navigate]);
 

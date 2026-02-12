@@ -18,7 +18,7 @@ type ContainerConfig struct {
 type Config struct {
 	Workflow  WorkflowConfig        `toml:"workflow"`
 	Tasks     map[string]TaskConfig `toml:"tasks"`
-	Plugins   map[string]string     `toml:"plugins"`   // Global plugins available to all tasks
+	Plugins   map[string]string     `toml:"plugins"` // Global plugins available to all tasks
 	Cache     CacheConfig           `toml:"cache"`
 	Container ContainerConfig       `toml:"container"` // Project-level container isolation settings
 }
@@ -65,22 +65,91 @@ func (rc RemoteCacheConfig) IsFallbackOnError() bool {
 
 // WorkflowConfig represents the workflow section of the config.
 type WorkflowConfig struct {
-	Name    string `toml:"name"`
-	Default bool   `toml:"default"`
+	Name    string         `toml:"name"`
+	Default bool           `toml:"default"`
+	Trigger *TriggerConfig `toml:"trigger"` // Optional workflow triggers
+}
+
+// TriggerConfig defines which webhook events trigger the workflow.
+// A nil TriggerConfig means all events match (backward compatible).
+type TriggerConfig struct {
+	Push        *PushTriggerConfig        `toml:"push"`
+	PullRequest *PullRequestTriggerConfig `toml:"pull_request"`
+}
+
+// PushTriggerConfig filters push events by branch.
+type PushTriggerConfig struct {
+	Branches []string `toml:"branches"`
+}
+
+// PullRequestTriggerConfig filters pull_request events by target branch and action type.
+type PullRequestTriggerConfig struct {
+	Branches []string `toml:"branches"` // target (base) branches
+	Types    []string `toml:"types"`    // e.g. "opened", "synchronize", "reopened"
+}
+
+// MatchesPush returns true if a push to the given branch should trigger the workflow.
+// Returns true if TriggerConfig is nil, Push is nil, or branches list is empty (all match).
+func (tc *TriggerConfig) MatchesPush(branch string) bool {
+	if tc == nil || tc.Push == nil || len(tc.Push.Branches) == 0 {
+		return true
+	}
+	for _, b := range tc.Push.Branches {
+		if b == branch {
+			return true
+		}
+	}
+	return false
+}
+
+// MatchesPullRequest returns true if a pull_request event with the given base branch
+// and action should trigger the workflow.
+// Returns true if TriggerConfig is nil, PullRequest is nil, or both lists are empty.
+func (tc *TriggerConfig) MatchesPullRequest(baseBranch, action string) bool {
+	if tc == nil || tc.PullRequest == nil {
+		return true
+	}
+	pr := tc.PullRequest
+
+	if len(pr.Branches) > 0 {
+		matched := false
+		for _, b := range pr.Branches {
+			if b == baseBranch {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+
+	if len(pr.Types) > 0 {
+		for _, t := range pr.Types {
+			if t == action {
+				return true
+			}
+		}
+		return false
+	}
+
+	return true
 }
 
 // TaskConfig represents a task definition in the config file.
 type TaskConfig struct {
-	Command   string                        `toml:"command"`
-	Uses      plugin.Spec                   `toml:"uses"` // Plugin dependencies (single string or array)
-	Inputs    []string                      `toml:"inputs"`
-	Outputs   []string                      `toml:"outputs"`
-	Needs     []string                      `toml:"needs"`
-	Env       map[string]string             `toml:"env"`
-	Timeout   string                        `toml:"timeout"` // e.g., "30s", "5m"
-	Workdir   string                        `toml:"workdir"`
-	With      map[string]string             `toml:"with"`      // Inputs for composite plugins
+	Command   string                    `toml:"command"`
+	Uses      plugin.Spec               `toml:"uses"` // Plugin dependencies (single string or array)
+	Inputs    []string                  `toml:"inputs"`
+	Outputs   []string                  `toml:"outputs"`
+	Needs     []string                  `toml:"needs"`
+	Env       map[string]string         `toml:"env"`
+	Timeout   string                    `toml:"timeout"` // e.g., "30s", "5m"
+	Workdir   string                    `toml:"workdir"`
+	With      map[string]string         `toml:"with"`      // Inputs for composite plugins
 	Container *task.TaskContainerConfig `toml:"container"` // Per-task container overrides
+	Group     string                    `toml:"group"`     // Logical group for target resolution
+	If        string                    `toml:"if"`        // Condition expression for conditional execution
 }
 
 // HasPlugins returns true if the task has any plugin dependencies.

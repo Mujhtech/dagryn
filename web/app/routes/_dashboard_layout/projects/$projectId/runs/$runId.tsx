@@ -1,9 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState, useRef, useCallback } from "react";
-import { useRunArtifacts, useRunDetail, useRunLogs } from "~/hooks/queries";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import {
+  useRunArtifacts,
+  useRunDetail,
+  useRunLogs,
+  useRunWorkflow,
+} from "~/hooks/queries";
 import { useCancelRun, useDeleteArtifact } from "~/hooks/mutations";
 import type { Artifact, TaskResult, LogEntry } from "~/lib/api";
 import { api } from "~/lib/api";
+import { WorkflowDag, type TaskStatusInfo } from "~/components/workflow-dag";
 import {
   RunStreamClient,
   type LogEventData,
@@ -62,6 +68,8 @@ function RunDetailPage() {
     isLoading: artifactsLoading,
     refetch: refetchArtifacts,
   } = useRunArtifacts(projectId, runId);
+
+  const { data: workflow } = useRunWorkflow(projectId, runId);
 
   // Use mutation for cancelling runs
   const cancelRunMutation = useCancelRun();
@@ -239,6 +247,19 @@ function RunDetailPage() {
       logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [logs, autoScroll]);
+
+  // Build task status map for the DAG visualization (must be before early returns to satisfy hooks rules)
+  const taskStatusMap = useMemo(() => {
+    const map = new Map<string, TaskStatusInfo>();
+    for (const t of tasks) {
+      map.set(t.task_name, {
+        status: t.status,
+        duration_ms: t.duration_ms,
+        cache_hit: t.cache_hit,
+      });
+    }
+    return map;
+  }, [tasks]);
 
   // Filter logs based on search and task filter
   const filteredLogs = logs.filter((log) => {
@@ -451,6 +472,12 @@ function RunDetailPage() {
             <Icons.HardDrive className="h-4 w-4" />
             Artifacts ({artifactsList.length})
           </TabsTrigger>
+          {workflow && (
+            <TabsTrigger value="dag" className="gap-2">
+              <Icons.Network className="h-4 w-4" />
+              DAG
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="logs">
@@ -502,7 +529,7 @@ function RunDetailPage() {
                 </div>
               </div>
             </CardHeader>
-            <ScrollArea className="h-[500px]">
+            <ScrollArea className="h-125">
               <div className="p-4 font-mono text-sm">
                 {logsLoading ? (
                   <div className="flex items-center justify-center h-32 text-zinc-500">
@@ -659,6 +686,16 @@ function RunDetailPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {workflow && (
+          <TabsContent value="dag">
+            <Card>
+              <CardContent className="py-6">
+                <WorkflowDag workflow={workflow} taskStatuses={taskStatusMap} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

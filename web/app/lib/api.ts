@@ -270,6 +270,11 @@ export interface PaginatedResponse<T> {
 }
 
 // Workflow types
+export interface WorkflowTrigger {
+  push?: { branches: string[] };
+  pull_request?: { branches?: string[]; types?: string[] };
+}
+
 export interface Workflow {
   id: string;
   name: string;
@@ -277,6 +282,7 @@ export interface Workflow {
   is_default: boolean;
   synced_at: string;
   tasks: WorkflowTask[];
+  trigger?: WorkflowTrigger;
 }
 
 export interface WorkflowTask {
@@ -289,6 +295,8 @@ export interface WorkflowTask {
   timeout_seconds?: number;
   workdir?: string;
   env?: Record<string, string>;
+  group?: string;
+  condition?: string;
 }
 
 export interface SyncWorkflowResponse {
@@ -359,9 +367,11 @@ export interface PluginInfo {
   author?: string;
   license?: string;
   installed: boolean;
+  homepage?: string;
   inputs?: Record<string, PluginInputDef>;
   outputs?: Record<string, PluginOutputDef>;
   steps?: PluginStep[];
+  cleanup?: PluginStep[];
 }
 
 // API Error
@@ -833,11 +843,7 @@ class ApiClient {
     );
   }
 
-  async downloadArtifact(
-    projectId: string,
-    runId: string,
-    artifactId: string,
-  ) {
+  async downloadArtifact(projectId: string, runId: string, artifactId: string) {
     return this.fetchBlob(
       `/projects/${projectId}/runs/${runId}/artifacts/${artifactId}/download`,
     );
@@ -930,7 +936,11 @@ class ApiClient {
   }
 
   // Plugins
-  async listOfficialPlugins(params?: { q?: string; type?: string; sort?: string }) {
+  async listOfficialPlugins(params?: {
+    q?: string;
+    type?: string;
+    sort?: string;
+  }) {
     const query = new URLSearchParams();
     if (params?.q) query.set("q", params.q);
     if (params?.type) query.set("type", params.type);
@@ -944,7 +954,9 @@ class ApiClient {
   }
 
   async listProjectPlugins(projectId: string) {
-    return this.fetch<{ plugins: PluginInfo[] }>(`/projects/${projectId}/plugins`);
+    return this.fetch<{ plugins: PluginInfo[] }>(
+      `/projects/${projectId}/plugins`,
+    );
   }
 }
 

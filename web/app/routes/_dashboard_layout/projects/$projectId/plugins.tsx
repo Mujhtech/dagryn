@@ -45,7 +45,7 @@ function ProjectPluginsPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
+    <div className="container mx-auto py-8 space-y-6 px-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Plugins</h1>
@@ -111,6 +111,11 @@ function ProjectPluginsPage() {
                   <Badge variant="outline">{plugin.version}</Badge>
                   {plugin.author && (
                     <Badge variant="outline">{plugin.author}</Badge>
+                  )}
+                  {plugin.cleanup && plugin.cleanup.length > 0 && (
+                    <Badge variant="outline">
+                      {plugin.cleanup.length} cleanup
+                    </Badge>
                   )}
                 </div>
                 <Button variant="ghost" size="sm" className="w-full" asChild>

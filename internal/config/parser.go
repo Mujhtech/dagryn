@@ -73,6 +73,8 @@ func taskConfigToTask(name string, tc TaskConfig, globalPlugins map[string]strin
 		Workdir:   tc.Workdir,
 		With:      tc.With,
 		Container: tc.Container,
+		Group:     tc.Group,
+		If:        tc.If,
 	}
 
 	// Parse timeout if specified

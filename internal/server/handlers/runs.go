@@ -497,6 +497,12 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:         time.Now(),
 	}
 
+	// Link default workflow snapshot (best-effort)
+	if wf, _ := h.workflows.GetDefaultByProject(ctx, projectID); wf != nil {
+		run.WorkflowID = &wf.ID
+		run.WorkflowName = &wf.Name
+	}
+
 	// Add git info if provided
 	if req.GitBranch != "" {
 		run.GitBranch = &req.GitBranch
@@ -938,21 +944,21 @@ func (h *Handler) notifyGitHubForRun(ctx context.Context, projectID, runID uuid.
 	sha := *run.GitCommit
 
 	// Map Dagryn status to GitHub state
-	state := "pending"
-	switch status {
-	case models.RunStatusSuccess:
-		state = "success"
-	case models.RunStatusFailed:
-		state = "failure"
-	case models.RunStatusCancelled:
-		state = "error"
-	}
+	// state := "pending"
+	// switch status {
+	// case models.RunStatusSuccess:
+	// 	state = "success"
+	// case models.RunStatusFailed:
+	// 	state = "failure"
+	// case models.RunStatusCancelled:
+	// 	state = "error"
+	// }
 
 	// Build description
-	desc := fmt.Sprintf("Dagryn run %s", status)
-	if run.DurationMs != nil {
-		desc = fmt.Sprintf("Dagryn run %s in %s", status, formatDurationMs(*run.DurationMs))
-	}
+	// desc := fmt.Sprintf("Dagryn run %s", status)
+	// if run.DurationMs != nil {
+	// 	desc = fmt.Sprintf("Dagryn run %s in %s", status, formatDurationMs(*run.DurationMs))
+	// }
 
 	// Build target URL (link back to Dagryn run detail)
 	baseURL := "https://dagryn.mujhtech.xyz" // optional: derive from config later
@@ -962,9 +968,9 @@ func (h *Handler) notifyGitHubForRun(ctx context.Context, projectID, runID uuid.
 	}
 
 	// 1) Commit status
-	if err := notification.CommitStatus(ctx, accessToken, owner, repoName, sha, state, desc, targetURL); err != nil {
-		slog.Error("github_status_update_failed", "run_id", run.ID, "error", err)
-	}
+	// if err := notification.CommitStatus(ctx, accessToken, owner, repoName, sha, state, desc, targetURL); err != nil {
+	// 	slog.Error("github_status_update_failed", "run_id", run.ID, "error", err)
+	// }
 
 	// 2) Check run (create/update)
 	checkStatus, conclusion := mapGitHubCheckRunState(status)

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mujhtech/dagryn/internal/condition"
 	"github.com/mujhtech/dagryn/internal/executor"
 	"github.com/mujhtech/dagryn/internal/task"
 	"github.com/stretchr/testify/assert"
@@ -236,4 +237,170 @@ func TestDefaultOptions(t *testing.T) {
 	assert.False(t, opts.NoCache)
 	assert.True(t, opts.FailFast)
 	assert.False(t, opts.DryRun)
+}
+
+func TestScheduler_ConditionSkipped(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "scheduler-test")
+	require.NoError(t, err)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflow := task.NewWorkflow("ci", nil)
+	_ = workflow.AddTask(&task.Task{Name: "build", Command: "echo build"})
+	_ = workflow.AddTask(&task.Task{
+		Name:    "deploy",
+		Command: "echo deploy",
+		Needs:   []string{"build"},
+		If:      "branch == 'main'",
+	})
+
+	opts := DefaultOptions()
+	opts.NoCache = true
+	opts.ConditionContext = &condition.Context{
+		Branch:  "develop",
+		Event:   "push",
+		Trigger: "ci",
+	}
+
+	sched, err := New(workflow, tmpDir, opts)
+	require.NoError(t, err)
+
+	summary, err := sched.Run(context.Background(), []string{"deploy"})
+	require.NoError(t, err)
+
+	// build should succeed, deploy should be skipped
+	assert.Len(t, summary.Results, 2)
+
+	var buildResult, deployResult *executor.Result
+	for _, r := range summary.Results {
+		switch r.Task {
+		case "build":
+			buildResult = r
+		case "deploy":
+			deployResult = r
+		}
+	}
+
+	require.NotNil(t, buildResult)
+	assert.Equal(t, executor.Success, buildResult.Status)
+
+	require.NotNil(t, deployResult)
+	assert.Equal(t, executor.Skipped, deployResult.Status)
+}
+
+func TestScheduler_ConditionSkipped_DependentStillRuns(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "scheduler-test")
+	require.NoError(t, err)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflow := task.NewWorkflow("ci", nil)
+	_ = workflow.AddTask(&task.Task{
+		Name:    "setup",
+		Command: "echo setup",
+		If:      "event == 'push'",
+	})
+	_ = workflow.AddTask(&task.Task{
+		Name:    "build",
+		Command: "echo build",
+		Needs:   []string{"setup"},
+	})
+
+	opts := DefaultOptions()
+	opts.NoCache = true
+	opts.ConditionContext = &condition.Context{
+		Branch:  "main",
+		Event:   "cli", // doesn't match "push"
+		Trigger: "cli",
+	}
+
+	sched, err := New(workflow, tmpDir, opts)
+	require.NoError(t, err)
+
+	summary, err := sched.Run(context.Background(), []string{"build"})
+	require.NoError(t, err)
+
+	// setup should be skipped (condition), build should still run
+	assert.Len(t, summary.Results, 2)
+
+	var setupResult, buildResult *executor.Result
+	for _, r := range summary.Results {
+		switch r.Task {
+		case "setup":
+			setupResult = r
+		case "build":
+			buildResult = r
+		}
+	}
+
+	require.NotNil(t, setupResult)
+	assert.Equal(t, executor.Skipped, setupResult.Status)
+
+	require.NotNil(t, buildResult)
+	assert.Equal(t, executor.Success, buildResult.Status)
+}
+
+func TestScheduler_FailedDependency_StillSkips(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "scheduler-test")
+	require.NoError(t, err)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflow := task.NewWorkflow("ci", nil)
+	_ = workflow.AddTask(&task.Task{Name: "fail", Command: "exit 1"})
+	_ = workflow.AddTask(&task.Task{Name: "after", Command: "echo after", Needs: []string{"fail"}})
+
+	opts := DefaultOptions()
+	opts.NoCache = true
+	opts.FailFast = false // disable fail-fast so "after" gets a chance to evaluate
+	opts.ConditionContext = &condition.Context{
+		Branch: "main",
+		Event:  "push",
+	}
+
+	sched, err := New(workflow, tmpDir, opts)
+	require.NoError(t, err)
+
+	summary, err := sched.Run(context.Background(), []string{"after"})
+	require.NoError(t, err)
+
+	// "fail" should fail, "after" should be skipped due to dependency failure
+	assert.True(t, summary.Failures > 0)
+
+	var afterResult *executor.Result
+	for _, r := range summary.Results {
+		if r.Task == "after" {
+			afterResult = r
+		}
+	}
+
+	require.NotNil(t, afterResult)
+	assert.Equal(t, executor.Skipped, afterResult.Status)
+}
+
+func TestScheduler_ConditionMatches_TaskRuns(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "scheduler-test")
+	require.NoError(t, err)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflow := task.NewWorkflow("ci", nil)
+	_ = workflow.AddTask(&task.Task{
+		Name:    "deploy",
+		Command: "echo deployed",
+		If:      "branch == 'main'",
+	})
+
+	opts := DefaultOptions()
+	opts.NoCache = true
+	opts.ConditionContext = &condition.Context{
+		Branch:  "main",
+		Event:   "push",
+		Trigger: "ci",
+	}
+
+	sched, err := New(workflow, tmpDir, opts)
+	require.NoError(t, err)
+
+	summary, err := sched.Run(context.Background(), []string{"deploy"})
+	require.NoError(t, err)
+
+	assert.Len(t, summary.Results, 1)
+	assert.Equal(t, executor.Success, summary.Results[0].Status)
 }

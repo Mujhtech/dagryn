@@ -19,6 +19,7 @@ import (
 	jobhandlers "github.com/mujhtech/dagryn/internal/job/handlers"
 	"github.com/mujhtech/dagryn/internal/redis"
 	"github.com/mujhtech/dagryn/internal/server"
+	"github.com/mujhtech/dagryn/internal/server/sse"
 	"github.com/mujhtech/dagryn/internal/service"
 	"github.com/mujhtech/dagryn/pkg/storage"
 )
@@ -108,10 +109,14 @@ func runWorker(opts WorkerConfigOpts) error {
 	// Create Redis client
 	rds := redis.New(cfg.Redis)
 
+	// Create SSE event publisher for real-time browser updates via Redis pub/sub
+	eventPublisher := sse.NewRedisEventPublisher(rds)
+
 	// Connect to database for RunRepo, ProjectRepo, ProviderTokenRepo (required for ExecuteRun and stale_runs)
 	var database *db.DB
 	var runRepo *repo.RunRepo
 	var projectRepo *repo.ProjectRepo
+	var workflowRepo *repo.WorkflowRepo
 	var providerTokenRepo *repo.ProviderTokenRepo
 	var githubInstallations *repo.GitHubInstallationRepo
 	if cfg.Database.URL != "" {
@@ -123,6 +128,7 @@ func runWorker(opts WorkerConfigOpts) error {
 		pool := database.Pool()
 		runRepo = repo.NewRunRepo(pool)
 		projectRepo = repo.NewProjectRepo(pool)
+		workflowRepo = repo.NewWorkflowRepo(pool)
 		providerTokenRepo = repo.NewProviderTokenRepo(pool)
 		githubInstallations = repo.NewGitHubInstallationRepo(pool)
 	}
@@ -225,6 +231,7 @@ func runWorker(opts WorkerConfigOpts) error {
 		EncryptionKey:        cfg.Job.EncryptionKey,
 		RunRepo:              runRepo,
 		ProjectRepo:          projectRepo,
+		WorkflowRepo:         workflowRepo,
 		ProviderTokenRepo:    providerTokenRepo,
 		ProviderTokenEncrypt: providerEncrypt,
 		GitHubAppClient:      githubAppClient,
@@ -232,6 +239,7 @@ func runWorker(opts WorkerConfigOpts) error {
 		CacheService:         cacheService,
 		ArtifactService:      artifactService,
 		ContainerDefaults:    containerDefaults,
+		EventPublisher:       eventPublisher,
 	}
 
 	// Create job system

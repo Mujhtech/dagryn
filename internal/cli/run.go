@@ -15,6 +15,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/cache/cloud"
 	"github.com/mujhtech/dagryn/internal/cache/remote"
 	"github.com/mujhtech/dagryn/internal/client"
+	"github.com/mujhtech/dagryn/internal/condition"
 	"github.com/mujhtech/dagryn/internal/config"
 	"github.com/mujhtech/dagryn/internal/executor"
 	"github.com/mujhtech/dagryn/internal/plugin"
@@ -92,6 +93,11 @@ func runRun(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Resolve group names to task names
+	if len(targets) > 0 {
+		targets = workflow.ResolveTargets(targets)
+	}
+
 	// Verify targets exist
 	for _, target := range targets {
 		if _, ok := workflow.GetTask(target); !ok {
@@ -121,6 +127,13 @@ func runRun(cmd *cobra.Command, args []string) error {
 
 	// Build cache backend from config
 	opts.CacheBackend = buildCacheBackend(cfg.Cache, projectRoot, log)
+
+	// Build condition context for task conditions
+	opts.ConditionContext = &condition.Context{
+		Branch:  getGitBranch(),
+		Event:   "cli",
+		Trigger: "cli",
+	}
 
 	// Create scheduler
 	sched, err := scheduler.New(workflow, projectRoot, opts)

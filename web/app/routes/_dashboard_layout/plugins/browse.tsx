@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Package, Search, ArrowLeft } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -61,11 +60,11 @@ function BrowsePluginsPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
+    <div className="container mx-auto py-8 space-y-6 px-6">
       <div className="flex items-center space-x-4">
-        <Link to="/">
+        <Link to="/dashboard">
           <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
+            <Icons.ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
         <div>
@@ -80,7 +79,7 @@ function BrowsePluginsPage() {
 
       <div className="flex items-center space-x-2">
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Icons.Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             type="text"
             placeholder="Search plugins..."
@@ -112,7 +111,7 @@ function BrowsePluginsPage() {
           {filteredPlugins.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
-                <Package className="h-12 w-12 text-muted-foreground mb-4" />
+                <Icons.Package className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No plugins found</h3>
                 <p className="text-muted-foreground text-center">
                   Try adjusting your search or category filter
@@ -129,7 +128,7 @@ function BrowsePluginsPage() {
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center justify-between">
                       <span>{plugin.name}</span>
-                      <Package className="h-5 w-5 text-muted-foreground" />
+                      <Icons.Package className="h-5 w-5 text-muted-foreground" />
                     </CardTitle>
                     <CardDescription className="line-clamp-2">
                       {plugin.description}
@@ -141,6 +140,11 @@ function BrowsePluginsPage() {
                       <Badge variant="outline">v{plugin.version}</Badge>
                       {plugin.author && (
                         <Badge variant="secondary">{plugin.author}</Badge>
+                      )}
+                      {plugin.cleanup && plugin.cleanup.length > 0 && (
+                        <Badge variant="outline">
+                          {plugin.cleanup.length} cleanup
+                        </Badge>
                       )}
                     </div>
 

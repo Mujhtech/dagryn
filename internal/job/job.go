@@ -9,6 +9,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/encrypt"
 	"github.com/mujhtech/dagryn/internal/job/handlers"
 	"github.com/mujhtech/dagryn/internal/redis"
+	"github.com/mujhtech/dagryn/internal/server/sse"
 	"github.com/mujhtech/dagryn/internal/service"
 	"go.opentelemetry.io/otel"
 )
@@ -24,6 +25,7 @@ type Job struct {
 	encrypter       encrypt.Encrypt
 	runs            *repo.RunRepo
 	projects        *repo.ProjectRepo
+	workflows       *repo.WorkflowRepo
 	providerTokens  *repo.ProviderTokenRepo
 	providerEncrypt encrypt.Encrypt
 	githubApp       interface {
@@ -33,6 +35,7 @@ type Job struct {
 	cacheService        *service.CacheService
 	artifactService     *service.ArtifactService
 	containerDefaults   *handlers.ContainerDefaults
+	eventPublisher      sse.EventPublisher
 }
 
 // Config holds the configuration for the job system.
@@ -45,6 +48,8 @@ type Config struct {
 	RunRepo *repo.RunRepo
 	// ProjectRepo is the repository for project operations (required for ExecuteRun).
 	ProjectRepo *repo.ProjectRepo
+	// WorkflowRepo is the repository for workflow operations (used to link workflows to runs).
+	WorkflowRepo *repo.WorkflowRepo
 	// ProviderTokenRepo is used to fetch the repo-linked user's GitHub token for private clones.
 	ProviderTokenRepo *repo.ProviderTokenRepo
 	// ProviderTokenEncrypt is used to decrypt provider tokens (same key as server: JWT secret truncated).
@@ -63,6 +68,8 @@ type Config struct {
 	CancelManager *CancelManager
 	// ContainerDefaults holds server-level container isolation defaults (optional).
 	ContainerDefaults *handlers.ContainerDefaults
+	// EventPublisher publishes SSE events to Redis for real-time browser updates (optional).
+	EventPublisher sse.EventPublisher
 }
 
 // DefaultConfig returns sensible defaults for job configuration.
@@ -92,6 +99,11 @@ func New(cfg Config, appCtx context.Context, rds *redis.Redis) (*Job, error) {
 		cancelMgr = NewCancelManager(rds)
 	}
 
+	eventPub := cfg.EventPublisher
+	if eventPub == nil {
+		eventPub = sse.NoOpEventPublisher{}
+	}
+
 	return &Job{
 		encrypter:           enc,
 		Client:              NewClient(rds, enc),
@@ -100,6 +112,7 @@ func New(cfg Config, appCtx context.Context, rds *redis.Redis) (*Job, error) {
 		CancelManager:       cancelMgr,
 		runs:                cfg.RunRepo,
 		projects:            cfg.ProjectRepo,
+		workflows:           cfg.WorkflowRepo,
 		providerTokens:      cfg.ProviderTokenRepo,
 		providerEncrypt:     cfg.ProviderTokenEncrypt,
 		githubApp:           cfg.GitHubAppClient,
@@ -107,6 +120,7 @@ func New(cfg Config, appCtx context.Context, rds *redis.Redis) (*Job, error) {
 		cacheService:        cfg.CacheService,
 		artifactService:     cfg.ArtifactService,
 		containerDefaults:   cfg.ContainerDefaults,
+		eventPublisher:      eventPub,
 	}, nil
 }
 
@@ -126,7 +140,7 @@ func (j *Job) RegisterAndStart() error {
 
 	// Register ExecuteRun handler when RunRepo and ProjectRepo are available
 	if j.runs != nil && j.projects != nil {
-		execHandler := handlers.NewExecuteRunHandler(j.runs, j.projects, j.encrypter, j.providerTokens, j.providerEncrypt, j.githubApp, j.githubInstallations, j.cacheService, j.artifactService, j.CancelManager, j.containerDefaults)
+		execHandler := handlers.NewExecuteRunHandler(j.runs, j.projects, j.workflows, j.encrypter, j.providerTokens, j.providerEncrypt, j.githubApp, j.githubInstallations, j.cacheService, j.artifactService, j.CancelManager, j.containerDefaults, j.eventPublisher)
 		j.Executor.RegisterJobHandler(ExecuteRunTaskName, asynq.HandlerFunc(execHandler.Handle))
 	}
 

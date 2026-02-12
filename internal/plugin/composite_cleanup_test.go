@@ -171,7 +171,7 @@ func TestCompositeExecutor_CleanupWithConditionals(t *testing.T) {
 		assert.Contains(t, string(content), "always")
 
 		// Clean up for next test
-		os.Remove(trackerFile)
+		_ = os.Remove(trackerFile)
 	})
 
 	t.Run("cleanup disabled", func(t *testing.T) {
@@ -263,4 +263,31 @@ func TestCompositeExecutor_CleanupWithInputSubstitution(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "created resource-123")
 	assert.Contains(t, string(content), "destroyed resource-123")
+}
+
+func TestCompositeExecutor_CleanupRunsOnCanceledContext(t *testing.T) {
+	tmpDir := t.TempDir()
+	logger := &testLogger{}
+	e := NewCompositeExecutor(tmpDir, logger)
+
+	trackerFile := filepath.Join(tmpDir, "tracker.txt")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	manifest := &Manifest{
+		Plugin: ManifestPlugin{Type: "composite"},
+		Steps: []CompositeStep{
+			{Name: "step1", Command: "echo 'step1' >> " + trackerFile},
+		},
+		Cleanup: []CompositeStep{
+			{Name: "cleanup1", Command: "echo 'cleanup1' >> " + trackerFile},
+		},
+	}
+
+	err := e.Execute(ctx, manifest, nil, nil, "")
+	require.Error(t, err, "main execution should fail when context is canceled")
+
+	content, readErr := os.ReadFile(trackerFile)
+	require.NoError(t, readErr, "cleanup should still run and create tracker file")
+	assert.Contains(t, string(content), "cleanup1")
 }

@@ -1,5 +1,4 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Package, Copy, Check } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -59,18 +58,18 @@ function PluginDetailPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-6 max-w-4xl">
+    <div className="container mx-auto py-8 space-y-6 max-w-4xl px-6">
       <div className="flex items-center space-x-4">
         <Button
           variant="ghost"
           size="icon"
           onClick={() => navigate({ to: "/plugins/browse" })}
         >
-          <ArrowLeft className="h-4 w-4" />
+          <Icons.ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
           <div className="flex items-center space-x-3">
-            <Package className="h-8 w-8 text-primary" />
+            <Icons.Package className="h-8 w-8 text-primary" />
             <h1 className="text-3xl font-bold tracking-tight">{plugin.name}</h1>
           </div>
           <p className="text-muted-foreground mt-1">{plugin.description}</p>
@@ -101,7 +100,7 @@ function PluginDetailPage() {
               {Object.entries(plugin.inputs).map(([key, input]) => (
                 <div key={key} className="border-l-2 border-primary pl-4">
                   <div className="flex items-center space-x-2">
-                    <code className="text-sm font-mono bg-muted px-2 py-1 rounded">
+                    <code className="text-sm font-mono bg-muted px-2 py-1">
                       {key}
                     </code>
                     {input.required && (
@@ -136,7 +135,7 @@ function PluginDetailPage() {
             <div className="space-y-4">
               {Object.entries(plugin.outputs).map(([key, output]) => (
                 <div key={key} className="border-l-2 border-green-500 pl-4">
-                  <code className="text-sm font-mono bg-muted px-2 py-1 rounded">
+                  <code className="text-sm font-mono bg-muted px-2 py-1">
                     {key}
                   </code>
                   <p className="text-sm text-muted-foreground mt-1">
@@ -161,7 +160,47 @@ function PluginDetailPage() {
           <CardContent>
             <div className="space-y-3">
               {plugin.steps.map((step, index) => (
-                <div key={index} className="border rounded-lg p-3 bg-muted/50">
+                <div
+                  key={index}
+                  className="border rounded-none p-3 bg-muted/50"
+                >
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Badge variant="outline" className="text-xs">
+                      {index + 1}
+                    </Badge>
+                    <span className="font-medium text-sm">{step.name}</span>
+                    {step.if && (
+                      <Badge variant="secondary" className="text-xs">
+                        Conditional
+                      </Badge>
+                    )}
+                  </div>
+                  <pre className="text-xs bg-background p-2 rounded-none overflow-x-auto">
+                    <code>{step.command}</code>
+                  </pre>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Cleanup Section (for composite plugins with post steps) */}
+      {plugin.cleanup && plugin.cleanup.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Cleanup (Post)</CardTitle>
+            <CardDescription>
+              Steps that run after plugin execution (reverse order)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {plugin.cleanup.map((step, index) => (
+                <div
+                  key={index}
+                  className="border rounded-none p-3 bg-muted/50"
+                >
                   <div className="flex items-center space-x-2 mb-2">
                     <Badge variant="outline" className="text-xs">
                       {index + 1}
@@ -191,7 +230,7 @@ function PluginDetailPage() {
         </CardHeader>
         <CardContent>
           <div className="relative">
-            <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+            <pre className="bg-muted p-4 rounded-none overflow-x-auto text-sm">
               <code>{installSnippet}</code>
             </pre>
             <Button
@@ -202,12 +241,12 @@ function PluginDetailPage() {
             >
               {copied ? (
                 <>
-                  <Check className="h-4 w-4 mr-2" />
+                  <Icons.Check className="h-4 w-4 mr-2" />
                   Copied
                 </>
               ) : (
                 <>
-                  <Copy className="h-4 w-4 mr-2" />
+                  <Icons.Copy className="h-4 w-4 mr-2" />
                   Copy
                 </>
               )}

@@ -9,17 +9,19 @@ import (
 // Task represents an atomic unit of execution in Dagryn.
 // Tasks are immutable after creation.
 type Task struct {
-	Name    string
-	Command string
-	Uses    []string // Plugin dependencies
-	Inputs  []string
-	Outputs []string
-	Needs   []string
-	Env     map[string]string
-	Timeout time.Duration
-	Workdir string
+	Name      string
+	Command   string
+	Uses      []string // Plugin dependencies
+	Inputs    []string
+	Outputs   []string
+	Needs     []string
+	Env       map[string]string
+	Timeout   time.Duration
+	Workdir   string
 	With      map[string]string    // Composite plugin inputs
 	Container *TaskContainerConfig // Optional per-task container settings
+	Group     string               // Logical group for target resolution
+	If        string               // Condition expression for conditional execution
 }
 
 // TaskContainerConfig holds per-task container overrides.
@@ -89,6 +91,8 @@ func (t *Task) Clone() *Task {
 		Command: t.Command,
 		Timeout: t.Timeout,
 		Workdir: t.Workdir,
+		Group:   t.Group,
+		If:      t.If,
 	}
 
 	if t.Uses != nil {

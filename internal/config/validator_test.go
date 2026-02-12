@@ -247,3 +247,134 @@ func TestValidationErrors_Error(t *testing.T) {
 	errors = append(errors, ValidationError{Task: "test", Message: "error2"})
 	assert.Contains(t, errors.Error(), "2 validation errors")
 }
+
+// --- Group validation tests ---
+
+func TestValidate_GroupNameCollision(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./...", Group: "test"}, // group name collides with task name "test"
+			"test":  {Command: "go test ./..."},
+		},
+	}
+
+	errors := Validate(cfg)
+	require.NotEmpty(t, errors)
+
+	hasError := false
+	for _, e := range errors {
+		if e.Task == "build" && assert.Contains(t, e.Message, "collides with a task name") {
+			hasError = true
+			break
+		}
+	}
+	assert.True(t, hasError)
+}
+
+func TestValidate_InvalidGroupName(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./...", Group: "123-invalid"},
+		},
+	}
+
+	errors := Validate(cfg)
+	require.NotEmpty(t, errors)
+
+	hasError := false
+	for _, e := range errors {
+		if e.Task == "build" && assert.Contains(t, e.Message, "invalid name") {
+			hasError = true
+			break
+		}
+	}
+	assert.True(t, hasError)
+}
+
+func TestValidate_ValidGroupName(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./...", Group: "backend"},
+			"test":  {Command: "go test ./...", Group: "backend"},
+		},
+	}
+
+	errors := Validate(cfg)
+	// Should have no group-related errors
+	for _, e := range errors {
+		assert.NotContains(t, e.Message, "group")
+	}
+}
+
+// --- Trigger validation tests ---
+
+func TestValidate_ValidTriggers(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{
+			Name: "ci",
+			Trigger: &TriggerConfig{
+				Push: &PushTriggerConfig{
+					Branches: []string{"main", "develop"},
+				},
+				PullRequest: &PullRequestTriggerConfig{
+					Branches: []string{"main"},
+					Types:    []string{"opened", "synchronize", "reopened"},
+				},
+			},
+		},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+	}
+
+	errors := Validate(cfg)
+	for _, e := range errors {
+		assert.NotContains(t, e.Message, "trigger")
+	}
+}
+
+func TestValidate_UnknownPRType(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{
+			Name: "ci",
+			Trigger: &TriggerConfig{
+				PullRequest: &PullRequestTriggerConfig{
+					Types: []string{"opened", "invalid_type"},
+				},
+			},
+		},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+	}
+
+	errors := Validate(cfg)
+	require.NotEmpty(t, errors)
+
+	hasError := false
+	for _, e := range errors {
+		if assert.Contains(t, e.Message, "unknown type") {
+			hasError = true
+			break
+		}
+	}
+	assert.True(t, hasError)
+}
+
+func TestValidate_NilTrigger(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+	}
+
+	errors := Validate(cfg)
+	// No trigger-related errors
+	for _, e := range errors {
+		assert.NotContains(t, e.Message, "trigger")
+	}
+}

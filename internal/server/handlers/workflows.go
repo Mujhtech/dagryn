@@ -127,13 +127,15 @@ func (h *Handler) SyncProjectWorkflowFromToml(w http.ResponseWriter, r *http.Req
 	}
 	for name, taskCfg := range cfg.Tasks {
 		taskData := SyncWorkflowTaskData{
-			Name:    name,
-			Command: taskCfg.Command,
-			Needs:   taskCfg.Needs,
-			Inputs:  taskCfg.Inputs,
-			Outputs: taskCfg.Outputs,
-			Plugins: taskCfg.GetPlugins(),
-			Env:     taskCfg.Env,
+			Name:      name,
+			Command:   taskCfg.Command,
+			Needs:     taskCfg.Needs,
+			Inputs:    taskCfg.Inputs,
+			Outputs:   taskCfg.Outputs,
+			Plugins:   taskCfg.GetPlugins(),
+			Env:       taskCfg.Env,
+			Group:     taskCfg.Group,
+			Condition: taskCfg.If,
 		}
 		if taskCfg.Workdir != "" {
 			taskData.Workdir = &taskCfg.Workdir
@@ -195,6 +197,12 @@ func (h *Handler) syncWorkflowWithRequest(w http.ResponseWriter, r *http.Request
 			Workdir:        t.Workdir,
 			Env:            t.Env,
 		}
+		if t.Group != "" {
+			tasks[i].GroupName = &t.Group
+		}
+		if t.Condition != "" {
+			tasks[i].ConditionExpr = &t.Condition
+		}
 	}
 
 	// Upsert tasks
@@ -247,10 +255,15 @@ func (h *Handler) GetRunWorkflow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if run has a workflow linked
+	// Check if run has a workflow linked; fall back to project default for pre-existing runs
 	if run.WorkflowID == nil {
-		_ = response.NotFound(w, r, errors.New("run has no workflow snapshot"))
-		return
+		wf, err := h.workflows.GetDefaultByProject(r.Context(), run.ProjectID)
+		if err != nil || wf == nil {
+			_ = response.NotFound(w, r, errors.New("run has no workflow snapshot"))
+			return
+		}
+		fallbackID := wf.ID
+		run.WorkflowID = &fallbackID
 	}
 
 	// Get the workflow
@@ -282,9 +295,15 @@ func toWorkflowResponse(wf models.WorkflowWithTasks) WorkflowResponse {
 			Workdir:        t.Workdir,
 			Env:            t.Env,
 		}
+		if t.GroupName != nil {
+			tasks[i].Group = *t.GroupName
+		}
+		if t.ConditionExpr != nil {
+			tasks[i].Condition = *t.ConditionExpr
+		}
 	}
 
-	return WorkflowResponse{
+	resp := WorkflowResponse{
 		ID:        wf.ID,
 		Name:      wf.Name,
 		Version:   wf.Version,
@@ -292,4 +311,25 @@ func toWorkflowResponse(wf models.WorkflowWithTasks) WorkflowResponse {
 		SyncedAt:  wf.SyncedAt,
 		Tasks:     tasks,
 	}
+
+	// Extract trigger from raw_config if available
+	if wf.RawConfig != nil && *wf.RawConfig != "" {
+		if cfg, err := config.ParseBytes([]byte(*wf.RawConfig)); err == nil && cfg.Workflow.Trigger != nil {
+			trigger := &WorkflowTriggerResponse{}
+			if cfg.Workflow.Trigger.Push != nil {
+				trigger.Push = &PushTriggerResponse{
+					Branches: cfg.Workflow.Trigger.Push.Branches,
+				}
+			}
+			if cfg.Workflow.Trigger.PullRequest != nil {
+				trigger.PullRequest = &PullRequestTriggerResponse{
+					Branches: cfg.Workflow.Trigger.PullRequest.Branches,
+					Types:    cfg.Workflow.Trigger.PullRequest.Types,
+				}
+			}
+			resp.Trigger = trigger
+		}
+	}
+
+	return resp
 }

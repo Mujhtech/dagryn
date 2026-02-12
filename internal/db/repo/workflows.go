@@ -70,8 +70,8 @@ func (r *WorkflowRepo) UpsertTasks(ctx context.Context, workflowID uuid.UUID, ta
 		}
 
 		_, err = tx.Exec(ctx, `
-			INSERT INTO workflow_tasks (workflow_id, name, command, needs, inputs, outputs, plugins, timeout_seconds, workdir, env)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+			INSERT INTO workflow_tasks (workflow_id, name, command, needs, inputs, outputs, plugins, timeout_seconds, workdir, env, group_name, condition_expr)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
 			workflowID,
 			task.Name,
 			task.Command,
@@ -82,6 +82,8 @@ func (r *WorkflowRepo) UpsertTasks(ctx context.Context, workflowID uuid.UUID, ta
 			task.TimeoutSeconds,
 			task.Workdir,
 			envJSON,
+			task.GroupName,
+			task.ConditionExpr,
 		)
 		if err != nil {
 			return err
@@ -204,7 +206,7 @@ func (r *WorkflowRepo) ListByProjectWithTasks(ctx context.Context, projectID uui
 // getTasksByWorkflowID retrieves all tasks for a workflow.
 func (r *WorkflowRepo) getTasksByWorkflowID(ctx context.Context, workflowID uuid.UUID) ([]models.WorkflowTask, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, workflow_id, name, command, needs, inputs, outputs, plugins, timeout_seconds, workdir, env
+		SELECT id, workflow_id, name, command, needs, inputs, outputs, plugins, timeout_seconds, workdir, env, group_name, condition_expr
 		FROM workflow_tasks WHERE workflow_id = $1
 		ORDER BY name ASC`, workflowID,
 	)
@@ -221,6 +223,7 @@ func (r *WorkflowRepo) getTasksByWorkflowID(ctx context.Context, workflowID uuid
 			&t.ID, &t.WorkflowID, &t.Name, &t.Command,
 			&t.Needs, &t.Inputs, &t.Outputs, &t.Plugins,
 			&t.TimeoutSeconds, &t.Workdir, &envJSON,
+			&t.GroupName, &t.ConditionExpr,
 		); err != nil {
 			return nil, err
 		}
@@ -231,6 +234,23 @@ func (r *WorkflowRepo) getTasksByWorkflowID(ctx context.Context, workflowID uuid
 	}
 
 	return tasks, rows.Err()
+}
+
+// GetDefaultByProject retrieves the default workflow for a project.
+// Returns nil, nil when no default workflow exists.
+func (r *WorkflowRepo) GetDefaultByProject(ctx context.Context, projectID uuid.UUID) (*models.ProjectWorkflow, error) {
+	var w models.ProjectWorkflow
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, project_id, name, version, is_default, config_hash, synced_at
+		FROM project_workflows WHERE project_id = $1 AND is_default = true LIMIT 1`, projectID,
+	).Scan(&w.ID, &w.ProjectID, &w.Name, &w.Version, &w.IsDefault, &w.ConfigHash, &w.SyncedAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &w, nil
 }
 
 // Delete removes a workflow and its tasks.

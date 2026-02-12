@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/mujhtech/dagryn/internal/dag"
@@ -45,6 +46,8 @@ func Validate(cfg *Config) ValidationErrors {
 	errors = append(errors, validateNoCycles(cfg)...)
 	errors = append(errors, validateCache(cfg)...)
 	errors = append(errors, validatePlugins(cfg)...)
+	errors = append(errors, validateGroups(cfg)...)
+	errors = append(errors, validateTriggers(cfg)...)
 
 	return errors
 }
@@ -271,6 +274,69 @@ func validatePlugins(cfg *Config) ValidationErrors {
 			errors = append(errors, ValidationError{
 				Message: fmt.Sprintf("global plugin %q has invalid spec %q: %v", name, spec, err),
 			})
+		}
+	}
+
+	return errors
+}
+
+// validGroupNameRegex defines valid group name pattern (same as task names).
+var validGroupNameRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]*$`)
+
+// validateGroups validates task group names.
+func validateGroups(cfg *Config) ValidationErrors {
+	var errors ValidationErrors
+
+	for name, tc := range cfg.Tasks {
+		if tc.Group == "" {
+			continue
+		}
+
+		// Group names must match valid name pattern
+		if !validGroupNameRegex.MatchString(tc.Group) {
+			errors = append(errors, ValidationError{
+				Task:    name,
+				Message: fmt.Sprintf("group %q has invalid name: must start with a letter and contain only letters, numbers, underscores, and hyphens", tc.Group),
+			})
+		}
+
+		// Group names must not collide with task names
+		if _, exists := cfg.Tasks[tc.Group]; exists {
+			errors = append(errors, ValidationError{
+				Task:    name,
+				Message: fmt.Sprintf("group %q collides with a task name", tc.Group),
+			})
+		}
+	}
+
+	return errors
+}
+
+// knownPRTypes is the set of valid pull_request event action types.
+var knownPRTypes = map[string]bool{
+	"opened":           true,
+	"synchronize":      true,
+	"reopened":         true,
+	"closed":           true,
+	"edited":           true,
+	"ready_for_review": true,
+}
+
+// validateTriggers validates the workflow trigger configuration.
+func validateTriggers(cfg *Config) ValidationErrors {
+	var errors ValidationErrors
+
+	if cfg.Workflow.Trigger == nil {
+		return errors
+	}
+
+	if pr := cfg.Workflow.Trigger.PullRequest; pr != nil {
+		for _, t := range pr.Types {
+			if !knownPRTypes[t] {
+				errors = append(errors, ValidationError{
+					Message: fmt.Sprintf("workflow.trigger.pull_request.types contains unknown type %q", t),
+				})
+			}
 		}
 	}
 

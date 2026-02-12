@@ -54,6 +54,7 @@ import {
   WarningIcon,
   LinkIcon,
   LinkSimpleHorizontalIcon,
+  PackageIcon,
 } from "@phosphor-icons/react";
 
 export const Icons = {
@@ -114,4 +115,5 @@ export const Icons = {
   Warning: WarningIcon,
   Link: LinkIcon,
   Link2: LinkSimpleHorizontalIcon,
+  Package: PackageIcon,
 };

@@ -106,15 +106,29 @@ func formatHeader(projectType, description string) string {
 #
 %s
 #
+# Workflow configuration:
+#   [workflow]
+#   name = "ci"                       # Workflow name
+#   default = true                    # Set as the default workflow
+#
+#   [workflow.trigger]                # Optional: filter which events trigger this workflow
+#   [workflow.trigger.push]
+#   branches = ["main", "develop"]    # Only trigger on pushes to these branches
+#   [workflow.trigger.pull_request]
+#   branches = ["main"]               # Only trigger on PRs targeting these branches
+#   types = ["opened", "synchronize"] # PR event types to match
+#
 # Available fields for each task:
-#   command  - The shell command to run (required)
-#   needs    - List of tasks that must complete first
-#   inputs   - File globs that affect task caching
-#   outputs  - File globs produced by this task
-#   timeout  - Maximum execution time (e.g., "5m", "1h")
-#   workdir  - Working directory for the command
-#   env      - Environment variables as key=value pairs
-#   uses     - Plugin(s) to install before running the task
+#   command   - The shell command to run (required)
+#   needs     - List of tasks that must complete first
+#   inputs    - File globs that affect task caching
+#   outputs   - File globs produced by this task
+#   timeout   - Maximum execution time (e.g., "5m", "1h")
+#   workdir   - Working directory for the command
+#   env       - Environment variables as key=value pairs
+#   uses      - Plugin(s) to install before running the task
+#   group     - Logical group name for organizing related tasks
+#   if        - Condition expression to control whether the task runs
 #
 # Cache configuration:
 #   [cache]

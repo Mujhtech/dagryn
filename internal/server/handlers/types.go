@@ -493,17 +493,40 @@ type SyncWorkflowTaskData struct {
 	TimeoutSeconds *int              `json:"timeout_seconds,omitempty" example:"300"`
 	Workdir        *string           `json:"workdir,omitempty" example:"./cmd"`
 	Env            map[string]string `json:"env,omitempty"`
+	Group          string            `json:"group,omitempty" example:"build"`
+	Condition      string            `json:"condition,omitempty" example:"branch == 'main'"`
 }
 
 // WorkflowResponse represents a workflow in API responses.
 // @Description Workflow information
 type WorkflowResponse struct {
-	ID        uuid.UUID              `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	Name      string                 `json:"name" example:"default"`
-	Version   int                    `json:"version" example:"1"`
-	IsDefault bool                   `json:"is_default" example:"true"`
-	SyncedAt  time.Time              `json:"synced_at" example:"2024-01-15T10:30:00Z"`
-	Tasks     []WorkflowTaskResponse `json:"tasks"`
+	ID        uuid.UUID                `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Name      string                   `json:"name" example:"default"`
+	Version   int                      `json:"version" example:"1"`
+	IsDefault bool                     `json:"is_default" example:"true"`
+	SyncedAt  time.Time                `json:"synced_at" example:"2024-01-15T10:30:00Z"`
+	Tasks     []WorkflowTaskResponse   `json:"tasks"`
+	Trigger   *WorkflowTriggerResponse `json:"trigger,omitempty"`
+}
+
+// WorkflowTriggerResponse represents trigger configuration in API responses.
+// @Description Workflow trigger information
+type WorkflowTriggerResponse struct {
+	Push        *PushTriggerResponse        `json:"push,omitempty"`
+	PullRequest *PullRequestTriggerResponse `json:"pull_request,omitempty"`
+}
+
+// PushTriggerResponse represents push trigger config.
+// @Description Push trigger information
+type PushTriggerResponse struct {
+	Branches []string `json:"branches"`
+}
+
+// PullRequestTriggerResponse represents pull request trigger config.
+// @Description Pull request trigger information
+type PullRequestTriggerResponse struct {
+	Branches []string `json:"branches,omitempty"`
+	Types    []string `json:"types,omitempty"`
 }
 
 // WorkflowTaskResponse represents a task in a workflow.
@@ -518,6 +541,8 @@ type WorkflowTaskResponse struct {
 	TimeoutSeconds *int              `json:"timeout_seconds,omitempty"`
 	Workdir        *string           `json:"workdir,omitempty"`
 	Env            map[string]string `json:"env,omitempty"`
+	Group          string            `json:"group,omitempty"`
+	Condition      string            `json:"condition,omitempty"`
 }
 
 // SyncWorkflowResponse represents the response after syncing a workflow.

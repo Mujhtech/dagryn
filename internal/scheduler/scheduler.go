@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/mujhtech/dagryn/internal/cache"
+	"github.com/mujhtech/dagryn/internal/condition"
 	"github.com/mujhtech/dagryn/internal/container"
 	"github.com/mujhtech/dagryn/internal/dag"
 	"github.com/mujhtech/dagryn/internal/executor"
@@ -20,13 +21,14 @@ import (
 
 // Options configures the scheduler behavior.
 type Options struct {
-	Parallelism     int               // Max concurrent tasks (default: NumCPU)
-	NoCache         bool              // Disable caching
-	NoPlugins       bool              // Disable plugin installation
-	FailFast        bool              // Stop on first failure
-	DryRun          bool              // Show plan without executing
-	CacheBackend    cache.Backend     // Optional custom cache backend
-	ContainerConfig *container.Config // Optional container isolation config
+	Parallelism      int                // Max concurrent tasks (default: NumCPU)
+	NoCache          bool               // Disable caching
+	NoPlugins        bool               // Disable plugin installation
+	FailFast         bool               // Stop on first failure
+	DryRun           bool               // Show plan without executing
+	CacheBackend     cache.Backend      // Optional custom cache backend
+	ContainerConfig  *container.Config  // Optional container isolation config
+	ConditionContext *condition.Context // Optional context for evaluating task conditions
 }
 
 // DefaultOptions returns the default scheduler options.
@@ -61,9 +63,10 @@ type LogCallback func(taskName, stream, line string)
 
 // taskState tracks the state of a task during execution.
 type taskState struct {
-	result   *executor.Result
-	cacheKey string
-	cacheHit bool
+	result           *executor.Result
+	cacheKey         string
+	cacheHit         bool
+	conditionSkipped bool // true when task was skipped due to unmet condition
 }
 
 // Scheduler orchestrates the execution of tasks in a DAG.
@@ -91,6 +94,12 @@ type Scheduler struct {
 	// Output writers
 	stdout io.Writer
 	stderr io.Writer
+}
+
+type compositeCleanupTask struct {
+	manifest *plugin.Manifest
+	setup    *plugin.CompositeSetupResult
+	workdir  string
 }
 
 // PluginCallback is called when a plugin is being installed.
@@ -308,11 +317,11 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 		}
 	}
 
-	// Check if any dependency failed
+	// Check if any dependency failed (condition-skipped deps are not failures)
 	statesMu.Lock()
 	for _, dep := range t.Needs {
 		if depState, exists := states[dep]; exists {
-			if depState.result != nil && !depState.result.IsSuccess() {
+			if depState.result != nil && !depState.result.IsSuccess() && !depState.conditionSkipped {
 				statesMu.Unlock()
 				result := &executor.Result{
 					Task:      taskName,
@@ -329,6 +338,28 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 		}
 	}
 	statesMu.Unlock()
+
+	// Evaluate task condition before running
+	if t.If != "" && s.opts.ConditionContext != nil {
+		matched, err := condition.Evaluate(t.If, s.opts.ConditionContext)
+		if err != nil {
+			slog.Warn("condition eval failed, running task anyway", "task", taskName, "error", err)
+		} else if !matched {
+			result := &executor.Result{
+				Task:      taskName,
+				Status:    executor.Skipped,
+				StartTime: time.Now(),
+				EndTime:   time.Now(),
+			}
+			if s.onTaskStart != nil {
+				s.onTaskStart(taskName, nil, false)
+			}
+			if s.onTaskComplete != nil {
+				s.onTaskComplete(taskName, result, false)
+			}
+			return &taskState{result: result, conditionSkipped: true}
+		}
+	}
 
 	// Notify task start
 	if s.onTaskStart != nil {
@@ -372,7 +403,7 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 
 	// Run composite plugin setup steps before the task command.
 	// This handles tasks like web-install that have both uses=["setup-node"] and a command.
-	compositeEnv := s.runCompositeSetup(ctx, t)
+	compositeEnv, compositeCleanupTasks := s.runCompositeSetup(ctx, t)
 
 	// Set up output writers, wrapping with LineWriter if log callback is set
 	stdoutWriter, stderrWriter := s.stdout, s.stderr
@@ -411,6 +442,9 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 
 	// Execute task
 	result := taskExec.Execute(ctx, t)
+
+	// Run composite cleanup after the task command (post behavior).
+	s.runCompositeCleanup(compositeCleanupTasks)
 
 	// Flush any partial lines from LineWriters
 	if stdoutLW != nil {
@@ -606,12 +640,13 @@ func (s *Scheduler) getPluginPathsForTask(t *task.Task) []string {
 // runCompositeSetup runs composite plugin setup steps for a task that has both
 // a command and composite plugin uses. Returns collected environment variables
 // from the composite steps (e.g., PATH modifications).
-func (s *Scheduler) runCompositeSetup(ctx context.Context, t *task.Task) map[string]string {
+func (s *Scheduler) runCompositeSetup(ctx context.Context, t *task.Task) (map[string]string, []compositeCleanupTask) {
 	if len(t.Uses) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	env := make(map[string]string)
+	cleanupTasks := make([]compositeCleanupTask, 0)
 
 	workdir := s.projectRoot
 	if t.Workdir != "" {
@@ -624,11 +659,17 @@ func (s *Scheduler) runCompositeSetup(ctx context.Context, t *task.Task) map[str
 			continue
 		}
 
-		// Execute the composite steps (e.g., download and install Node.js)
-		if err := s.compositeExecutor.Execute(ctx, resolved.Manifest, t.With, t.Env, workdir); err != nil {
+		// Execute only setup steps now; run cleanup after task command.
+		setup, err := s.compositeExecutor.ExecuteSetup(ctx, resolved.Manifest, t.With, t.Env, workdir)
+		if err != nil {
 			// Log but don't fail — the task command will likely fail with a clear error
 			continue
 		}
+		cleanupTasks = append(cleanupTasks, compositeCleanupTask{
+			manifest: resolved.Manifest,
+			setup:    setup,
+			workdir:  workdir,
+		})
 
 		// Collect environment variables from composite steps
 		stepEnv := s.compositeExecutor.CollectStepEnv(resolved.Manifest, t.With)
@@ -638,9 +679,15 @@ func (s *Scheduler) runCompositeSetup(ctx context.Context, t *task.Task) map[str
 	}
 
 	if len(env) == 0 {
-		return nil
+		return nil, cleanupTasks
 	}
-	return env
+	return env, cleanupTasks
+}
+
+func (s *Scheduler) runCompositeCleanup(tasks []compositeCleanupTask) {
+	for _, t := range tasks {
+		s.compositeExecutor.RunCleanup(t.manifest, t.setup, t.workdir)
+	}
 }
 
 // GetPluginManager returns the plugin manager.

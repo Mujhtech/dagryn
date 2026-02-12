@@ -36,9 +36,11 @@ type PluginInfo struct {
 	Author      string                   `json:"author,omitempty"`
 	License     string                   `json:"license,omitempty"`
 	Installed   bool                     `json:"installed"`
+	Homepage    string                   `json:"homepage,omitempty"`
 	Inputs      map[string]InputDefInfo  `json:"inputs,omitempty"`
 	Outputs     map[string]OutputDefInfo `json:"outputs,omitempty"`
 	Steps       []StepInfo               `json:"steps,omitempty"`
+	Cleanup     []StepInfo               `json:"cleanup,omitempty"`
 }
 
 // InputDefInfo represents an input definition.
@@ -449,6 +451,7 @@ func manifestToPluginInfo(manifest *plugin.Manifest, name, source string, instal
 		Author:      manifest.Plugin.Author,
 		License:     manifest.Plugin.License,
 		Installed:   installed,
+		Homepage:    manifest.Plugin.Homepage,
 	}
 
 	// Convert inputs
@@ -478,6 +481,18 @@ func manifestToPluginInfo(manifest *plugin.Manifest, name, source string, instal
 		info.Steps = make([]StepInfo, len(manifest.Steps))
 		for i, step := range manifest.Steps {
 			info.Steps[i] = StepInfo{
+				Name:    step.Name,
+				Command: step.Command,
+				If:      step.If,
+			}
+		}
+	}
+
+	// Convert cleanup steps (for composite plugins)
+	if len(manifest.Cleanup) > 0 {
+		info.Cleanup = make([]StepInfo, len(manifest.Cleanup))
+		for i, step := range manifest.Cleanup {
+			info.Cleanup[i] = StepInfo{
 				Name:    step.Name,
 				Command: step.Command,
 				If:      step.If,

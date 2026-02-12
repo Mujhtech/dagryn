@@ -799,13 +799,15 @@ func syncWorkflowToRemote(ctx context.Context, apiClient *client.Client, project
 	// Convert tasks
 	for name, task := range cfg.Tasks {
 		taskData := client.SyncWorkflowTaskData{
-			Name:    name,
-			Command: task.Command,
-			Needs:   task.Needs,
-			Inputs:  task.Inputs,
-			Outputs: task.Outputs,
-			Plugins: task.GetPlugins(),
-			Env:     task.Env,
+			Name:      name,
+			Command:   task.Command,
+			Needs:     task.Needs,
+			Inputs:    task.Inputs,
+			Outputs:   task.Outputs,
+			Plugins:   task.GetPlugins(),
+			Env:       task.Env,
+			Group:     task.Group,
+			Condition: task.If,
 		}
 		if task.Workdir != "" {
 			taskData.Workdir = &task.Workdir

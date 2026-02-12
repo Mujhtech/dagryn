@@ -1,9 +1,17 @@
 import { useMemo, useRef, useEffect, useState } from "react";
-import type { Workflow, WorkflowTask } from "~/lib/api";
+import type { Workflow, WorkflowTask, TaskStatus } from "~/lib/api";
 import { cn } from "~/lib/utils";
+import { Icons } from "~/components/icons";
+
+export interface TaskStatusInfo {
+  status: TaskStatus;
+  duration_ms?: number;
+  cache_hit?: boolean;
+}
 
 interface WorkflowDagProps {
   workflow: Workflow;
+  taskStatuses?: Map<string, TaskStatusInfo>;
   className?: string;
 }
 
@@ -19,14 +27,28 @@ interface NodePosition {
   height: number;
 }
 
+// Subtle background colors for group containers
+const GROUP_COLORS = [
+  "bg-blue-500/5 border-blue-500/20",
+  "bg-purple-500/5 border-purple-500/20",
+  "bg-green-500/5 border-green-500/20",
+  "bg-amber-500/5 border-amber-500/20",
+  "bg-rose-500/5 border-rose-500/20",
+  "bg-cyan-500/5 border-cyan-500/20",
+];
+
 /**
  * Visualizes a workflow DAG showing task dependencies.
  * Uses SVG for connector lines between nodes.
  */
-export function WorkflowDag({ workflow, className }: WorkflowDagProps) {
+export function WorkflowDag({
+  workflow,
+  taskStatuses,
+  className,
+}: WorkflowDagProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [nodePositions, setNodePositions] = useState<Map<string, NodePosition>>(
-    new Map()
+    new Map(),
   );
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
@@ -64,7 +86,7 @@ export function WorkflowDag({ workflow, className }: WorkflowDagProps) {
       }
 
       const maxDepLevel = Math.max(
-        ...node.needs.map((dep) => calculateLevel(dep))
+        ...node.needs.map((dep) => calculateLevel(dep)),
       );
       node.level = maxDepLevel + 1;
       return node.level;
@@ -84,6 +106,21 @@ export function WorkflowDag({ workflow, className }: WorkflowDagProps) {
     });
 
     return { levels, nodeMap };
+  }, [workflow.tasks]);
+
+  // Build group color map
+  const groupColorMap = useMemo(() => {
+    const groups = new Set<string>();
+    workflow.tasks.forEach((t) => {
+      if (t.group) groups.add(t.group);
+    });
+    const map = new Map<string, string>();
+    let idx = 0;
+    groups.forEach((g) => {
+      map.set(g, GROUP_COLORS[idx % GROUP_COLORS.length]);
+      idx++;
+    });
+    return map;
   }, [workflow.tasks]);
 
   // Measure node positions after render
@@ -170,6 +207,9 @@ export function WorkflowDag({ workflow, className }: WorkflowDagProps) {
 
   return (
     <div className={cn("overflow-auto relative", className)} ref={containerRef}>
+      {/* Trigger info */}
+      {workflow.trigger && <TriggerInfo trigger={workflow.trigger} />}
+
       {/* SVG layer for connectors */}
       <svg
         className="absolute inset-0 pointer-events-none"
@@ -208,42 +248,203 @@ export function WorkflowDag({ workflow, className }: WorkflowDagProps) {
 
       {/* Node layout */}
       <div className="flex flex-col items-center gap-12 p-6 min-w-fit relative z-10">
-        {levels.map((levelNodes, levelIndex) => (
-          <div key={levelIndex} className="flex flex-wrap gap-6 justify-center">
-            {levelNodes.map((node) => (
-              <TaskCard key={node.name} task={node} />
-            ))}
-          </div>
-        ))}
+        {levels.map((levelNodes, levelIndex) => {
+          // Group nodes within this level by their group
+          const grouped = new Map<string, TaskNode[]>();
+          const ungrouped: TaskNode[] = [];
+          levelNodes.forEach((node) => {
+            if (node.group) {
+              const list = grouped.get(node.group) || [];
+              list.push(node);
+              grouped.set(node.group, list);
+            } else {
+              ungrouped.push(node);
+            }
+          });
+
+          return (
+            <div
+              key={levelIndex}
+              className="flex flex-wrap gap-6 justify-center"
+            >
+              {/* Render grouped tasks in containers */}
+              {Array.from(grouped.entries()).map(([groupName, nodes]) => (
+                <div
+                  key={groupName}
+                  className={cn(
+                    "flex flex-wrap gap-4 p-3 rounded-none border",
+                    groupColorMap.get(groupName),
+                  )}
+                >
+                  <div className="w-full text-xs font-medium text-muted-foreground mb-1">
+                    {groupName}
+                  </div>
+                  {nodes.map((node) => (
+                    <TaskCard
+                      key={node.name}
+                      task={node}
+                      statusInfo={taskStatuses?.get(node.name)}
+                    />
+                  ))}
+                </div>
+              ))}
+              {/* Render ungrouped tasks */}
+              {ungrouped.map((node) => (
+                <TaskCard
+                  key={node.name}
+                  task={node}
+                  statusInfo={taskStatuses?.get(node.name)}
+                />
+              ))}
+            </div>
+          );
+        })}
       </div>
+    </div>
+  );
+}
+
+function TriggerInfo({
+  trigger,
+}: {
+  trigger: NonNullable<Workflow["trigger"]>;
+}) {
+  const parts: string[] = [];
+  if (trigger.push?.branches?.length) {
+    parts.push(`Push: ${trigger.push.branches.join(", ")}`);
+  }
+  if (trigger.pull_request) {
+    const pr = trigger.pull_request;
+    let text = "PR";
+    if (pr.branches?.length) text += `: ${pr.branches.join(", ")}`;
+    if (pr.types?.length) text += ` (${pr.types.join(", ")})`;
+    parts.push(text);
+  }
+
+  if (parts.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-2 px-6 pt-4 pb-0 text-xs text-muted-foreground">
+      <span className="font-medium">Triggers:</span>
+      {parts.map((part, i) => (
+        <span key={i} className="bg-muted px-2 py-0.5 rounded-none">
+          {part}
+        </span>
+      ))}
     </div>
   );
 }
 
 interface TaskCardProps {
   task: TaskNode;
+  statusInfo?: TaskStatusInfo;
 }
 
-function TaskCard({ task }: TaskCardProps) {
+const STATUS_BORDER_COLORS: Record<string, string> = {
+  success: "border-l-green-500",
+  running: "border-l-blue-500",
+  failed: "border-l-red-500",
+  cached: "border-l-purple-500",
+  pending: "border-l-yellow-500",
+  skipped: "border-l-gray-400",
+  cancelled: "border-l-gray-400",
+};
+
+function DagTaskStatusIcon({ status }: { status: TaskStatus }) {
+  switch (status) {
+    case "success":
+      return <Icons.CheckCircle className="h-4 w-4 text-green-500" />;
+    case "failed":
+      return <Icons.XCircle className="h-4 w-4 text-red-500" />;
+    case "running":
+      return <Icons.Loader className="h-4 w-4 text-blue-500 animate-spin" />;
+    case "cached":
+      return <Icons.Database className="h-4 w-4 text-purple-500" />;
+    case "pending":
+      return <Icons.Circle className="h-4 w-4 text-yellow-500" />;
+    case "skipped":
+      return <Icons.Minus className="h-4 w-4 text-gray-400" />;
+    case "cancelled":
+      return <Icons.XCircle className="h-4 w-4 text-gray-400" />;
+    default:
+      return null;
+  }
+}
+
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  const minutes = Math.floor(ms / 60000);
+  const seconds = Math.floor((ms % 60000) / 1000);
+  return `${minutes}m ${seconds}s`;
+}
+
+function TaskCard({ task, statusInfo }: TaskCardProps) {
   const hasDeps = task.needs && task.needs.length > 0;
   const hasPlugins = task.plugins && task.plugins.length > 0;
+  const hasCondition = !!task.condition;
+  const status = statusInfo?.status;
+  const isPending = !statusInfo || status === "pending";
 
   return (
     <div className="relative" data-node-id={task.name}>
-      <div className="bg-card border border-border rounded-lg p-4 w-64 shadow-sm hover:shadow-md transition-shadow hover:border-primary/50">
+      <div
+        className={cn(
+          "bg-card border border-border rounded-none p-4 w-64 shadow-sm hover:shadow-md transition-shadow hover:border-primary/50",
+          statusInfo && "border-l-4",
+          statusInfo && STATUS_BORDER_COLORS[status || ""],
+          status === "running" && "animate-pulse",
+          statusInfo && isPending && "opacity-50",
+        )}
+      >
         <div className="flex items-center justify-between mb-2">
-          <h4 className="font-semibold text-sm truncate">{task.name}</h4>
-          {hasPlugins && (
-            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-              {task.plugins?.length} plugin
-              {task.plugins && task.plugins.length > 1 ? "s" : ""}
-            </span>
-          )}
+          <h4 className="font-semibold text-sm truncate flex-1">{task.name}</h4>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {hasPlugins && (
+              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-none">
+                {task.plugins?.length} plugin
+                {task.plugins && task.plugins.length > 1 ? "s" : ""}
+              </span>
+            )}
+            {statusInfo && status && <DagTaskStatusIcon status={status} />}
+          </div>
         </div>
 
-        <code className="block text-xs text-muted-foreground bg-muted p-2 rounded truncate">
+        <code className="block text-xs text-muted-foreground bg-muted p-2 rounded-none truncate">
           {task.command}
         </code>
+
+        {statusInfo?.duration_ms != null && (
+          <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+            <Icons.Clock className="h-3 w-3" />
+            {formatDuration(statusInfo.duration_ms)}
+            {statusInfo.cache_hit && (
+              <span className="ml-1.5 text-purple-500 flex items-center gap-0.5">
+                <Icons.Database className="h-3 w-3" />
+                cached
+              </span>
+            )}
+          </div>
+        )}
+
+        {hasCondition && (
+          <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+            <svg
+              className="w-3.5 h-3.5 shrink-0"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+            >
+              <path d="M8 1a.75.75 0 01.75.75v6.5a.75.75 0 01-1.5 0v-6.5A.75.75 0 018 1zM8 11a1 1 0 100 2 1 1 0 000-2z" />
+              <path
+                fillRule="evenodd"
+                d="M8 0a8 8 0 100 16A8 8 0 008 0zM1.5 8a6.5 6.5 0 1113 0 6.5 6.5 0 01-13 0z"
+              />
+            </svg>
+            <span className="truncate" title={task.condition}>
+              if: {task.condition}
+            </span>
+          </div>
+        )}
 
         {hasDeps && (
           <div className="mt-2 text-xs text-muted-foreground">

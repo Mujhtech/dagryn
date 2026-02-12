@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mujhtech/dagryn/internal/config"
 	"github.com/mujhtech/dagryn/internal/db/models"
 	"github.com/mujhtech/dagryn/internal/db/repo"
 	"github.com/mujhtech/dagryn/internal/job"
@@ -40,6 +42,9 @@ type GitHubPullRequestEvent struct {
 			Ref string `json:"ref"`
 			SHA string `json:"sha"`
 		} `json:"head"`
+		Base struct {
+			Ref string `json:"ref"` // target (base) branch
+		} `json:"base"`
 		User struct {
 			Login string `json:"login"`
 		} `json:"user"`
@@ -207,6 +212,14 @@ func (h *Handler) handleGitHubPush(ctx context.Context, payload *GitHubPushEvent
 	}
 
 	branch := strings.TrimPrefix(payload.Ref, "refs/heads/")
+
+	// Check workflow trigger configuration before creating a run
+	triggerCfg := h.fetchTriggerConfig(ctx, project, payload.Installation.ID, payload.After)
+	if triggerCfg != nil && !triggerCfg.MatchesPush(branch) {
+		slog.Info("github_webhook: push trigger not matched, skipping", "branch", branch)
+		return nil
+	}
+
 	run := &models.Run{
 		ID:          uuid.New(),
 		ProjectID:   project.ID,
@@ -221,6 +234,12 @@ func (h *Handler) handleGitHubPush(ctx context.Context, payload *GitHubPushEvent
 	if payload.After != "" {
 		sha := payload.After
 		run.GitCommit = &sha
+	}
+
+	// Link default workflow snapshot (best-effort)
+	if wf, _ := h.workflows.GetDefaultByProject(ctx, project.ID); wf != nil {
+		run.WorkflowID = &wf.ID
+		run.WorkflowName = &wf.Name
 	}
 
 	// Enrich with commit metadata (message/author).
@@ -252,6 +271,7 @@ func (h *Handler) handleGitHubPush(ctx context.Context, payload *GitHubPushEvent
 			GitBranch: branch,
 			GitCommit: payload.After,
 			RepoURL:   *project.RepoURL,
+			EventType: "push",
 		})
 		if err == nil {
 			_ = h.jobClient.Enqueue(job.QueueNameDefault, job.ExecuteRunTaskName, &job.ClientPayload{Data: data})
@@ -293,7 +313,16 @@ func (h *Handler) handleGitHubPullRequest(ctx context.Context, payload *GitHubPu
 	}
 
 	branch := strings.TrimSpace(payload.PullRequest.Head.Ref)
+	baseBranch := strings.TrimSpace(payload.PullRequest.Base.Ref)
 	sha := strings.TrimSpace(payload.PullRequest.Head.SHA)
+
+	// Check workflow trigger configuration before creating a run
+	triggerCfg := h.fetchTriggerConfig(ctx, project, payload.Installation.ID, sha)
+	if triggerCfg != nil && !triggerCfg.MatchesPullRequest(baseBranch, payload.Action) {
+		slog.Info("github_webhook: pull_request trigger not matched, skipping",
+			"base_branch", baseBranch, "action", payload.Action)
+		return nil
+	}
 
 	run := &models.Run{
 		ID:          uuid.New(),
@@ -318,6 +347,12 @@ func (h *Handler) handleGitHubPullRequest(ctx context.Context, payload *GitHubPu
 		run.PRNumber = &n
 	}
 
+	// Link default workflow snapshot (best-effort)
+	if wf, _ := h.workflows.GetDefaultByProject(ctx, project.ID); wf != nil {
+		run.WorkflowID = &wf.ID
+		run.WorkflowName = &wf.Name
+	}
+
 	// Enrich with commit metadata (message/author).
 	// Prefer GitHub App installation token if available, otherwise fall back to OAuth token.
 	if project.GitHubInstallationID != nil && payload.Installation.ID > 0 && h.githubApp != nil {
@@ -338,11 +373,13 @@ func (h *Handler) handleGitHubPullRequest(ctx context.Context, payload *GitHubPu
 
 	if project.RepoURL != nil && *project.RepoURL != "" {
 		data, err := json.Marshal(job.ExecuteRunPayload{
-			ProjectID: project.ID.String(),
-			RunID:     run.ID.String(),
-			GitBranch: branch,
-			GitCommit: sha,
-			RepoURL:   *project.RepoURL,
+			ProjectID:   project.ID.String(),
+			RunID:       run.ID.String(),
+			GitBranch:   branch,
+			GitCommit:   sha,
+			RepoURL:     *project.RepoURL,
+			EventType:   "pull_request",
+			EventAction: payload.Action,
 		})
 		if err == nil {
 			_ = h.jobClient.Enqueue(job.QueueNameDefault, job.ExecuteRunTaskName, &job.ClientPayload{Data: data})
@@ -398,6 +435,70 @@ func (h *Handler) handleGitHubInstallationRepositories(ctx context.Context, payl
 	// For now, we don't track individual repo additions/removals in a separate table.
 	// We'll re-resolve via GitHub API when needed (e.g., when listing repos for project creation).
 	return nil
+}
+
+// fetchTriggerConfig fetches the dagryn.toml from the repository at the given ref
+// and extracts the workflow trigger configuration.
+// Returns nil on any error (fail-open: if we can't fetch config, allow the run).
+func (h *Handler) fetchTriggerConfig(ctx context.Context, project *models.Project, installationID int64, ref string) *config.TriggerConfig {
+	if project.RepoURL == nil || *project.RepoURL == "" {
+		return nil
+	}
+
+	owner, repoName, err := parseGitHubOwnerRepo(*project.RepoURL)
+	if err != nil {
+		return nil
+	}
+
+	// Obtain access token
+	var accessToken string
+	if project.GitHubInstallationID != nil && installationID > 0 && h.githubApp != nil {
+		token, err := h.githubApp.FetchInstallationToken(ctx, installationID)
+		if err == nil && token != nil {
+			accessToken = token.Token
+		}
+	}
+	if accessToken == "" {
+		return nil
+	}
+
+	// Determine config path
+	configPath := project.ConfigPath
+	if configPath == "" {
+		configPath = config.DefaultConfigFile
+	}
+
+	// Fetch config file content from GitHub Contents API
+	contentsURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s?ref=%s",
+		owner, repoName, configPath, ref)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, contentsURL, nil)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Accept", "application/vnd.github.raw+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		return nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil
+	}
+
+	cfg, err := config.ParseBytes(body)
+	if err != nil {
+		return nil
+	}
+
+	return cfg.Workflow.Trigger
 }
 
 // projectOwnerForWebhook returns the user ID whose provider token should be used when enriching webhook runs.

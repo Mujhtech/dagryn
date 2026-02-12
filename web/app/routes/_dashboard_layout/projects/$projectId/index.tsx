@@ -1,16 +1,22 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "~/lib/auth";
 import {
   useProject,
   useRuns,
+  useRunDetail,
   useProjectWorkflows,
   useRunDashboardSummary,
 } from "~/hooks/queries";
 import { useTriggerRun } from "~/hooks/mutations";
 import { useRunFilters } from "~/hooks/use-url-filters";
-import type { RunStatus, TriggerRunRequest, Run } from "~/lib/api";
-import { WorkflowDag } from "~/components/workflow-dag";
+import type { RunStatus, TaskStatus, TriggerRunRequest, Run } from "~/lib/api";
+import { WorkflowDag, type TaskStatusInfo } from "~/components/workflow-dag";
+import {
+  RunStreamClient,
+  type TaskEventData,
+} from "~/lib/sse";
+import { queryClient, queryKeys } from "~/lib/query-client";
 import {
   Card,
   CardContent,
@@ -236,6 +242,9 @@ function ProjectDetailPage() {
     );
   }
 
+  // Find the latest run for DAG task status visualization
+  const latestRunId = allRuns[0]?.id;
+
   // Show new dashboard UI when project has repo_url (connected to git platform)
   if (project.repo_url) {
     return (
@@ -245,6 +254,7 @@ function ProjectDetailPage() {
         chartData={dashboardChartData}
         runs={filteredRuns}
         runsLoading={runsLoading}
+        latestRunId={latestRunId}
         page={page}
         setPage={setPage}
         totalPages={totalPages}
@@ -312,6 +322,11 @@ function ProjectDetailPage() {
           <p className="text-muted-foreground font-mono">{project.slug}</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" asChild>
+            <Link to="/projects/$projectId/plugins" params={{ projectId }}>
+              <Icons.Package className="h-4 w-4" />
+            </Link>
+          </Button>
           <Button variant="outline" size="icon" asChild>
             <Link to="/projects/$projectId/cache" params={{ projectId }}>
               <Icons.Database className="h-4 w-4" />
@@ -493,6 +508,7 @@ function WorkflowDashboard({
   chartData,
   runs,
   runsLoading,
+  latestRunId,
   page,
   setPage,
   totalPages,
@@ -542,6 +558,7 @@ function WorkflowDashboard({
   }>;
   runs: Run[];
   runsLoading: boolean;
+  latestRunId?: string;
   page: number;
   setPage: (p: number) => void;
   totalPages: number;
@@ -590,6 +607,91 @@ function WorkflowDashboard({
   const { data: workflows } = useProjectWorkflows(projectId);
   const latestWorkflow = workflows?.[0];
   const [workflowExpanded, setWorkflowExpanded] = useState(false);
+
+  // --- Live DAG task status tracking ---
+  const latestRunStatus = runs[0]?.status;
+  const isLatestRunActive =
+    latestRunStatus === "running" || latestRunStatus === "pending";
+
+  // Fetch run detail for the latest run (poll every 3s while active)
+  const { data: latestRunDetail } = useRunDetail(
+    projectId,
+    latestRunId ?? "",
+    { refetchInterval: isLatestRunActive ? 3000 : false },
+  );
+
+  // Task statuses for the DAG visualization
+  const [dagTasks, setDagTasks] = useState<Map<string, TaskStatusInfo>>(
+    new Map(),
+  );
+
+  // Seed dagTasks from run detail query data
+  useEffect(() => {
+    const tasks = latestRunDetail?.data?.tasks;
+    if (!tasks) {
+      setDagTasks(new Map());
+      return;
+    }
+    const map = new Map<string, TaskStatusInfo>();
+    for (const t of tasks) {
+      map.set(t.task_name, {
+        status: t.status,
+        duration_ms: t.duration_ms,
+        cache_hit: t.cache_hit,
+      });
+    }
+    setDagTasks(map);
+  }, [latestRunDetail?.data?.tasks]);
+
+  // SSE subscription for real-time task updates on the active run
+  useEffect(() => {
+    if (!isLatestRunActive || !latestRunId) return;
+
+    const client = new RunStreamClient();
+
+    const updateTask = (data: TaskEventData, status: TaskStatus) => {
+      setDagTasks((prev) => {
+        const next = new Map(prev);
+        next.set(data.task_name, {
+          status,
+          duration_ms: data.duration_ms,
+          cache_hit: data.cache_hit,
+        });
+        return next;
+      });
+    };
+
+    client.onTaskStarted((d) => updateTask(d, "running"));
+    client.onTaskCompleted((d) => updateTask(d, "success"));
+    client.onTaskFailed((d) => updateTask(d, "failed"));
+    client.onTaskCached((d) => updateTask(d, "cached"));
+
+    // When the run finishes, invalidate queries so the list refreshes
+    const onRunEnd = () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.runs(projectId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.runDetail(projectId, latestRunId),
+      });
+    };
+    client.onRunCompleted(onRunEnd);
+    client.onRunFailed(onRunEnd);
+    client.onRunCancelled(onRunEnd);
+
+    client.connect(projectId, latestRunId);
+
+    return () => {
+      client.disconnect();
+    };
+  }, [isLatestRunActive, latestRunId, projectId]);
+
+  // Auto-expand the DAG section when there's an active run
+  useEffect(() => {
+    if (isLatestRunActive && latestWorkflow) {
+      setWorkflowExpanded(true);
+    }
+  }, [isLatestRunActive, latestWorkflow]);
 
   const filteredUsers = uniqueUsers.filter((u) =>
     u.name.toLowerCase().includes(userSearch.toLowerCase()),
@@ -832,6 +934,11 @@ function WorkflowDashboard({
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="icon" asChild>
+                <Link to="/projects/$projectId/plugins" params={{ projectId }}>
+                  <Icons.Package className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button variant="outline" size="icon" asChild>
                 <Link to="/projects/$projectId/cache" params={{ projectId }}>
                   <Icons.Database className="h-4 w-4" />
                 </Link>
@@ -937,7 +1044,7 @@ function WorkflowDashboard({
                     failed: { color: "hsl(var(--chart-2))" },
                     duration: { color: "hsl(var(--chart-3))" },
                   }}
-                  className="h-[300px]"
+                  className="h-75"
                 >
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart
@@ -1037,7 +1144,8 @@ function WorkflowDashboard({
                 <CardContent>
                   <WorkflowDag
                     workflow={latestWorkflow}
-                    className="min-h-[200px]"
+                    taskStatuses={dagTasks.size > 0 ? dagTasks : undefined}
+                    className="min-h-50"
                   />
                 </CardContent>
               )}

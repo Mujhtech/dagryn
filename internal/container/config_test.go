@@ -86,7 +86,7 @@ func TestConfigMerge(t *testing.T) {
 		assert.Equal(t, "golang:1.25-alpine", result.Image)
 		assert.Equal(t, int64(4*1024*1024*1024), result.MemoryLimit)
 		assert.Equal(t, int64(2_000_000_000), result.CPULimit) // inherited
-		assert.Equal(t, "bridge", result.Network)               // inherited
+		assert.Equal(t, "bridge", result.Network)              // inherited
 	})
 
 	t.Run("task overrides all", func(t *testing.T) {

@@ -31,6 +31,8 @@ type WorkflowTask struct {
 	TimeoutSeconds *int              `json:"timeout_seconds,omitempty" db:"timeout_seconds"`
 	Workdir        *string           `json:"workdir,omitempty" db:"workdir"`
 	Env            map[string]string `json:"env,omitempty" db:"env"`
+	GroupName      *string           `json:"group,omitempty" db:"group_name"`
+	ConditionExpr  *string           `json:"condition,omitempty" db:"condition_expr"`
 }
 
 // WorkflowWithTasks combines a workflow with its tasks.

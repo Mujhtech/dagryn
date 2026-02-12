@@ -40,7 +40,7 @@ func (d *DockerRuntime) Pull(ctx context.Context, img string) error {
 	if err != nil {
 		return fmt.Errorf("pull image %s: %w", img, err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	// Consume the pull output to completion
 	_, _ = io.Copy(io.Discard, reader)
 	return nil
@@ -66,10 +66,10 @@ func (d *DockerRuntime) Create(ctx context.Context, cfg ContainerConfig) (string
 
 	// Resource limits
 	if cfg.CPULimit > 0 {
-		hostCfg.Resources.NanoCPUs = cfg.CPULimit
+		hostCfg.NanoCPUs = cfg.CPULimit
 	}
 	if cfg.MemoryLimit > 0 {
-		hostCfg.Resources.Memory = cfg.MemoryLimit
+		hostCfg.Memory = cfg.MemoryLimit
 	}
 
 	// Mounts
@@ -133,7 +133,7 @@ func (d *DockerRuntime) Logs(ctx context.Context, containerID string, stdout, st
 	if err != nil {
 		return fmt.Errorf("container logs: %w", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	// Docker multiplexes stdout and stderr into a single stream with an 8-byte header.
 	// stdcopy.StdCopy demuxes them.
