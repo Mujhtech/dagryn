@@ -1,0 +1,18 @@
+[plugin]
+name = "slack-notify-integration"
+description = "Send Slack notifications on run success or failure"
+type = "integration"
+version = "1.0.0"
+author = "dagryn"
+license = "MIT"
+homepage = "https://github.com/mujhtech/dagryn/plugins/slack-notify-integration"
+
+[inputs.webhook-url]
+required = true
+description = "Slack incoming webhook URL"
+
+[hooks.on_run_success]
+command = 'curl -fsSL -X POST -H "Content-Type: application/json" -d "{\"text\":\"Run $DAGRYN_RUN_ID succeeded\"}" "${inputs.webhook-url}"'
+
+[hooks.on_run_failure]
+command = 'curl -fsSL -X POST -H "Content-Type: application/json" -d "{\"text\":\"Run $DAGRYN_RUN_ID FAILED\"}" "${inputs.webhook-url}"'
