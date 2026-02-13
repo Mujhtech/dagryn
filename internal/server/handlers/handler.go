@@ -8,6 +8,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/encrypt"
 	"github.com/mujhtech/dagryn/internal/githubapp"
 	"github.com/mujhtech/dagryn/internal/job"
+	"github.com/mujhtech/dagryn/internal/license"
 	"github.com/mujhtech/dagryn/internal/server/sse"
 	"github.com/mujhtech/dagryn/internal/service"
 	dagrynstripe "github.com/mujhtech/dagryn/internal/stripe"
@@ -66,6 +67,13 @@ type Handler struct {
 
 	// Quota service (optional; nil when billing is not configured)
 	quotaService *service.QuotaService
+
+	// License feature gate (optional; nil = Community edition or cloud mode)
+	featureGate *license.FeatureGate
+
+	// cloudMode is true for the managed cloud deployment.
+	// When true, the license system is bypassed and billing handles everything.
+	cloudMode bool
 }
 
 // New creates a new Handler with all dependencies.
@@ -126,4 +134,25 @@ func New(
 		stripeClient:        stripeClient,
 		quotaService:        quotaService,
 	}
+}
+
+// SetFeatureGate sets the license feature gate for edition/feature checks.
+func (h *Handler) SetFeatureGate(gate *license.FeatureGate) {
+	h.featureGate = gate
+}
+
+// FeatureGate returns the license feature gate (may be nil).
+func (h *Handler) FeatureGate() *license.FeatureGate {
+	return h.featureGate
+}
+
+// SetCloudMode marks this handler as running in cloud (managed SaaS) mode.
+func (h *Handler) SetCloudMode(enabled bool) {
+	h.cloudMode = enabled
+}
+
+// IsCloudMode returns true when the server is running as the managed cloud deployment.
+// In cloud mode, the license system is not used — quota enforcement is handled by the billing system.
+func (h *Handler) IsCloudMode() bool {
+	return h.cloudMode
 }

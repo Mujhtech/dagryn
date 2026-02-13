@@ -39,6 +39,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/encrypt"
 	"github.com/mujhtech/dagryn/internal/githubapp"
 	"github.com/mujhtech/dagryn/internal/job"
+	"github.com/mujhtech/dagryn/internal/license"
 	"github.com/mujhtech/dagryn/internal/redis"
 	"github.com/mujhtech/dagryn/internal/server/auth"
 	"github.com/mujhtech/dagryn/internal/server/auth/oauth"
@@ -308,6 +309,50 @@ func (s *Server) Initialize(ctx context.Context) error {
 		log.Debug().Msg("Stripe billing service initialized")
 	}
 
+	// Validate license key (self-hosted only).
+	// In cloud mode, the billing system handles all quota/feature gating;
+	// the license system is not used and featureGate remains nil.
+	var featureGate *license.FeatureGate
+	if s.config.CloudMode {
+		log.Info().Msg("Cloud mode enabled -- license system disabled")
+	} else if s.config.License.Key != "" {
+		keys, err := license.ParsePublicKeys()
+		if err != nil {
+			log.Warn().Err(err).Msg("Invalid license keyring -- running as Community edition")
+			featureGate = license.NewFeatureGate(nil, log.Logger)
+		} else if len(keys) == 0 {
+			log.Warn().Msg("No license public keys embedded in binary -- running as Community edition")
+			featureGate = license.NewFeatureGate(nil, log.Logger)
+		} else {
+			validator := license.NewValidator(keys)
+			claims, err := validator.Validate(s.config.License.Key)
+			if err != nil {
+				log.Warn().Err(err).Msg("Invalid license key -- running as Community edition")
+				featureGate = license.NewFeatureGate(nil, log.Logger)
+			} else {
+				featureGate = license.NewFeatureGate(claims, log.Logger)
+				log.Info().
+					Str("edition", string(claims.Edition)).
+					Str("customer", claims.Subject).
+					Int("seats", claims.Seats).
+					Int("days_remaining", claims.DaysUntilExpiry()).
+					Msg("License validated")
+
+				if featureGate.IsExpiring() {
+					log.Warn().
+						Int("days_remaining", claims.DaysUntilExpiry()).
+						Msg("License expiring soon -- please renew")
+				}
+				if featureGate.InGracePeriod() {
+					log.Warn().Msg("License expired -- running in grace period, features will be disabled soon")
+				}
+			}
+		}
+	} else {
+		featureGate = license.NewFeatureGate(nil, log.Logger)
+		log.Info().Msg("No license key configured -- running as Community edition")
+	}
+
 	// Create handlers
 	h := handlers.New(
 		s.db, s.repos.Users, s.repos.Tokens, s.repos.Teams, s.repos.Projects,
@@ -328,6 +373,10 @@ func (s *Server) Initialize(ctx context.Context) error {
 		quotaService,
 	)
 
+	// Set cloud mode and license feature gate
+	h.SetCloudMode(s.config.CloudMode)
+	h.SetFeatureGate(featureGate)
+
 	// Create auth handler
 	authHandler := handlers.NewAuthHandler(
 		s.jwtService,
@@ -346,7 +395,7 @@ func (s *Server) Initialize(ctx context.Context) error {
 	authMiddleware := s.createAuthMiddleware()
 
 	// Setup routes
-	s.setupRoutes(h, authHandler, authMiddleware, jobClient)
+	s.setupRoutes(h, authHandler, authMiddleware, jobClient, featureGate)
 
 	log.Info().
 		Str("addr", s.config.Server.Address()).

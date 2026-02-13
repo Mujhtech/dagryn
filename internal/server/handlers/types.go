@@ -44,6 +44,9 @@ type PaginatedResponse struct {
 type HealthResponse struct {
 	Status    string    `json:"status" example:"healthy"`
 	Version   string    `json:"version" example:"1.0.0"`
+	Mode      string    `json:"mode" example:"self_hosted"`
+	Edition   string    `json:"edition" example:"community"`
+	Licensed  bool      `json:"licensed" example:"false"`
 	Timestamp time.Time `json:"timestamp" example:"2024-01-15T10:30:00Z"`
 }
 

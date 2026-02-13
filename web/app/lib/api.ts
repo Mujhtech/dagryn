@@ -538,6 +538,25 @@ export interface Invoice {
   created_at: string;
 }
 
+// License types
+export interface LicenseStatus {
+  mode: "cloud" | "self_hosted";
+  edition: "community" | "pro" | "enterprise" | "cloud";
+  licensed: boolean;
+  customer?: string;
+  seats: number;
+  features: Record<string, boolean>;
+  limits: {
+    projects: { current: number; limit: number | null };
+    team_members: { current: number; limit: number | null };
+    concurrent_runs: { current: number; limit: number | null };
+  };
+  expires_at?: string;
+  days_remaining?: number;
+  grace_period: boolean;
+  expiring: boolean;
+}
+
 // API Error
 export class ApiError extends Error {
   constructor(
@@ -1255,6 +1274,11 @@ class ApiClient {
     return this.fetch<Invoice[]>(
       `/billing/invoices?limit=${limit}&offset=${offset}`,
     );
+  }
+
+  // License
+  async getLicenseStatus() {
+    return this.fetch<LicenseStatus>("/license");
   }
 }
 

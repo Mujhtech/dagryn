@@ -28,6 +28,22 @@ type StripeConfig struct {
 	PublishableKey string `toml:"publishable_key"`
 }
 
+// LicenseConfig holds self-hosted license key configuration.
+type LicenseConfig struct {
+	Key             string `toml:"key"`              // The full license key string
+	ServerURL       string `toml:"server_url"`       // External License Server URL
+	CheckRevocation *bool  `toml:"check_revocation"` // nil => default true
+	InstanceName    string `toml:"instance_name"`    // Human-readable instance name
+}
+
+// IsRevocationCheckEnabled returns whether periodic license revocation checks are enabled.
+func (c *LicenseConfig) IsRevocationCheckEnabled() bool {
+	if c.CheckRevocation == nil {
+		return true
+	}
+	return *c.CheckRevocation
+}
+
 // Config holds all server configuration.
 type Config struct {
 	Server          ServerConfig          `toml:"server"`
@@ -43,6 +59,14 @@ type Config struct {
 	ArtifactStorage StorageConfig         `toml:"artifact_storage"`
 	Container       ContainerServerConfig `toml:"container"`
 	Stripe          StripeConfig          `toml:"stripe"`
+	License         LicenseConfig         `toml:"license"`
+
+	// CloudMode when true indicates this is the managed cloud deployment.
+	// In cloud mode, the license system is completely disabled and all feature/quota
+	// gating is handled by the billing system. Self-hosted users with their own Stripe
+	// key should leave this false.
+	// Set via DAGRYN_CLOUD_MODE=true or [cloud_mode] in config.
+	CloudMode bool `toml:"cloud_mode"`
 }
 
 // StorageConfig holds cache storage backend configuration.
@@ -393,12 +417,32 @@ func applyEnvVars(cfg *Config) {
 		cfg.Container.Network = v
 	}
 
+	// License
+	if v := getEnvAny("DAGRYN_LICENSE_KEY"); v != "" {
+		cfg.License.Key = v
+	}
+	if v := getEnvAny("DAGRYN_LICENSE_SERVER_URL"); v != "" {
+		cfg.License.ServerURL = v
+	}
+	if v := os.Getenv("DAGRYN_LICENSE_CHECK_REVOCATION"); v == "false" || v == "0" {
+		f := false
+		cfg.License.CheckRevocation = &f
+	}
+	if v := getEnvAny("DAGRYN_LICENSE_INSTANCE_NAME"); v != "" {
+		cfg.License.InstanceName = v
+	}
+
 	// Health
 	if v := os.Getenv("DAGRYN_READY_CHECK_DATABASE"); v == "false" || v == "0" {
 		cfg.Health.ReadyCheckDatabase = false
 	}
 	if v := os.Getenv("DAGRYN_READY_CHECK_REDIS"); v == "true" || v == "1" {
 		cfg.Health.ReadyCheckRedis = true
+	}
+
+	// Cloud mode
+	if v := os.Getenv("DAGRYN_CLOUD_MODE"); v == "true" || v == "1" {
+		cfg.CloudMode = true
 	}
 
 	// Stripe

@@ -20,9 +20,25 @@ var Version = "dev"
 // @Success 200 {object} HealthResponse
 // @Router /health [get]
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
+	mode := "self_hosted"
+	edition := "community"
+	licensed := false
+
+	if h.IsCloudMode() {
+		mode = "cloud"
+		edition = "cloud"
+		licensed = true
+	} else if h.featureGate != nil {
+		edition = string(h.featureGate.Edition())
+		licensed = h.featureGate.Claims() != nil
+	}
+
 	_ = response.Ok(w, r, "Server is healthy", HealthResponse{
 		Status:    "healthy",
 		Version:   Version,
+		Mode:      mode,
+		Edition:   edition,
+		Licensed:  licensed,
 		Timestamp: time.Now().UTC(),
 	})
 }

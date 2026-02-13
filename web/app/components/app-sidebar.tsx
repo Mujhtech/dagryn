@@ -2,6 +2,7 @@ import { useLocation } from "@tanstack/react-router";
 import { Icons } from "./icons";
 
 import { useAuth } from "~/lib/auth";
+import { useLicenseStatus } from "~/hooks/queries/use-license-status";
 import {
   Sidebar,
   SidebarContent,
@@ -15,7 +16,7 @@ import { NavUser } from "./nav-user";
 import { NavMain } from "./nav-main";
 import { Logo } from "./logo";
 
-const navItems = [
+const baseNavItems = [
   {
     title: "Dashboard",
     url: "/dashboard",
@@ -41,16 +42,24 @@ const navItems = [
     url: "/plugins/browse",
     icon: Icons.Package,
   },
-  {
-    title: "Billing",
-    url: "/billing",
-    icon: Icons.CreditCard,
-  },
 ];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const location = useLocation();
   const { user } = useAuth();
+  const { data: license } = useLicenseStatus();
+
+  const isCloud = license?.mode === "cloud";
+
+  // Build nav items based on deployment mode.
+  // Cloud mode: show Billing, hide License.
+  // Self-hosted mode: show License, hide Billing.
+  const navItems = [
+    ...baseNavItems,
+    ...(isCloud
+      ? [{ title: "Billing", url: "/billing", icon: Icons.CreditCard }]
+      : [{ title: "License", url: "/license", icon: Icons.Key }]),
+  ];
 
   const isActive = (url: string) => {
     if (url === "/") {

@@ -17,6 +17,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/githubapp"
 	"github.com/mujhtech/dagryn/internal/job"
 	jobhandlers "github.com/mujhtech/dagryn/internal/job/handlers"
+	"github.com/mujhtech/dagryn/internal/license"
 	"github.com/mujhtech/dagryn/internal/redis"
 	"github.com/mujhtech/dagryn/internal/server"
 	"github.com/mujhtech/dagryn/internal/server/sse"
@@ -214,16 +215,60 @@ func runWorker(opts WorkerConfigOpts) error {
 		}
 	}
 
+	// Validate license key (self-hosted only).
+	// In cloud mode, the billing system handles quota/features;
+	// license gating is skipped entirely.
+	var featureGate *license.FeatureGate
+	if cfg.CloudMode {
+		log.Info().Msg("Cloud mode enabled -- license system disabled")
+	} else if cfg.License.Key != "" {
+		keys, err := license.ParsePublicKeys()
+		if err != nil || len(keys) == 0 {
+			log.Warn().Err(err).Msg("License keyring unavailable -- running as Community edition")
+			featureGate = license.NewFeatureGate(nil, log.Logger)
+		} else {
+			validator := license.NewValidator(keys)
+			claims, err := validator.Validate(cfg.License.Key)
+			if err != nil {
+				log.Warn().Err(err).Msg("Invalid license key -- running as Community edition")
+				featureGate = license.NewFeatureGate(nil, log.Logger)
+			} else {
+				featureGate = license.NewFeatureGate(claims, log.Logger)
+				log.Info().
+					Str("edition", string(claims.Edition)).
+					Str("customer", claims.Subject).
+					Int("days_remaining", claims.DaysUntilExpiry()).
+					Msg("Worker license validated")
+			}
+		}
+	} else {
+		featureGate = license.NewFeatureGate(nil, log.Logger)
+	}
+
 	// Create job configuration
-	// Build container defaults from server config
+	// Build container defaults from server config.
+	// In cloud mode, containers are always allowed (billing handles limits).
+	// In self-hosted mode, container execution requires a Pro or Enterprise license.
 	var containerDefaults *jobhandlers.ContainerDefaults
 	if cfg.Container.Enabled {
-		containerDefaults = &jobhandlers.ContainerDefaults{
-			Enabled:      cfg.Container.Enabled,
-			DefaultImage: cfg.Container.DefaultImage,
-			MemoryLimit:  cfg.Container.MemoryLimit,
-			CPULimit:     cfg.Container.CPULimit,
-			Network:      cfg.Container.Network,
+		if cfg.CloudMode {
+			containerDefaults = &jobhandlers.ContainerDefaults{
+				Enabled:      cfg.Container.Enabled,
+				DefaultImage: cfg.Container.DefaultImage,
+				MemoryLimit:  cfg.Container.MemoryLimit,
+				CPULimit:     cfg.Container.CPULimit,
+				Network:      cfg.Container.Network,
+			}
+		} else if featureGate == nil || !featureGate.HasFeature(license.FeatureContainerExecution) {
+			log.Warn().Msg("Container execution requires a Pro or Enterprise license -- disabled")
+		} else {
+			containerDefaults = &jobhandlers.ContainerDefaults{
+				Enabled:      cfg.Container.Enabled,
+				DefaultImage: cfg.Container.DefaultImage,
+				MemoryLimit:  cfg.Container.MemoryLimit,
+				CPULimit:     cfg.Container.CPULimit,
+				Network:      cfg.Container.Network,
+			}
 		}
 	}
 

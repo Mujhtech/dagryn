@@ -9,6 +9,7 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 
 	"github.com/mujhtech/dagryn/internal/job"
+	"github.com/mujhtech/dagryn/internal/license"
 	"github.com/mujhtech/dagryn/internal/server/dashboard"
 	"github.com/mujhtech/dagryn/internal/server/handlers"
 	"github.com/mujhtech/dagryn/internal/server/middleware"
@@ -16,7 +17,7 @@ import (
 )
 
 // setupRoutes configures all API routes.
-func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHandler, authMiddleware func(http.Handler) http.Handler, jobClient *job.Client) {
+func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHandler, authMiddleware func(http.Handler) http.Handler, jobClient *job.Client, gate *license.FeatureGate) {
 	r := s.router
 
 	// Health check (no auth required)
@@ -267,6 +268,11 @@ func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHand
 				r.Post("/portal", h.CreatePortalSession)
 				r.Post("/cancel", h.CancelSubscription)
 				r.Get("/invoices", h.ListInvoices)
+			})
+
+			// License status
+			r.Route("/license", func(r chi.Router) {
+				r.Get("/", h.GetLicenseStatus)
 			})
 
 			// Invitations (for accepting)
