@@ -18,10 +18,12 @@ func TestOfficialPlugins_AllValid(t *testing.T) {
 
 	expectedPlugins := []string{
 		"cache-s3",
+		"deploy-ssh",
 		"docker-build",
 		"eslint",
 		"golangci-lint",
 		"jest",
+		"notify-discord",
 		"prettier",
 		"pytest",
 		"setup-go",
@@ -29,6 +31,8 @@ func TestOfficialPlugins_AllValid(t *testing.T) {
 		"setup-python",
 		"setup-rust",
 		"slack-notify",
+		"slack-notify-integration",
+		"upload-artifact",
 	}
 
 	// Verify all expected plugins exist
@@ -58,10 +62,6 @@ func TestOfficialPlugins_AllValid(t *testing.T) {
 			err = ValidateManifest(manifest)
 			require.NoError(t, err, "should pass validation")
 
-			// All official plugins should be composite
-			assert.Equal(t, "composite", manifest.Plugin.Type, "official plugins should be composite")
-			assert.True(t, manifest.IsComposite(), "should be composite")
-
 			// All should have metadata
 			assert.NotEmpty(t, manifest.Plugin.Name, "should have a name")
 			assert.NotEmpty(t, manifest.Plugin.Description, "should have a description")
@@ -69,13 +69,22 @@ func TestOfficialPlugins_AllValid(t *testing.T) {
 			assert.Equal(t, "dagryn", manifest.Plugin.Author, "should have author dagryn")
 			assert.Equal(t, "MIT", manifest.Plugin.License, "should have MIT license")
 
-			// All should have at least one step
-			assert.NotEmpty(t, manifest.Steps, "should have at least one step")
-
-			// Every step should have a name and command
-			for i, step := range manifest.Steps {
-				assert.NotEmpty(t, step.Name, "step %d should have a name", i)
-				assert.NotEmpty(t, step.Command, "step %d (%s) should have a command", i, step.Name)
+			// Validate based on type
+			if manifest.IsIntegration() {
+				assert.NotEmpty(t, manifest.Hooks, "integration plugin should have at least one hook")
+				for name, hook := range manifest.Hooks {
+					assert.True(t, ValidHookNames[name], "hook name %q should be valid", name)
+					assert.NotEmpty(t, hook.Command, "hook %s should have a command", name)
+				}
+			} else {
+				// Composite plugins
+				assert.Equal(t, "composite", manifest.Plugin.Type, "non-integration official plugins should be composite")
+				assert.True(t, manifest.IsComposite(), "should be composite")
+				assert.NotEmpty(t, manifest.Steps, "should have at least one step")
+				for i, step := range manifest.Steps {
+					assert.NotEmpty(t, step.Name, "step %d should have a name", i)
+					assert.NotEmpty(t, step.Command, "step %d (%s) should have a command", i, step.Name)
+				}
 			}
 		})
 	}
@@ -91,6 +100,9 @@ func TestOfficialPlugins_RequiredInputs(t *testing.T) {
 		{"docker-build", []string{"tags"}},
 		{"slack-notify", []string{"webhook-url", "message"}},
 		{"cache-s3", []string{"bucket", "key", "path"}},
+		{"deploy-ssh", []string{"host", "user", "source", "target"}},
+		{"upload-artifact", []string{"path", "name", "bucket"}},
+		{"notify-discord", []string{"webhook-url", "message"}},
 	}
 
 	for _, tt := range tests {
@@ -126,6 +138,11 @@ func TestOfficialPlugins_DefaultInputs(t *testing.T) {
 		{"golangci-lint", "args", "./..."},
 		{"cache-s3", "region", "us-east-1"},
 		{"slack-notify", "username", "Dagryn"},
+		{"deploy-ssh", "port", "22"},
+		{"deploy-ssh", "key", "~/.ssh/id_rsa"},
+		{"upload-artifact", "region", "us-east-1"},
+		{"upload-artifact", "retention-days", "30"},
+		{"notify-discord", "username", "Dagryn"},
 	}
 
 	for _, tt := range tests {

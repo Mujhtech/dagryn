@@ -23,7 +23,7 @@ function IndexPage() {
   const { isAuthenticated } = useAuth();
   const { data: projectsData, isLoading: projectsLoading } =
     useProjects(isAuthenticated);
-  const { pm, setPm } = usePackageManagerTab();
+  const {} = usePackageManagerTab();
   const [copiedStep, setCopiedStep] = useState<number | null>(null);
 
   if (projectsLoading) {
@@ -117,8 +117,6 @@ function IndexPage() {
 
         {recentProjects.length === 0 ? (
           <SetupGuide
-            pm={pm}
-            setPm={setPm}
             commands={commands}
             copiedStep={copiedStep}
             onCopy={copyToClipboard}
@@ -194,14 +192,10 @@ function IndexPage() {
 }
 
 function SetupGuide({
-  pm,
-  setPm,
   commands,
   copiedStep,
   onCopy,
 }: {
-  pm: string;
-  setPm: (pm: string) => void;
   commands: {
     install: {
       brew: string;
@@ -222,10 +216,10 @@ function SetupGuide({
   onCopy: (text: string, step: number) => void;
 }) {
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 w-full max-w-2xl mx-auto">
       <div className="space-y-4">
         <h2 className="text-xl font-semibold">1. Install Dagryn CLI</h2>
-        <Tabs value={pm} onValueChange={setPm} className="w-full">
+        <Tabs defaultValue="brew" className="w-full">
           <TabsList>
             <TabsTrigger value="brew">brew</TabsTrigger>
             <TabsTrigger value="curl">curl</TabsTrigger>
@@ -262,8 +256,8 @@ function SetupGuide({
         </p>
       </div>
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold">1. Initialize Dagryn</h2>
-        <Tabs value={pm} onValueChange={setPm} className="w-full">
+        <h2 className="text-xl font-semibold">2. Initialize Dagryn</h2>
+        <Tabs defaultValue="local" className="w-full">
           <TabsList>
             <TabsTrigger value="local">local</TabsTrigger>
             <TabsTrigger value="remote">remote</TabsTrigger>
@@ -293,8 +287,8 @@ function SetupGuide({
       </div>
 
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold">2. Run your workflow</h2>
-        <Tabs value={pm} onValueChange={setPm} className="w-full">
+        <h2 className="text-xl font-semibold">3. Run your workflow</h2>
+        <Tabs defaultValue="local" className="w-full">
           <TabsList>
             <TabsTrigger value="local">local</TabsTrigger>
             <TabsTrigger value="remote">remote</TabsTrigger>

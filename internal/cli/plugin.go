@@ -296,6 +296,13 @@ Displays the plugin's name, description, type, platforms, and inputs.`,
 				}
 			}
 
+			if m.IsIntegration() && len(m.Hooks) > 0 {
+				fmt.Printf("\nHooks: %d\n", len(m.Hooks))
+				for name := range m.Hooks {
+					fmt.Printf("  - %s\n", name)
+				}
+			}
+
 			return nil
 		},
 	}
@@ -384,16 +391,29 @@ Plugins with "latest" or semver range versions will be re-resolved.`,
 }
 
 func newPluginInitCmd() *cobra.Command {
-	return &cobra.Command{
+	var pluginType string
+
+	cmd := &cobra.Command{
 		Use:   "init <name>",
 		Short: "Scaffold a new plugin project",
 		Long: `Create a new plugin project directory with a plugin.toml template,
-README.md, and a GitHub Actions release workflow.`,
+README.md, LICENSE, and (for tool plugins) a GitHub Actions release workflow.
+
+Use --type to select the plugin type:
+  tool        - Wraps an external binary
+  composite   - Multi-step shell commands (task template)
+  integration - Lifecycle hooks (on_run_start, on_task_end, etc.)`,
 		Example: `  # Create a new tool plugin
-  dagryn plugin init my-plugin
+  dagryn plugin init my-tool --type tool
 
   # Create a new composite plugin
-  dagryn plugin init setup-go`,
+  dagryn plugin init setup-go --type composite
+
+  # Create an integration plugin
+  dagryn plugin init my-notifier --type integration
+
+  # Interactive type selection
+  dagryn plugin init my-plugin`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
@@ -402,12 +422,104 @@ README.md, and a GitHub Actions release workflow.`,
 				return fmt.Errorf("directory %q already exists", name)
 			}
 
-			if err := os.MkdirAll(filepath.Join(name, ".github", "workflows"), 0755); err != nil {
+			// Interactive type selection if not specified
+			if pluginType == "" {
+				fmt.Println("Select plugin type:")
+				fmt.Println("  1. tool        - Wraps an external binary")
+				fmt.Println("  2. composite   - Multi-step shell commands (task template)")
+				fmt.Println("  3. integration - Lifecycle hooks (on_run_start, on_task_end, etc.)")
+				fmt.Println()
+				fmt.Print("Choice [1-3]: ")
+
+				var choice string
+				_, _ = fmt.Scanln(&choice)
+				switch choice {
+				case "1", "tool":
+					pluginType = "tool"
+				case "2", "composite":
+					pluginType = "composite"
+				case "3", "integration":
+					pluginType = "integration"
+				default:
+					return fmt.Errorf("invalid choice %q; expected 1, 2, or 3", choice)
+				}
+			}
+
+			// Validate type
+			switch pluginType {
+			case "tool", "composite", "integration":
+			default:
+				return fmt.Errorf("invalid plugin type %q; expected tool, composite, or integration", pluginType)
+			}
+
+			// Create directory structure
+			if err := os.MkdirAll(name, 0755); err != nil {
 				return fmt.Errorf("failed to create directory: %w", err)
 			}
 
-			// Write plugin.toml
-			manifest := fmt.Sprintf(`[plugin]
+			// Write plugin.toml based on type
+			var manifest string
+			switch pluginType {
+			case "tool":
+				manifest = pluginInitToolManifest(name)
+			case "composite":
+				manifest = pluginInitCompositeManifest(name)
+			case "integration":
+				manifest = pluginInitIntegrationManifest(name)
+			}
+
+			if err := os.WriteFile(filepath.Join(name, "plugin.toml"), []byte(manifest), 0644); err != nil {
+				return fmt.Errorf("failed to write plugin.toml: %w", err)
+			}
+
+			// Write README.md
+			readme := pluginInitReadme(name, pluginType)
+			if err := os.WriteFile(filepath.Join(name, "README.md"), []byte(readme), 0644); err != nil {
+				return fmt.Errorf("failed to write README.md: %w", err)
+			}
+
+			// Write LICENSE
+			license := pluginInitLicense()
+			if err := os.WriteFile(filepath.Join(name, "LICENSE"), []byte(license), 0644); err != nil {
+				return fmt.Errorf("failed to write LICENSE: %w", err)
+			}
+
+			// Write release workflow only for tool plugins
+			if pluginType == "tool" {
+				if err := os.MkdirAll(filepath.Join(name, ".github", "workflows"), 0755); err != nil {
+					return fmt.Errorf("failed to create workflow directory: %w", err)
+				}
+				workflow := pluginInitReleaseWorkflow(name)
+				if err := os.WriteFile(filepath.Join(name, ".github", "workflows", "release.yml"), []byte(workflow), 0644); err != nil {
+					return fmt.Errorf("failed to write release workflow: %w", err)
+				}
+			}
+
+			// Print summary
+			fmt.Printf("Created plugin project: %s/\n", name)
+			fmt.Printf("  %s/plugin.toml\n", name)
+			fmt.Printf("  %s/README.md\n", name)
+			fmt.Printf("  %s/LICENSE\n", name)
+			if pluginType == "tool" {
+				fmt.Printf("  %s/.github/workflows/release.yml\n", name)
+			}
+			fmt.Println()
+			fmt.Println("Next steps:")
+			fmt.Println("  1. Edit plugin.toml with your plugin details")
+			fmt.Println("  2. Run 'dagryn plugin validate' to verify")
+			fmt.Println("  3. Push to GitHub and create a release")
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&pluginType, "type", "", "Plugin type: tool, composite, or integration")
+
+	return cmd
+}
+
+func pluginInitToolManifest(name string) string {
+	return fmt.Sprintf(`[plugin]
 name = %q
 description = "A Dagryn plugin"
 version = "0.1.0"
@@ -427,20 +539,147 @@ binary = %q
 # description = "Path to configuration file"
 # default = ""
 `, name, name, name, name, name)
+}
 
-			if err := os.WriteFile(filepath.Join(name, "plugin.toml"), []byte(manifest), 0644); err != nil {
-				return fmt.Errorf("failed to write plugin.toml: %w", err)
-			}
+func pluginInitCompositeManifest(name string) string {
+	return fmt.Sprintf(`[plugin]
+name = %q
+description = "A composite Dagryn plugin"
+version = "0.1.0"
+type = "composite"
+author = ""
+license = "MIT"
 
-			// Write README.md
-			readme := fmt.Sprintf("# %s\n\nA Dagryn plugin.\n\n## Usage\n\n```toml\n[tasks.example]\nuses = \"your-org/%s@v0.1.0\"\ncommand = \"%s --help\"\n```\n", name, name, name)
+[inputs.example-input]
+required = true
+description = "An example required input"
 
-			if err := os.WriteFile(filepath.Join(name, "README.md"), []byte(readme), 0644); err != nil {
-				return fmt.Errorf("failed to write README.md: %w", err)
-			}
+[inputs.optional-input]
+description = "An optional input with a default"
+default = "default-value"
 
-			// Write GitHub Actions release workflow
-			workflow := fmt.Sprintf(`name: Release
+[[step]]
+name = "validate"
+command = 'echo "Running with input: ${inputs.example-input}"'
+
+[[step]]
+name = "execute"
+command = 'echo "Executing main logic"'
+
+[[cleanup]]
+name = "teardown"
+command = 'echo "Cleanup complete"'
+`, name)
+}
+
+func pluginInitIntegrationManifest(name string) string {
+	return fmt.Sprintf(`[plugin]
+name = %q
+description = "An integration Dagryn plugin"
+version = "0.1.0"
+type = "integration"
+author = ""
+license = "MIT"
+
+[inputs.webhook-url]
+required = true
+description = "Webhook URL for notifications"
+
+[hooks.on_run_success]
+command = 'echo "Run $DAGRYN_RUN_ID succeeded"'
+
+[hooks.on_run_failure]
+command = 'echo "Run $DAGRYN_RUN_ID failed"'
+`, name)
+}
+
+func pluginInitReadme(name, pluginType string) string {
+	var usage, sections string
+
+	switch pluginType {
+	case "tool":
+		usage = fmt.Sprintf(`[tasks.example]
+uses = "your-org/%s@v0.1.0"
+command = "%s --help"`, name, name)
+		sections = `## Platforms
+
+| Platform | Asset |
+|----------|-------|
+| darwin-arm64 | (configure in plugin.toml) |
+| darwin-amd64 | (configure in plugin.toml) |
+| linux-amd64  | (configure in plugin.toml) |`
+
+	case "composite":
+		usage = fmt.Sprintf(`[tasks.example]
+uses = "your-org/%s@v0.1.0"
+with = { example-input = "my-value" }`, name)
+		sections = `## Inputs
+
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| example-input | Yes | - | An example required input |
+| optional-input | No | default-value | An optional input with a default |
+
+## Steps
+
+1. **validate** - Validates inputs
+2. **execute** - Executes main logic`
+
+	case "integration":
+		usage = fmt.Sprintf(`[plugins.%s]
+spec = "your-org/%s@v0.1.0"
+with = { webhook-url = "https://example.com/webhook" }`, name, name)
+		sections = `## Inputs
+
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| webhook-url | Yes | - | Webhook URL for notifications |
+
+## Hooks
+
+- **on_run_success** - Triggered when a run completes successfully
+- **on_run_failure** - Triggered when a run fails`
+	}
+
+	return fmt.Sprintf(`# %s
+
+A %s Dagryn plugin.
+
+## Usage
+
+`+"```toml\n%s\n```"+`
+
+%s
+`, name, pluginType, usage, sections)
+}
+
+func pluginInitLicense() string {
+	return `MIT License
+
+Copyright (c) <YEAR> <AUTHOR>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+`
+}
+
+func pluginInitReleaseWorkflow(name string) string {
+	return fmt.Sprintf(`name: Release
 
 on:
   push:
@@ -468,24 +707,6 @@ jobs:
             # Add your release artifacts here
             # dist/*
 `, name)
-
-			if err := os.WriteFile(filepath.Join(name, ".github", "workflows", "release.yml"), []byte(workflow), 0644); err != nil {
-				return fmt.Errorf("failed to write release workflow: %w", err)
-			}
-
-			fmt.Printf("Created plugin project: %s/\n", name)
-			fmt.Printf("  %s/plugin.toml\n", name)
-			fmt.Printf("  %s/README.md\n", name)
-			fmt.Printf("  %s/.github/workflows/release.yml\n", name)
-			fmt.Println()
-			fmt.Println("Next steps:")
-			fmt.Println("  1. Edit plugin.toml with your plugin details")
-			fmt.Println("  2. Add your plugin code")
-			fmt.Println("  3. Push to GitHub and create a release")
-
-			return nil
-		},
-	}
 }
 
 func newPluginValidateCmd() *cobra.Command {
@@ -528,12 +749,23 @@ func newPluginValidateCmd() *cobra.Command {
 				fmt.Printf("  Steps:     %d\n", len(m.Steps))
 			}
 
+			// Warn about missing documentation files.
+			if _, err := os.Stat("README.md"); os.IsNotExist(err) {
+				fmt.Println("\n  Warning: README.md not found. Consider adding a README for your plugin.")
+			}
+			if _, err := os.Stat("LICENSE"); os.IsNotExist(err) {
+				fmt.Println("  Warning: LICENSE not found. Consider adding a license file for your plugin.")
+			}
+
 			return nil
 		},
 	}
 }
 
 func pluginTypeDisplay(m *plugin.Manifest) string {
+	if m.IsIntegration() {
+		return "integration"
+	}
 	if m.IsComposite() {
 		return "composite"
 	}

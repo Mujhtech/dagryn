@@ -41,6 +41,11 @@ const navItems = [
     url: "/plugins/browse",
     icon: Icons.Package,
   },
+  {
+    title: "Billing",
+    url: "/billing",
+    icon: Icons.CreditCard,
+  },
 ];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

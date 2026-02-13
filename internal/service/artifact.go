@@ -25,6 +25,12 @@ type ArtifactService struct {
 	bucket storage.Bucket
 	signer storage.SignedURLer
 	logger zerolog.Logger
+	quota  *QuotaService
+}
+
+// SetQuotaService sets the optional quota enforcement service.
+func (s *ArtifactService) SetQuotaService(quota *QuotaService) {
+	s.quota = quota
 }
 
 // NewArtifactService creates a new artifact service.
@@ -46,6 +52,16 @@ func (s *ArtifactService) Upload(ctx context.Context, projectID, runID uuid.UUID
 	if s.repo == nil || s.bucket == nil {
 		return nil, fmt.Errorf("artifact service not configured")
 	}
+	// Unified storage quota check (billing)
+	if s.quota != nil {
+		accountID, _ := s.quota.GetAccountForProject(ctx, projectID)
+		if accountID != uuid.Nil {
+			if err := s.quota.CheckStorageUpload(ctx, accountID, size); err != nil {
+				return nil, err // QuotaExceededError
+			}
+		}
+	}
+
 	if name == "" {
 		name = fileName
 	}
@@ -115,6 +131,11 @@ func (s *ArtifactService) Upload(ctx context.Context, projectID, runID uuid.UUID
 		return nil, fmt.Errorf("artifact: create record: %w", err)
 	}
 
+	// Record bandwidth usage for upload (fire-and-forget)
+	if s.quota != nil {
+		go s.quota.RecordBandwidthUsage(context.Background(), projectID, size)
+	}
+
 	s.logger.Debug().
 		Str("project", projectID.String()).
 		Str("run", runID.String()).
@@ -135,6 +156,17 @@ func (s *ArtifactService) Download(ctx context.Context, artifactID string) (io.R
 	if err != nil {
 		return nil, err
 	}
+
+	// Bandwidth quota check
+	if s.quota != nil {
+		accountID, _ := s.quota.GetAccountForProject(ctx, artifact.ProjectID)
+		if accountID != uuid.Nil {
+			if err := s.quota.CheckBandwidthUsage(ctx, accountID, artifact.SizeBytes); err != nil {
+				return nil, err // QuotaExceededError
+			}
+		}
+	}
+
 	rc, err := s.bucket.Get(ctx, artifact.StorageKey)
 	if err != nil {
 		if storage.IsNotFound(err) {
@@ -142,6 +174,12 @@ func (s *ArtifactService) Download(ctx context.Context, artifactID string) (io.R
 		}
 		return nil, err
 	}
+
+	// Record bandwidth usage (fire-and-forget)
+	if s.quota != nil {
+		go s.quota.RecordBandwidthUsage(context.Background(), artifact.ProjectID, artifact.SizeBytes)
+	}
+
 	return rc, nil
 }
 

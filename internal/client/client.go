@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"time"
 
@@ -698,6 +699,187 @@ func (c *Client) DownloadCache(ctx context.Context, projectID uuid.UUID, taskNam
 		defer func() { _ = resp.Body.Close() }()
 		return nil, c.parseError(resp)
 	}
+}
+
+// UploadArtifact uploads an artifact file for a run via multipart form.
+func (c *Client) UploadArtifact(ctx context.Context, projectID, runID uuid.UUID, taskName, name, fileName string, reader io.Reader) error {
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+
+	if err := writer.WriteField("task_name", taskName); err != nil {
+		return fmt.Errorf("failed to write task_name field: %w", err)
+	}
+	if err := writer.WriteField("name", name); err != nil {
+		return fmt.Errorf("failed to write name field: %w", err)
+	}
+
+	part, err := writer.CreateFormFile("file", fileName)
+	if err != nil {
+		return fmt.Errorf("failed to create form file: %w", err)
+	}
+	if _, err := io.Copy(part, reader); err != nil {
+		return fmt.Errorf("failed to copy file data: %w", err)
+	}
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("failed to close multipart writer: %w", err)
+	}
+
+	path := fmt.Sprintf("/api/v1/projects/%s/runs/%s/artifacts", projectID, runID)
+	fullURL := c.baseURL + path
+
+	req, err := http.NewRequestWithContext(ctx, "POST", fullURL, &buf)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	if c.creds != nil && c.creds.AccessToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.creds.AccessToken)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return WrapNetworkError("upload artifact", fullURL, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusCreated {
+		return c.parseError(resp)
+	}
+	return nil
+}
+
+// --- Billing ---
+
+// BillingPlanResponse represents a billing plan.
+type BillingPlanResponse struct {
+	ID              string `json:"id"`
+	Slug            string `json:"slug"`
+	DisplayName     string `json:"display_name"`
+	Description     string `json:"description"`
+	PriceCents      int    `json:"price_cents"`
+	BillingPeriod   string `json:"billing_period"`
+	MaxCacheBytes   *int64 `json:"max_cache_bytes,omitempty"`
+	MaxStorageBytes *int64 `json:"max_storage_bytes,omitempty"`
+	MaxBandwidth    *int64 `json:"max_bandwidth_bytes,omitempty"`
+	MaxProjects     *int   `json:"max_projects,omitempty"`
+	MaxTeamMembers  *int   `json:"max_team_members,omitempty"`
+	MaxConcurrent   *int   `json:"max_concurrent_runs,omitempty"`
+}
+
+// BillingResourceUsage holds live resource consumption for a billing account.
+type BillingResourceUsage struct {
+	CacheBytesUsed        int64 `json:"cache_bytes_used"`
+	ArtifactBytesUsed     int64 `json:"artifact_bytes_used"`
+	TotalStorageBytesUsed int64 `json:"total_storage_bytes_used"`
+	BandwidthBytesUsed    int64 `json:"bandwidth_bytes_used"`
+	ProjectsUsed          int   `json:"projects_used"`
+	TeamMembersUsed       int   `json:"team_members_used"`
+	ConcurrentRuns        int   `json:"concurrent_runs"`
+}
+
+// BillingOverviewResponse represents the billing overview.
+type BillingOverviewResponse struct {
+	BaseResponse
+	Data struct {
+		Account       json.RawMessage       `json:"account"`
+		Subscription  *json.RawMessage      `json:"subscription,omitempty"`
+		Plan          *BillingPlanResponse   `json:"plan,omitempty"`
+		Usage         map[string]int64       `json:"usage,omitempty"`
+		ResourceUsage *BillingResourceUsage  `json:"resource_usage,omitempty"`
+	} `json:"data"`
+}
+
+// GetBillingOverview returns the billing overview for the current user.
+func (c *Client) GetBillingOverview(ctx context.Context) (*BillingOverviewResponse, error) {
+	resp, err := c.doRequest(ctx, "GET", "/api/v1/billing/overview", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.parseError(resp)
+	}
+
+	var result BillingOverviewResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode billing overview: %w", err)
+	}
+	return &result, nil
+}
+
+// GetBillingPortalURL creates a Stripe portal session and returns the URL.
+func (c *Client) GetBillingPortalURL(ctx context.Context, returnURL string) (string, error) {
+	body := map[string]string{"return_url": returnURL}
+	resp, err := c.doRequest(ctx, "POST", "/api/v1/billing/portal", body)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", c.parseError(resp)
+	}
+
+	var result struct {
+		Data struct {
+			URL string `json:"url"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("failed to decode portal URL: %w", err)
+	}
+	return result.Data.URL, nil
+}
+
+// ListBillingPlans returns all available billing plans.
+func (c *Client) ListBillingPlans(ctx context.Context) ([]BillingPlanResponse, error) {
+	resp, err := c.doRequest(ctx, "GET", "/api/v1/billing/plans", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.parseError(resp)
+	}
+
+	var result struct {
+		Data []BillingPlanResponse `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode billing plans: %w", err)
+	}
+	return result.Data, nil
+}
+
+// CreateCheckoutSession creates a Stripe Checkout session and returns the URL.
+func (c *Client) CreateCheckoutSession(ctx context.Context, planSlug, successURL, cancelURL string) (string, error) {
+	body := map[string]string{
+		"plan_slug":   planSlug,
+		"success_url": successURL,
+		"cancel_url":  cancelURL,
+	}
+	resp, err := c.doRequest(ctx, "POST", "/api/v1/billing/checkout", body)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", c.parseError(resp)
+	}
+
+	var result struct {
+		Data struct {
+			URL string `json:"url"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("failed to decode checkout URL: %w", err)
+	}
+	return result.Data.URL, nil
 }
 
 // --- Internal Methods ---

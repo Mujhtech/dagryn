@@ -25,6 +25,7 @@ type Manager struct {
 	installed   map[string]*Plugin // Cache of installed plugins by spec
 	mu          sync.RWMutex
 	verbose     bool
+	noCache     bool
 	logger      Logger
 }
 
@@ -69,23 +70,20 @@ func WithGitHubTokenForManager(token string) ManagerOption {
 	}
 }
 
+// WithNoPluginCache disables the disk cache for plugin manifests and releases.
+func WithNoPluginCache() ManagerOption {
+	return func(m *Manager) {
+		m.noCache = true
+	}
+}
+
 // NewManager creates a new plugin manager.
 func NewManager(projectRoot string, opts ...ManagerOption) *Manager {
 	pluginDir := filepath.Join(projectRoot, ".dagryn", PluginDir)
 
-	// Create default registry with all resolvers
-	registry := NewResolverRegistry()
-	registry.Register(SourceGitHub, NewGitHubResolver())
-	registry.Register(SourceGo, NewGoResolver())
-	registry.Register(SourceNPM, NewNPMResolver())
-	registry.Register(SourcePip, NewPipResolver())
-	registry.Register(SourceCargo, NewCargoResolver())
-	registry.Register(SourceLocal, NewLocalResolver(projectRoot))
-
 	m := &Manager{
 		projectRoot: projectRoot,
 		pluginDir:   pluginDir,
-		registry:    registry,
 		installed:   make(map[string]*Plugin),
 		logger:      &defaultLogger{},
 	}
@@ -93,6 +91,23 @@ func NewManager(projectRoot string, opts ...ManagerOption) *Manager {
 	for _, opt := range opts {
 		opt(m)
 	}
+
+	// Initialize disk cache for GitHub API responses
+	cacheDir := filepath.Join(pluginDir, ".cache")
+	diskCache := NewDiskCache(cacheDir)
+	if m.noCache || os.Getenv("DAGRYN_NO_PLUGIN_CACHE") == "1" {
+		diskCache.Disable()
+	}
+
+	// Create default registry with all resolvers
+	registry := NewResolverRegistry()
+	registry.Register(SourceGitHub, NewGitHubResolver(WithDiskCache(diskCache)))
+	registry.Register(SourceGo, NewGoResolver())
+	registry.Register(SourceNPM, NewNPMResolver())
+	registry.Register(SourcePip, NewPipResolver())
+	registry.Register(SourceCargo, NewCargoResolver())
+	registry.Register(SourceLocal, NewLocalResolver(projectRoot))
+	m.registry = registry
 
 	// Load existing lock file if present
 	m.loadLockFile()

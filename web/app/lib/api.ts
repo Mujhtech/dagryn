@@ -368,10 +368,174 @@ export interface PluginInfo {
   license?: string;
   installed: boolean;
   homepage?: string;
+  readme?: string;
+  license_text?: string;
   inputs?: Record<string, PluginInputDef>;
   outputs?: Record<string, PluginOutputDef>;
   steps?: PluginStep[];
   cleanup?: PluginStep[];
+}
+
+// Plugin Registry types
+export interface PluginPublisher {
+  id: string;
+  name: string;
+  display_name: string;
+  avatar_url?: string;
+  website?: string;
+  verified: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RegistryPluginSummary {
+  id: string;
+  publisher_id: string;
+  name: string;
+  description: string;
+  type: string;
+  license?: string;
+  homepage?: string;
+  repository_url?: string;
+  readme?: string;
+  total_downloads: number;
+  weekly_downloads: number;
+  stars: number;
+  featured: boolean;
+  deprecated: boolean;
+  latest_version: string;
+  publisher_name: string;
+  publisher_verified: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PluginVersionInfo {
+  id: string;
+  plugin_id: string;
+  version: string;
+  manifest_json: Record<string, unknown>;
+  checksum_sha256?: string;
+  downloads: number;
+  yanked: boolean;
+  release_notes?: string;
+  published_at: string;
+}
+
+export interface RegistryPluginDetail {
+  plugin: RegistryPluginSummary;
+  versions: PluginVersionInfo[];
+}
+
+export interface PluginSearchResult {
+  plugins: RegistryPluginSummary[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface PluginAnalytics {
+  total_downloads: number;
+  weekly_downloads: number;
+  daily_stats: PluginDailyDownload[];
+}
+
+export interface PluginDailyDownload {
+  date: string;
+  downloads: number;
+}
+
+// Billing types
+export interface BillingPlan {
+  id: string;
+  slug: string;
+  name: string;
+  display_name: string;
+  description: string;
+  price_cents: number;
+  billing_period: string;
+  is_per_seat: boolean;
+  max_projects?: number;
+  max_team_members?: number;
+  max_cache_bytes?: number;
+  max_storage_bytes?: number;
+  max_bandwidth_bytes?: number;
+  max_concurrent_runs?: number;
+  cache_ttl_days?: number;
+  artifact_retention_days?: number;
+  log_retention_days?: number;
+  container_execution: boolean;
+  priority_queue: boolean;
+  sso_enabled: boolean;
+  audit_logs: boolean;
+  stripe_price_id: string;
+  sort_order: number;
+}
+
+export interface BillingAccount {
+  id: string;
+  user_id?: string;
+  team_id?: string;
+  stripe_customer_id?: string;
+  email: string;
+  name?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Subscription {
+  id: string;
+  billing_account_id: string;
+  plan_id: string;
+  stripe_subscription_id?: string;
+  status: SubscriptionStatus;
+  seat_count: number;
+  current_period_start?: string;
+  current_period_end?: string;
+  cancel_at_period_end: boolean;
+  canceled_at?: string;
+  trial_end?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type SubscriptionStatus =
+  | "active"
+  | "trialing"
+  | "past_due"
+  | "canceled"
+  | "incomplete";
+
+export interface ResourceUsage {
+  cache_bytes_used: number;
+  artifact_bytes_used: number;
+  total_storage_bytes_used: number;
+  bandwidth_bytes_used: number;
+  projects_used: number;
+  team_members_used: number;
+  concurrent_runs: number;
+}
+
+export interface BillingOverview {
+  account: BillingAccount;
+  subscription?: Subscription;
+  plan?: BillingPlan;
+  usage?: Record<string, number>;
+  resource_usage?: ResourceUsage;
+}
+
+export interface Invoice {
+  id: string;
+  billing_account_id: string;
+  stripe_invoice_id: string;
+  amount_cents: number;
+  currency: string;
+  status: string;
+  period_start?: string;
+  period_end?: string;
+  pdf_url?: string;
+  hosted_invoice_url?: string;
+  created_at: string;
 }
 
 // API Error
@@ -956,6 +1120,140 @@ class ApiClient {
   async listProjectPlugins(projectId: string) {
     return this.fetch<{ plugins: PluginInfo[] }>(
       `/projects/${projectId}/plugins`,
+    );
+  }
+
+  // Plugin Registry
+  async searchRegistryPlugins(params?: {
+    q?: string;
+    type?: string;
+    sort?: string;
+    page?: number;
+    per_page?: number;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.q) query.set("q", params.q);
+    if (params?.type) query.set("type", params.type);
+    if (params?.sort) query.set("sort", params.sort);
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.per_page) query.set("per_page", String(params.per_page));
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return this.fetch<PluginSearchResult>(`/registry/plugins${suffix}`);
+  }
+
+  async getRegistryPlugin(publisher: string, name: string) {
+    return this.fetch<RegistryPluginDetail>(
+      `/registry/plugins/${publisher}/${name}`,
+    );
+  }
+
+  async getRegistryPluginVersions(publisher: string, name: string) {
+    return this.fetch<PluginVersionInfo[]>(
+      `/registry/plugins/${publisher}/${name}/versions`,
+    );
+  }
+
+  async getRegistryPluginAnalytics(
+    publisher: string,
+    name: string,
+    days = 30,
+  ) {
+    return this.fetch<PluginAnalytics>(
+      `/registry/plugins/${publisher}/${name}/analytics?days=${days}`,
+    );
+  }
+
+  async listFeaturedPlugins(limit = 10) {
+    return this.fetch<RegistryPluginSummary[]>(
+      `/registry/featured?limit=${limit}`,
+    );
+  }
+
+  async listTrendingPlugins(limit = 10) {
+    return this.fetch<RegistryPluginSummary[]>(
+      `/registry/trending?limit=${limit}`,
+    );
+  }
+
+  async recordPluginDownload(publisher: string, name: string, version: string) {
+    return this.fetch(`/registry/plugins/${publisher}/${name}/download`, {
+      method: "POST",
+      body: JSON.stringify({ version }),
+    });
+  }
+
+  async publishPluginVersion(
+    publisher: string,
+    name: string,
+    data: {
+      version: string;
+      manifest: Record<string, unknown>;
+      release_notes?: string;
+    },
+  ) {
+    return this.fetch(
+      `/registry/plugins/${publisher}/${name}/versions`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    );
+  }
+
+  async installProjectPlugin(projectId: string, spec: string) {
+    return this.fetch(`/projects/${projectId}/plugins`, {
+      method: "POST",
+      body: JSON.stringify({ spec }),
+    });
+  }
+
+  async uninstallProjectPlugin(projectId: string, pluginName: string) {
+    return this.fetch(`/projects/${projectId}/plugins/${pluginName}`, {
+      method: "DELETE",
+    });
+  }
+
+  // Billing
+  async listBillingPlans() {
+    return this.fetch<BillingPlan[]>("/billing/plans");
+  }
+
+  async getBillingPlan(slug: string) {
+    return this.fetch<BillingPlan>(`/billing/plans/${slug}`);
+  }
+
+  async getBillingOverview() {
+    return this.fetch<BillingOverview>("/billing/overview");
+  }
+
+  async createCheckoutSession(data: {
+    plan_slug: string;
+    success_url: string;
+    cancel_url: string;
+  }) {
+    return this.fetch<{ url: string }>("/billing/checkout", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createPortalSession(returnUrl: string) {
+    return this.fetch<{ url: string }>("/billing/portal", {
+      method: "POST",
+      body: JSON.stringify({ return_url: returnUrl }),
+    });
+  }
+
+  async cancelSubscription(atPeriodEnd = true) {
+    return this.fetch("/billing/cancel", {
+      method: "POST",
+      body: JSON.stringify({ at_period_end: atPeriodEnd }),
+    });
+  }
+
+  async listInvoices(limit = 20, offset = 0) {
+    return this.fetch<Invoice[]>(
+      `/billing/invoices?limit=${limit}&offset=${offset}`,
     );
   }
 }

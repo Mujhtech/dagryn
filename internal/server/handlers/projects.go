@@ -11,6 +11,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/db/repo"
 	serverctx "github.com/mujhtech/dagryn/internal/server/context"
 	"github.com/mujhtech/dagryn/internal/server/response"
+	"github.com/mujhtech/dagryn/internal/service"
 )
 
 // --- Project Handlers ---
@@ -111,6 +112,32 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		if !member.Role.CanManageMembers() {
 			_ = response.Forbidden(w, r, errors.New("you don't have permission to create projects in this team"))
 			return
+		}
+	}
+
+	// Enforce max_projects quota if billing is configured
+	if h.quotaService != nil && h.billingService != nil {
+		var accountID uuid.UUID
+		if teamID != nil {
+			if account, err := h.quotaService.ResolveAccountByTeamID(ctx, *teamID); err == nil && account != uuid.Nil {
+				accountID = account
+			}
+		} else {
+			name := ""
+			if user.Name != nil {
+				name = *user.Name
+			}
+			if account, err := h.billingService.GetOrCreateAccount(ctx, user.ID, user.Email, name); err == nil {
+				accountID = account.ID
+			}
+		}
+		if accountID != uuid.Nil {
+			if err := h.quotaService.CheckProjectCreation(ctx, accountID); err != nil {
+				if service.IsQuotaExceeded(err) {
+					_ = response.PaymentRequired(w, r, err)
+					return
+				}
+			}
 		}
 	}
 

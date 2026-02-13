@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mujhtech/dagryn/internal/db/repo"
 	"github.com/mujhtech/dagryn/internal/server/response"
+	"github.com/mujhtech/dagryn/internal/service"
 )
 
 // CheckCache checks whether a cache entry exists for the given task/key.
@@ -63,6 +64,10 @@ func (h *Handler) UploadCache(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = r.Body.Close() }()
 
 	if err := h.cacheService.Upload(r.Context(), projectID, taskName, cacheKey, r.Body, r.ContentLength); err != nil {
+		if service.IsQuotaExceeded(err) {
+			_ = response.PaymentRequired(w, r, err)
+			return
+		}
 		_ = response.InternalServerError(w, r, err)
 		return
 	}
@@ -87,6 +92,10 @@ func (h *Handler) DownloadCache(w http.ResponseWriter, r *http.Request) {
 
 	rc, err := h.cacheService.Download(r.Context(), projectID, taskName, cacheKey)
 	if err != nil {
+		if service.IsQuotaExceeded(err) {
+			_ = response.PaymentRequired(w, r, err)
+			return
+		}
 		if errors.Is(err, repo.ErrNotFound) {
 			_ = response.NotFound(w, r, errors.New("cache entry not found"))
 			return

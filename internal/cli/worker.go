@@ -21,6 +21,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/server"
 	"github.com/mujhtech/dagryn/internal/server/sse"
 	"github.com/mujhtech/dagryn/internal/service"
+	dagrynstripe "github.com/mujhtech/dagryn/internal/stripe"
 	"github.com/mujhtech/dagryn/pkg/storage"
 )
 
@@ -226,6 +227,35 @@ func runWorker(opts WorkerConfigOpts) error {
 		}
 	}
 
+	// Initialize billing repo and related repos for usage rollup, bandwidth reset, and retention jobs
+	var billingRepo *repo.BillingRepo
+	var artifactRepo *repo.ArtifactRepo
+	var cacheRepo *repo.CacheRepo
+	var stripeClient *dagrynstripe.Client
+	if database != nil {
+		billingRepo = repo.NewBillingRepo(database.Pool())
+		artifactRepo = repo.NewArtifactRepo(database.Pool())
+		cacheRepo = repo.NewCacheRepo(database.Pool())
+	}
+	if cfg.Stripe.SecretKey != "" {
+		stripeClient = dagrynstripe.New(dagrynstripe.Config{
+			SecretKey:      cfg.Stripe.SecretKey,
+			WebhookSecret:  cfg.Stripe.WebhookSecret,
+			PublishableKey: cfg.Stripe.PublishableKey,
+		})
+		log.Debug().Msg("Stripe client initialized for worker")
+	}
+
+	// Initialize quota service for plan enforcement in job handlers
+	var quotaService *service.QuotaService
+	if billingRepo != nil && projectRepo != nil {
+		quotaService = service.NewQuotaService(billingRepo, projectRepo, log.Logger)
+		if cacheService != nil {
+			cacheService.SetQuotaService(quotaService)
+		}
+		log.Debug().Msg("Quota enforcement service initialized for worker")
+	}
+
 	jobCfg := job.Config{
 		Concurrency:          cfg.Job.Concurrency,
 		EncryptionKey:        cfg.Job.EncryptionKey,
@@ -240,6 +270,11 @@ func runWorker(opts WorkerConfigOpts) error {
 		ArtifactService:      artifactService,
 		ContainerDefaults:    containerDefaults,
 		EventPublisher:       eventPublisher,
+		BillingRepo:          billingRepo,
+		StripeClient:         stripeClient,
+		QuotaService:         quotaService,
+		ArtifactRepo:         artifactRepo,
+		CacheRepo:            cacheRepo,
 	}
 
 	// Create job system

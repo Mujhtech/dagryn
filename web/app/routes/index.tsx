@@ -44,7 +44,7 @@ function IndexPage() {
               Build and ship software with reproducible, graph-based pipelines.
             </h1>
             <p className="max-w-2xl text-base text-muted-foreground md:text-lg">
-              Dagryn keeps execution deterministic from laptop to CI, so teams
+              Dagryn keeps execution deterministic from local to CI, so teams
               move faster without guessing why builds drift.
             </p>
           </div>

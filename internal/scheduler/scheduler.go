@@ -29,6 +29,7 @@ type Options struct {
 	CacheBackend     cache.Backend      // Optional custom cache backend
 	ContainerConfig  *container.Config  // Optional container isolation config
 	ConditionContext *condition.Context // Optional context for evaluating task conditions
+	GlobalPlugins    map[string]string  // Global plugins (name -> spec) from config [plugins] section
 }
 
 // DefaultOptions returns the default scheduler options.
@@ -80,6 +81,9 @@ type Scheduler struct {
 	opts              Options
 	projectRoot       string
 
+	// Integration plugin hooks
+	integrationRegistry *plugin.IntegrationRegistry
+
 	// Container isolation
 	containerRuntime container.Runtime
 	containerConfig  *container.Config
@@ -130,15 +134,19 @@ func New(workflow *task.Workflow, projectRoot string, opts Options) (*Scheduler,
 		c = cache.New(projectRoot, !opts.NoCache)
 	}
 
+	hookExecutor := plugin.NewHookExecutor(nil)
+	integrationRegistry := plugin.NewIntegrationRegistry(hookExecutor)
+
 	s := &Scheduler{
-		workflow:          workflow,
-		graph:             g,
-		executor:          executor.New(projectRoot),
-		cache:             c,
-		pluginManager:     plugin.NewManager(projectRoot),
-		compositeExecutor: plugin.NewCompositeExecutor(projectRoot, nil),
-		opts:              opts,
-		projectRoot:       projectRoot,
+		workflow:            workflow,
+		graph:               g,
+		executor:            executor.New(projectRoot),
+		cache:               c,
+		pluginManager:       plugin.NewManager(projectRoot),
+		compositeExecutor:   plugin.NewCompositeExecutor(projectRoot, nil),
+		integrationRegistry: integrationRegistry,
+		opts:                opts,
+		projectRoot:         projectRoot,
 	}
 
 	// Initialize container runtime if configured
@@ -221,6 +229,11 @@ func (s *Scheduler) Run(ctx context.Context, targets []string) (*RunSummary, err
 		}
 	}
 
+	// Register integration plugins from global config
+	if !s.opts.DryRun {
+		s.registerIntegrationPlugins(ctx)
+	}
+
 	// Track task states
 	states := make(map[string]*taskState)
 	statesMu := sync.Mutex{}
@@ -228,6 +241,12 @@ func (s *Scheduler) Run(ctx context.Context, targets []string) (*RunSummary, err
 	// Create cancellable context
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	// Dispatch on_run_start hook
+	hookCtx := &plugin.HookContext{
+		ProjectRoot: s.projectRoot,
+	}
+	s.integrationRegistry.DispatchHook(ctx, plugin.HookOnRunStart, hookCtx)
 
 	// Process each level
 	for _, level := range plan.Levels {
@@ -289,6 +308,19 @@ func (s *Scheduler) Run(ctx context.Context, targets []string) (*RunSummary, err
 
 	summary.EndTime = time.Now()
 	summary.Total = summary.EndTime.Sub(summary.StartTime)
+
+	// Dispatch on_run_success or on_run_failure, then on_run_end
+	endHookCtx := &plugin.HookContext{
+		ProjectRoot: s.projectRoot,
+	}
+	if summary.Failures > 0 {
+		endHookCtx.RunStatus = "failed"
+		s.integrationRegistry.DispatchHook(ctx, plugin.HookOnRunFailure, endHookCtx)
+	} else {
+		endHookCtx.RunStatus = "success"
+		s.integrationRegistry.DispatchHook(ctx, plugin.HookOnRunSuccess, endHookCtx)
+	}
+	s.integrationRegistry.DispatchHook(ctx, plugin.HookOnRunEnd, endHookCtx)
 
 	return summary, nil
 }
@@ -365,6 +397,13 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 	if s.onTaskStart != nil {
 		s.onTaskStart(taskName, nil, false)
 	}
+
+	// Dispatch on_task_start hook
+	taskHookCtx := &plugin.HookContext{
+		TaskName:    taskName,
+		ProjectRoot: s.projectRoot,
+	}
+	s.integrationRegistry.DispatchHook(ctx, plugin.HookOnTaskStart, taskHookCtx)
 
 	// Check cache
 	cacheHit, cacheKey, _ := s.cache.Check(ctx, t)
@@ -462,6 +501,19 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 	if s.onTaskComplete != nil {
 		s.onTaskComplete(taskName, result, false)
 	}
+
+	// Dispatch on_task_end hook
+	taskEndHookCtx := &plugin.HookContext{
+		TaskName:       taskName,
+		TaskDurationMs: result.Duration.Milliseconds(),
+		ProjectRoot:    s.projectRoot,
+	}
+	if result.IsSuccess() {
+		taskEndHookCtx.TaskStatus = "success"
+	} else {
+		taskEndHookCtx.TaskStatus = "failed"
+	}
+	s.integrationRegistry.DispatchHook(ctx, plugin.HookOnTaskEnd, taskEndHookCtx)
 
 	return &taskState{result: result, cacheKey: cacheKey}
 }
@@ -600,6 +652,19 @@ func (s *Scheduler) installPluginsForPlan(ctx context.Context, plan *dag.Executi
 			return fmt.Errorf("failed to resolve plugin %s: %w", spec, err)
 		}
 
+		// Integration plugins are handled separately via registerIntegrationPlugins
+		if resolved.Manifest != nil && resolved.Manifest.IsIntegration() {
+			s.pluginManager.Register(spec, resolved)
+			if s.onPluginDone != nil {
+				s.onPluginDone(spec, &plugin.InstallResult{
+					Plugin:  resolved,
+					Status:  plugin.StatusInstalled,
+					Message: fmt.Sprintf("Resolved integration plugin %s", resolved.Name),
+				})
+			}
+			continue
+		}
+
 		// Composite plugins don't need binary installation but still need registration
 		if resolved.Manifest != nil && resolved.Manifest.IsComposite() {
 			s.pluginManager.Register(spec, resolved)
@@ -687,6 +752,40 @@ func (s *Scheduler) runCompositeSetup(ctx context.Context, t *task.Task) (map[st
 func (s *Scheduler) runCompositeCleanup(tasks []compositeCleanupTask) {
 	for _, t := range tasks {
 		s.compositeExecutor.RunCleanup(t.manifest, t.setup, t.workdir)
+	}
+}
+
+// registerIntegrationPlugins resolves global plugins and registers those with
+// type "integration" into the integration registry for hook dispatch.
+func (s *Scheduler) registerIntegrationPlugins(ctx context.Context) {
+	if s.opts.GlobalPlugins == nil || s.opts.NoPlugins {
+		return
+	}
+
+	for name, spec := range s.opts.GlobalPlugins {
+		resolved, err := s.pluginManager.Resolve(ctx, spec)
+		if err != nil {
+			slog.Warn("failed to resolve global plugin, skipping", "plugin", name, "spec", spec, "error", err)
+			continue
+		}
+		if resolved.Manifest == nil || !resolved.Manifest.IsIntegration() {
+			continue
+		}
+
+		// Collect inputs from the manifest defaults
+		inputs := make(map[string]string)
+		for k, v := range resolved.Manifest.Inputs {
+			if v.Default != "" {
+				inputs[k] = v.Default
+			}
+		}
+
+		s.integrationRegistry.Register(plugin.IntegrationPlugin{
+			Name:     name,
+			Manifest: resolved.Manifest,
+			Inputs:   inputs,
+		})
+		slog.Info("registered integration plugin", "name", name)
 	}
 }
 

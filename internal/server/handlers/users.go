@@ -13,6 +13,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/db/repo"
 	serverctx "github.com/mujhtech/dagryn/internal/server/context"
 	"github.com/mujhtech/dagryn/internal/server/response"
+	"github.com/mujhtech/dagryn/internal/service"
 )
 
 // --- User Handlers ---
@@ -473,6 +474,16 @@ func (h *Handler) AddTeamMember(w http.ResponseWriter, r *http.Request) {
 	if !member.Role.CanManageMembers() {
 		_ = response.Forbidden(w, r, errors.New("you don't have permission to manage members"))
 		return
+	}
+
+	// Enforce max_team_members quota if billing is configured
+	if h.quotaService != nil {
+		if err := h.quotaService.CheckTeamMemberByTeamID(ctx, teamID); err != nil {
+			if service.IsQuotaExceeded(err) {
+				_ = response.PaymentRequired(w, r, err)
+				return
+			}
+		}
 	}
 
 	var req AddTeamMemberRequest

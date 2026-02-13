@@ -11,6 +11,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/redis"
 	"github.com/mujhtech/dagryn/internal/server/sse"
 	"github.com/mujhtech/dagryn/internal/service"
+	dagrynstripe "github.com/mujhtech/dagryn/internal/stripe"
 	"go.opentelemetry.io/otel"
 )
 
@@ -36,6 +37,11 @@ type Job struct {
 	artifactService     *service.ArtifactService
 	containerDefaults   *handlers.ContainerDefaults
 	eventPublisher      sse.EventPublisher
+	billingRepo         *repo.BillingRepo
+	stripeClient        *dagrynstripe.Client
+	quotaService        *service.QuotaService
+	artifactRepo        *repo.ArtifactRepo
+	cacheRepo           *repo.CacheRepo
 }
 
 // Config holds the configuration for the job system.
@@ -70,6 +76,16 @@ type Config struct {
 	ContainerDefaults *handlers.ContainerDefaults
 	// EventPublisher publishes SSE events to Redis for real-time browser updates (optional).
 	EventPublisher sse.EventPublisher
+	// BillingRepo is the billing repository for usage rollup and bandwidth reset jobs (optional).
+	BillingRepo *repo.BillingRepo
+	// StripeClient is the Stripe client for reporting usage (optional).
+	StripeClient *dagrynstripe.Client
+	// QuotaService is the quota enforcement service (optional).
+	QuotaService *service.QuotaService
+	// ArtifactRepo is the artifact repository for retention cleanup (optional).
+	ArtifactRepo *repo.ArtifactRepo
+	// CacheRepo is the cache repository for retention cleanup (optional).
+	CacheRepo *repo.CacheRepo
 }
 
 // DefaultConfig returns sensible defaults for job configuration.
@@ -121,6 +137,11 @@ func New(cfg Config, appCtx context.Context, rds *redis.Redis) (*Job, error) {
 		artifactService:     cfg.ArtifactService,
 		containerDefaults:   cfg.ContainerDefaults,
 		eventPublisher:      eventPub,
+		billingRepo:         cfg.BillingRepo,
+		stripeClient:        cfg.StripeClient,
+		quotaService:        cfg.QuotaService,
+		artifactRepo:        cfg.ArtifactRepo,
+		cacheRepo:           cfg.CacheRepo,
 	}, nil
 }
 
@@ -140,7 +161,7 @@ func (j *Job) RegisterAndStart() error {
 
 	// Register ExecuteRun handler when RunRepo and ProjectRepo are available
 	if j.runs != nil && j.projects != nil {
-		execHandler := handlers.NewExecuteRunHandler(j.runs, j.projects, j.workflows, j.encrypter, j.providerTokens, j.providerEncrypt, j.githubApp, j.githubInstallations, j.cacheService, j.artifactService, j.CancelManager, j.containerDefaults, j.eventPublisher)
+		execHandler := handlers.NewExecuteRunHandler(j.runs, j.projects, j.workflows, j.encrypter, j.providerTokens, j.providerEncrypt, j.githubApp, j.githubInstallations, j.cacheService, j.artifactService, j.CancelManager, j.containerDefaults, j.eventPublisher, j.quotaService)
 		j.Executor.RegisterJobHandler(ExecuteRunTaskName, asynq.HandlerFunc(execHandler.Handle))
 	}
 
@@ -156,6 +177,24 @@ func (j *Job) RegisterAndStart() error {
 		artifactCleanupHandler := handlers.NewArtifactCleanupHandler(j.artifactService)
 		j.Executor.RegisterJobHandler(ArtifactCleanupTaskName, asynq.HandlerFunc(artifactCleanupHandler.Handle))
 		j.Scheduler.RegisterTask("0 2 * * *", ScheduleQueueName, ArtifactCleanupTaskName) // daily at 02:00
+	}
+
+	// Register billing usage rollup handler if billing repo is available
+	if j.billingRepo != nil {
+		usageRollupHandler := handlers.NewUsageRollupHandler(j.billingRepo, j.stripeClient)
+		j.Executor.RegisterJobHandler(UsageRollupTaskName, asynq.HandlerFunc(usageRollupHandler.Handle))
+		j.Scheduler.RegisterTask("0 */6 * * *", ScheduleQueueName, UsageRollupTaskName) // every 6 hours
+
+		bandwidthResetHandler := handlers.NewBandwidthResetHandler(j.billingRepo)
+		j.Executor.RegisterJobHandler(BandwidthResetTaskName, asynq.HandlerFunc(bandwidthResetHandler.Handle))
+		j.Scheduler.RegisterTask("0 0 * * *", ScheduleQueueName, BandwidthResetTaskName) // daily at midnight
+	}
+
+	// Register retention cleanup handler if billing and quota services are available
+	if j.billingRepo != nil && j.quotaService != nil && j.runs != nil {
+		retentionHandler := handlers.NewRetentionCleanupHandler(j.billingRepo, j.artifactRepo, j.runs, j.cacheRepo, j.quotaService)
+		j.Executor.RegisterJobHandler(RetentionCleanupTaskName, asynq.HandlerFunc(retentionHandler.Handle))
+		j.Scheduler.RegisterTask("0 3 * * *", ScheduleQueueName, RetentionCleanupTaskName) // daily at 03:00
 	}
 
 	// Start scheduler

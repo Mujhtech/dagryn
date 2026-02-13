@@ -195,6 +195,23 @@ func Gone(w http.ResponseWriter, r *http.Request, err error) error {
 	return nil
 }
 
+func PaymentRequired(w http.ResponseWriter, r *http.Request, err error) error {
+	errMsg := ""
+	if err != nil {
+		errMsg = err.Error()
+	}
+
+	_ = render.Render(w, r, ServerResponse{
+		Response: Response{
+			StatusCode: http.StatusPaymentRequired,
+		},
+		Message: "Quota Exceeded",
+		Error:   errMsg,
+	})
+
+	return nil
+}
+
 func ServiceUnavailable(w http.ResponseWriter, r *http.Request, err error) error {
 	errMsg := ""
 	if err != nil {

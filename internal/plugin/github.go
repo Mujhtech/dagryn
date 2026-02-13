@@ -14,9 +14,18 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
+
+// rateLimitState tracks GitHub API rate limit headers.
+type rateLimitState struct {
+	remaining int
+	resetAt   time.Time
+	mu        sync.Mutex
+}
 
 // GitHubResolver resolves plugins from GitHub releases.
 type GitHubResolver struct {
@@ -24,6 +33,8 @@ type GitHubResolver struct {
 	apiBase   string
 	platform  Platform
 	authToken string // Optional GitHub token for higher rate limits
+	rateLimit *rateLimitState
+	cache     *DiskCache
 }
 
 // GitHubResolverOption is a functional option for configuring GitHubResolver.
@@ -50,17 +61,33 @@ func WithPlatform(platform Platform) GitHubResolverOption {
 	}
 }
 
+// WithDiskCache sets a disk cache for caching manifests and releases.
+func WithDiskCache(cache *DiskCache) GitHubResolverOption {
+	return func(r *GitHubResolver) {
+		r.cache = cache
+	}
+}
+
 // NewGitHubResolver creates a new GitHub release resolver.
 func NewGitHubResolver(opts ...GitHubResolverOption) *GitHubResolver {
 	r := &GitHubResolver{
 		client: &http.Client{
 			Timeout: 5 * time.Minute, // Long timeout for large downloads
 		},
-		apiBase:  "https://api.github.com",
-		platform: CurrentPlatform(),
+		apiBase:   "https://api.github.com",
+		platform:  CurrentPlatform(),
+		rateLimit: &rateLimitState{remaining: -1},
 	}
 	for _, opt := range opts {
 		opt(r)
+	}
+	// Auto-detect GitHub token from environment if not set explicitly
+	if r.authToken == "" {
+		if token := os.Getenv("DAGRYN_GITHUB_TOKEN"); token != "" {
+			r.authToken = token
+		} else if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+			r.authToken = token
+		}
 	}
 	return r
 }
@@ -247,6 +274,16 @@ func (r *GitHubResolver) getRelease(ctx context.Context, owner, repo, tag string
 
 // listReleases fetches all releases from GitHub.
 func (r *GitHubResolver) listReleases(ctx context.Context, owner, repo string) ([]GitHubRelease, error) {
+	cacheKey := fmt.Sprintf("releases/%s/%s/all.json", owner, repo)
+	if r.cache != nil {
+		if data, _ := r.cache.Get(cacheKey); data != nil {
+			var releases []GitHubRelease
+			if json.Unmarshal(data, &releases) == nil {
+				return releases, nil
+			}
+		}
+	}
+
 	url := fmt.Sprintf("%s/repos/%s/%s/releases?per_page=100", r.apiBase, owner, repo)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -254,9 +291,7 @@ func (r *GitHubResolver) listReleases(ctx context.Context, owner, repo string) (
 		return nil, err
 	}
 
-	r.setHeaders(req)
-
-	resp, err := r.client.Do(req)
+	resp, err := r.doRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -271,19 +306,53 @@ func (r *GitHubResolver) listReleases(ctx context.Context, owner, repo string) (
 		return nil, err
 	}
 
+	if r.cache != nil {
+		if data, err := json.Marshal(releases); err == nil {
+			_ = r.cache.Set(cacheKey, data, 1*time.Hour)
+		}
+	}
+
 	return releases, nil
 }
 
 // fetchRelease fetches a release from a URL.
-func (r *GitHubResolver) fetchRelease(ctx context.Context, url string) (*GitHubRelease, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+func (r *GitHubResolver) fetchRelease(ctx context.Context, releaseURL string) (*GitHubRelease, error) {
+	// Determine cache key and TTL from URL pattern
+	var cacheKey string
+	var ttl time.Duration
+	if strings.HasSuffix(releaseURL, "/releases/latest") {
+		// Latest release: short TTL
+		parts := strings.Split(releaseURL, "/repos/")
+		if len(parts) == 2 {
+			ownerRepo := strings.TrimSuffix(parts[1], "/releases/latest")
+			cacheKey = fmt.Sprintf("releases/%s/latest.json", ownerRepo)
+		}
+		ttl = 1 * time.Hour
+	} else if strings.Contains(releaseURL, "/releases/tags/") {
+		// Tagged release: long TTL (tags are immutable)
+		parts := strings.Split(releaseURL, "/repos/")
+		if len(parts) == 2 {
+			rest := parts[1] // e.g. "owner/repo/releases/tags/v1.0.0"
+			cacheKey = fmt.Sprintf("releases/%s.json", strings.Replace(rest, "/releases/tags/", "/", 1))
+		}
+		ttl = 24 * time.Hour
+	}
+
+	if r.cache != nil && cacheKey != "" {
+		if data, _ := r.cache.Get(cacheKey); data != nil {
+			var release GitHubRelease
+			if json.Unmarshal(data, &release) == nil {
+				return &release, nil
+			}
+		}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", releaseURL, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	r.setHeaders(req)
-
-	resp, err := r.client.Do(req)
+	resp, err := r.doRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +371,89 @@ func (r *GitHubResolver) fetchRelease(ctx context.Context, url string) (*GitHubR
 		return nil, err
 	}
 
+	if r.cache != nil && cacheKey != "" {
+		if data, err := json.Marshal(release); err == nil {
+			_ = r.cache.Set(cacheKey, data, ttl)
+		}
+	}
+
 	return &release, nil
+}
+
+// doRequest executes an HTTP request with rate limit handling and retries.
+func (r *GitHubResolver) doRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
+	r.setHeaders(req)
+
+	// Wait if rate limited
+	r.rateLimit.mu.Lock()
+	if r.rateLimit.remaining == 0 && time.Now().Before(r.rateLimit.resetAt) {
+		wait := time.Until(r.rateLimit.resetAt)
+		r.rateLimit.mu.Unlock()
+		log.Printf("GitHub API rate limited, waiting %s", wait.Truncate(time.Second))
+		select {
+		case <-time.After(wait):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	} else {
+		r.rateLimit.mu.Unlock()
+	}
+
+	const maxRetries = 3
+	var resp *http.Response
+	var err error
+
+	for attempt := range maxRetries {
+		resp, err = r.client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		r.parseRateLimitHeaders(resp)
+
+		if resp.StatusCode != http.StatusTooManyRequests {
+			return resp, nil
+		}
+
+		_ = resp.Body.Close()
+
+		if attempt < maxRetries-1 {
+			backoff := time.Duration(1<<uint(attempt)) * time.Second
+			log.Printf("GitHub API returned 429, retrying in %s (attempt %d/%d)", backoff, attempt+1, maxRetries)
+			select {
+			case <-time.After(backoff):
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+
+			// Rebuild request for retry (body is consumed)
+			req = req.Clone(ctx)
+			r.setHeaders(req)
+		}
+	}
+
+	return resp, nil
+}
+
+// parseRateLimitHeaders extracts rate limit info from GitHub API response headers.
+func (r *GitHubResolver) parseRateLimitHeaders(resp *http.Response) {
+	r.rateLimit.mu.Lock()
+	defer r.rateLimit.mu.Unlock()
+
+	if remaining := resp.Header.Get("X-RateLimit-Remaining"); remaining != "" {
+		if n, err := strconv.Atoi(remaining); err == nil {
+			r.rateLimit.remaining = n
+			if n < 10 {
+				log.Printf("GitHub API rate limit low: %d remaining", n)
+			}
+		}
+	}
+
+	if resetStr := resp.Header.Get("X-RateLimit-Reset"); resetStr != "" {
+		if ts, err := strconv.ParseInt(resetStr, 10, 64); err == nil {
+			r.rateLimit.resetAt = time.Unix(ts, 0)
+		}
+	}
 }
 
 // setHeaders sets common headers for GitHub API requests.
@@ -392,11 +543,7 @@ func (r *GitHubResolver) downloadAsset(ctx context.Context, asset *GitHubAsset) 
 		return "", err
 	}
 
-	if r.authToken != "" {
-		req.Header.Set("Authorization", "Bearer "+r.authToken)
-	}
-
-	resp, err := r.client.Do(req)
+	resp, err := r.doRequest(ctx, req)
 	if err != nil {
 		return "", err
 	}
@@ -578,6 +725,13 @@ func (r *GitHubResolver) extractFromZip(archivePath, binaryName, destDir string)
 
 // fetchManifest fetches plugin.toml from the repository at the given tag.
 func (r *GitHubResolver) fetchManifest(ctx context.Context, owner, repo, tag string) (*Manifest, error) {
+	cacheKey := fmt.Sprintf("manifests/%s/%s/%s.toml", owner, repo, tag)
+	if r.cache != nil {
+		if data, _ := r.cache.Get(cacheKey); data != nil {
+			return ParseManifest(data)
+		}
+	}
+
 	url := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/plugin.toml", owner, repo, tag)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -585,11 +739,7 @@ func (r *GitHubResolver) fetchManifest(ctx context.Context, owner, repo, tag str
 		return nil, err
 	}
 
-	if r.authToken != "" {
-		req.Header.Set("Authorization", "Bearer "+r.authToken)
-	}
-
-	resp, err := r.client.Do(req)
+	resp, err := r.doRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -606,6 +756,10 @@ func (r *GitHubResolver) fetchManifest(ctx context.Context, owner, repo, tag str
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
+	}
+
+	if r.cache != nil {
+		_ = r.cache.Set(cacheKey, data, 24*time.Hour)
 	}
 
 	return ParseManifest(data)

@@ -10,9 +10,11 @@ import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Separator } from "~/components/ui/separator";
 import { useState } from "react";
+
 import type { PluginInfo } from "~/lib/api";
 import { usePlugin } from "~/hooks/queries";
 import { Icons } from "~/components/icons";
+import { MarkdownRenderer } from "~/components/markdown-renderer";
 
 export const Route = createFileRoute("/_dashboard_layout/plugins/$pluginName")({
   component: PluginDetailPage,
@@ -82,9 +84,31 @@ function PluginDetailPage() {
         {plugin.author && <Badge variant="secondary">{plugin.author}</Badge>}
         {plugin.license && <Badge variant="outline">{plugin.license}</Badge>}
         {plugin.installed && <Badge variant="default">Installed</Badge>}
+        {plugin.homepage && (
+          <Button variant="outline" size="sm" asChild>
+            <a href={plugin.homepage} target="_blank" rel="noopener noreferrer">
+              <Icons.Link className="h-4 w-4 mr-1" />
+              Homepage
+            </a>
+          </Button>
+        )}
       </div>
 
       <Separator />
+
+      {/* README Section */}
+      {plugin.readme && (
+        <Card>
+          <CardHeader>
+            <CardTitle>README</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="prose prose-sm dark:prose-invert max-w-none">
+              <MarkdownRenderer content={plugin.readme} />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Inputs Section */}
       {plugin.inputs && Object.keys(plugin.inputs).length > 0 && (
@@ -218,6 +242,21 @@ function PluginDetailPage() {
                 </div>
               ))}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* License Section */}
+      {plugin.license_text && (
+        <Card>
+          <CardHeader>
+            <CardTitle>License</CardTitle>
+            <CardDescription>{plugin.license || "License"}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <pre className="text-xs bg-muted p-4 rounded-none overflow-x-auto whitespace-pre-wrap">
+              {plugin.license_text}
+            </pre>
           </CardContent>
         </Card>
       )}

@@ -37,6 +37,8 @@ type PluginInfo struct {
 	License     string                   `json:"license,omitempty"`
 	Installed   bool                     `json:"installed"`
 	Homepage    string                   `json:"homepage,omitempty"`
+	Readme      string                   `json:"readme,omitempty"`
+	LicenseText string                   `json:"license_text,omitempty"`
 	Inputs      map[string]InputDefInfo  `json:"inputs,omitempty"`
 	Outputs     map[string]OutputDefInfo `json:"outputs,omitempty"`
 	Steps       []StepInfo               `json:"steps,omitempty"`
@@ -303,7 +305,8 @@ func (h *Handler) loadOfficialPluginsByName() (map[string]PluginInfo, error) {
 }
 
 func (h *Handler) loadOfficialPlugin(name string) (PluginInfo, error) {
-	manifestPath := filepath.Join(h.officialPluginsDir(), name, "plugin.toml")
+	pluginDir := filepath.Join(h.officialPluginsDir(), name)
+	manifestPath := filepath.Join(pluginDir, "plugin.toml")
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
 		return PluginInfo{}, err
@@ -318,6 +321,15 @@ func (h *Handler) loadOfficialPlugin(name string) (PluginInfo, error) {
 	}
 
 	info := manifestToPluginInfo(manifest, name, "official", false)
+
+	// Read optional README.md and LICENSE files.
+	if readme, err := os.ReadFile(filepath.Join(pluginDir, "README.md")); err == nil {
+		info.Readme = string(readme)
+	}
+	if licenseText, err := os.ReadFile(filepath.Join(pluginDir, "LICENSE")); err == nil {
+		info.LicenseText = string(licenseText)
+	}
+
 	return info, nil
 }
 

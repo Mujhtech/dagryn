@@ -54,10 +54,10 @@ func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHand
 
 	// API v1 routes
 	r.Route("/api/v1", func(r chi.Router) {
-		// Provider webhooks (public, no auth) - GitHub, GitLab, Bitbucket.
+		// Provider webhooks (public, no auth) - GitHub, GitLab, Bitbucket, Stripe.
 		r.Route("/webhooks", func(r chi.Router) {
 			r.Post("/github", h.GitHubWebhook)
-			// Future: /gitlab, /bitbucket
+			r.Post("/stripe", h.StripeWebhook)
 		})
 
 		// Auth routes (mixed public and protected)
@@ -238,6 +238,35 @@ func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHand
 				r.Get("/official", h.ListOfficialPlugins)
 				r.Get("/{publisher}/{name}", h.GetPluginByPublisherName)
 				r.Get("/{pluginName}", h.GetPluginManifest)
+			})
+
+			// Plugin registry routes
+			r.Route("/registry", func(r chi.Router) {
+				// Public endpoints
+				r.Get("/plugins", h.SearchRegistryPlugins)
+				r.Get("/plugins/{publisher}/{name}", h.GetRegistryPlugin)
+				r.Get("/plugins/{publisher}/{name}/versions", h.GetRegistryPluginVersions)
+				r.Get("/plugins/{publisher}/{name}/analytics", h.GetRegistryPluginAnalytics)
+				r.Get("/featured", h.ListFeaturedPlugins)
+				r.Get("/trending", h.ListTrendingPlugins)
+				r.Post("/plugins/{publisher}/{name}/download", h.TrackPluginDownload)
+
+				// Auth-required endpoints
+				r.Post("/publishers", h.CreatePublisher)
+				r.Get("/publishers/{publisher}", h.GetPublisher)
+				r.Post("/plugins/{publisher}/{name}/versions", h.PublishPluginVersion)
+				r.Delete("/plugins/{publisher}/{name}/versions/{version}", h.YankPluginVersion)
+			})
+
+			// Billing routes
+			r.Route("/billing", func(r chi.Router) {
+				r.Get("/plans", h.ListBillingPlans)
+				r.Get("/plans/{slug}", h.GetBillingPlan)
+				r.Get("/overview", h.GetBillingOverview)
+				r.Post("/checkout", h.CreateCheckoutSession)
+				r.Post("/portal", h.CreatePortalSession)
+				r.Post("/cancel", h.CancelSubscription)
+				r.Get("/invoices", h.ListInvoices)
 			})
 
 			// Invitations (for accepting)

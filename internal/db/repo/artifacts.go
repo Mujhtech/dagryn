@@ -184,6 +184,33 @@ func (r *ArtifactRepo) DeleteExpired(ctx context.Context) (int64, error) {
 	return result.RowsAffected(), nil
 }
 
+// DeleteOlderThanForProjects removes artifacts created before the given time for the specified projects.
+// Returns the number of deleted rows and the storage keys of the deleted artifacts.
+func (r *ArtifactRepo) DeleteOlderThanForProjects(ctx context.Context, projectIDs []uuid.UUID, before time.Time) (int64, []string, error) {
+	if len(projectIDs) == 0 {
+		return 0, nil, nil
+	}
+	rows, err := r.pool.Query(ctx, `
+		DELETE FROM artifacts
+		WHERE project_id = ANY($1) AND created_at < $2
+		RETURNING storage_key
+	`, projectIDs, before)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer rows.Close()
+
+	var keys []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return 0, nil, err
+		}
+		keys = append(keys, key)
+	}
+	return int64(len(keys)), keys, rows.Err()
+}
+
 // TotalSizeByProject returns total size of artifacts for a project.
 func (r *ArtifactRepo) TotalSizeByProject(ctx context.Context, projectID uuid.UUID) (int64, error) {
 	var total int64

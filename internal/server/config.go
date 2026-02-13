@@ -21,6 +21,13 @@ type ContainerServerConfig struct {
 	Network      string `toml:"network"`
 }
 
+// StripeConfig holds Stripe API configuration.
+type StripeConfig struct {
+	SecretKey      string `toml:"secret_key"`
+	WebhookSecret  string `toml:"webhook_secret"`
+	PublishableKey string `toml:"publishable_key"`
+}
+
 // Config holds all server configuration.
 type Config struct {
 	Server          ServerConfig          `toml:"server"`
@@ -35,6 +42,7 @@ type Config struct {
 	CacheStorage    StorageConfig         `toml:"cache_storage"`
 	ArtifactStorage StorageConfig         `toml:"artifact_storage"`
 	Container       ContainerServerConfig `toml:"container"`
+	Stripe          StripeConfig          `toml:"stripe"`
 }
 
 // StorageConfig holds cache storage backend configuration.
@@ -391,6 +399,17 @@ func applyEnvVars(cfg *Config) {
 	}
 	if v := os.Getenv("DAGRYN_READY_CHECK_REDIS"); v == "true" || v == "1" {
 		cfg.Health.ReadyCheckRedis = true
+	}
+
+	// Stripe
+	if v := getEnvAny("STRIPE_SECRET_KEY", "DAGRYN_STRIPE_SECRET_KEY"); v != "" {
+		cfg.Stripe.SecretKey = v
+	}
+	if v := getEnvAny("STRIPE_WEBHOOK_SECRET", "DAGRYN_STRIPE_WEBHOOK_SECRET"); v != "" {
+		cfg.Stripe.WebhookSecret = v
+	}
+	if v := getEnvAny("STRIPE_PUBLISHABLE_KEY", "DAGRYN_STRIPE_PUBLISHABLE_KEY"); v != "" {
+		cfg.Stripe.PublishableKey = v
 	}
 }
 

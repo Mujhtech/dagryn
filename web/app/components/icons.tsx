@@ -55,6 +55,7 @@ import {
   LinkIcon,
   LinkSimpleHorizontalIcon,
   PackageIcon,
+  CreditCardIcon,
 } from "@phosphor-icons/react";
 
 export const Icons = {
@@ -116,4 +117,5 @@ export const Icons = {
   Link: LinkIcon,
   Link2: LinkSimpleHorizontalIcon,
   Package: PackageIcon,
+  CreditCard: CreditCardIcon,
 };

@@ -168,6 +168,27 @@ export function WorkflowDag({
     };
   }, [levels]);
 
+  // Derive edge status from source/target task statuses
+  type EdgeStatus = "idle" | "active" | "success" | "failed" | "cached";
+
+  const getEdgeStatus = (from: string, to: string): EdgeStatus => {
+    if (!taskStatuses) return "idle";
+    const toStatus = taskStatuses.get(to)?.status;
+    const fromStatus = taskStatuses.get(from)?.status;
+
+    // Target is actively running — the edge is "flowing"
+    if (toStatus === "running") return "active";
+    // Target completed successfully (or was cached)
+    if (toStatus === "success") return "success";
+    if (toStatus === "cached") return "cached";
+    // Target failed
+    if (toStatus === "failed") return "failed";
+    // Source completed but target hasn't started — edge is ready/success
+    if (fromStatus === "success" || fromStatus === "cached") return "success";
+
+    return "idle";
+  };
+
   // Generate connector paths
   const connectors = useMemo(() => {
     const paths: { from: string; to: string; path: string }[] = [];
@@ -232,18 +253,112 @@ export function WorkflowDag({
               className="fill-muted-foreground/60"
             />
           </marker>
+          <marker
+            id="arrowhead-active"
+            markerWidth="10"
+            markerHeight="10"
+            refX="5"
+            refY="5"
+            orient="auto-start-reverse"
+            markerUnits="strokeWidth"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6" />
+          </marker>
+          <marker
+            id="arrowhead-success"
+            markerWidth="10"
+            markerHeight="10"
+            refX="5"
+            refY="5"
+            orient="auto-start-reverse"
+            markerUnits="strokeWidth"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#22c55e" />
+          </marker>
+          <marker
+            id="arrowhead-failed"
+            markerWidth="10"
+            markerHeight="10"
+            refX="5"
+            refY="5"
+            orient="auto-start-reverse"
+            markerUnits="strokeWidth"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444" />
+          </marker>
+          <marker
+            id="arrowhead-cached"
+            markerWidth="10"
+            markerHeight="10"
+            refX="5"
+            refY="5"
+            orient="auto-start-reverse"
+            markerUnits="strokeWidth"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#a855f7" />
+          </marker>
         </defs>
-        {connectors.map(({ from, to, path }) => (
-          <path
-            key={`${from}-${to}`}
-            d={path}
-            fill="none"
-            className="stroke-muted-foreground/60"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            markerEnd="url(#arrowhead)"
-          />
-        ))}
+        {connectors.map(({ from, to, path }) => {
+          const status = getEdgeStatus(from, to);
+          const isActive = status === "active";
+
+          const strokeColor =
+            status === "active"
+              ? "#3b82f6"
+              : status === "success"
+                ? "#22c55e"
+                : status === "failed"
+                  ? "#ef4444"
+                  : status === "cached"
+                    ? "#a855f7"
+                    : undefined;
+
+          const markerId =
+            status === "idle" ? "arrowhead" : `arrowhead-${status}`;
+
+          return isActive ? (
+            <g key={`${from}-${to}`}>
+              {/* Faint static background stroke */}
+              <path
+                d={path}
+                fill="none"
+                stroke={strokeColor}
+                strokeOpacity={0.25}
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+              {/* Animated dashed foreground stroke */}
+              <path
+                d={path}
+                fill="none"
+                stroke={strokeColor}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeDasharray="6 4"
+                markerEnd={`url(#${markerId})`}
+              >
+                <animate
+                  attributeName="stroke-dashoffset"
+                  from="20"
+                  to="0"
+                  dur="0.6s"
+                  repeatCount="indefinite"
+                />
+              </path>
+            </g>
+          ) : (
+            <path
+              key={`${from}-${to}`}
+              d={path}
+              fill="none"
+              stroke={strokeColor}
+              className={strokeColor ? undefined : "stroke-muted-foreground/60"}
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              markerEnd={`url(#${markerId})`}
+            />
+          );
+        })}
       </svg>
 
       {/* Node layout */}

@@ -46,6 +46,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/server/middleware"
 	"github.com/mujhtech/dagryn/internal/server/sse"
 	"github.com/mujhtech/dagryn/internal/service"
+	dagrynstripe "github.com/mujhtech/dagryn/internal/stripe"
 	"github.com/mujhtech/dagryn/internal/telemetry"
 	"github.com/mujhtech/dagryn/pkg/storage"
 	"github.com/rs/zerolog/log"
@@ -90,6 +91,8 @@ type Repositories struct {
 	ProviderTokens      *repo.ProviderTokenRepo
 	GitHubInstallations *repo.GitHubInstallationRepo
 	Workflows           *repo.WorkflowRepo
+	PluginRegistry      *repo.PluginRegistryRepo
+	Billing             *repo.BillingRepo
 }
 
 // New creates a new server instance.
@@ -139,6 +142,8 @@ func (s *Server) Initialize(ctx context.Context) error {
 		ProviderTokens:      repo.NewProviderTokenRepo(database.Pool()),
 		GitHubInstallations: repo.NewGitHubInstallationRepo(database.Pool()),
 		Workflows:           repo.NewWorkflowRepo(database.Pool()),
+		PluginRegistry:      repo.NewPluginRegistryRepo(database.Pool()),
+		Billing:             repo.NewBillingRepo(database.Pool()),
 	}
 
 	// Initialize GitHub App client if configured
@@ -271,6 +276,38 @@ func (s *Server) Initialize(ctx context.Context) error {
 		cancelManager = job.NewCancelManager(rds)
 	}
 
+	// Initialize plugin registry service (optional)
+	var registryService *service.PluginRegistryService
+	if s.repos.PluginRegistry != nil {
+		registryService = service.NewPluginRegistryService(s.repos.PluginRegistry, log.Logger)
+	}
+
+	// Optional quota service (when billing repo is available)
+	var quotaService *service.QuotaService
+	if s.repos.Billing != nil {
+		quotaService = service.NewQuotaService(s.repos.Billing, s.repos.Projects, log.Logger)
+		if cacheService != nil {
+			cacheService.SetQuotaService(quotaService)
+		}
+		if artifactService != nil {
+			artifactService.SetQuotaService(quotaService)
+		}
+		log.Debug().Msg("Quota enforcement service initialized")
+	}
+
+	// Optional Stripe client and billing service
+	var stripeClient *dagrynstripe.Client
+	var billingService *service.BillingService
+	if s.config.Stripe.SecretKey != "" {
+		stripeClient = dagrynstripe.New(dagrynstripe.Config{
+			SecretKey:      s.config.Stripe.SecretKey,
+			WebhookSecret:  s.config.Stripe.WebhookSecret,
+			PublishableKey: s.config.Stripe.PublishableKey,
+		})
+		billingService = service.NewBillingService(s.repos.Billing, stripeClient, log.Logger)
+		log.Debug().Msg("Stripe billing service initialized")
+	}
+
 	// Create handlers
 	h := handlers.New(
 		s.db, s.repos.Users, s.repos.Tokens, s.repos.Teams, s.repos.Projects,
@@ -285,6 +322,10 @@ func (s *Server) Initialize(ctx context.Context) error {
 		cacheService,
 		artifactService,
 		cancelManager,
+		registryService,
+		billingService,
+		stripeClient,
+		quotaService,
 	)
 
 	// Create auth handler

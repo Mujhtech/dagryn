@@ -760,3 +760,21 @@ func (r *RunRepo) DeleteLogs(ctx context.Context, runID uuid.UUID) error {
 	_, err := r.pool.Exec(ctx, "DELETE FROM run_logs WHERE run_id = $1", runID)
 	return err
 }
+
+// DeleteLogsOlderThanForProjects removes run logs for runs in the given projects
+// that were created before the specified time.
+func (r *RunRepo) DeleteLogsOlderThanForProjects(ctx context.Context, projectIDs []uuid.UUID, before time.Time) (int64, error) {
+	if len(projectIDs) == 0 {
+		return 0, nil
+	}
+	result, err := r.pool.Exec(ctx, `
+		DELETE FROM run_logs
+		WHERE run_id IN (
+			SELECT id FROM runs WHERE project_id = ANY($1) AND created_at < $2
+		)
+	`, projectIDs, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}

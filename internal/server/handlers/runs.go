@@ -21,6 +21,7 @@ import (
 	serverctx "github.com/mujhtech/dagryn/internal/server/context"
 	"github.com/mujhtech/dagryn/internal/server/response"
 	"github.com/mujhtech/dagryn/internal/server/sse"
+	"github.com/mujhtech/dagryn/internal/service"
 )
 
 // --- Run Handlers ---
@@ -485,6 +486,16 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Enforce max_concurrent_runs quota if billing is configured
+	if h.quotaService != nil && project.BillingAccountID != nil {
+		if err := h.quotaService.CheckConcurrentRuns(ctx, *project.BillingAccountID); err != nil {
+			if service.IsQuotaExceeded(err) {
+				_ = response.PaymentRequired(w, r, err)
+				return
+			}
+		}
+	}
+
 	// Create the run record
 	run := &models.Run{
 		ID:                uuid.New(),
@@ -538,7 +549,14 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 			}
 			data, err := json.Marshal(payload)
 			if err == nil {
-				_ = h.jobClient.Enqueue(job.QueueNameDefault, job.ExecuteRunTaskName, &job.ClientPayload{Data: data})
+				// Route to priority queue if the plan supports it
+				queue := job.QueueNameDefault
+				if h.quotaService != nil && project.BillingAccountID != nil {
+					if h.quotaService.GetPriorityQueue(ctx, *project.BillingAccountID) {
+						queue = job.QueueNamePriority
+					}
+				}
+				_ = h.jobClient.Enqueue(queue, job.ExecuteRunTaskName, &job.ClientPayload{Data: data})
 			}
 		}
 	}

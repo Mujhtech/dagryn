@@ -15,6 +15,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/db/repo"
 	serverctx "github.com/mujhtech/dagryn/internal/server/context"
 	"github.com/mujhtech/dagryn/internal/server/response"
+	"github.com/mujhtech/dagryn/internal/service"
 )
 
 const maxArtifactUploadSize = 100 << 20 // 100MB
@@ -214,6 +215,10 @@ func (h *Handler) UploadArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 	artifact, err := h.artifactService.Upload(ctx, projectID, runID, taskName, name, filepath.Base(fileHeader.Filename), file, fileHeader.Size, ttl, contentType)
 	if err != nil {
+		if service.IsQuotaExceeded(err) {
+			_ = response.PaymentRequired(w, r, err)
+			return
+		}
 		_ = response.InternalServerError(w, r, err)
 		return
 	}
@@ -394,6 +399,10 @@ func (h *Handler) DownloadArtifact(w http.ResponseWriter, r *http.Request) {
 
 	rc, err := h.artifactService.Download(ctx, artifactID)
 	if err != nil {
+		if service.IsQuotaExceeded(err) {
+			_ = response.PaymentRequired(w, r, err)
+			return
+		}
 		if errors.Is(err, repo.ErrNotFound) {
 			_ = response.NotFound(w, r, errors.New("artifact not found"))
 			return

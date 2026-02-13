@@ -9,13 +9,18 @@ type QueueName string
 
 const (
 	QueueNameDefault  QueueName = "DefaultQueue"
+	QueueNamePriority QueueName = "PriorityQueue"
 	ScheduleQueueName QueueName = "ScheduleQueue"
 
-	WebhookTaskName         TaskName = "Webhook"
-	StaleRunsTaskName       TaskName = "stale_runs:check"
-	ExecuteRunTaskName      TaskName = "execute_run"
-	CacheGCTaskName         TaskName = "cache_gc:run"
-	ArtifactCleanupTaskName TaskName = "artifact_cleanup:daily"
+	WebhookTaskName                 TaskName = "Webhook"
+	StaleRunsTaskName               TaskName = "stale_runs:check"
+	ExecuteRunTaskName              TaskName = "execute_run"
+	CacheGCTaskName                 TaskName = "cache_gc:run"
+	ArtifactCleanupTaskName         TaskName = "artifact_cleanup:daily"
+	PluginDownloadRecomputeTaskName TaskName = "plugin_downloads:recompute"
+	UsageRollupTaskName             TaskName = "billing:usage_rollup"
+	BandwidthResetTaskName          TaskName = "billing:bandwidth_reset"
+	RetentionCleanupTaskName        TaskName = "retention_cleanup:daily"
 )
 
 type ClientPayload struct {

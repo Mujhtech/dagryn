@@ -84,6 +84,7 @@ type ExecuteRunHandler struct {
 	cancelManager       CancelManager
 	containerDefaults   *ContainerDefaults
 	eventPublisher      sse.EventPublisher
+	quotaService        *service.QuotaService
 }
 
 // GitHubAppClient is an interface for fetching installation tokens.
@@ -112,7 +113,7 @@ func NewGitHubAppClientAdapter(client *githubapp.Client) GitHubAppClient {
 }
 
 // NewExecuteRunHandler creates an ExecuteRun handler.
-func NewExecuteRunHandler(runs *repo.RunRepo, projects *repo.ProjectRepo, workflows *repo.WorkflowRepo, encrypter encrypt.Encrypt, providerTokens *repo.ProviderTokenRepo, providerEncrypt encrypt.Encrypt, githubApp GitHubAppClient, githubInstallations *repo.GitHubInstallationRepo, cacheService *service.CacheService, artifactService *service.ArtifactService, cancelManager CancelManager, containerDefaults *ContainerDefaults, eventPublisher sse.EventPublisher) *ExecuteRunHandler {
+func NewExecuteRunHandler(runs *repo.RunRepo, projects *repo.ProjectRepo, workflows *repo.WorkflowRepo, encrypter encrypt.Encrypt, providerTokens *repo.ProviderTokenRepo, providerEncrypt encrypt.Encrypt, githubApp GitHubAppClient, githubInstallations *repo.GitHubInstallationRepo, cacheService *service.CacheService, artifactService *service.ArtifactService, cancelManager CancelManager, containerDefaults *ContainerDefaults, eventPublisher sse.EventPublisher, quotaService *service.QuotaService) *ExecuteRunHandler {
 	if eventPublisher == nil {
 		eventPublisher = sse.NoOpEventPublisher{}
 	}
@@ -130,6 +131,7 @@ func NewExecuteRunHandler(runs *repo.RunRepo, projects *repo.ProjectRepo, workfl
 		cancelManager:       cancelManager,
 		containerDefaults:   containerDefaults,
 		eventPublisher:      eventPublisher,
+		quotaService:        quotaService,
 	}
 }
 
@@ -524,6 +526,17 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	// Build container config: merge server defaults with project config.
 	// Project config takes precedence over server defaults.
 	containerCfg := h.buildContainerConfig(cfg)
+	if containerCfg != nil && h.quotaService != nil {
+		accountID, _ := h.quotaService.GetAccountForProject(ctx, projectID)
+		if accountID != uuid.Nil {
+			if err := h.quotaService.CheckContainerExecution(ctx, accountID); err != nil {
+				// Plan doesn't allow containers — fall back to host execution
+				containerCfg = nil
+				slog.Info("container execution not allowed by plan, falling back to host",
+					"project_id", projectID, "error", err)
+			}
+		}
+	}
 	if containerCfg != nil {
 		opts.ContainerConfig = containerCfg
 	}
@@ -665,6 +678,16 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	summary, err := sched.Run(ctx, targets)
 	flushLogs()
 
+	// Collect artifacts from completed tasks before handling failures.
+	// collectArtifacts filters internally to only Success/Cached tasks, so it's
+	// safe to call even when some tasks failed. Uses background context since
+	// the parent ctx may be cancelled.
+	if h.artifactService != nil && summary != nil && len(summary.Results) > 0 {
+		artifactCtx, artifactCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		h.collectArtifacts(artifactCtx, projectID, runID, workflow, summary, workDir)
+		artifactCancel()
+	}
+
 	if ctx.Err() == context.Canceled {
 		h.markRunCancelled(runID, projectID, project, "Cancelled by user")
 		return nil
@@ -686,10 +709,6 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		h.eventPublisher.PublishRunEvent(ctx, sse.EventRunFailed, runID, projectID, string(models.RunStatusFailed), msg)
 		h.notifyGitHub(ctx, run, project, models.RunStatusFailed)
 		return nil
-	}
-
-	if h.artifactService != nil && summary != nil {
-		h.collectArtifacts(ctx, projectID, runID, workflow, summary, workDir)
 	}
 
 	_ = h.runs.Complete(ctx, runID, models.RunStatusSuccess, nil)

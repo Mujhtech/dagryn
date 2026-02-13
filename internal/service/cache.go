@@ -64,6 +64,7 @@ type CacheService struct {
 	repo   *repo.CacheRepo
 	bucket storage.Bucket
 	logger zerolog.Logger
+	quota  *QuotaService
 }
 
 // NewCacheService creates a new cache service.
@@ -73,6 +74,11 @@ func NewCacheService(cacheRepo *repo.CacheRepo, bucket storage.Bucket, logger ze
 		bucket: bucket,
 		logger: logger.With().Str("service", "cache").Logger(),
 	}
+}
+
+// SetQuotaService sets the optional quota enforcement service.
+func (s *CacheService) SetQuotaService(quota *QuotaService) {
+	s.quota = quota
 }
 
 // Check returns true if a cache entry exists for the given project/task/key.
@@ -106,6 +112,21 @@ func (s *CacheService) Check(ctx context.Context, projectID uuid.UUID, taskName,
 
 // Upload stores cache content and creates/updates the entry + blob records.
 func (s *CacheService) Upload(ctx context.Context, projectID uuid.UUID, taskName, cacheKey string, r io.Reader, size int64) error {
+	// Plan-driven quota checks (billing)
+	if s.quota != nil {
+		accountID, _ := s.quota.GetAccountForProject(ctx, projectID)
+		if accountID != uuid.Nil {
+			// Unified storage check (cache + artifacts across all projects)
+			if err := s.quota.CheckStorageUpload(ctx, accountID, size); err != nil {
+				return err // QuotaExceededError
+			}
+			// Per-resource cache storage check
+			if err := s.quota.CheckCacheUpload(ctx, accountID, size); err != nil {
+				return err // QuotaExceededError
+			}
+		}
+	}
+
 	// Ensure quota record exists
 	if err := s.repo.EnsureQuota(ctx, projectID); err != nil {
 		return fmt.Errorf("cache: ensure quota: %w", err)
@@ -195,12 +216,15 @@ func (s *CacheService) Upload(ctx context.Context, projectID uuid.UUID, taskName
 		return fmt.Errorf("cache: upsert blob: %w", err)
 	}
 
-	// Update quota
+	// Update quota (size + entries)
 	if err := s.repo.UpdateQuotaUsage(ctx, projectID, sizeDelta, entryDelta); err != nil {
 		s.logger.Warn().Err(err).Msg("failed to update quota usage")
 	}
 
-	// Record upload usage
+	// Update bandwidth quota (uploads count towards bandwidth)
+	_ = s.repo.IncrementBandwidthUsage(ctx, projectID, size)
+
+	// Record upload usage in analytics
 	_ = s.repo.IncrementUsage(ctx, projectID, size, 0, 0, 0)
 
 	s.logger.Debug().
@@ -221,19 +245,30 @@ func (s *CacheService) Download(ctx context.Context, projectID uuid.UUID, taskNa
 		return nil, err
 	}
 
+	// Plan-driven bandwidth quota check
+	if s.quota != nil {
+		accountID, _ := s.quota.GetAccountForProject(ctx, projectID)
+		if accountID != uuid.Nil {
+			if err := s.quota.CheckCacheDownload(ctx, accountID, entry.SizeBytes); err != nil {
+				return nil, err // QuotaExceededError
+			}
+		}
+	}
+
 	blobKey := blobStorageKey(entry.DigestHash)
 	rc, err := s.bucket.Get(ctx, blobKey)
 	if err != nil {
 		return nil, fmt.Errorf("cache: download blob: %w", err)
 	}
 
-	// Increment hit count and record download usage (fire-and-forget)
+	// Increment hit count, record download usage, and update bandwidth quota (fire-and-forget)
 	go func() {
 		bgCtx := context.Background()
 		if err := s.repo.IncrementHitCount(bgCtx, entry.ID); err != nil {
 			s.logger.Warn().Err(err).Str("entry_id", entry.ID.String()).Msg("failed to increment hit count")
 		}
 		_ = s.repo.IncrementUsage(bgCtx, projectID, 0, entry.SizeBytes, 0, 0)
+		_ = s.repo.IncrementBandwidthUsage(bgCtx, projectID, entry.SizeBytes)
 	}()
 
 	return rc, nil

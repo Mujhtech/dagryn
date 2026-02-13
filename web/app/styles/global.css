@@ -646,3 +646,7 @@ html:active-view-transition-type(warp) {
     height: clamp(6rem, 20vw, 9rem);
   }
 }
+
+.custom-streamdown [data-streamdown="code-block"] {
+  border-radius: 0px !important;
+}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mujhtech/dagryn/internal/cache"
 	"github.com/mujhtech/dagryn/internal/cache/cloud"
+	grpccache "github.com/mujhtech/dagryn/internal/cache/grpc"
 	"github.com/mujhtech/dagryn/internal/cache/remote"
 	"github.com/mujhtech/dagryn/internal/client"
 	"github.com/mujhtech/dagryn/internal/condition"
@@ -20,6 +22,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/executor"
 	"github.com/mujhtech/dagryn/internal/plugin"
 	"github.com/mujhtech/dagryn/internal/scheduler"
+	"github.com/mujhtech/dagryn/internal/task"
 	"github.com/mujhtech/dagryn/pkg/logger"
 	"github.com/spf13/cobra"
 )
@@ -128,6 +131,11 @@ func runRun(cmd *cobra.Command, args []string) error {
 	// Build cache backend from config
 	opts.CacheBackend = buildCacheBackend(cfg.Cache, projectRoot, log)
 
+	// Pass global plugins to scheduler for integration hook dispatch
+	if len(cfg.Plugins) > 0 {
+		opts.GlobalPlugins = cfg.Plugins
+	}
+
 	// Build condition context for task conditions
 	opts.ConditionContext = &condition.Context{
 		Branch:  getGitBranch(),
@@ -204,6 +212,11 @@ func runRun(cmd *cobra.Command, args []string) error {
 
 	// Run tasks
 	summary, err := sched.Run(ctx, targets)
+
+	// Collect artifacts from successful tasks when remote sync is active
+	if remoteSync != nil && summary != nil && len(summary.Results) > 0 {
+		remoteSync.CollectArtifacts(workflow, summary, projectRoot)
+	}
 
 	// Notify remote sync of completion and cleanup
 	if remoteSync != nil {
@@ -719,6 +732,75 @@ func (s *RemoteSync) startPeriodicFlush(interval time.Duration) {
 }
 
 // Stop stops the periodic flusher, flushes remaining logs, and closes resources.
+// CollectArtifacts uploads artifacts from successful tasks to the remote server.
+func (s *RemoteSync) CollectArtifacts(workflow *task.Workflow, summary *scheduler.RunSummary, projectRoot string) {
+	if s.isOffline() || workflow == nil || summary == nil {
+		return
+	}
+
+	resultStatus := make(map[string]executor.Status, len(summary.Results))
+	for _, res := range summary.Results {
+		resultStatus[res.Task] = res.Status
+	}
+
+	for _, tsk := range workflow.ListTasks() {
+		status, ok := resultStatus[tsk.Name]
+		if !ok || (status != executor.Success && status != executor.Cached) {
+			continue
+		}
+		if !tsk.HasOutputs() {
+			continue
+		}
+
+		outputs := tsk.Outputs
+		if tsk.Workdir != "" {
+			outputs = make([]string, len(tsk.Outputs))
+			for i, p := range tsk.Outputs {
+				outputs[i] = filepath.Join(tsk.Workdir, p)
+			}
+		}
+
+		seen := make(map[string]struct{})
+		for _, pattern := range outputs {
+			matches, err := filepath.Glob(filepath.Join(projectRoot, pattern))
+			if err != nil {
+				continue
+			}
+			for _, path := range matches {
+				if _, ok := seen[path]; ok {
+					continue
+				}
+				seen[path] = struct{}{}
+
+				info, err := os.Stat(path)
+				if err != nil || info.IsDir() {
+					continue
+				}
+
+				relPath, err := filepath.Rel(projectRoot, path)
+				if err != nil {
+					continue
+				}
+				fileName := filepath.Base(relPath)
+
+				f, err := os.Open(path)
+				if err != nil {
+					continue
+				}
+
+				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+				err = s.client.UploadArtifact(ctx, s.projectID, s.RunID, tsk.Name, relPath, fileName, f)
+				cancel()
+				_ = f.Close()
+
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: artifact upload failed for %s: %v\n", relPath, err)
+				}
+			}
+		}
+	}
+}
+
 func (s *RemoteSync) Stop() {
 	// Signal flusher goroutine to stop
 	if s.done != nil {
@@ -780,6 +862,19 @@ func buildCacheBackend(cfg config.CacheConfig, projectRoot string, log *logger.L
 		})
 	}
 
+	if cfg.Remote.Provider == "grpc" {
+		grpcBackend, err := buildGRPCBackend(cfg.Remote, projectRoot, log)
+		if err != nil {
+			log.Error("grpc cache not available, falling back to local", err)
+			return local
+		}
+		return cache.NewHybridBackend(local, grpcBackend, cache.HybridConfig{
+			Strategy:        strategy,
+			FallbackOnError: cfg.Remote.IsFallbackOnError(),
+			OnError:         onRemoteErr,
+		})
+	}
+
 	bucket, err := buildBucket(cfg.Remote)
 	if err != nil {
 		log.Error("failed to create remote cache, falling back to local", err)
@@ -828,6 +923,28 @@ func buildCloudBackend(projectRoot string, log *logger.Logger) (cache.Backend, e
 	log.Info(fmt.Sprintf("Cloud cache enabled (project: %s)", projectConfig.ProjectName))
 
 	return cloud.NewBackend(apiClient, projectConfig.ProjectID, projectRoot), nil
+}
+
+// buildGRPCBackend creates a gRPC cache backend using the REAPI v2 protocol.
+func buildGRPCBackend(rc config.RemoteCacheConfig, projectRoot string, log *logger.Logger) (cache.Backend, error) {
+	connCfg := grpccache.ConnConfig{
+		Target:       rc.GRPCTarget,
+		InstanceName: rc.InstanceName,
+		TLS:          rc.IsTLS(),
+		TLSCACert:    rc.TLSCACert,
+		AuthToken:    rc.AuthToken,
+		DialTimeout:  10 * time.Second,
+	}
+	if rc.TLS != nil && !*rc.TLS {
+		connCfg.Insecure = true
+		connCfg.TLS = false
+	}
+	conn, err := grpccache.Dial(context.Background(), connCfg)
+	if err != nil {
+		return nil, fmt.Errorf("grpc dial: %w", err)
+	}
+	log.Info(fmt.Sprintf("gRPC cache enabled (target: %s)", rc.GRPCTarget))
+	return grpccache.NewBackend(conn, rc.InstanceName, projectRoot), nil
 }
 
 // getGitBranch returns the current git branch.

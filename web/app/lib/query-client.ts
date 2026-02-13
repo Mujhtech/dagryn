@@ -57,4 +57,20 @@ export const queryKeys = {
     ["officialPlugins", q ?? "", type ?? "", sort ?? ""] as const,
   plugin: (pluginName: string) => ["plugin", pluginName] as const,
   projectPlugins: (projectId: string) => ["projectPlugins", projectId] as const,
+  registryPlugins: (q?: string, type?: string, sort?: string, page?: number) =>
+    ["registryPlugins", q ?? "", type ?? "", sort ?? "", page ?? 1] as const,
+  registryPlugin: (publisher: string, name: string) =>
+    ["registryPlugin", publisher, name] as const,
+  registryPluginVersions: (publisher: string, name: string) =>
+    ["registryPluginVersions", publisher, name] as const,
+  registryPluginAnalytics: (publisher: string, name: string, days: number) =>
+    ["registryPluginAnalytics", publisher, name, days] as const,
+  featuredPlugins: ["featuredPlugins"] as const,
+  trendingPlugins: ["trendingPlugins"] as const,
+  publisher: (name: string) => ["publisher", name] as const,
+  billingPlans: ["billingPlans"] as const,
+  billingPlan: (slug: string) => ["billingPlan", slug] as const,
+  billingOverview: ["billingOverview"] as const,
+  billingInvoices: (limit: number, offset: number) =>
+    ["billingInvoices", limit, offset] as const,
 };

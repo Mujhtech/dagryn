@@ -126,7 +126,7 @@ function CacheAnalyticsPage() {
             value={String(days)}
             onValueChange={(v) => setDays(Number(v))}
           >
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="w-35">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -260,11 +260,11 @@ function CacheAnalyticsPage() {
           </CardHeader>
           <CardContent>
             {analyticsLoading ? (
-              <div className="flex items-center justify-center h-[300px]">
+              <div className="flex items-center justify-center h-75">
                 <Icons.Loader className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : analytics?.days && analytics.days.length > 0 ? (
-              <ChartContainer config={hitRateChartConfig} className="h-[300px]">
+              <ChartContainer config={hitRateChartConfig} className="h-75">
                 <BarChart data={analytics.days}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis
@@ -293,7 +293,7 @@ function CacheAnalyticsPage() {
                 </BarChart>
               </ChartContainer>
             ) : (
-              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+              <div className="flex items-center justify-center h-75 text-muted-foreground">
                 No data available for the selected period
               </div>
             )}
@@ -310,14 +310,11 @@ function CacheAnalyticsPage() {
           </CardHeader>
           <CardContent>
             {analyticsLoading ? (
-              <div className="flex items-center justify-center h-[300px]">
+              <div className="flex items-center justify-center h-75">
                 <Icons.Loader className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : analytics?.days && analytics.days.length > 0 ? (
-              <ChartContainer
-                config={bandwidthChartConfig}
-                className="h-[300px]"
-              >
+              <ChartContainer config={bandwidthChartConfig} className="h-75">
                 <AreaChart data={analytics.days}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis
@@ -360,7 +357,7 @@ function CacheAnalyticsPage() {
                 </AreaChart>
               </ChartContainer>
             ) : (
-              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+              <div className="flex items-center justify-center h-75 text-muted-foreground">
                 No data available for the selected period
               </div>
             )}

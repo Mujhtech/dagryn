@@ -42,7 +42,7 @@ func (c CacheConfig) IsEnabled() bool {
 type RemoteCacheConfig struct {
 	Enabled         bool   `toml:"enabled"`
 	Cloud           bool   `toml:"cloud"`    // Use Dagryn Cloud cache API
-	Provider        string `toml:"provider"` // "s3", "filesystem" (ignored when cloud=true)
+	Provider        string `toml:"provider"` // "s3", "filesystem", "grpc" (ignored when cloud=true)
 	Bucket          string `toml:"bucket"`
 	Region          string `toml:"region"`
 	Endpoint        string `toml:"endpoint"`
@@ -53,6 +53,21 @@ type RemoteCacheConfig struct {
 	BasePath        string `toml:"base_path"`
 	Strategy        string `toml:"strategy"`          // default "local-first"
 	FallbackOnError *bool  `toml:"fallback_on_error"` // default true when nil
+
+	// gRPC (REAPI) cache settings
+	GRPCTarget   string `toml:"grpc_target"`   // e.g. "localhost:9092"
+	InstanceName string `toml:"instance_name"` // REAPI instance name
+	TLS          *bool  `toml:"tls"`           // enable TLS (default true when nil)
+	TLSCACert    string `toml:"tls_ca_cert"`   // custom CA cert path
+	AuthToken    string `toml:"auth_token"`    // bearer token
+}
+
+// IsTLS returns whether TLS is enabled (defaults to true when nil).
+func (rc RemoteCacheConfig) IsTLS() bool {
+	if rc.TLS == nil {
+		return true
+	}
+	return *rc.TLS
 }
 
 // IsFallbackOnError returns whether remote errors are non-fatal (defaults to true).

@@ -17,6 +17,7 @@ type Project struct {
 	RepoLinkedByUserID   *uuid.UUID `json:"repo_linked_by_user_id,omitempty" db:"repo_linked_by_user_id"` // User whose provider token is used to clone (legacy OAuth/PAT)
 	GitHubInstallationID *uuid.UUID `json:"github_installation_id,omitempty" db:"github_installation_id"` // GitHub App installation that owns this repo
 	GitHubRepoID         *int64     `json:"github_repo_id,omitempty" db:"github_repo_id"`                 // Numeric GitHub repository ID
+	BillingAccountID     *uuid.UUID `json:"billing_account_id,omitempty" db:"billing_account_id"`         // Links to billing account for quota enforcement
 	Description          *string    `json:"description,omitempty" db:"description"`
 	Visibility           Visibility `json:"visibility" db:"visibility"`
 	ConfigPath           string     `json:"config_path" db:"config_path"`

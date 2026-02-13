@@ -7,6 +7,33 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+// Valid hook names for integration plugins.
+const (
+	HookOnRunStart   = "on_run_start"
+	HookOnRunEnd     = "on_run_end"
+	HookOnTaskStart  = "on_task_start"
+	HookOnTaskEnd    = "on_task_end"
+	HookOnRunSuccess = "on_run_success"
+	HookOnRunFailure = "on_run_failure"
+)
+
+// ValidHookNames is the set of valid hook names for integration plugins.
+var ValidHookNames = map[string]bool{
+	HookOnRunStart:   true,
+	HookOnRunEnd:     true,
+	HookOnTaskStart:  true,
+	HookOnTaskEnd:    true,
+	HookOnRunSuccess: true,
+	HookOnRunFailure: true,
+}
+
+// HookDef defines a lifecycle hook for an integration plugin.
+type HookDef struct {
+	Command string            `toml:"command"`
+	If      string            `toml:"if"`
+	Env     map[string]string `toml:"env"`
+}
+
 // Manifest represents a plugin.toml manifest file.
 type Manifest struct {
 	Plugin    ManifestPlugin       `toml:"plugin"`
@@ -16,6 +43,7 @@ type Manifest struct {
 	Outputs   map[string]OutputDef `toml:"outputs"`
 	Steps     []CompositeStep      `toml:"step"`
 	Cleanup   []CompositeStep      `toml:"cleanup"` // Cleanup steps run in reverse order after main steps
+	Hooks     map[string]HookDef   `toml:"hooks"`   // Lifecycle hooks for integration plugins
 }
 
 // ManifestPlugin holds plugin metadata.
@@ -23,7 +51,7 @@ type ManifestPlugin struct {
 	Name        string `toml:"name"`
 	Description string `toml:"description"`
 	Version     string `toml:"version"`
-	Type        string `toml:"type"` // "tool" or "composite"
+	Type        string `toml:"type"` // "tool", "composite", or "integration"
 	Author      string `toml:"author"`
 	License     string `toml:"license"`
 	Homepage    string `toml:"homepage"`
@@ -84,8 +112,20 @@ func ValidateManifest(m *Manifest) error {
 				return fmt.Errorf("step %d (%s) must have a command", i, step.Name)
 			}
 		}
+	case "integration":
+		if len(m.Hooks) == 0 {
+			return fmt.Errorf("integration plugin must have at least one hook")
+		}
+		for name, hook := range m.Hooks {
+			if !ValidHookNames[name] {
+				return fmt.Errorf("invalid hook name %q", name)
+			}
+			if hook.Command == "" {
+				return fmt.Errorf("hook %q must have a command", name)
+			}
+		}
 	default:
-		return fmt.Errorf("unsupported plugin type %q: must be \"tool\" or \"composite\"", m.Plugin.Type)
+		return fmt.Errorf("unsupported plugin type %q: must be \"tool\", \"composite\", or \"integration\"", m.Plugin.Type)
 	}
 
 	return nil
@@ -99,6 +139,11 @@ func (m *Manifest) IsComposite() bool {
 // IsTool returns true if the plugin type is "tool" or empty (default).
 func (m *Manifest) IsTool() bool {
 	return m.Plugin.Type == "" || m.Plugin.Type == "tool"
+}
+
+// IsIntegration returns true if the plugin type is "integration".
+func (m *Manifest) IsIntegration() bool {
+	return m.Plugin.Type == "integration"
 }
 
 // PlatformAsset returns the asset filename for the given platform key (e.g. "darwin-arm64").

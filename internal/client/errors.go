@@ -29,6 +29,9 @@ var ErrServerError = errors.New("server error")
 // ErrRateLimited indicates the client is being rate limited.
 var ErrRateLimited = errors.New("rate limited")
 
+// ErrQuotaExceeded indicates a billing quota has been exceeded.
+var ErrQuotaExceeded = errors.New("quota exceeded")
+
 // NetworkError wraps a network-related error with additional context.
 type NetworkError struct {
 	Op      string // Operation being performed (e.g., "connect", "request")
@@ -83,6 +86,8 @@ func (e *APIError) Is(target error) bool {
 		return e.StatusCode >= 500
 	case ErrRateLimited:
 		return e.StatusCode == 429
+	case ErrQuotaExceeded:
+		return e.StatusCode == 402
 	}
 	return false
 }
@@ -194,6 +199,14 @@ func IsAuthError(err error) bool {
 	return errors.Is(err, ErrAuthRequired) || errors.Is(err, ErrAuthExpired)
 }
 
+// IsQuotaExceeded returns true if the error is a quota exceeded error (HTTP 402).
+func IsQuotaExceeded(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, ErrQuotaExceeded)
+}
+
 // IsRetryable returns true if the error is likely transient and can be retried.
 func IsRetryable(err error) bool {
 	if err == nil {
@@ -263,6 +276,11 @@ func UserFriendlyError(err error) string {
 	// Rate limiting
 	if errors.Is(err, ErrRateLimited) {
 		return "Too many requests. Please wait a moment and try again."
+	}
+
+	// Quota exceeded
+	if errors.Is(err, ErrQuotaExceeded) {
+		return "Quota exceeded. Upgrade your plan at /billing or run 'dagryn billing portal' to manage your subscription."
 	}
 
 	// Server errors

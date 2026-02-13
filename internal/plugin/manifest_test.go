@@ -203,6 +203,103 @@ func TestValidateManifest_DefaultType(t *testing.T) {
 	assert.True(t, m.IsTool())
 }
 
+func TestParseManifest_IntegrationPlugin(t *testing.T) {
+	data := []byte(`
+[plugin]
+name = "slack-notify-integration"
+description = "Send Slack notifications"
+version = "1.0.0"
+type = "integration"
+author = "dagryn"
+
+[inputs.webhook-url]
+required = true
+description = "Slack webhook URL"
+
+[hooks.on_run_success]
+command = 'echo "success"'
+
+[hooks.on_run_failure]
+command = 'echo "failure"'
+`)
+
+	m, err := ParseManifest(data)
+	require.NoError(t, err)
+
+	assert.Equal(t, "slack-notify-integration", m.Plugin.Name)
+	assert.Equal(t, "integration", m.Plugin.Type)
+	assert.True(t, m.IsIntegration())
+	assert.False(t, m.IsComposite())
+	assert.False(t, m.IsTool())
+
+	require.Len(t, m.Hooks, 2)
+	assert.NotEmpty(t, m.Hooks["on_run_success"].Command)
+	assert.NotEmpty(t, m.Hooks["on_run_failure"].Command)
+
+	require.Contains(t, m.Inputs, "webhook-url")
+	assert.True(t, m.Inputs["webhook-url"].Required)
+}
+
+func TestValidateManifest_IntegrationValid(t *testing.T) {
+	m := &Manifest{
+		Plugin: ManifestPlugin{
+			Name:    "test-integration",
+			Version: "1.0.0",
+			Type:    "integration",
+		},
+		Hooks: map[string]HookDef{
+			"on_run_start": {Command: "echo start"},
+		},
+	}
+	err := ValidateManifest(m)
+	assert.NoError(t, err)
+}
+
+func TestValidateManifest_IntegrationNoHooks(t *testing.T) {
+	m := &Manifest{
+		Plugin: ManifestPlugin{
+			Name:    "test-integration",
+			Version: "1.0.0",
+			Type:    "integration",
+		},
+	}
+	err := ValidateManifest(m)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "at least one hook")
+}
+
+func TestValidateManifest_IntegrationInvalidHookName(t *testing.T) {
+	m := &Manifest{
+		Plugin: ManifestPlugin{
+			Name:    "test-integration",
+			Version: "1.0.0",
+			Type:    "integration",
+		},
+		Hooks: map[string]HookDef{
+			"on_invalid_event": {Command: "echo bad"},
+		},
+	}
+	err := ValidateManifest(m)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid hook name")
+}
+
+func TestValidateManifest_IntegrationEmptyCommand(t *testing.T) {
+	m := &Manifest{
+		Plugin: ManifestPlugin{
+			Name:    "test-integration",
+			Version: "1.0.0",
+			Type:    "integration",
+		},
+		Hooks: map[string]HookDef{
+			"on_run_start": {Command: ""},
+		},
+	}
+	err := ValidateManifest(m)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must have a command")
+}
+
 func TestPlatformAsset_CaseInsensitive(t *testing.T) {
 	m := &Manifest{
 		Platforms: map[string]string{

@@ -240,13 +240,19 @@ func validateCache(cfg *Config) ValidationErrors {
 					Message: "cache.remote.base_path is required when provider is \"filesystem\"",
 				})
 			}
+		case "grpc":
+			if rc.GRPCTarget == "" {
+				errors = append(errors, ValidationError{
+					Message: "cache.remote.grpc_target is required when provider is \"grpc\"",
+				})
+			}
 		case "":
 			errors = append(errors, ValidationError{
 				Message: "cache.remote.provider is required when remote cache is enabled",
 			})
 		default:
 			errors = append(errors, ValidationError{
-				Message: fmt.Sprintf("cache.remote.provider %q is not supported (use \"s3\" or \"filesystem\")", rc.Provider),
+				Message: fmt.Sprintf("cache.remote.provider %q is not supported (use \"s3\", \"filesystem\", or \"grpc\")", rc.Provider),
 			})
 		}
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/job"
 	"github.com/mujhtech/dagryn/internal/server/sse"
 	"github.com/mujhtech/dagryn/internal/service"
+	dagrynstripe "github.com/mujhtech/dagryn/internal/stripe"
 )
 
 // ReadyChecker can optionally be implemented by dependencies to participate in /ready.
@@ -53,6 +54,18 @@ type Handler struct {
 
 	// Cancel manager (optional; nil when Redis is not configured)
 	cancelManager *job.CancelManager
+
+	// Plugin registry service (optional; nil when DB is not configured for registry)
+	registryService *service.PluginRegistryService
+
+	// Billing service (optional; nil when Stripe is not configured)
+	billingService *service.BillingService
+
+	// Stripe client (optional; nil when Stripe is not configured)
+	stripeClient *dagrynstripe.Client
+
+	// Quota service (optional; nil when billing is not configured)
+	quotaService *service.QuotaService
 }
 
 // New creates a new Handler with all dependencies.
@@ -81,6 +94,10 @@ func New(
 	cacheService *service.CacheService,
 	artifactService *service.ArtifactService,
 	cancelManager *job.CancelManager,
+	registryService *service.PluginRegistryService,
+	billingService *service.BillingService,
+	stripeClient *dagrynstripe.Client,
+	quotaService *service.QuotaService,
 ) *Handler {
 	return &Handler{
 		db:                  database,
@@ -104,5 +121,9 @@ func New(
 		cacheService:        cacheService,
 		artifactService:     artifactService,
 		cancelManager:       cancelManager,
+		registryService:     registryService,
+		billingService:      billingService,
+		stripeClient:        stripeClient,
+		quotaService:        quotaService,
 	}
 }
