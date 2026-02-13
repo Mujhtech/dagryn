@@ -192,6 +192,6 @@ func mapStripeSubStatus(status gostripe.SubscriptionStatus) models.SubscriptionS
 	case gostripe.SubscriptionStatusIncomplete:
 		return models.SubscriptionIncomplete
 	default:
-		return models.SubscriptionActive
+		return models.SubscriptionIncomplete
 	}
 }

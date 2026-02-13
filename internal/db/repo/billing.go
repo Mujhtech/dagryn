@@ -395,6 +395,8 @@ func (r *BillingRepo) UpsertInvoice(ctx context.Context, invoice *models.Invoice
 		ON CONFLICT (stripe_invoice_id) DO UPDATE SET
 			amount_cents = EXCLUDED.amount_cents,
 			status = EXCLUDED.status,
+			period_start = COALESCE(EXCLUDED.period_start, invoices.period_start),
+			period_end = COALESCE(EXCLUDED.period_end, invoices.period_end),
 			pdf_url = EXCLUDED.pdf_url,
 			hosted_invoice_url = EXCLUDED.hosted_invoice_url
 	`, invoice.ID, invoice.BillingAccountID, invoice.StripeInvoiceID,

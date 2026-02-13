@@ -140,6 +140,28 @@ func (s *BillingService) GetAccountForTeam(ctx context.Context, teamID uuid.UUID
 		}
 	}
 
+	// Create free subscription (same as GetOrCreateAccount)
+	freePlan, err := s.repo.GetPlanBySlug(ctx, "free")
+	if err != nil {
+		s.logger.Warn().Err(err).Msg("free plan not found, skipping default subscription for team")
+		return account, nil
+	}
+
+	sub := &models.Subscription{
+		BillingAccountID: account.ID,
+		PlanID:           freePlan.ID,
+		Status:           models.SubscriptionActive,
+		SeatCount:        1,
+	}
+	if err := s.repo.CreateSubscription(ctx, sub); err != nil {
+		s.logger.Warn().Err(err).Msg("failed to create free subscription for team")
+	}
+
+	s.logger.Info().
+		Str("account_id", account.ID.String()).
+		Str("team_id", teamID.String()).
+		Msg("team billing account created with free plan")
+
 	return account, nil
 }
 
@@ -182,6 +204,13 @@ func (s *BillingService) GetOverview(ctx context.Context, accountID uuid.UUID) (
 	sub, err := s.repo.GetActiveSubscription(ctx, accountID)
 	if err != nil && err != repo.ErrNotFound {
 		return nil, fmt.Errorf("billing: get subscription: %w", err)
+	}
+	// Fall back to past_due/unpaid so the billing UI still shows the plan.
+	if sub == nil {
+		sub, err = s.repo.GetSubscriptionByStatus(ctx, accountID, models.SubscriptionPastDue, models.SubscriptionUnpaid)
+		if err != nil && err != repo.ErrNotFound {
+			return nil, fmt.Errorf("billing: get overdue subscription: %w", err)
+		}
 	}
 	if sub != nil {
 		overview.Subscription = sub
