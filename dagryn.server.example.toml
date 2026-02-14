@@ -5,6 +5,14 @@
 # Required environment variables (or set below):
 #   JWT_SECRET - at least 32 characters
 #   GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET (or Google OAuth credentials)
+#
+# Optional AI environment variables:
+#   DAGRYN_AI_ENABLED=true             - Enable AI analysis
+#   DAGRYN_AI_PROVIDER=openai          - AI provider
+#   DAGRYN_AI_API_KEY=sk-...           - Provider API key
+#   DAGRYN_AI_BACKEND_MODE=byok        - Backend mode (byok/managed/agent)
+#   DAGRYN_AI_AGENT_ENDPOINT=...       - Agent endpoint URL (agent mode)
+#   DAGRYN_AI_AGENT_TOKEN=...          - Agent auth token (agent mode)
 
 [server]
 host = "localhost"
@@ -109,6 +117,31 @@ webhook_secret = ""
 # secret_access_key = "minioadmin"
 # use_path_style = true
 # prefix = "v1/"
+
+# AI analysis configuration (optional, enables AI-powered failure analysis)
+# Can also be configured via DAGRYN_AI_* environment variables.
+#
+# Backend modes:
+#   "byok"    - Bring Your Own Key: calls the provider API directly with your API key
+#   "managed" - Uses Dagryn-managed AI credits (requires paid plan)
+#   "agent"   - Routes requests to a self-hosted AI agent endpoint
+#
+# [ai]
+# enabled = false
+# provider = "openai"                  # AI provider ("openai", "google", "gemini")
+# api_key = ""                         # Provider API key (or set DAGRYN_AI_API_KEY env var)
+# backend_mode = "byok"               # "byok", "managed", or "agent"
+# timeout_seconds = 60                 # Max time for a single AI request
+# max_tokens = 4096                    # Max tokens in AI response
+# max_analyses_per_hour = 10           # Rate limit: max analyses per hour per project
+# cooldown_seconds = 30                # Min seconds between analyses for the same project
+# max_concurrent_analyses = 3          # Max analyses running at the same time
+# raw_response_ttl_hours = 168         # How long to keep raw AI response blobs (7 days)
+# raw_response_storage = ""            # Storage backend for raw blobs (uses cache_storage if empty)
+#
+# --- Agent mode (self-hosted AI endpoint) ---
+# agent_endpoint = ""                  # URL of the agent (or set DAGRYN_AI_AGENT_ENDPOINT env var)
+# agent_token = ""                     # Auth token for the agent (or set DAGRYN_AI_AGENT_TOKEN env var)
 
 # Artifact storage configuration (optional, enables artifact uploads)
 # Provider: "filesystem", "s3", "gcs", "azure", "r2", "minio"

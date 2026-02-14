@@ -138,10 +138,10 @@ cloud = true
 
 
 [ai]
-enabled = true                 # Enable AI analysis (default: false)
-mode = "summarize_and_suggest" # "summarize" or "summarize_and_suggest"
-provider = "google"            # "openai", "google", or "gemini"
-model = "gemini-3-pro-preview" # Model name (default varies by provider)
+enabled = true                   # Enable AI analysis (default: false)
+mode = "summarize_and_suggest"   # "summarize" or "summarize_and_suggest"
+provider = "google"              # "openai", "google", or "gemini"
+model = "gemini-3-flash-preview" # Model name (default varies by provider)
 
 [ai.backend]
 mode = "managed"
