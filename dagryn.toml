@@ -151,6 +151,6 @@ min_confidence = 0.7             # Minimum confidence threshold (0.0-1.0)
 max_suggestions_per_analysis = 5 # Max suggestions per run
 
 [ai.publish]
-github_comment = true      # Post analysis as PR comment
-github_check = true        # Create GitHub check run
-github_suggestions = false # Post inline code suggestions
+github_comment = true     # Post analysis as PR comment
+github_check = true       # Create GitHub check run
+github_suggestions = true # Post inline code suggestions
