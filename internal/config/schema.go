@@ -21,6 +21,72 @@ type Config struct {
 	Plugins   map[string]string     `toml:"plugins"` // Global plugins available to all tasks
 	Cache     CacheConfig           `toml:"cache"`
 	Container ContainerConfig       `toml:"container"` // Project-level container isolation settings
+	AI        AIConfig              `toml:"ai"`        // AI analysis configuration
+}
+
+// AIConfig controls AI-powered analysis of CI runs.
+type AIConfig struct {
+	Enabled    *bool             `toml:"enabled"`  // *bool, default false
+	Mode       string            `toml:"mode"`     // "summarize" | "summarize_and_suggest"
+	Provider   string            `toml:"provider"` // "openai", "google", "gemini"
+	Model      string            `toml:"model"`
+	Backend    AIBackendConfig   `toml:"backend"`
+	Guardrails AIGuardrailConfig `toml:"guardrails"`
+	RateLimit  AIRateLimitConfig `toml:"rate_limit"`
+	Publish    AIPublishConfig   `toml:"publish"`
+}
+
+// IsEnabled returns whether AI analysis is enabled (defaults to false).
+func (c AIConfig) IsEnabled() bool {
+	if c.Enabled == nil {
+		return false
+	}
+	return *c.Enabled
+}
+
+// AIBackendConfig configures which AI backend to use.
+type AIBackendConfig struct {
+	Mode    string        `toml:"mode"` // "managed" | "byok" | "agent"
+	Profile string        `toml:"profile"`
+	BYOK    AIBYOKConfig  `toml:"byok"`
+	Agent   AIAgentConfig `toml:"agent"`
+}
+
+// AIBYOKConfig holds "bring your own key" configuration.
+type AIBYOKConfig struct {
+	APIKeyEnv string `toml:"api_key_env"`
+}
+
+// AIAgentConfig holds external agent endpoint configuration.
+type AIAgentConfig struct {
+	Endpoint       string `toml:"endpoint"`
+	AuthTokenEnv   string `toml:"auth_token_env"`
+	TimeoutSeconds int    `toml:"timeout_seconds"`
+}
+
+// AIGuardrailConfig holds safety guardrails for AI suggestions.
+type AIGuardrailConfig struct {
+	MinConfidence             float64  `toml:"min_confidence"`
+	MaxSuggestionLines        int      `toml:"max_suggestion_lines"`
+	MaxSuggestionsPerAnalysis int      `toml:"max_suggestions_per_analysis"`
+	MaxFilesChanged           int      `toml:"max_files_changed"`
+	AllowedPaths              []string `toml:"allowed_paths"`
+	BlockedPaths              []string `toml:"blocked_paths"`
+	RequireHumanApproval      *bool    `toml:"require_human_approval"`
+}
+
+// AIRateLimitConfig holds rate limiting configuration for AI analyses.
+type AIRateLimitConfig struct {
+	MaxAnalysesPerHour    int `toml:"max_analyses_per_hour"`
+	CooldownSeconds       int `toml:"cooldown_seconds"`
+	MaxConcurrentAnalyses int `toml:"max_concurrent_analyses"`
+}
+
+// AIPublishConfig controls where AI results are published.
+type AIPublishConfig struct {
+	GitHubComment     *bool `toml:"github_comment"`     // default true
+	GitHubCheck       *bool `toml:"github_check"`       // default true
+	GitHubSuggestions bool  `toml:"github_suggestions"` // default false
 }
 
 // CacheConfig controls local and remote caching.

@@ -12,6 +12,8 @@ import (
 	"github.com/mujhtech/dagryn/internal/server/sse"
 	"github.com/mujhtech/dagryn/internal/service"
 	dagrynstripe "github.com/mujhtech/dagryn/internal/stripe"
+	"github.com/mujhtech/dagryn/internal/telemetry"
+	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
 )
 
@@ -42,6 +44,10 @@ type Job struct {
 	quotaService        *service.QuotaService
 	artifactRepo        *repo.ArtifactRepo
 	cacheRepo           *repo.CacheRepo
+	aiRepo              *repo.AIRepo
+	aiConfig            *handlers.AIAnalysisConfig
+	metrics             *telemetry.Metrics
+	baseURL             string
 }
 
 // Config holds the configuration for the job system.
@@ -86,6 +92,14 @@ type Config struct {
 	ArtifactRepo *repo.ArtifactRepo
 	// CacheRepo is the cache repository for retention cleanup (optional).
 	CacheRepo *repo.CacheRepo
+	// AIRepo is the AI analysis repository (optional).
+	AIRepo *repo.AIRepo
+	// AIConfig holds AI analysis job configuration (optional).
+	AIConfig *handlers.AIAnalysisConfig
+	// Metrics holds OTel metric instruments (optional).
+	Metrics *telemetry.Metrics
+	// BaseURL is the public-facing dashboard URL used in GitHub check runs and AI comments.
+	BaseURL string
 }
 
 // DefaultConfig returns sensible defaults for job configuration.
@@ -142,6 +156,10 @@ func New(cfg Config, appCtx context.Context, rds *redis.Redis) (*Job, error) {
 		quotaService:        cfg.QuotaService,
 		artifactRepo:        cfg.ArtifactRepo,
 		cacheRepo:           cfg.CacheRepo,
+		aiRepo:              cfg.AIRepo,
+		aiConfig:            cfg.AIConfig,
+		metrics:             cfg.Metrics,
+		baseURL:             cfg.BaseURL,
 	}, nil
 }
 
@@ -161,13 +179,33 @@ func (j *Job) RegisterAndStart() error {
 
 	// Register ExecuteRun handler when RunRepo and ProjectRepo are available
 	if j.runs != nil && j.projects != nil {
-		execHandler := handlers.NewExecuteRunHandler(j.runs, j.projects, j.workflows, j.encrypter, j.providerTokens, j.providerEncrypt, j.githubApp, j.githubInstallations, j.cacheService, j.artifactService, j.CancelManager, j.containerDefaults, j.eventPublisher, j.quotaService)
+		execHandler := handlers.NewExecuteRunHandler(
+			j.runs,
+			j.projects,
+			j.workflows,
+			j.encrypter,
+			j.providerTokens,
+			j.providerEncrypt,
+			j.githubApp,
+			j.githubInstallations,
+			j.cacheService,
+			j.artifactService,
+			j.CancelManager,
+			j.containerDefaults,
+			j.eventPublisher,
+			j.quotaService,
+			j.Client,
+			j.baseURL,
+		)
 		j.Executor.RegisterJobHandler(ExecuteRunTaskName, asynq.HandlerFunc(execHandler.Handle))
 	}
 
 	// Register cache GC handler if cache service is available
 	if j.cacheService != nil && j.projects != nil {
-		cacheGCHandler := handlers.NewCacheGCHandler(j.cacheService, j.projects)
+		cacheGCHandler := handlers.NewCacheGCHandler(
+			j.cacheService,
+			j.projects,
+		)
 		j.Executor.RegisterJobHandler(CacheGCTaskName, asynq.HandlerFunc(cacheGCHandler.Handle))
 		j.Scheduler.RegisterTask("0 * * * *", ScheduleQueueName, CacheGCTaskName) // every hour
 	}
@@ -192,9 +230,82 @@ func (j *Job) RegisterAndStart() error {
 
 	// Register retention cleanup handler if billing and quota services are available
 	if j.billingRepo != nil && j.quotaService != nil && j.runs != nil {
-		retentionHandler := handlers.NewRetentionCleanupHandler(j.billingRepo, j.artifactRepo, j.runs, j.cacheRepo, j.quotaService)
+		retentionHandler := handlers.NewRetentionCleanupHandler(
+			j.billingRepo,
+			j.artifactRepo,
+			j.runs,
+			j.cacheRepo,
+			j.quotaService,
+		)
 		j.Executor.RegisterJobHandler(RetentionCleanupTaskName, asynq.HandlerFunc(retentionHandler.Handle))
 		j.Scheduler.RegisterTask("0 3 * * *", ScheduleQueueName, RetentionCleanupTaskName) // daily at 03:00
+	}
+
+	// Register AI handlers when AI repo is available.
+	// The project's dagryn.toml controls whether AI is enabled per-run;
+	// handlers are always registered so jobs enqueued by any project can be processed.
+	if j.aiRepo != nil {
+		aiHandler := handlers.NewAIAnalysisHandler(
+			j.runs,
+			j.workflows,
+			j.aiRepo,
+			j.encrypter,
+			j.aiConfig,
+			j.Client,
+			log.Logger,
+			j.quotaService,
+			j.billingRepo,
+			j.metrics,
+		)
+		j.Executor.RegisterJobHandler(AIAnalysisTaskName, asynq.HandlerFunc(aiHandler.Handle))
+
+		// Register AI publish handler
+		pubHandler := handlers.NewAIPublishHandler(
+			j.aiRepo,
+			j.runs,
+			j.projects,
+			j.providerTokens,
+			j.providerEncrypt,
+			j.githubApp,
+			j.githubInstallations,
+			j.encrypter,
+			j.baseURL,
+			log.Logger,
+			j.metrics,
+		)
+		j.Executor.RegisterJobHandler(AIPublishTaskName, asynq.HandlerFunc(pubHandler.Handle))
+
+		// Register AI suggest run handler (v2 — generate inline code suggestions).
+		// Provider is now built per-job from the project config in the payload.
+		suggestHandler := handlers.NewAISuggestHandler(
+			j.aiRepo,
+			j.runs,
+			j.encrypter,
+			handlers.DefaultAISuggestConfig(),
+			j.aiConfig,
+			log.Logger,
+			j.metrics,
+		)
+		j.Executor.RegisterJobHandler(AISuggestRunTaskName, asynq.HandlerFunc(suggestHandler.Handle))
+
+		// Register AI suggest publish handler (v2 — posts suggestions as GitHub PR review)
+		suggestPubHandler := handlers.NewAISuggestPublishHandler(
+			j.aiRepo,
+			j.runs,
+			j.projects,
+			j.providerTokens,
+			j.providerEncrypt,
+			j.githubApp,
+			j.githubInstallations,
+			j.encrypter,
+			log.Logger,
+		)
+		j.Executor.RegisterJobHandler(AISuggestPublishTaskName, asynq.HandlerFunc(suggestPubHandler.Handle))
+
+		// Register AI blob cleanup handler (daily at 04:00)
+		blobCleanupHandler := handlers.NewAIBlobCleanupHandler(j.aiRepo, 168, log.Logger)
+		j.Executor.RegisterJobHandler(AIBlobCleanupTaskName, asynq.HandlerFunc(blobCleanupHandler.Handle))
+		j.Scheduler.RegisterTask("0 4 * * *", ScheduleQueueName, AIBlobCleanupTaskName)
 	}
 
 	// Start scheduler

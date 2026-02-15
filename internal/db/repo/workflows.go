@@ -26,7 +26,11 @@ func (r *WorkflowRepo) Upsert(ctx context.Context, workflow *models.ProjectWorkf
 		INSERT INTO project_workflows (project_id, name, version, is_default, config_hash, raw_config, synced_at)
 		VALUES ($1, $2, 1, $3, $4, $5, NOW())
 		ON CONFLICT (project_id, name) DO UPDATE SET
-			version = project_workflows.version + 1,
+			version = CASE
+				WHEN project_workflows.config_hash IS DISTINCT FROM EXCLUDED.config_hash
+				THEN project_workflows.version + 1
+				ELSE project_workflows.version
+			END,
 			is_default = EXCLUDED.is_default,
 			config_hash = EXCLUDED.config_hash,
 			raw_config = EXCLUDED.raw_config,

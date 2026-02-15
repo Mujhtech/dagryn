@@ -164,6 +164,14 @@ type Metrics struct {
 
 	// Auth metrics
 	AuthAttemptsTotal metric.Int64Counter
+
+	// AI metrics
+	AIAnalysesTotal       metric.Int64Counter
+	AIAnalysisDuration    metric.Float64Histogram
+	AIProviderErrorsTotal metric.Int64Counter
+	AISuggestionsTotal    metric.Int64Counter
+	AIPublicationsTotal   metric.Int64Counter
+	AIQuotaExceededTotal  metric.Int64Counter
 }
 
 // NewMetrics creates and registers all metric instruments.
@@ -251,15 +259,76 @@ func NewMetrics() (*Metrics, error) {
 		return nil, err
 	}
 
+	// AI metrics
+	aiAnalysesTotal, err := meter.Int64Counter(
+		"dagryn_ai_analyses_total",
+		metric.WithDescription("Total number of AI analyses"),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	aiAnalysisDuration, err := meter.Float64Histogram(
+		"dagryn_ai_analysis_duration_seconds",
+		metric.WithDescription("AI analysis duration in seconds"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	aiProviderErrorsTotal, err := meter.Int64Counter(
+		"dagryn_ai_provider_errors_total",
+		metric.WithDescription("Total number of AI provider errors"),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	aiSuggestionsTotal, err := meter.Int64Counter(
+		"dagryn_ai_suggestions_total",
+		metric.WithDescription("Total number of AI suggestions generated"),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	aiPublicationsTotal, err := meter.Int64Counter(
+		"dagryn_ai_publications_total",
+		metric.WithDescription("Total number of AI publications"),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	aiQuotaExceededTotal, err := meter.Int64Counter(
+		"dagryn_ai_quota_exceeded_total",
+		metric.WithDescription("Total number of AI quota exceeded events"),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Metrics{
-		HTTPRequestsTotal:   httpRequestsTotal,
-		HTTPRequestDuration: httpRequestDuration,
-		RunsTotal:           runsTotal,
-		RunDuration:         runDuration,
-		ActiveRuns:          activeRuns,
-		TasksTotal:          tasksTotal,
-		TaskDuration:        taskDuration,
-		CacheHitsTotal:      cacheHitsTotal,
-		AuthAttemptsTotal:   authAttemptsTotal,
+		HTTPRequestsTotal:     httpRequestsTotal,
+		HTTPRequestDuration:   httpRequestDuration,
+		RunsTotal:             runsTotal,
+		RunDuration:           runDuration,
+		ActiveRuns:            activeRuns,
+		TasksTotal:            tasksTotal,
+		TaskDuration:          taskDuration,
+		CacheHitsTotal:        cacheHitsTotal,
+		AuthAttemptsTotal:     authAttemptsTotal,
+		AIAnalysesTotal:       aiAnalysesTotal,
+		AIAnalysisDuration:    aiAnalysisDuration,
+		AIProviderErrorsTotal: aiProviderErrorsTotal,
+		AISuggestionsTotal:    aiSuggestionsTotal,
+		AIPublicationsTotal:   aiPublicationsTotal,
+		AIQuotaExceededTotal:  aiQuotaExceededTotal,
 	}, nil
 }

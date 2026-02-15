@@ -760,42 +760,33 @@ func (s *RemoteSync) CollectArtifacts(workflow *task.Workflow, summary *schedule
 			}
 		}
 
-		seen := make(map[string]struct{})
-		for _, pattern := range outputs {
-			matches, err := filepath.Glob(filepath.Join(projectRoot, pattern))
+		resolved, err := cache.ResolveFilePatterns(projectRoot, outputs)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to resolve artifact patterns for %s: %v\n", tsk.Name, err)
+			continue
+		}
+		for _, path := range resolved {
+			relPath, err := filepath.Rel(projectRoot, path)
 			if err != nil {
 				continue
 			}
-			for _, path := range matches {
-				if _, ok := seen[path]; ok {
-					continue
-				}
-				seen[path] = struct{}{}
+			if isArtifactSkipPath(relPath) {
+				continue
+			}
+			fileName := filepath.Base(relPath)
 
-				info, err := os.Stat(path)
-				if err != nil || info.IsDir() {
-					continue
-				}
+			f, err := os.Open(path)
+			if err != nil {
+				continue
+			}
 
-				relPath, err := filepath.Rel(projectRoot, path)
-				if err != nil {
-					continue
-				}
-				fileName := filepath.Base(relPath)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			err = s.client.UploadArtifact(ctx, s.projectID, s.RunID, tsk.Name, relPath, fileName, f)
+			cancel()
+			_ = f.Close()
 
-				f, err := os.Open(path)
-				if err != nil {
-					continue
-				}
-
-				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-				err = s.client.UploadArtifact(ctx, s.projectID, s.RunID, tsk.Name, relPath, fileName, f)
-				cancel()
-				_ = f.Close()
-
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: artifact upload failed for %s: %v\n", relPath, err)
-				}
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: artifact upload failed for %s: %v\n", relPath, err)
 			}
 		}
 	}
@@ -821,6 +812,29 @@ func (s *RemoteSync) Stop() {
 			fmt.Fprintf(os.Stderr, "Warning: Failed to close log file: %v\n", err)
 		}
 	}
+}
+
+// artifactSkipDirs are directories whose contents should never be uploaded as
+// artifacts — they are dependencies or metadata, not build outputs.
+var artifactSkipDirs = []string{
+	"node_modules",
+	".git",
+	".dagryn",
+}
+
+// isArtifactSkipPath returns true if relPath falls inside a skip directory.
+func isArtifactSkipPath(relPath string) bool {
+	for _, dir := range artifactSkipDirs {
+		if relPath == dir || strings.HasPrefix(relPath, dir+string(filepath.Separator)) {
+			return true
+		}
+		// Also check nested occurrences (e.g. web/node_modules/...)
+		nested := string(filepath.Separator) + dir + string(filepath.Separator)
+		if strings.Contains(relPath, nested) {
+			return true
+		}
+	}
+	return false
 }
 
 // buildCacheBackend creates a cache.Backend from the configuration.

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -18,7 +19,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/service"
 )
 
-const maxArtifactUploadSize = 100 << 20 // 100MB
+const maxArtifactUploadSize = 200 << 20 // 200MB
 
 // ListRunArtifacts godoc
 // @Summary List run artifacts
@@ -182,9 +183,15 @@ func (h *Handler) UploadArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, maxArtifactUploadSize)
-	if err := r.ParseMultipartForm(maxArtifactUploadSize); err != nil {
-		_ = response.BadRequest(w, r, errors.New("invalid multipart form"))
+	// Allow extra room for multipart boundaries, headers, and form fields.
+	r.Body = http.MaxBytesReader(w, r.Body, maxArtifactUploadSize+1<<20)
+	if err := r.ParseMultipartForm(32 << 20); err != nil { // 32MB in-memory; larger files spill to temp
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			_ = response.RequestEntityTooLarge(w, r, fmt.Errorf("file exceeds maximum upload size of %d MB", maxArtifactUploadSize>>20))
+			return
+		}
+		_ = response.BadRequest(w, r, fmt.Errorf("invalid multipart form: %w", err))
 		return
 	}
 

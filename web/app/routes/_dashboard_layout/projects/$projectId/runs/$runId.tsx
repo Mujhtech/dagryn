@@ -388,6 +388,7 @@ function RunDetailPage() {
         workflow={workflow}
         taskStatusMap={taskStatusMap}
         logsEndRef={logsEndRef}
+        runStatus={currentStatus}
       />
     </div>
   );

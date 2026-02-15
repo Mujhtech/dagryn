@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"sort"
+
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport"
@@ -69,6 +71,11 @@ type ContainerDefaults struct {
 	Network      string
 }
 
+// JobEnqueuer enqueues background jobs. Used to decouple the handler from the job client.
+type JobEnqueuer interface {
+	EnqueueRaw(queue, taskName string, data []byte) error
+}
+
 // ExecuteRunHandler handles the execute_run job: clone repo, load config, run workflow, report status.
 type ExecuteRunHandler struct {
 	runs                *repo.RunRepo
@@ -85,6 +92,8 @@ type ExecuteRunHandler struct {
 	containerDefaults   *ContainerDefaults
 	eventPublisher      sse.EventPublisher
 	quotaService        *service.QuotaService
+	jobEnqueuer         JobEnqueuer
+	baseURL             string
 }
 
 // GitHubAppClient is an interface for fetching installation tokens.
@@ -113,7 +122,24 @@ func NewGitHubAppClientAdapter(client *githubapp.Client) GitHubAppClient {
 }
 
 // NewExecuteRunHandler creates an ExecuteRun handler.
-func NewExecuteRunHandler(runs *repo.RunRepo, projects *repo.ProjectRepo, workflows *repo.WorkflowRepo, encrypter encrypt.Encrypt, providerTokens *repo.ProviderTokenRepo, providerEncrypt encrypt.Encrypt, githubApp GitHubAppClient, githubInstallations *repo.GitHubInstallationRepo, cacheService *service.CacheService, artifactService *service.ArtifactService, cancelManager CancelManager, containerDefaults *ContainerDefaults, eventPublisher sse.EventPublisher, quotaService *service.QuotaService) *ExecuteRunHandler {
+func NewExecuteRunHandler(
+	runs *repo.RunRepo,
+	projects *repo.ProjectRepo,
+	workflows *repo.WorkflowRepo,
+	encrypter encrypt.Encrypt,
+	providerTokens *repo.ProviderTokenRepo,
+	providerEncrypt encrypt.Encrypt,
+	githubApp GitHubAppClient,
+	githubInstallations *repo.GitHubInstallationRepo,
+	cacheService *service.CacheService,
+	artifactService *service.ArtifactService,
+	cancelManager CancelManager,
+	containerDefaults *ContainerDefaults,
+	eventPublisher sse.EventPublisher,
+	quotaService *service.QuotaService,
+	jobEnqueuer JobEnqueuer,
+	baseURL string,
+) *ExecuteRunHandler {
 	if eventPublisher == nil {
 		eventPublisher = sse.NoOpEventPublisher{}
 	}
@@ -132,6 +158,8 @@ func NewExecuteRunHandler(runs *repo.RunRepo, projects *repo.ProjectRepo, workfl
 		containerDefaults:   containerDefaults,
 		eventPublisher:      eventPublisher,
 		quotaService:        quotaService,
+		jobEnqueuer:         jobEnqueuer,
+		baseURL:             baseURL,
 	}
 }
 
@@ -410,17 +438,50 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("workflow: %w", err)
 	}
 
-	// Link workflow snapshot to run (best-effort)
-	if run.WorkflowID == nil && h.workflows != nil {
+	// Sync workflow from dagryn.toml (same as CLI --sync) and link to run
+	if h.workflows != nil {
 		wfName := workflow.Name
 		if wfName == "" {
 			wfName = "default"
 		}
-		if wf, err := h.workflows.GetByProjectAndName(ctx, projectID, wfName); err == nil && wf != nil {
-			run.WorkflowID = &wf.ID
-			run.WorkflowName = &wf.Name
-			if updateErr := h.runs.Update(ctx, run); updateErr != nil {
-				slog.Warn("execute_run: failed to link workflow to run", "run_id", runID, "error", updateErr)
+
+		// Read raw config for storage + hash
+		rawConfig, readErr := os.ReadFile(configPath)
+		if readErr == nil {
+			hash := config.ComputeConfigHash(rawConfig)
+			rawStr := string(rawConfig)
+
+			wfModel := &models.ProjectWorkflow{
+				ProjectID:  projectID,
+				Name:       wfName,
+				IsDefault:  workflow.Default,
+				ConfigHash: &hash,
+				RawConfig:  &rawStr,
+			}
+
+			if _, upsertErr := h.workflows.Upsert(ctx, wfModel); upsertErr != nil {
+				slog.Warn("execute_run: failed to sync workflow", "run_id", runID, "error", upsertErr)
+			} else {
+				// Upsert tasks
+				wfTasks := buildWorkflowTasks(wfModel.ID, cfg)
+				if taskErr := h.workflows.UpsertTasks(ctx, wfModel.ID, wfTasks); taskErr != nil {
+					slog.Warn("execute_run: failed to sync workflow tasks", "run_id", runID, "error", taskErr)
+				}
+
+				// Link workflow to run
+				run.WorkflowID = &wfModel.ID
+				run.WorkflowName = &wfModel.Name
+				if updateErr := h.runs.Update(ctx, run); updateErr != nil {
+					slog.Warn("execute_run: failed to link workflow to run", "run_id", runID, "error", updateErr)
+				}
+			}
+		} else {
+			slog.Warn("execute_run: failed to read raw config for workflow sync", "run_id", runID, "error", readErr)
+			// Fall back to lookup-only (existing behavior)
+			if wf, err := h.workflows.GetByProjectAndName(ctx, projectID, wfName); err == nil && wf != nil {
+				run.WorkflowID = &wf.ID
+				run.WorkflowName = &wf.Name
+				_ = h.runs.Update(ctx, run)
 			}
 		}
 	}
@@ -698,6 +759,7 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		_ = h.runs.Complete(ctx, runID, models.RunStatusFailed, &msg)
 		h.eventPublisher.PublishRunEvent(ctx, sse.EventRunFailed, runID, projectID, string(models.RunStatusFailed), msg)
 		h.notifyGitHub(ctx, run, project, models.RunStatusFailed)
+		h.enqueueAIAnalysis(run, projectID, payload.GitBranch, payload.GitCommit, targets, cfg.AI)
 		return err
 	}
 
@@ -708,6 +770,7 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		_ = h.runs.Complete(ctx, runID, models.RunStatusFailed, &msg)
 		h.eventPublisher.PublishRunEvent(ctx, sse.EventRunFailed, runID, projectID, string(models.RunStatusFailed), msg)
 		h.notifyGitHub(ctx, run, project, models.RunStatusFailed)
+		h.enqueueAIAnalysis(run, projectID, payload.GitBranch, payload.GitCommit, targets, cfg.AI)
 		return nil
 	}
 
@@ -775,6 +838,122 @@ func (h *ExecuteRunHandler) markRunCancelled(runID, projectID uuid.UUID, project
 	h.notifyGitHub(ctx, run, project, models.RunStatusCancelled)
 }
 
+// enqueueAIAnalysis enqueues an AI analysis job for a failed run (fire-and-forget).
+// It checks the project's dagryn.toml AI config to decide whether to enqueue.
+func (h *ExecuteRunHandler) enqueueAIAnalysis(run *models.Run, projectID uuid.UUID, branch string, commit string, targets []string, aiCfg config.AIConfig) {
+	if !aiCfg.IsEnabled() || h.jobEnqueuer == nil {
+		return
+	}
+
+	// Build workflow name.
+	workflowName := ""
+	if run.WorkflowName != nil {
+		workflowName = *run.WorkflowName
+	}
+
+	// Build sorted targets string for dedup.
+	sortedTargets := ""
+	if len(targets) > 0 {
+		sorted := make([]string, len(targets))
+		copy(sorted, targets)
+		sort.Strings(sorted)
+		sortedTargets = strings.Join(sorted, ",")
+	}
+
+	// Resolve project-level AI config into the job payload.
+	projCfg := resolveAIProjectConfig(aiCfg)
+
+	payload := struct {
+		RunID        string        `json:"run_id"`
+		ProjectID    string        `json:"project_id"`
+		GitBranch    string        `json:"git_branch,omitempty"`
+		GitCommit    string        `json:"git_commit,omitempty"`
+		WorkflowName string        `json:"workflow_name,omitempty"`
+		Targets      string        `json:"targets,omitempty"`
+		AIConfig     *aiProjConfig `json:"ai_config,omitempty"`
+	}{
+		RunID:        run.ID.String(),
+		ProjectID:    projectID.String(),
+		GitBranch:    branch,
+		GitCommit:    commit,
+		WorkflowName: workflowName,
+		Targets:      sortedTargets,
+		AIConfig:     projCfg,
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		slog.Warn("execute_run: failed to marshal AI analysis payload", "run_id", run.ID, "error", err)
+		return
+	}
+
+	if err := h.jobEnqueuer.EnqueueRaw("DefaultQueue", "ai_analysis:run", data); err != nil {
+		slog.Warn("execute_run: failed to enqueue AI analysis", "run_id", run.ID, "error", err)
+	}
+}
+
+// aiProjConfig mirrors job.AIProjectConfig to avoid an import cycle.
+type aiProjConfig struct {
+	BackendMode               string   `json:"backend_mode"`
+	Provider                  string   `json:"provider,omitempty"`
+	Model                     string   `json:"model,omitempty"`
+	APIKey                    string   `json:"api_key,omitempty"`
+	AgentEndpoint             string   `json:"agent_endpoint,omitempty"`
+	AgentToken                string   `json:"agent_token,omitempty"`
+	TimeoutSeconds            int      `json:"timeout_seconds,omitempty"`
+	MaxTokens                 int      `json:"max_tokens,omitempty"`
+	Mode                      string   `json:"mode,omitempty"`
+	MinConfidence             float64  `json:"min_confidence,omitempty"`
+	MaxSuggestionsPerAnalysis int      `json:"max_suggestions_per_analysis,omitempty"`
+	BlockedPaths              []string `json:"blocked_paths,omitempty"`
+	AllowedPaths              []string `json:"allowed_paths,omitempty"`
+	MaxAnalysesPerHour        int      `json:"max_analyses_per_hour,omitempty"`
+	CooldownSeconds           int      `json:"cooldown_seconds,omitempty"`
+	MaxConcurrentAnalyses     int      `json:"max_concurrent_analyses,omitempty"`
+}
+
+// resolveAIProjectConfig builds an aiProjConfig from the project's dagryn.toml AI section,
+// resolving env vars for byok API keys and agent tokens.
+func resolveAIProjectConfig(cfg config.AIConfig) *aiProjConfig {
+	c := &aiProjConfig{
+		BackendMode:               cfg.Backend.Mode,
+		Provider:                  cfg.Provider,
+		Model:                     cfg.Model,
+		Mode:                      cfg.Mode,
+		MinConfidence:             cfg.Guardrails.MinConfidence,
+		MaxSuggestionsPerAnalysis: cfg.Guardrails.MaxSuggestionsPerAnalysis,
+		BlockedPaths:              cfg.Guardrails.BlockedPaths,
+		AllowedPaths:              cfg.Guardrails.AllowedPaths,
+		MaxAnalysesPerHour:        cfg.RateLimit.MaxAnalysesPerHour,
+		CooldownSeconds:           cfg.RateLimit.CooldownSeconds,
+		MaxConcurrentAnalyses:     cfg.RateLimit.MaxConcurrentAnalyses,
+	}
+
+	// Resolve timeout from agent config or use a default.
+	if cfg.Backend.Agent.TimeoutSeconds > 0 {
+		c.TimeoutSeconds = cfg.Backend.Agent.TimeoutSeconds
+	}
+
+	// Resolve secrets from env vars based on backend mode.
+	switch cfg.Backend.Mode {
+	case "byok":
+		if cfg.Backend.BYOK.APIKeyEnv != "" {
+			c.APIKey = os.Getenv(cfg.Backend.BYOK.APIKeyEnv)
+		}
+	case "agent":
+		c.AgentEndpoint = cfg.Backend.Agent.Endpoint
+		if cfg.Backend.Agent.AuthTokenEnv != "" {
+			c.AgentToken = os.Getenv(cfg.Backend.Agent.AuthTokenEnv)
+		}
+	case "managed":
+		// Rate limit capping for managed mode is enforced downstream in the
+		// AI analysis handler's resolveRateLimits, which has access to server
+		// defaults and caps project values that exceed them.
+	}
+
+	return c
+}
+
 func (h *ExecuteRunHandler) collectArtifacts(ctx context.Context, projectID, runID uuid.UUID, workflow *task.Workflow, summary *scheduler.RunSummary, workDir string) {
 	if h.artifactService == nil || workflow == nil || summary == nil {
 		return
@@ -802,40 +981,67 @@ func (h *ExecuteRunHandler) collectArtifacts(ctx context.Context, projectID, run
 			}
 		}
 
-		seen := make(map[string]struct{})
-		for _, pattern := range outputs {
-			matches, err := filepath.Glob(filepath.Join(workDir, pattern))
+		resolved, err := cache.ResolveFilePatterns(workDir, outputs)
+		if err != nil {
+			slog.Warn("execute_run: resolve artifact patterns failed", "run_id", runID, "task", tsk.Name, "error", err)
+			continue
+		}
+		for _, path := range resolved {
+			info, err := os.Stat(path)
 			if err != nil {
 				continue
 			}
-			for _, path := range matches {
-				if _, ok := seen[path]; ok {
-					continue
-				}
-				seen[path] = struct{}{}
 
-				info, err := os.Stat(path)
-				if err != nil || info.IsDir() {
-					continue
-				}
-
-				relPath, err := filepath.Rel(workDir, path)
-				if err != nil {
-					continue
-				}
-				fileName := filepath.Base(relPath)
-				f, err := os.Open(path)
-				if err != nil {
-					continue
-				}
-				_, err = h.artifactService.Upload(ctx, projectID, runID, tsk.Name, relPath, fileName, f, info.Size(), 0, "")
-				_ = f.Close()
-				if err != nil {
-					slog.Warn("execute_run: artifact upload failed", "run_id", runID, "task", tsk.Name, "file", relPath, "error", err)
-				}
+			relPath, err := filepath.Rel(workDir, path)
+			if err != nil {
+				continue
+			}
+			if isArtifactSkipPath(relPath) {
+				continue
+			}
+			fileName := filepath.Base(relPath)
+			f, err := os.Open(path)
+			if err != nil {
+				continue
+			}
+			_, err = h.artifactService.Upload(ctx, projectID, runID, tsk.Name, relPath, fileName, f, info.Size(), 0, "")
+			_ = f.Close()
+			if err != nil {
+				slog.Warn("execute_run: artifact upload failed", "run_id", runID, "task", tsk.Name, "file", relPath, "error", err)
 			}
 		}
 	}
+}
+
+// buildWorkflowTasks converts a parsed config into WorkflowTask models for DB storage.
+func buildWorkflowTasks(workflowID uuid.UUID, cfg *config.Config) []models.WorkflowTask {
+	tasks := make([]models.WorkflowTask, 0, len(cfg.Tasks))
+	for name, taskCfg := range cfg.Tasks {
+		t := models.WorkflowTask{
+			WorkflowID: workflowID,
+			Name:       name,
+			Command:    taskCfg.Command,
+			Needs:      taskCfg.Needs,
+			Inputs:     taskCfg.Inputs,
+			Outputs:    taskCfg.Outputs,
+			Plugins:    taskCfg.GetPlugins(),
+			Env:        taskCfg.Env,
+		}
+		if taskCfg.Workdir != "" {
+			wd := taskCfg.Workdir
+			t.Workdir = &wd
+		}
+		if taskCfg.Group != "" {
+			g := taskCfg.Group
+			t.GroupName = &g
+		}
+		if taskCfg.If != "" {
+			c := taskCfg.If
+			t.ConditionExpr = &c
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks
 }
 
 func executorStatusToTaskStatus(s executor.Status) models.TaskStatus {
@@ -855,6 +1061,28 @@ func executorStatusToTaskStatus(s executor.Status) models.TaskStatus {
 	default:
 		return models.TaskStatusFailed
 	}
+}
+
+// artifactSkipDirs are directories whose contents should never be uploaded as
+// artifacts — they are dependencies or metadata, not build outputs.
+var artifactSkipDirs = []string{
+	"node_modules",
+	".git",
+	".dagryn",
+}
+
+// isArtifactSkipPath returns true if relPath falls inside a skip directory.
+func isArtifactSkipPath(relPath string) bool {
+	for _, dir := range artifactSkipDirs {
+		if relPath == dir || strings.HasPrefix(relPath, dir+string(filepath.Separator)) {
+			return true
+		}
+		nested := string(filepath.Separator) + dir + string(filepath.Separator)
+		if strings.Contains(relPath, nested) {
+			return true
+		}
+	}
+	return false
 }
 
 // cloneAuth returns Auth for private Git clones: prefers the repo-linked user's stored GitHub token,
@@ -995,7 +1223,7 @@ func (h *ExecuteRunHandler) notifyGitHub(ctx context.Context, run *models.Run, p
 	// }
 
 	// Build target URL (link back to Dagryn run detail)
-	baseURL := "https://dagryn.mujhtech.xyz" // optional: derive from config later
+	baseURL := h.baseURL
 	targetURL := ""
 	if baseURL != "" {
 		targetURL = fmt.Sprintf("%s/projects/%s/runs/%s", strings.TrimRight(baseURL, "/"), project.ID, run.ID)

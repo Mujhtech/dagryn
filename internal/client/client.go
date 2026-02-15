@@ -31,7 +31,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		BaseURL: "http://localhost:9000",
-		Timeout: 30 * time.Second,
+		Timeout: 5 * time.Minute,
 	}
 }
 
@@ -753,18 +753,21 @@ func (c *Client) UploadArtifact(ctx context.Context, projectID, runID uuid.UUID,
 
 // BillingPlanResponse represents a billing plan.
 type BillingPlanResponse struct {
-	ID              string `json:"id"`
-	Slug            string `json:"slug"`
-	DisplayName     string `json:"display_name"`
-	Description     string `json:"description"`
-	PriceCents      int    `json:"price_cents"`
-	BillingPeriod   string `json:"billing_period"`
-	MaxCacheBytes   *int64 `json:"max_cache_bytes,omitempty"`
-	MaxStorageBytes *int64 `json:"max_storage_bytes,omitempty"`
-	MaxBandwidth    *int64 `json:"max_bandwidth_bytes,omitempty"`
-	MaxProjects     *int   `json:"max_projects,omitempty"`
-	MaxTeamMembers  *int   `json:"max_team_members,omitempty"`
-	MaxConcurrent   *int   `json:"max_concurrent_runs,omitempty"`
+	ID                    string `json:"id"`
+	Slug                  string `json:"slug"`
+	DisplayName           string `json:"display_name"`
+	Description           string `json:"description"`
+	PriceCents            int    `json:"price_cents"`
+	BillingPeriod         string `json:"billing_period"`
+	MaxCacheBytes         *int64 `json:"max_cache_bytes,omitempty"`
+	MaxStorageBytes       *int64 `json:"max_storage_bytes,omitempty"`
+	MaxBandwidth          *int64 `json:"max_bandwidth_bytes,omitempty"`
+	MaxProjects           *int   `json:"max_projects,omitempty"`
+	MaxTeamMembers        *int   `json:"max_team_members,omitempty"`
+	MaxConcurrent         *int   `json:"max_concurrent_runs,omitempty"`
+	MaxAIAnalysesPerMonth *int   `json:"max_ai_analyses_per_month,omitempty"`
+	AIEnabled             bool   `json:"ai_enabled"`
+	AISuggestionsEnabled  bool   `json:"ai_suggestions_enabled"`
 }
 
 // BillingResourceUsage holds live resource consumption for a billing account.
@@ -776,6 +779,7 @@ type BillingResourceUsage struct {
 	ProjectsUsed          int   `json:"projects_used"`
 	TeamMembersUsed       int   `json:"team_members_used"`
 	ConcurrentRuns        int   `json:"concurrent_runs"`
+	AIAnalysesUsed        int   `json:"ai_analyses_used"`
 }
 
 // BillingOverviewResponse represents the billing overview.
@@ -784,9 +788,9 @@ type BillingOverviewResponse struct {
 	Data struct {
 		Account       json.RawMessage       `json:"account"`
 		Subscription  *json.RawMessage      `json:"subscription,omitempty"`
-		Plan          *BillingPlanResponse   `json:"plan,omitempty"`
-		Usage         map[string]int64       `json:"usage,omitempty"`
-		ResourceUsage *BillingResourceUsage  `json:"resource_usage,omitempty"`
+		Plan          *BillingPlanResponse  `json:"plan,omitempty"`
+		Usage         map[string]int64      `json:"usage,omitempty"`
+		ResourceUsage *BillingResourceUsage `json:"resource_usage,omitempty"`
 	} `json:"data"`
 }
 

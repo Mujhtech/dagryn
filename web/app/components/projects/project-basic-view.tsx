@@ -83,6 +83,11 @@ export function ProjectBasicView({
             </Link>
           </Button>
           <Button variant="outline" size="icon" asChild>
+            <Link to="/projects/$projectId/ai-analyses" params={{ projectId }}>
+              <Icons.Lightbulb className="h-4 w-4" />
+            </Link>
+          </Button>
+          <Button variant="outline" size="icon" asChild>
             <Link to="/projects/$projectId/settings" params={{ projectId }}>
               <Icons.Settings className="h-4 w-4" />
             </Link>

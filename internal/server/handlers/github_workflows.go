@@ -18,6 +18,60 @@ import (
 	"github.com/mujhtech/dagryn/internal/workflow/ghactions"
 )
 
+// TranslateGitHubWorkflowYAML godoc
+// @Summary Translate pasted GitHub Actions YAML into Dagryn tasks
+// @Description Converts a GitHub Actions workflow YAML string into a Dagryn TOML snippet
+// @Tags workflows
+// @Produce json
+// @Param request body GitHubWorkflowYAMLTranslateRequest true "Workflow YAML payload"
+// @Success 200 {object} GitHubWorkflowTranslateResponse
+// @Failure 400 {object} ErrorResponse
+// @Router /api/v1/workflows/translate [post]
+func (h *Handler) TranslateGitHubWorkflowYAML(w http.ResponseWriter, r *http.Request) {
+	var req GitHubWorkflowYAMLTranslateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
+		return
+	}
+
+	workflowYAML := strings.TrimSpace(req.WorkflowYAML)
+	if workflowYAML == "" {
+		_ = response.BadRequest(w, r, errors.New("workflow_yaml is required"))
+		return
+	}
+
+	fileName := strings.TrimSpace(req.FileName)
+	if fileName == "" {
+		fileName = "workflow.yml"
+	}
+	if !strings.HasSuffix(fileName, ".yml") && !strings.HasSuffix(fileName, ".yaml") {
+		fileName += ".yml"
+	}
+
+	translated, err := ghactions.TranslateWorkflows(map[string][]byte{
+		fileName: []byte(workflowYAML),
+	})
+	if err != nil {
+		_ = response.BadRequest(w, r, fmt.Errorf("failed to translate workflow YAML: %w", err))
+		return
+	}
+
+	resp := GitHubWorkflowTranslateResponse{
+		Detected:  translated.TasksToml != "",
+		Plugins:   translated.Plugins,
+		TasksToml: translated.TasksToml,
+	}
+	for _, wf := range translated.Workflows {
+		resp.Workflows = append(resp.Workflows, GitHubWorkflowSummary{
+			File:      wf.File,
+			Name:      wf.Name,
+			TaskCount: wf.TaskCount,
+		})
+	}
+
+	_ = response.Ok(w, r, "Success", resp)
+}
+
 // TranslateGitHubWorkflows godoc
 // @Summary Translate GitHub Actions workflows into Dagryn tasks
 // @Description Fetches .github/workflows from a GitHub repo and returns a Dagryn TOML snippet

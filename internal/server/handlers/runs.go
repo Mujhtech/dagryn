@@ -979,10 +979,9 @@ func (h *Handler) notifyGitHubForRun(ctx context.Context, projectID, runID uuid.
 	// }
 
 	// Build target URL (link back to Dagryn run detail)
-	baseURL := "https://dagryn.mujhtech.xyz" // optional: derive from config later
 	targetURL := ""
-	if baseURL != "" {
-		targetURL = fmt.Sprintf("%s/projects/%s/runs/%s", strings.TrimRight(baseURL, "/"), projectID, runID)
+	if h.baseURL != "" {
+		targetURL = fmt.Sprintf("%s/projects/%s/runs/%s", strings.TrimRight(h.baseURL, "/"), projectID, runID)
 	}
 
 	// 1) Commit status

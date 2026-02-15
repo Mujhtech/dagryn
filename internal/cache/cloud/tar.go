@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/mujhtech/dagryn/internal/cache"
 )
 
 // createArchive builds a tar.gz archive from files matching the output patterns
@@ -21,25 +23,19 @@ func createArchive(projectRoot string, outputPatterns []string) (*os.File, error
 	gw := gzip.NewWriter(tmp)
 	tw := tar.NewWriter(gw)
 
-	for _, pattern := range outputPatterns {
-		matches, err := filepath.Glob(filepath.Join(projectRoot, pattern))
+	files, err := cache.ResolveFilePatterns(projectRoot, outputPatterns)
+	if err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmp.Name())
+		return nil, fmt.Errorf("resolve output patterns: %w", err)
+	}
+	for _, absPath := range files {
+		info, err := os.Stat(absPath)
 		if err != nil {
 			continue
 		}
-		for _, absPath := range matches {
-			info, err := os.Stat(absPath)
-			if err != nil {
-				continue
-			}
-			if info.IsDir() {
-				if err := addDirToTar(tw, projectRoot, absPath); err != nil {
-					continue
-				}
-			} else {
-				if err := addFileToTar(tw, projectRoot, absPath, info); err != nil {
-					continue
-				}
-			}
+		if err := addFileToTar(tw, projectRoot, absPath, info); err != nil {
+			continue
 		}
 	}
 
@@ -62,15 +58,6 @@ func createArchive(projectRoot string, outputPatterns []string) (*os.File, error
 	}
 
 	return tmp, nil
-}
-
-func addDirToTar(tw *tar.Writer, projectRoot, dirPath string) error {
-	return filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return err
-		}
-		return addFileToTar(tw, projectRoot, path, info)
-	})
 }
 
 func addFileToTar(tw *tar.Writer, projectRoot, absPath string, info os.FileInfo) error {

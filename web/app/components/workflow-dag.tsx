@@ -241,61 +241,58 @@ export function WorkflowDag({
         <defs>
           <marker
             id="arrowhead"
-            markerWidth="10"
-            markerHeight="10"
-            refX="5"
-            refY="5"
-            orient="auto-start-reverse"
-            markerUnits="strokeWidth"
+            markerWidth="8"
+            markerHeight="8"
+            refX="8"
+            refY="4"
+            orient="auto"
+            markerUnits="userSpaceOnUse"
           >
-            <path
-              d="M 0 0 L 10 5 L 0 10 z"
-              className="fill-muted-foreground/60"
-            />
+            <path d="M 0 0 L 8 4 L 0 8 Z" className="fill-muted-foreground/60" />
           </marker>
           <marker
             id="arrowhead-active"
-            markerWidth="10"
-            markerHeight="10"
-            refX="5"
-            refY="5"
-            orient="auto-start-reverse"
-            markerUnits="strokeWidth"
+            markerWidth="8"
+            markerHeight="8"
+            refX="8"
+            refY="4"
+            orient="auto"
+            markerUnits="userSpaceOnUse"
           >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6" />
+            <path d="M 0 0 L 8 4 L 0 8 Z" fill="#3b82f6" />
           </marker>
           <marker
             id="arrowhead-success"
-            markerWidth="10"
-            markerHeight="10"
-            refX="5"
-            refY="5"
-            orient="auto-start-reverse"
-            markerUnits="strokeWidth"
+            markerWidth="8"
+            markerHeight="8"
+            refX="8"
+            refY="4"
+            orient="auto"
+            markerUnits="userSpaceOnUse"
           >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#22c55e" />
+            <path d="M 0 0 L 8 4 L 0 8 Z" fill="#22c55e" />
           </marker>
           <marker
             id="arrowhead-failed"
-            markerWidth="10"
-            markerHeight="10"
-            refX="5"
-            refY="5"
-            orient="auto-start-reverse"
-            markerUnits="strokeWidth"
+            markerWidth="8"
+            markerHeight="8"
+            refX="8"
+            refY="4"
+            orient="auto"
+            markerUnits="userSpaceOnUse"
           >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444" />
+            <path d="M 0 0 L 8 4 L 0 8 Z" fill="#ef4444" />
           </marker>
           <marker
             id="arrowhead-cached"
-            markerWidth="10"
-            markerHeight="10"
-            refX="5"
-            refY="5"
-            orient="auto-start-reverse"
-            markerUnits="strokeWidth"
+            markerWidth="8"
+            markerHeight="8"
+            refX="8"
+            refY="4"
+            orient="auto"
+            markerUnits="userSpaceOnUse"
           >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#a855f7" />
+            <path d="M 0 0 L 8 4 L 0 8 Z" fill="#a855f7" />
           </marker>
         </defs>
         {connectors.map(({ from, to, path }) => {
@@ -378,16 +375,13 @@ export function WorkflowDag({
           });
 
           return (
-            <div
-              key={levelIndex}
-              className="flex flex-wrap gap-6 justify-center"
-            >
+            <div key={levelIndex} className="flex flex-wrap gap-6 justify-center items-stretch">
               {/* Render grouped tasks in containers */}
               {Array.from(grouped.entries()).map(([groupName, nodes]) => (
                 <div
                   key={groupName}
                   className={cn(
-                    "flex flex-wrap gap-4 p-3 rounded-none border",
+                    "flex flex-wrap gap-4 p-3 rounded-none border items-stretch",
                     groupColorMap.get(groupName),
                   )}
                 >
@@ -505,7 +499,7 @@ function TaskCard({ task, statusInfo }: TaskCardProps) {
     <div className="relative" data-node-id={task.name}>
       <div
         className={cn(
-          "bg-card border border-border rounded-none p-4 w-64 shadow-sm hover:shadow-md transition-shadow hover:border-primary/50",
+          "bg-card border border-border rounded-none p-4 w-64 h-full shadow-sm hover:shadow-md transition-shadow hover:border-primary/50",
           statusInfo && "border-l-4",
           statusInfo && STATUS_BORDER_COLORS[status || ""],
           status === "running" && "animate-pulse",

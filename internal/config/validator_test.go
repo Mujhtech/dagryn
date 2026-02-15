@@ -378,3 +378,446 @@ func TestValidate_NilTrigger(t *testing.T) {
 		assert.NotContains(t, e.Message, "trigger")
 	}
 }
+
+// --- AI validation tests ---
+
+func boolPtr(b bool) *bool { return &b }
+
+func TestValidate_AIDisabledByDefault(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+		// AI section omitted — should default to disabled with no errors
+	}
+
+	errors := Validate(cfg)
+	for _, e := range errors {
+		assert.NotContains(t, e.Message, "ai.")
+	}
+}
+
+func TestValidate_AIEnabledRequiresMode(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+		AI: AIConfig{
+			Enabled: boolPtr(true),
+			// Mode and Backend.Mode missing
+		},
+	}
+
+	errors := Validate(cfg)
+	require.NotEmpty(t, errors)
+
+	var hasMode, hasBackend bool
+	for _, e := range errors {
+		if e.Message == `ai.mode is required when AI is enabled (use "summarize" or "summarize_and_suggest")` {
+			hasMode = true
+		}
+		if e.Message == `ai.backend.mode is required when AI is enabled (use "managed", "byok", or "agent")` {
+			hasBackend = true
+		}
+	}
+	assert.True(t, hasMode, "expected ai.mode required error")
+	assert.True(t, hasBackend, "expected ai.backend.mode required error")
+}
+
+func TestValidate_AIInvalidMode(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+		AI: AIConfig{
+			Enabled: boolPtr(true),
+			Mode:    "invalid",
+			Backend: AIBackendConfig{Mode: "managed"},
+		},
+	}
+
+	errors := Validate(cfg)
+	require.NotEmpty(t, errors)
+
+	hasError := false
+	for _, e := range errors {
+		if assert.Contains(t, e.Message, `ai.mode "invalid" is not supported`) {
+			hasError = true
+			break
+		}
+	}
+	assert.True(t, hasError)
+}
+
+func TestValidate_AIAgentRequiresEndpoint(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+		AI: AIConfig{
+			Enabled: boolPtr(true),
+			Mode:    "summarize",
+			Backend: AIBackendConfig{
+				Mode:  "agent",
+				Agent: AIAgentConfig{
+					// Endpoint missing, TimeoutSeconds missing
+				},
+			},
+		},
+	}
+
+	errors := Validate(cfg)
+	require.NotEmpty(t, errors)
+
+	var hasEndpoint, hasTimeout bool
+	for _, e := range errors {
+		if e.Message == `ai.backend.agent.endpoint is required when backend mode is "agent"` {
+			hasEndpoint = true
+		}
+		if e.Message == `ai.backend.agent.timeout_seconds must be > 0 when backend mode is "agent"` {
+			hasTimeout = true
+		}
+	}
+	assert.True(t, hasEndpoint)
+	assert.True(t, hasTimeout)
+}
+
+func TestValidate_AIBYOKRequiresAPIKeyEnv(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+		AI: AIConfig{
+			Enabled: boolPtr(true),
+			Mode:    "summarize",
+			Backend: AIBackendConfig{Mode: "byok"},
+		},
+	}
+
+	errors := Validate(cfg)
+	require.NotEmpty(t, errors)
+
+	hasError := false
+	for _, e := range errors {
+		if e.Message == `ai.backend.byok.api_key_env should be set when backend mode is "byok"` {
+			hasError = true
+			break
+		}
+	}
+	assert.True(t, hasError)
+}
+
+func TestValidate_AIGuardrailsConfidence(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+		AI: AIConfig{
+			Enabled: boolPtr(true),
+			Mode:    "summarize",
+			Backend: AIBackendConfig{Mode: "managed"},
+			Guardrails: AIGuardrailConfig{
+				MinConfidence: 1.5, // invalid
+			},
+		},
+	}
+
+	errors := Validate(cfg)
+	require.NotEmpty(t, errors)
+
+	hasError := false
+	for _, e := range errors {
+		if assert.Contains(t, e.Message, "min_confidence must be between 0.0 and 1.0") {
+			hasError = true
+			break
+		}
+	}
+	assert.True(t, hasError)
+}
+
+func TestValidate_AIUnsupportedProvider(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+		AI: AIConfig{
+			Enabled:  boolPtr(true),
+			Mode:     "summarize",
+			Provider: "unsupported",
+			Backend:  AIBackendConfig{Mode: "managed"},
+		},
+	}
+
+	errors := Validate(cfg)
+	require.NotEmpty(t, errors)
+
+	hasError := false
+	for _, e := range errors {
+		if assert.Contains(t, e.Message, `ai.provider "unsupported" is not supported`) {
+			hasError = true
+			break
+		}
+	}
+	assert.True(t, hasError)
+}
+
+func TestValidate_AIGoogleProvider(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+		AI: AIConfig{
+			Enabled:  boolPtr(true),
+			Mode:     "summarize",
+			Provider: "google",
+			Backend:  AIBackendConfig{Mode: "managed"},
+		},
+	}
+
+	errors := Validate(cfg)
+	for _, e := range errors {
+		assert.NotContains(t, e.Message, "ai.provider")
+	}
+}
+
+func TestValidate_AIValidConfig(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+		AI: AIConfig{
+			Enabled:  boolPtr(true),
+			Mode:     "summarize_and_suggest",
+			Provider: "openai",
+			Model:    "gpt-4o",
+			Backend:  AIBackendConfig{Mode: "managed"},
+			Guardrails: AIGuardrailConfig{
+				MinConfidence:             0.7,
+				MaxSuggestionLines:        50,
+				MaxSuggestionsPerAnalysis: 5,
+			},
+			RateLimit: AIRateLimitConfig{
+				MaxAnalysesPerHour:    10,
+				CooldownSeconds:       30,
+				MaxConcurrentAnalyses: 2,
+			},
+		},
+	}
+
+	errors := Validate(cfg)
+	for _, e := range errors {
+		assert.NotContains(t, e.Message, "ai.")
+	}
+}
+
+// --- AI model validation tests ---
+
+func TestValidate_AIManagedModeUnsupportedModel(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+		AI: AIConfig{
+			Enabled:  boolPtr(true),
+			Mode:     "summarize",
+			Provider: "openai",
+			Model:    "gpt-3.5-turbo",
+			Backend:  AIBackendConfig{Mode: "managed"},
+		},
+	}
+
+	errors := Validate(cfg)
+	require.NotEmpty(t, errors)
+
+	hasError := false
+	for _, e := range errors {
+		if assert.Contains(t, e.Message, `ai.model "gpt-3.5-turbo" is not supported for managed mode`) {
+			hasError = true
+			break
+		}
+	}
+	assert.True(t, hasError)
+}
+
+func TestValidate_AIManagedModeValidModel(t *testing.T) {
+	for _, model := range []string{"gpt-4o", "gpt-4o-mini", "o4-mini"} {
+		t.Run(model, func(t *testing.T) {
+			cfg := &Config{
+				Workflow: WorkflowConfig{Name: "ci"},
+				Tasks: map[string]TaskConfig{
+					"build": {Command: "go build ./..."},
+				},
+				AI: AIConfig{
+					Enabled:  boolPtr(true),
+					Mode:     "summarize",
+					Provider: "openai",
+					Model:    model,
+					Backend:  AIBackendConfig{Mode: "managed"},
+				},
+			}
+
+			errors := Validate(cfg)
+			for _, e := range errors {
+				assert.NotContains(t, e.Message, "ai.model")
+			}
+		})
+	}
+}
+
+func TestValidate_AIManagedModeGeminiModel(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+		AI: AIConfig{
+			Enabled:  boolPtr(true),
+			Mode:     "summarize",
+			Provider: "gemini",
+			Model:    "gemini-3-pro-preview",
+			Backend:  AIBackendConfig{Mode: "managed"},
+		},
+	}
+
+	errors := Validate(cfg)
+	for _, e := range errors {
+		assert.NotContains(t, e.Message, "ai.model")
+	}
+}
+
+func TestValidate_AIManagedModeGeminiUnsupportedModel(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+		AI: AIConfig{
+			Enabled:  boolPtr(true),
+			Mode:     "summarize",
+			Provider: "google",
+			Model:    "gemini-1.0-pro",
+			Backend:  AIBackendConfig{Mode: "managed"},
+		},
+	}
+
+	errors := Validate(cfg)
+	require.NotEmpty(t, errors)
+
+	hasError := false
+	for _, e := range errors {
+		if assert.Contains(t, e.Message, `ai.model "gemini-1.0-pro" is not supported for managed mode`) {
+			hasError = true
+			break
+		}
+	}
+	assert.True(t, hasError)
+}
+
+func TestValidate_AIBYOKModeSkipsModelValidation(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+		AI: AIConfig{
+			Enabled:  boolPtr(true),
+			Mode:     "summarize",
+			Provider: "openai",
+			Model:    "my-custom-fine-tuned-model",
+			Backend: AIBackendConfig{
+				Mode: "byok",
+				BYOK: AIBYOKConfig{APIKeyEnv: "MY_API_KEY"},
+			},
+		},
+	}
+
+	errors := Validate(cfg)
+	for _, e := range errors {
+		assert.NotContains(t, e.Message, "ai.model")
+	}
+}
+
+func TestValidate_AIAgentModeSkipsModelValidation(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+		AI: AIConfig{
+			Enabled:  boolPtr(true),
+			Mode:     "summarize",
+			Provider: "openai",
+			Model:    "anything-goes",
+			Backend: AIBackendConfig{
+				Mode: "agent",
+				Agent: AIAgentConfig{
+					Endpoint:       "https://my-agent.example.com",
+					TimeoutSeconds: 30,
+				},
+			},
+		},
+	}
+
+	errors := Validate(cfg)
+	for _, e := range errors {
+		assert.NotContains(t, e.Message, "ai.model")
+	}
+}
+
+func TestValidate_AIManagedModeEmptyModelAllowed(t *testing.T) {
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+		AI: AIConfig{
+			Enabled: boolPtr(true),
+			Mode:    "summarize",
+			Backend: AIBackendConfig{Mode: "managed"},
+			// Model omitted — defaults applied at runtime
+		},
+	}
+
+	errors := Validate(cfg)
+	for _, e := range errors {
+		assert.NotContains(t, e.Message, "ai.model")
+	}
+}
+
+func TestValidate_AIManagedModeDefaultProviderModel(t *testing.T) {
+	// When provider is empty (defaults to openai), model should be validated against openai list
+	cfg := &Config{
+		Workflow: WorkflowConfig{Name: "ci"},
+		Tasks: map[string]TaskConfig{
+			"build": {Command: "go build ./..."},
+		},
+		AI: AIConfig{
+			Enabled: boolPtr(true),
+			Mode:    "summarize",
+			Model:   "gemini-3-pro-preview", // google model with default (openai) provider
+			Backend: AIBackendConfig{Mode: "managed"},
+		},
+	}
+
+	errors := Validate(cfg)
+	require.NotEmpty(t, errors)
+
+	hasError := false
+	for _, e := range errors {
+		if assert.Contains(t, e.Message, `ai.model "gemini-3-pro-preview" is not supported for managed mode with provider "openai"`) {
+			hasError = true
+			break
+		}
+	}
+	assert.True(t, hasError)
+}

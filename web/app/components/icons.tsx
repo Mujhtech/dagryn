@@ -56,6 +56,13 @@ import {
   LinkSimpleHorizontalIcon,
   PackageIcon,
   CreditCardIcon,
+  LightbulbIcon,
+  FileCodeIcon,
+  ArrowClockwiseIcon,
+  PaperPlaneTiltIcon,
+  ShieldCheckIcon,
+  CloudIcon,
+  CubeIcon,
 } from "@phosphor-icons/react";
 
 export const Icons = {
@@ -118,4 +125,11 @@ export const Icons = {
   Link2: LinkSimpleHorizontalIcon,
   Package: PackageIcon,
   CreditCard: CreditCardIcon,
+  Lightbulb: LightbulbIcon,
+  FileCode: FileCodeIcon,
+  Retry: ArrowClockwiseIcon,
+  Send: PaperPlaneTiltIcon,
+  ShieldCheck: ShieldCheckIcon,
+  Cloud: CloudIcon,
+  Box: CubeIcon,
 };

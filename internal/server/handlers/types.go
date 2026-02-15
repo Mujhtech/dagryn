@@ -184,6 +184,13 @@ type GitHubWorkflowTranslateRequest struct {
 	GitHubInstallationID *uuid.UUID `json:"github_installation_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
+// GitHubWorkflowYAMLTranslateRequest represents a request to translate pasted GitHub workflow YAML.
+// @Description Request payload for direct GitHub Actions YAML translation
+type GitHubWorkflowYAMLTranslateRequest struct {
+	WorkflowYAML string `json:"workflow_yaml" binding:"required" example:"name: CI\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: npm test"`
+	FileName     string `json:"file_name,omitempty" example:"ci.yml"`
+}
+
 // GitHubWorkflowSummary is a minimal summary of a translated workflow file.
 // @Description Summary of a GitHub Actions workflow file
 type GitHubWorkflowSummary struct {
@@ -497,6 +504,35 @@ type SyncWorkflowTaskData struct {
 	Condition      string            `json:"condition,omitempty" example:"branch == 'main'"`
 }
 
+// WorkflowCacheConfig represents cache configuration in workflow responses.
+// @Description Workflow cache configuration
+type WorkflowCacheConfig struct {
+	Enabled       bool   `json:"enabled"`
+	Dir           string `json:"dir,omitempty"`
+	RemoteEnabled bool   `json:"remote_enabled"`
+	RemoteCloud   bool   `json:"remote_cloud"`
+}
+
+// WorkflowAIConfig represents AI configuration in workflow responses.
+// @Description Workflow AI configuration
+type WorkflowAIConfig struct {
+	Enabled     bool   `json:"enabled"`
+	Mode        string `json:"mode,omitempty"`
+	Provider    string `json:"provider,omitempty"`
+	Model       string `json:"model,omitempty"`
+	BackendMode string `json:"backend_mode,omitempty"`
+}
+
+// WorkflowContainerConfig represents container configuration in workflow responses.
+// @Description Workflow container configuration
+type WorkflowContainerConfig struct {
+	Enabled     bool   `json:"enabled"`
+	Image       string `json:"image,omitempty"`
+	MemoryLimit string `json:"memory_limit,omitempty"`
+	CPULimit    string `json:"cpu_limit,omitempty"`
+	Network     string `json:"network,omitempty"`
+}
+
 // WorkflowResponse represents a workflow in API responses.
 // @Description Workflow information
 type WorkflowResponse struct {
@@ -507,6 +543,9 @@ type WorkflowResponse struct {
 	SyncedAt  time.Time                `json:"synced_at" example:"2024-01-15T10:30:00Z"`
 	Tasks     []WorkflowTaskResponse   `json:"tasks"`
 	Trigger   *WorkflowTriggerResponse `json:"trigger,omitempty"`
+	Cache     *WorkflowCacheConfig     `json:"cache,omitempty"`
+	AI        *WorkflowAIConfig        `json:"ai,omitempty"`
+	Container *WorkflowContainerConfig `json:"container,omitempty"`
 }
 
 // WorkflowTriggerResponse represents trigger configuration in API responses.

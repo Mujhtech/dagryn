@@ -22,6 +22,7 @@ import {
   formatBytes,
   formatDuration,
 } from "./status-ui";
+import { AIAnalysisTab } from "./ai-analysis-tab";
 
 export interface LogLine {
   id?: number;
@@ -49,6 +50,7 @@ type RunDetailTabsProps = {
   workflow?: Parameters<typeof WorkflowDag>[0]["workflow"];
   taskStatusMap: Map<string, TaskStatusInfo>;
   logsEndRef: RefObject<HTMLDivElement | null>;
+  runStatus?: string;
 };
 
 export function RunDetailTabs({
@@ -69,6 +71,7 @@ export function RunDetailTabs({
   workflow,
   taskStatusMap,
   logsEndRef,
+  runStatus,
 }: RunDetailTabsProps) {
   const filteredLogs = logs.filter((log) => {
     if (taskFilter && log.task_name !== taskFilter) return false;
@@ -130,6 +133,10 @@ export function RunDetailTabs({
             DAG
           </TabsTrigger>
         ) : null}
+        <TabsTrigger value="ai" className="gap-2">
+          <Icons.Lightbulb className="h-4 w-4" />
+          AI
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="logs">
@@ -338,6 +345,14 @@ export function RunDetailTabs({
           </Card>
         </TabsContent>
       ) : null}
+
+      <TabsContent value="ai">
+        <AIAnalysisTab
+          projectId={projectId}
+          runId={runId}
+          runStatus={runStatus ?? ""}
+        />
+      </TabsContent>
     </Tabs>
   );
 }

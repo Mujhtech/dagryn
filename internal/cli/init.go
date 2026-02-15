@@ -786,10 +786,11 @@ func syncWorkflowToRemote(ctx context.Context, apiClient *client.Client, project
 
 	// Build sync request
 	syncReq := client.SyncWorkflowRequest{
-		Name:      cfg.Workflow.Name,
-		IsDefault: cfg.Workflow.Default,
-		RawConfig: string(rawConfig),
-		Tasks:     make([]client.SyncWorkflowTaskData, 0, len(cfg.Tasks)),
+		Name:       cfg.Workflow.Name,
+		IsDefault:  cfg.Workflow.Default,
+		ConfigHash: config.ComputeConfigHash(rawConfig),
+		RawConfig:  string(rawConfig),
+		Tasks:      make([]client.SyncWorkflowTaskData, 0, len(cfg.Tasks)),
 	}
 
 	if syncReq.Name == "" {

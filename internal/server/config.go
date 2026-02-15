@@ -28,6 +28,23 @@ type StripeConfig struct {
 	PublishableKey string `toml:"publishable_key"`
 }
 
+// AIServerConfig holds server-level AI analysis configuration.
+type AIServerConfig struct {
+	Enabled               bool   `toml:"enabled"`
+	Provider              string `toml:"provider"` // "openai", "google", "gemini"
+	APIKey                string `toml:"api_key"`
+	TimeoutSeconds        int    `toml:"timeout_seconds"`
+	MaxTokens             int    `toml:"max_tokens"`
+	BackendMode           string `toml:"backend_mode"`
+	AgentEndpoint         string `toml:"agent_endpoint"`
+	AgentToken            string `toml:"agent_token"`
+	MaxAnalysesPerHour    int    `toml:"max_analyses_per_hour"`
+	CooldownSeconds       int    `toml:"cooldown_seconds"`
+	MaxConcurrentAnalyses int    `toml:"max_concurrent_analyses"`
+	RawResponseTTLHours   int    `toml:"raw_response_ttl_hours"`
+	RawResponseStorage    string `toml:"raw_response_storage"`
+}
+
 // Config holds all server configuration.
 type Config struct {
 	Server          ServerConfig          `toml:"server"`
@@ -43,6 +60,7 @@ type Config struct {
 	ArtifactStorage StorageConfig         `toml:"artifact_storage"`
 	Container       ContainerServerConfig `toml:"container"`
 	Stripe          StripeConfig          `toml:"stripe"`
+	AI              AIServerConfig        `toml:"ai"`
 }
 
 // StorageConfig holds cache storage backend configuration.
@@ -67,10 +85,14 @@ type HealthConfig struct {
 	ReadyCheckRedis bool `toml:"ready_check_redis"`
 }
 
+// DefaultBaseURL is the public-facing URL used in GitHub check runs, AI comments, etc.
+const DefaultBaseURL = "https://dagryn.dev"
+
 // ServerConfig holds HTTP server configuration.
 type ServerConfig struct {
 	Host            string        `toml:"host"`
 	Port            int           `toml:"port"`
+	BaseURL         string        `toml:"base_url"` // Public-facing URL (default: https://dagryn.dev)
 	ReadTimeout     time.Duration `toml:"read_timeout"`
 	WriteTimeout    time.Duration `toml:"write_timeout"`
 	ShutdownTimeout time.Duration `toml:"shutdown_timeout"`
@@ -145,6 +167,7 @@ func DefaultConfig() Config {
 		Server: ServerConfig{
 			Host:            "localhost",
 			Port:            9000,
+			BaseURL:         DefaultBaseURL,
 			ReadTimeout:     30 * time.Second,
 			WriteTimeout:    30 * time.Second,
 			ShutdownTimeout: 10 * time.Second,
@@ -228,6 +251,9 @@ func loadConfigFile(path string, cfg *Config) error {
 // applyEnvVars applies environment variable overrides.
 func applyEnvVars(cfg *Config) {
 	// Server
+	if v := getEnvAny("DAGRYN_BASE_URL"); v != "" {
+		cfg.Server.BaseURL = v
+	}
 	if v := os.Getenv("DAGRYN_HOST"); v != "" {
 		cfg.Server.Host = v
 	}
@@ -399,6 +425,65 @@ func applyEnvVars(cfg *Config) {
 	}
 	if v := os.Getenv("DAGRYN_READY_CHECK_REDIS"); v == "true" || v == "1" {
 		cfg.Health.ReadyCheckRedis = true
+	}
+
+	// AI
+	if v := os.Getenv("DAGRYN_AI_ENABLED"); v == "true" || v == "1" {
+		cfg.AI.Enabled = true
+	}
+	if v := getEnvAny("DAGRYN_AI_PROVIDER"); v != "" {
+		cfg.AI.Provider = v
+	}
+	if v := getEnvAny("DAGRYN_AI_API_KEY"); v != "" {
+		cfg.AI.APIKey = v
+	}
+	if v := os.Getenv("DAGRYN_AI_TIMEOUT_SECONDS"); v != "" {
+		var secs int
+		if _, err := fmt.Sscanf(v, "%d", &secs); err == nil && secs > 0 {
+			cfg.AI.TimeoutSeconds = secs
+		}
+	}
+	if v := os.Getenv("DAGRYN_AI_MAX_TOKENS"); v != "" {
+		var tokens int
+		if _, err := fmt.Sscanf(v, "%d", &tokens); err == nil && tokens > 0 {
+			cfg.AI.MaxTokens = tokens
+		}
+	}
+	if v := getEnvAny("DAGRYN_AI_BACKEND_MODE"); v != "" {
+		cfg.AI.BackendMode = v
+	}
+	if v := getEnvAny("DAGRYN_AI_AGENT_ENDPOINT"); v != "" {
+		cfg.AI.AgentEndpoint = v
+	}
+	if v := getEnvAny("DAGRYN_AI_AGENT_TOKEN"); v != "" {
+		cfg.AI.AgentToken = v
+	}
+	if v := os.Getenv("DAGRYN_AI_MAX_ANALYSES_PER_HOUR"); v != "" {
+		var n int
+		if _, err := fmt.Sscanf(v, "%d", &n); err == nil && n > 0 {
+			cfg.AI.MaxAnalysesPerHour = n
+		}
+	}
+	if v := os.Getenv("DAGRYN_AI_COOLDOWN_SECONDS"); v != "" {
+		var n int
+		if _, err := fmt.Sscanf(v, "%d", &n); err == nil && n > 0 {
+			cfg.AI.CooldownSeconds = n
+		}
+	}
+	if v := os.Getenv("DAGRYN_AI_MAX_CONCURRENT_ANALYSES"); v != "" {
+		var n int
+		if _, err := fmt.Sscanf(v, "%d", &n); err == nil && n > 0 {
+			cfg.AI.MaxConcurrentAnalyses = n
+		}
+	}
+	if v := os.Getenv("DAGRYN_AI_RAW_RESPONSE_TTL_HOURS"); v != "" {
+		var n int
+		if _, err := fmt.Sscanf(v, "%d", &n); err == nil && n > 0 {
+			cfg.AI.RawResponseTTLHours = n
+		}
+	}
+	if v := getEnvAny("DAGRYN_AI_RAW_RESPONSE_STORAGE"); v != "" {
+		cfg.AI.RawResponseStorage = v
 	}
 
 	// Stripe

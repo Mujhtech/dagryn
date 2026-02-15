@@ -72,6 +72,11 @@ func (c *Client) Enqueue(queue QueueName, job TaskName, payload *ClientPayload) 
 	return nil
 }
 
+// EnqueueRaw enqueues a job with raw data bytes (satisfies handlers.JobEnqueuer).
+func (c *Client) EnqueueRaw(queue, taskName string, data []byte) error {
+	return c.Enqueue(QueueName(queue), TaskName(taskName), &ClientPayload{Data: data})
+}
+
 type Formatter struct {
 	cfb encrypt.Encrypt
 }

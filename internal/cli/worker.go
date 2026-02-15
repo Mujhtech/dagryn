@@ -22,6 +22,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/server/sse"
 	"github.com/mujhtech/dagryn/internal/service"
 	dagrynstripe "github.com/mujhtech/dagryn/internal/stripe"
+	"github.com/mujhtech/dagryn/internal/telemetry"
 	"github.com/mujhtech/dagryn/pkg/storage"
 )
 
@@ -227,6 +228,30 @@ func runWorker(opts WorkerConfigOpts) error {
 		}
 	}
 
+	// Initialize AI repo and config for AI analysis jobs.
+	// Always create aiRepo when database is available — the project's dagryn.toml
+	// controls whether AI is enabled, not the server config.
+	// Server config (aiConfig) serves as the managed-mode fallback.
+	var aiRepo *repo.AIRepo
+	var aiConfig *jobhandlers.AIAnalysisConfig
+	if database != nil {
+		aiRepo = repo.NewAIRepo(database.Pool())
+		aiConfig = &jobhandlers.AIAnalysisConfig{
+			Enabled:               cfg.AI.Enabled,
+			BackendMode:           cfg.AI.BackendMode,
+			Provider:              cfg.AI.Provider,
+			APIKey:                cfg.AI.APIKey,
+			TimeoutSeconds:        cfg.AI.TimeoutSeconds,
+			MaxTokens:             cfg.AI.MaxTokens,
+			AgentEndpoint:         cfg.AI.AgentEndpoint,
+			AgentToken:            cfg.AI.AgentToken,
+			MaxAnalysesPerHour:    cfg.AI.MaxAnalysesPerHour,
+			CooldownSeconds:       cfg.AI.CooldownSeconds,
+			MaxConcurrentAnalyses: cfg.AI.MaxConcurrentAnalyses,
+		}
+		log.Debug().Msg("AI analysis repo and config initialized for worker")
+	}
+
 	// Initialize billing repo and related repos for usage rollup, bandwidth reset, and retention jobs
 	var billingRepo *repo.BillingRepo
 	var artifactRepo *repo.ArtifactRepo
@@ -256,6 +281,24 @@ func runWorker(opts WorkerConfigOpts) error {
 		log.Debug().Msg("Quota enforcement service initialized for worker")
 	}
 
+	// Initialize telemetry metrics for job handlers
+	var metrics *telemetry.Metrics
+	if cfg.Telemetry.Enabled {
+		tp, err := telemetry.Init(ctx, cfg.Telemetry)
+		if err != nil {
+			log.Warn().Err(err).Msg("Telemetry not initialized for worker")
+		} else {
+			_ = tp // keep reference for shutdown
+			m, mErr := telemetry.NewMetrics()
+			if mErr != nil {
+				log.Warn().Err(mErr).Msg("Metrics instruments not created")
+			} else {
+				metrics = m
+				log.Debug().Msg("Telemetry metrics initialized for worker")
+			}
+		}
+	}
+
 	jobCfg := job.Config{
 		Concurrency:          cfg.Job.Concurrency,
 		EncryptionKey:        cfg.Job.EncryptionKey,
@@ -275,6 +318,10 @@ func runWorker(opts WorkerConfigOpts) error {
 		QuotaService:         quotaService,
 		ArtifactRepo:         artifactRepo,
 		CacheRepo:            cacheRepo,
+		AIRepo:               aiRepo,
+		AIConfig:             aiConfig,
+		Metrics:              metrics,
+		BaseURL:              cfg.Server.BaseURL,
 	}
 
 	// Create job system

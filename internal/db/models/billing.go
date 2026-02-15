@@ -35,6 +35,11 @@ type BillingPlan struct {
 	SSOEnabled         bool `json:"sso_enabled" db:"sso_enabled"`
 	AuditLogs          bool `json:"audit_logs" db:"audit_logs"`
 
+	// AI quotas
+	MaxAIAnalysesPerMonth *int `json:"max_ai_analyses_per_month,omitempty" db:"max_ai_analyses_per_month"`
+	AIEnabled             bool `json:"ai_enabled" db:"ai_enabled"`
+	AISuggestionsEnabled  bool `json:"ai_suggestions_enabled" db:"ai_suggestions_enabled"`
+
 	IsActive  bool      `json:"is_active" db:"is_active"`
 	SortOrder int       `json:"sort_order" db:"sort_order"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`

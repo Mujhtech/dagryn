@@ -66,6 +66,12 @@ type Handler struct {
 
 	// Quota service (optional; nil when billing is not configured)
 	quotaService *service.QuotaService
+
+	// AI repo (optional; nil when AI is not configured)
+	aiRepo *repo.AIRepo
+
+	// baseURL is the public-facing dashboard URL for links in GitHub check runs.
+	baseURL string
 }
 
 // New creates a new Handler with all dependencies.
@@ -98,6 +104,8 @@ func New(
 	billingService *service.BillingService,
 	stripeClient *dagrynstripe.Client,
 	quotaService *service.QuotaService,
+	aiRepo *repo.AIRepo,
+	baseURL string,
 ) *Handler {
 	return &Handler{
 		db:                  database,
@@ -125,5 +133,7 @@ func New(
 		billingService:      billingService,
 		stripeClient:        stripeClient,
 		quotaService:        quotaService,
+		aiRepo:              aiRepo,
+		baseURL:             baseURL,
 	}
 }

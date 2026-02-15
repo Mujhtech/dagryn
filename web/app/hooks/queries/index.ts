@@ -26,3 +26,5 @@ export { useRegistryPlugins, useFeaturedPlugins, useTrendingPlugins } from "./us
 export { useRegistryPluginDetail, useRegistryPluginVersions } from "./use-registry-plugin-detail";
 export { usePluginAnalytics } from "./use-plugin-analytics";
 export { useBillingPlans, useBillingPlan, useBillingOverview, useBillingInvoices } from "./use-billing";
+export { useRunAIAnalysis, useProjectAIAnalyses } from "./use-ai-analysis";
+export { useAISuggestions } from "./use-ai-suggestions";

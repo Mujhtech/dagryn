@@ -42,7 +42,10 @@ import {
   AlertDialogTrigger,
 } from "~/components/ui/alert-dialog";
 import { Icons } from "~/components/icons";
-import type { BillingPlan, BillingOverview as BillingOverviewType } from "~/lib/api";
+import type {
+  BillingPlan,
+  BillingOverview as BillingOverviewType,
+} from "~/lib/api";
 
 export const Route = createFileRoute("/_dashboard_layout/billing")({
   component: BillingPage,
@@ -90,7 +93,7 @@ function BillingPage() {
   const currentPlanSlug = overview?.plan?.slug || "free";
 
   return (
-    <div className="container max-w-6xl mx-auto py-8 space-y-8">
+    <div className="container px-6 py-8 space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Billing</h1>
         <p className="text-muted-foreground mt-1">
@@ -380,6 +383,13 @@ function UsageOverview({
       limit: plan?.max_concurrent_runs,
       format: (n: number) => String(n),
     },
+    {
+      label: "AI Analyses",
+      current: res.ai_analyses_used ?? 0,
+      limit: plan?.max_ai_analyses_per_month,
+      format: (n: number) => String(n),
+      subtitle: "This month",
+    },
   ];
 
   return (
@@ -534,6 +544,20 @@ function PlanCard({
           <PlanFeature label="Priority queue" included={plan.priority_queue} />
           <PlanFeature label="SSO / SAML" included={plan.sso_enabled} />
           <PlanFeature label="Audit logs" included={plan.audit_logs} />
+          <PlanFeature label="AI analysis" included={plan.ai_enabled} />
+          <PlanFeature
+            label="AI suggestions"
+            included={plan.ai_suggestions_enabled}
+          />
+          <PlanFeature
+            label={
+              plan.max_ai_analyses_per_month
+                ? `${plan.max_ai_analyses_per_month} AI analyses/mo`
+                : plan.ai_enabled
+                  ? "Unlimited AI analyses"
+                  : "No AI analyses"
+            }
+          />
         </ul>
       </CardContent>
       <CardFooter>

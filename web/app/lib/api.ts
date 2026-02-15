@@ -275,6 +275,29 @@ export interface WorkflowTrigger {
   pull_request?: { branches?: string[]; types?: string[] };
 }
 
+export interface WorkflowCacheConfig {
+  enabled: boolean;
+  dir?: string;
+  remote_enabled: boolean;
+  remote_cloud: boolean;
+}
+
+export interface WorkflowAIConfig {
+  enabled: boolean;
+  mode?: string;
+  provider?: string;
+  model?: string;
+  backend_mode?: string;
+}
+
+export interface WorkflowContainerConfig {
+  enabled: boolean;
+  image?: string;
+  memory_limit?: string;
+  cpu_limit?: string;
+  network?: string;
+}
+
 export interface Workflow {
   id: string;
   name: string;
@@ -283,6 +306,9 @@ export interface Workflow {
   synced_at: string;
   tasks: WorkflowTask[];
   trigger?: WorkflowTrigger;
+  cache?: WorkflowCacheConfig;
+  ai?: WorkflowAIConfig;
+  container?: WorkflowContainerConfig;
 }
 
 export interface WorkflowTask {
@@ -445,6 +471,99 @@ export interface PluginDailyDownload {
   downloads: number;
 }
 
+// AI Analysis types
+export type AIAnalysisStatus =
+  | "pending"
+  | "in_progress"
+  | "success"
+  | "failed"
+  | "quota_exceeded"
+  | "superseded";
+
+export interface AIAnalysis {
+  id: string;
+  run_id: string;
+  project_id: string;
+  status: AIAnalysisStatus;
+  provider?: string;
+  model?: string;
+  summary?: string;
+  root_cause?: string;
+  confidence?: number;
+  evidence_json?: string;
+  error_message?: string;
+  provider_mode?: string;
+  prompt_version?: string;
+  prompt_hash?: string;
+  response_hash?: string;
+  raw_response_blob_key?: string;
+  dedup_key?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AIPublicationStatus = "pending" | "sent" | "updated" | "failed";
+export type AIPublicationDestination =
+  | "github_pr_comment"
+  | "github_check"
+  | "github_pr_review";
+
+export interface AIPublication {
+  id: string;
+  analysis_id: string;
+  run_id: string;
+  destination: AIPublicationDestination;
+  external_id?: string;
+  status: AIPublicationStatus;
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AISuggestionStatus =
+  | "pending"
+  | "posted"
+  | "accepted"
+  | "dismissed"
+  | "failed_validation";
+
+export interface AISuggestion {
+  id: string;
+  analysis_id: string;
+  run_id: string;
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  original_code: string;
+  suggested_code: string;
+  explanation: string;
+  confidence: number;
+  status: AISuggestionStatus;
+  github_comment_id?: string;
+  risk_score?: number;
+  failure_reason?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AIAnalysisDetail {
+  analysis: AIAnalysis;
+  publications: AIPublication[] | null;
+  suggestions: AISuggestion[] | null;
+}
+
+export interface AIAnalysesList {
+  analyses: AIAnalysis[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AISuggestionsResponse {
+  suggestions: AISuggestion[];
+  analysis_id: string;
+}
+
 // Billing types
 export interface BillingPlan {
   id: string;
@@ -468,6 +587,9 @@ export interface BillingPlan {
   priority_queue: boolean;
   sso_enabled: boolean;
   audit_logs: boolean;
+  max_ai_analyses_per_month?: number;
+  ai_enabled: boolean;
+  ai_suggestions_enabled: boolean;
   stripe_price_id: string;
   sort_order: number;
 }
@@ -514,6 +636,7 @@ export interface ResourceUsage {
   projects_used: number;
   team_members_used: number;
   concurrent_runs: number;
+  ai_analyses_used: number;
 }
 
 export interface BillingOverview {
@@ -874,6 +997,16 @@ class ApiClient {
     );
   }
 
+  async translateGitHubWorkflowYAML(data: {
+    workflow_yaml: string;
+    file_name?: string;
+  }) {
+    return this.fetch<GitHubWorkflowTranslateResponse>("/workflows/translate", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
   async createProject(data: {
     name: string;
     slug: string;
@@ -1096,6 +1229,45 @@ class ApiClient {
   async getCacheAnalytics(projectId: string, days = 30) {
     return this.fetch<CacheAnalytics>(
       `/projects/${projectId}/cache/analytics?days=${days}`,
+    );
+  }
+
+  // AI Analysis
+  async getRunAIAnalysis(projectId: string, runId: string) {
+    return this.fetch<AIAnalysisDetail>(
+      `/projects/${projectId}/runs/${runId}/ai-analysis`,
+    );
+  }
+
+  async listProjectAIAnalyses(
+    projectId: string,
+    options?: { limit?: number; offset?: number },
+  ) {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set("limit", String(options.limit));
+    if (options?.offset) params.set("offset", String(options.offset));
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return this.fetch<AIAnalysesList>(
+      `/projects/${projectId}/ai-analyses${query}`,
+    );
+  }
+
+  async retryAIAnalysis(projectId: string, runId: string) {
+    return this.fetch(`/projects/${projectId}/runs/${runId}/ai-analysis/retry`, {
+      method: "POST",
+    });
+  }
+
+  async getAISuggestions(projectId: string, runId: string) {
+    return this.fetch<AISuggestionsResponse>(
+      `/projects/${projectId}/runs/${runId}/ai-suggestions`,
+    );
+  }
+
+  async postAISuggestions(projectId: string, runId: string) {
+    return this.fetch(
+      `/projects/${projectId}/runs/${runId}/ai-suggestions/post`,
+      { method: "POST" },
     );
   }
 

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { useProjectWorkflows, useRunDetail } from "~/hooks/queries";
-import type { Project, Run, RunStatus, TaskStatus } from "~/lib/api";
+import type { Project, Run, RunStatus, TaskStatus, Workflow } from "~/lib/api";
 import { WorkflowDag, type TaskStatusInfo } from "~/components/workflow-dag";
 import { RunStreamClient, type TaskEventData } from "~/lib/sse";
 import { queryClient, queryKeys } from "~/lib/query-client";
@@ -455,6 +455,11 @@ export function WorkflowDashboard({
                 </Link>
               </Button>
               <Button variant="outline" size="icon" asChild>
+                <Link to="/projects/$projectId/ai-analyses" params={{ projectId }}>
+                  <Icons.Lightbulb className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button variant="outline" size="icon" asChild>
                 <Link to="/projects/$projectId/settings" params={{ projectId }}>
                   <Icons.Settings className="h-4 w-4" />
                 </Link>
@@ -583,6 +588,10 @@ export function WorkflowDashboard({
             </Card>
           ) : null}
 
+          {latestWorkflow && (latestWorkflow.cache || latestWorkflow.ai || latestWorkflow.container) ? (
+            <WorkflowConfigBadges workflow={latestWorkflow} />
+          ) : null}
+
           {runsLoading ? (
             <div className="flex items-center justify-center py-12">
               <Icons.Loader className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -705,5 +714,69 @@ function EventFilterButton({
       {icon}
       <span className="ml-1">{label}</span>
     </Button>
+  );
+}
+
+function WorkflowConfigBadges({ workflow }: { workflow: Workflow }) {
+  const badges: ReactNode[] = [];
+
+  if (workflow.cache) {
+    const c = workflow.cache;
+    if (c.enabled) {
+      badges.push(
+        <Badge key="cache-local" variant="outline" className="gap-1">
+          <Icons.Database className="h-3 w-3" />
+          Cache: Local
+        </Badge>,
+      );
+    }
+    if (c.remote_cloud) {
+      badges.push(
+        <Badge key="cache-cloud" variant="outline" className="gap-1">
+          <Icons.Cloud className="h-3 w-3" />
+          Cache: Cloud
+        </Badge>,
+      );
+    } else if (c.remote_enabled) {
+      badges.push(
+        <Badge key="cache-remote" variant="outline" className="gap-1">
+          <Icons.Cloud className="h-3 w-3" />
+          Cache: Remote
+        </Badge>,
+      );
+    }
+  }
+
+  if (workflow.ai?.enabled) {
+    const parts = [workflow.ai.mode, workflow.ai.provider, workflow.ai.model]
+      .filter(Boolean)
+      .join(" / ");
+    badges.push(
+      <Badge key="ai" variant="outline" className="gap-1">
+        <Icons.Lightbulb className="h-3 w-3" />
+        AI{parts ? `: ${parts}` : ""}
+      </Badge>,
+    );
+  }
+
+  if (workflow.container?.enabled) {
+    const c = workflow.container;
+    const parts = [c.image, c.memory_limit ? `mem:${c.memory_limit}` : "", c.cpu_limit ? `cpu:${c.cpu_limit}` : ""]
+      .filter(Boolean)
+      .join(" / ");
+    badges.push(
+      <Badge key="container" variant="outline" className="gap-1">
+        <Icons.Box className="h-3 w-3" />
+        Container{parts ? `: ${parts}` : ""}
+      </Badge>,
+    );
+  }
+
+  if (badges.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {badges}
+    </div>
   );
 }
