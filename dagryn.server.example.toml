@@ -17,6 +17,7 @@
 [server]
 host = "localhost"
 port = 9000
+# base_url = "https://dagryn.dev"  # Public-facing URL for GitHub links (env: DAGRYN_BASE_URL)
 
 [server.swagger]
 enabled = true
