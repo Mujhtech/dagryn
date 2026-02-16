@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -354,11 +355,16 @@ func setupRemoteSync(projectRoot string, targets []string) (*RemoteSync, error) 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	hostname, _ := os.Hostname()
+
 	resp, err := apiClient.TriggerRun(ctx, projID, client.TriggerRunRequest{
 		Targets:   targets,
 		GitBranch: gitBranch,
 		GitCommit: gitCommit,
 		SyncOnly:  true, // CLI executes locally, only sync status to server
+		HostOS:    runtime.GOOS,
+		HostArch:  runtime.GOARCH,
+		HostName:  hostname,
 	})
 	if err != nil {
 		// Provide helpful error messages based on error type
@@ -465,7 +471,8 @@ func (s *RemoteSync) OnTaskStart(name string, cacheHit bool) {
 	if cacheHit {
 		status = "cached"
 	}
-	if err := s.client.UpdateTaskStatus(ctx, s.projectID, s.RunID, name, status, nil, nil, cacheHit, ""); err != nil {
+	now := time.Now()
+	if err := s.client.UpdateTaskStatus(ctx, s.projectID, s.RunID, name, status, nil, nil, cacheHit, "", &now, nil); err != nil {
 		s.handleSyncError(fmt.Sprintf("update task %s status", name), err)
 	} else {
 		s.resetErrorCount()
@@ -502,7 +509,16 @@ func (s *RemoteSync) OnTaskComplete(name string, result *executor.Result, cacheH
 	durationMs := result.Duration.Milliseconds()
 	exitCode := result.ExitCode
 
-	if err := s.client.UpdateTaskStatus(ctx, s.projectID, s.RunID, name, status, &exitCode, &durationMs, cacheHit, ""); err != nil {
+	// Send accurate client-side timestamps
+	var startedAt, finishedAt *time.Time
+	if !result.StartTime.IsZero() {
+		startedAt = &result.StartTime
+	}
+	if !result.EndTime.IsZero() {
+		finishedAt = &result.EndTime
+	}
+
+	if err := s.client.UpdateTaskStatus(ctx, s.projectID, s.RunID, name, status, &exitCode, &durationMs, cacheHit, "", startedAt, finishedAt); err != nil {
 		s.handleSyncError(fmt.Sprintf("update task %s completion", name), err)
 	} else {
 		s.resetErrorCount()

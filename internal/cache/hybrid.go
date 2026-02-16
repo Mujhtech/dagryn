@@ -188,6 +188,11 @@ func (h *HybridBackend) saveLocalFirst(ctx context.Context, taskName, key string
 		return err
 	}
 
+	// Skip remote save if entry already exists with this key
+	if hit, _ := h.remote.Check(ctx, taskName, key); hit {
+		return nil
+	}
+
 	// Then save to remote
 	if err := h.remote.Save(ctx, taskName, key, outputPatterns, meta); err != nil {
 		if h.cfg.FallbackOnError {
@@ -201,6 +206,12 @@ func (h *HybridBackend) saveLocalFirst(ctx context.Context, taskName, key string
 }
 
 func (h *HybridBackend) saveRemoteFirst(ctx context.Context, taskName, key string, outputPatterns []string, meta Metadata) error {
+	// Skip remote save if entry already exists with this key
+	if hit, _ := h.remote.Check(ctx, taskName, key); hit {
+		// Still save locally
+		return h.local.Save(ctx, taskName, key, outputPatterns, meta)
+	}
+
 	// Save to remote first
 	if err := h.remote.Save(ctx, taskName, key, outputPatterns, meta); err != nil {
 		if h.cfg.FallbackOnError {

@@ -121,7 +121,10 @@ type TriggerRunRequest struct {
 	GitBranch string   `json:"git_branch,omitempty"`
 	GitCommit string   `json:"git_commit,omitempty"`
 	// SyncOnly when true creates a run record for status tracking without triggering remote execution.
-	SyncOnly bool `json:"sync_only,omitempty"`
+	SyncOnly bool   `json:"sync_only,omitempty"`
+	HostOS   string `json:"host_os,omitempty"`
+	HostArch string `json:"host_arch,omitempty"`
+	HostName string `json:"host_name,omitempty"`
 }
 
 // TriggerRunResponse represents a triggered run.
@@ -407,17 +410,19 @@ func (c *Client) CreateTask(ctx context.Context, projectID, runID uuid.UUID, tas
 
 // UpdateTaskStatusRequest represents a request to update task status.
 type UpdateTaskStatusRequest struct {
-	Status     string `json:"status"`
-	ExitCode   *int   `json:"exit_code,omitempty"`
-	DurationMs *int64 `json:"duration_ms,omitempty"`
-	CacheHit   bool   `json:"cache_hit,omitempty"`
-	CacheKey   string `json:"cache_key,omitempty"`
-	Output     string `json:"output,omitempty"`
-	Error      string `json:"error,omitempty"`
+	Status     string     `json:"status"`
+	ExitCode   *int       `json:"exit_code,omitempty"`
+	DurationMs *int64     `json:"duration_ms,omitempty"`
+	CacheHit   bool       `json:"cache_hit,omitempty"`
+	CacheKey   string     `json:"cache_key,omitempty"`
+	Output     string     `json:"output,omitempty"`
+	Error      string     `json:"error,omitempty"`
+	StartedAt  *time.Time `json:"started_at,omitempty"`
+	FinishedAt *time.Time `json:"finished_at,omitempty"`
 }
 
 // UpdateTaskStatus updates the status of a task.
-func (c *Client) UpdateTaskStatus(ctx context.Context, projectID, runID uuid.UUID, taskName, status string, exitCode *int, durationMs *int64, cacheHit bool, cacheKey string) error {
+func (c *Client) UpdateTaskStatus(ctx context.Context, projectID, runID uuid.UUID, taskName, status string, exitCode *int, durationMs *int64, cacheHit bool, cacheKey string, startedAt, finishedAt *time.Time) error {
 	path := fmt.Sprintf("/api/v1/projects/%s/runs/%s/tasks/%s", projectID, runID, taskName)
 	req := UpdateTaskStatusRequest{
 		Status:     status,
@@ -425,6 +430,8 @@ func (c *Client) UpdateTaskStatus(ctx context.Context, projectID, runID uuid.UUI
 		DurationMs: durationMs,
 		CacheHit:   cacheHit,
 		CacheKey:   cacheKey,
+		StartedAt:  startedAt,
+		FinishedAt: finishedAt,
 	}
 	resp, err := c.doRequest(ctx, "PATCH", path, req)
 	if err != nil {

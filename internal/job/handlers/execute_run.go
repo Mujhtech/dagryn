@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -165,10 +166,12 @@ func NewExecuteRunHandler(
 
 // createSyntheticTask creates a task result for infrastructure operations like clone/cleanup.
 func (h *ExecuteRunHandler) createSyntheticTask(ctx context.Context, runID uuid.UUID, taskName string) error {
+	now := time.Now()
 	tr := &models.TaskResult{
-		RunID:    runID,
-		TaskName: taskName,
-		Status:   models.TaskStatusRunning,
+		RunID:     runID,
+		TaskName:  taskName,
+		Status:    models.TaskStatusRunning,
+		StartedAt: &now,
 	}
 	return h.runs.CreateTaskResult(ctx, tr)
 }
@@ -548,6 +551,17 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		return nil
 	}
 
+	// Set host info for server-side execution if not already set by CLI
+	if run.HostOS == nil {
+		hostOS := runtime.GOOS
+		hostArch := runtime.GOARCH
+		hostName, _ := os.Hostname()
+		run.HostOS = &hostOS
+		run.HostArch = &hostArch
+		run.HostName = &hostName
+		_ = h.runs.Update(ctx, run)
+	}
+
 	if err := h.runs.StartWithTotal(ctx, runID, totalTasks); err != nil {
 		return fmt.Errorf("start run: %w", err)
 	}
@@ -642,10 +656,12 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	sched.OnTaskStart(func(name string, _ *executor.Result, cacheHit bool) {
+		now := time.Now()
 		tr := &models.TaskResult{
-			RunID:    runID,
-			TaskName: name,
-			Status:   models.TaskStatusRunning,
+			RunID:     runID,
+			TaskName:  name,
+			Status:    models.TaskStatusRunning,
+			StartedAt: &now,
 		}
 		if err := h.runs.CreateTaskResult(ctx, tr); err != nil {
 			slog.Warn("execute_run: create task failed", "task", name, "error", err)
@@ -668,9 +684,22 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		dur := result.Duration.Milliseconds()
 		tr.DurationMs = &dur
 		tr.ExitCode = &result.ExitCode
-		now := time.Now()
-		tr.FinishedAt = &now
 		tr.CacheHit = cacheHit
+
+		// Use accurate executor timestamps; fall back to now
+		if !result.StartTime.IsZero() {
+			tr.StartedAt = &result.StartTime
+		} else if tr.StartedAt == nil {
+			now := time.Now()
+			tr.StartedAt = &now
+		}
+		if !result.EndTime.IsZero() {
+			tr.FinishedAt = &result.EndTime
+		} else {
+			now := time.Now()
+			tr.FinishedAt = &now
+		}
+
 		if err := h.runs.UpdateTaskResult(ctx, tr); err != nil {
 			slog.Warn("execute_run: update task failed", "task", name, "error", err)
 		}

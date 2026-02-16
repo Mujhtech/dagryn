@@ -30,19 +30,15 @@ export function AIAnalysisTab({
   runId,
   runStatus,
 }: AIAnalysisTabProps) {
-  const {
-    data,
-    isLoading,
-    error,
-  } = useRunAIAnalysis(projectId, runId);
+  const { data, isLoading, error } = useRunAIAnalysis(projectId, runId);
 
   const retryMutation = useRetryAIAnalysis();
   const postSuggestionsMutation = usePostAISuggestions();
 
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="py-12">
+      <Card className="py-0 gap-0">
+        <CardContent className="py-12 px-4">
           <div className="flex items-center justify-center text-muted-foreground">
             <Icons.Loader className="h-5 w-5 animate-spin mr-2" />
             Loading AI analysis...
@@ -54,20 +50,24 @@ export function AIAnalysisTab({
 
   if (error || !data) {
     const is404 =
-      error && "status" in error && (error as { status: number }).status === 404;
+      error &&
+      "status" in error &&
+      (error as { status: number }).status === 404;
     return (
-      <Card>
-        <CardContent className="py-12">
+      <Card className="py-0 gap-0">
+        <CardContent className="py-12 px-4">
           <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
             <Icons.Lightbulb className="h-10 w-10" />
-            <p>{is404 ? "No AI analysis available for this run." : "Failed to load AI analysis."}</p>
+            <p>
+              {is404
+                ? "No AI analysis available for this run."
+                : "Failed to load AI analysis."}
+            </p>
             {runStatus === "failed" && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() =>
-                  retryMutation.mutate({ projectId, runId })
-                }
+                onClick={() => retryMutation.mutate({ projectId, runId })}
                 disabled={retryMutation.isPending}
               >
                 {retryMutation.isPending ? (
@@ -100,9 +100,7 @@ export function AIAnalysisTab({
             suggestions={suggestions}
             projectId={projectId}
             runId={runId}
-            onPost={() =>
-              postSuggestionsMutation.mutate({ projectId, runId })
-            }
+            onPost={() => postSuggestionsMutation.mutate({ projectId, runId })}
             postPending={postSuggestionsMutation.isPending}
           />
           <PublicationsCard publications={publications} />
@@ -115,7 +113,10 @@ export function AIAnalysisTab({
 function AnalysisStatusBadge({ status }: { status: AIAnalysisStatus }) {
   const variants: Record<
     string,
-    { variant: "default" | "secondary" | "destructive" | "outline"; label: string }
+    {
+      variant: "default" | "secondary" | "destructive" | "outline";
+      label: string;
+    }
   > = {
     pending: { variant: "secondary", label: "Pending" },
     in_progress: { variant: "default", label: "Analyzing" },
@@ -124,7 +125,10 @@ function AnalysisStatusBadge({ status }: { status: AIAnalysisStatus }) {
     quota_exceeded: { variant: "destructive", label: "Quota Exceeded" },
     superseded: { variant: "outline", label: "Superseded" },
   };
-  const config = variants[status] ?? { variant: "secondary" as const, label: status };
+  const config = variants[status] ?? {
+    variant: "secondary" as const,
+    label: status,
+  };
   return <Badge variant={config.variant}>{config.label}</Badge>;
 }
 
@@ -140,10 +144,7 @@ function ConfidenceDisplay({ confidence }: { confidence: number }) {
   return (
     <div className="flex items-center gap-3">
       <span className={`text-2xl font-bold ${color}`}>{pct}%</span>
-      <Progress
-        value={pct}
-        className="h-2 flex-1"
-      />
+      <Progress value={pct} className="h-2 flex-1" />
     </div>
   );
 }
@@ -220,7 +221,9 @@ function AnalysisSummaryCard({
         {analysis.root_cause && (
           <div>
             <p className="text-sm font-medium mb-1">Root Cause</p>
-            <p className="text-sm text-muted-foreground">{analysis.root_cause}</p>
+            <p className="text-sm text-muted-foreground">
+              {analysis.root_cause}
+            </p>
           </div>
         )}
       </CardContent>
@@ -289,9 +292,7 @@ function SuggestionsCard({
 }) {
   if (!suggestions || suggestions.length === 0) return null;
 
-  const pendingCount = suggestions.filter(
-    (s) => s.status === "pending",
-  ).length;
+  const pendingCount = suggestions.filter((s) => s.status === "pending").length;
 
   return (
     <Card>
@@ -334,7 +335,10 @@ function SuggestionsCard({
 function SuggestionStatusBadge({ status }: { status: AISuggestion["status"] }) {
   const config: Record<
     string,
-    { variant: "default" | "secondary" | "destructive" | "outline"; label: string }
+    {
+      variant: "default" | "secondary" | "destructive" | "outline";
+      label: string;
+    }
   > = {
     pending: { variant: "secondary", label: "Pending" },
     posted: { variant: "default", label: "Posted" },
@@ -443,7 +447,10 @@ function PublicationStatusBadge({
 }) {
   const config: Record<
     string,
-    { variant: "default" | "secondary" | "destructive" | "outline"; label: string }
+    {
+      variant: "default" | "secondary" | "destructive" | "outline";
+      label: string;
+    }
   > = {
     pending: { variant: "secondary", label: "Pending" },
     sent: { variant: "default", label: "Sent" },

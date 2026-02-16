@@ -1,19 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, type ComponentType } from "react";
+import { useState } from "react";
 import { useAuth } from "~/lib/auth";
 import { useProjects } from "~/hooks/queries";
-import { usePackageManagerTab } from "~/hooks/use-url-filters";
 import { Button } from "~/components/ui/button";
-import { Badge } from "~/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Icons } from "~/components/icons";
+import { UsageSummaryCard } from "~/components/dashboard/usage-summary";
+import { RecentRunsSection } from "~/components/dashboard/recent-runs";
+import { ProjectStatsCard } from "~/components/dashboard/project-stats-card";
 
 export const Route = createFileRoute("/_dashboard_layout/dashboard")({
   component: IndexPage,
@@ -23,7 +17,6 @@ function IndexPage() {
   const { isAuthenticated } = useAuth();
   const { data: projectsData, isLoading: projectsLoading } =
     useProjects(isAuthenticated);
-  const {} = usePackageManagerTab();
   const [copiedStep, setCopiedStep] = useState<number | null>(null);
 
   if (projectsLoading) {
@@ -74,13 +67,6 @@ function IndexPage() {
   };
 
   const projects = projectsData?.data ?? [];
-  const stats = {
-    total: projects.length,
-    connected: projects.filter((project) => !!project.repo_url).length,
-    privateCount: projects.filter((project) => project.visibility === "private")
-      .length,
-    teamOwned: projects.filter((project) => !!project.team_id).length,
-  };
 
   const recentProjects = [...projects]
     .sort(
@@ -122,69 +108,21 @@ function IndexPage() {
             onCopy={copyToClipboard}
           />
         ) : (
-          <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StatCard
-                title="Total projects"
-                value={stats.total}
-                icon={Icons.Folder}
-              />
-              <StatCard
-                title="Connected repos"
-                value={stats.connected}
-                icon={Icons.Github}
-              />
-              <StatCard
-                title="Private projects"
-                value={stats.privateCount}
-                icon={Icons.Key}
-              />
-              <StatCard
-                title="Team projects"
-                value={stats.teamOwned}
-                icon={Icons.Users}
-              />
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Left: Usage + Recent Runs */}
+            <div className="w-full lg:w-85 space-y-6 shrink-0">
+              <UsageSummaryCard />
+              <RecentRunsSection projects={projects} />
             </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent project activity</CardTitle>
-                <CardDescription>
-                  Your latest updated projects across all teams
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {recentProjects.map((project) => (
-                    <Link
-                      key={project.id}
-                      to="/projects/$projectId"
-                      params={{ projectId: project.id }}
-                      className="flex items-center justify-between rounded-none border p-3 transition-colors hover:bg-accent/40"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{project.name}</p>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {project.description || project.slug}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0 pl-3">
-                        <Badge variant="outline">{project.visibility}</Badge>
-                        {project.repo_url ? (
-                          <Badge variant="secondary">Connected</Badge>
-                        ) : (
-                          <Badge variant="outline">No repo</Badge>
-                        )}
-                        <span className="text-xs text-muted-foreground">
-                          {formatRelativeDate(project.updated_at)}
-                        </span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </>
+            {/* Right: Projects grid */}
+            <div className="flex-1 min-w-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {recentProjects.map((project) => (
+                  <ProjectStatsCard key={project.id} project={project} />
+                ))}
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
@@ -329,28 +267,6 @@ function SetupGuide({
   );
 }
 
-function StatCard({
-  title,
-  value,
-  icon: Icon,
-}: {
-  title: string;
-  value: number;
-  icon: ComponentType<{ className?: string }>;
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function CodeBlock({
   command,
   onCopy,
@@ -382,17 +298,4 @@ function CodeBlock({
       </Button>
     </div>
   );
-}
-
-function formatRelativeDate(isoDate: string): string {
-  const now = new Date();
-  const date = new Date(isoDate);
-  const diffMs = now.getTime() - date.getTime();
-  const dayMs = 1000 * 60 * 60 * 24;
-  const days = Math.floor(diffMs / dayMs);
-
-  if (days <= 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 7) return `${days}d ago`;
-  return date.toLocaleDateString();
 }

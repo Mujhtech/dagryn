@@ -522,6 +522,17 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 		run.GitCommit = &req.GitCommit
 	}
 
+	// Add host info if provided
+	if req.HostOS != "" {
+		run.HostOS = &req.HostOS
+	}
+	if req.HostArch != "" {
+		run.HostArch = &req.HostArch
+	}
+	if req.HostName != "" {
+		run.HostName = &req.HostName
+	}
+
 	// For git-linked projects (GitHub for now), fetch last commit metadata when triggering from dashboard/API.
 	// This enriches run rows with commit sha/message/author even when user didn't provide git_commit.
 	if project.RepoURL != nil && *project.RepoURL != "" && strings.Contains(*project.RepoURL, "github.com") {
@@ -1796,6 +1807,15 @@ func runModelToResponse(run *models.Run) RunResponse {
 	if run.CommitAuthorEmail != nil {
 		resp.CommitAuthorEmail = *run.CommitAuthorEmail
 	}
+	if run.HostOS != nil {
+		resp.HostOS = *run.HostOS
+	}
+	if run.HostArch != nil {
+		resp.HostArch = *run.HostArch
+	}
+	if run.HostName != nil {
+		resp.HostName = *run.HostName
+	}
 
 	return resp
 }
@@ -2238,14 +2258,21 @@ func (h *Handler) UpdateTaskStatus(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	task.Status = newStatus
 
-	if newStatus == models.TaskStatusRunning && task.StartedAt == nil {
+	// Use client-provided timestamps if available, fall back to server time
+	if req.StartedAt != nil {
+		task.StartedAt = req.StartedAt
+	} else if task.StartedAt == nil && (newStatus == models.TaskStatusRunning || newStatus.IsTerminal()) {
 		task.StartedAt = &now
 	}
 
 	if newStatus.IsTerminal() {
-		task.FinishedAt = &now
+		if req.FinishedAt != nil {
+			task.FinishedAt = req.FinishedAt
+		} else {
+			task.FinishedAt = &now
+		}
 		if task.StartedAt != nil {
-			duration := now.Sub(*task.StartedAt).Milliseconds()
+			duration := task.FinishedAt.Sub(*task.StartedAt).Milliseconds()
 			task.DurationMs = &duration
 		}
 	}

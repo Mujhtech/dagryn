@@ -96,6 +96,12 @@ export function RunCard({
                     <span>{branch}</span>
                   </div>
                 ) : null}
+                {run.host_os ? (
+                  <div className="flex items-center gap-1">
+                    <Icons.Monitor className="h-4 w-4" />
+                    <span>{run.host_os}/{run.host_arch}</span>
+                  </div>
+                ) : null}
               </div>
 
               <div className="flex items-center gap-4">

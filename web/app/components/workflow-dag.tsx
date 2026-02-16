@@ -228,8 +228,9 @@ export function WorkflowDag({
 
   return (
     <div className={cn("overflow-auto relative", className)} ref={containerRef}>
-      {/* Trigger info */}
+      {/* Trigger & config info */}
       {workflow.trigger && <TriggerInfo trigger={workflow.trigger} />}
+      <ConfigInfo workflow={workflow} />
 
       {/* SVG layer for connectors */}
       <svg
@@ -438,6 +439,47 @@ function TriggerInfo({
       {parts.map((part, i) => (
         <span key={i} className="bg-muted px-2 py-0.5 rounded-none">
           {part}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ConfigInfo({ workflow }: { workflow: Workflow }) {
+  const badges: string[] = [];
+
+  if (workflow.cache) {
+    if (workflow.cache.enabled) badges.push("Cache: Local");
+    if (workflow.cache.remote_cloud) badges.push("Cache: Cloud");
+    else if (workflow.cache.remote_enabled) badges.push("Cache: Remote");
+  }
+
+  if (workflow.ai?.enabled) {
+    const parts = [workflow.ai.mode, workflow.ai.provider, workflow.ai.model]
+      .filter(Boolean)
+      .join(" / ");
+    badges.push(parts ? `AI: ${parts}` : "AI");
+  }
+
+  if (workflow.container?.enabled) {
+    const parts = [
+      workflow.container.image,
+      workflow.container.memory_limit ? `mem:${workflow.container.memory_limit}` : "",
+      workflow.container.cpu_limit ? `cpu:${workflow.container.cpu_limit}` : "",
+    ]
+      .filter(Boolean)
+      .join(" / ");
+    badges.push(parts ? `Container: ${parts}` : "Container");
+  }
+
+  if (badges.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-2 px-6 pt-2 pb-0 text-xs text-muted-foreground flex-wrap">
+      <span className="font-medium">Config:</span>
+      {badges.map((badge, i) => (
+        <span key={i} className="bg-muted px-2 py-0.5 rounded-none">
+          {badge}
         </span>
       ))}
     </div>

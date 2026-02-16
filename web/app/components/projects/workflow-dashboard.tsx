@@ -27,11 +27,23 @@ import {
   ComposedChart,
 } from "recharts";
 import { cn } from "~/lib/utils";
+import { formatDuration } from "./run-detail/status-ui";
 import { RunCard } from "./run-card";
 import { TriggerRunDialog } from "./trigger-run-dialog";
 
 const SCROLLBAR_CLASS =
   "scrollbar-foreground scrollbar-track-transparent scrollbar-thin";
+
+const RUN_STATUS_FILTER: Array<{
+  label: string;
+  value: RunStatus;
+  color: string;
+}> = [
+  { label: "Success", value: "success", color: "text-blue-500" },
+  { label: "Failed", value: "failed", color: "text-pink-500" },
+  { label: "Cancelled", value: "cancelled", color: "text-gray-500" },
+  { label: "Running", value: "running", color: "text-yellow-500" },
+];
 
 type CurrentUser = {
   id: string;
@@ -152,7 +164,9 @@ export function WorkflowDashboard({
     refetchInterval: isLatestRunActive ? 3000 : false,
   });
 
-  const [dagTasks, setDagTasks] = useState<Map<string, TaskStatusInfo>>(new Map());
+  const [dagTasks, setDagTasks] = useState<Map<string, TaskStatusInfo>>(
+    new Map(),
+  );
 
   useEffect(() => {
     const tasks = latestRunDetail?.data?.tasks;
@@ -248,30 +262,15 @@ export function WorkflowDashboard({
               STATUS
             </h3>
             <div className="space-y-2">
-              <FilterCheckbox
-                label="Success"
-                checked={statusFilters.has("success")}
-                onCheckedChange={() => toggleStatusFilter("success")}
-                color="text-blue-500"
-              />
-              <FilterCheckbox
-                label="Failed"
-                checked={statusFilters.has("failed")}
-                onCheckedChange={() => toggleStatusFilter("failed")}
-                color="text-pink-500"
-              />
-              <FilterCheckbox
-                label="Cancelled"
-                checked={statusFilters.has("cancelled")}
-                onCheckedChange={() => toggleStatusFilter("cancelled")}
-                color="text-gray-500"
-              />
-              <FilterCheckbox
-                label="Running"
-                checked={statusFilters.has("running")}
-                onCheckedChange={() => toggleStatusFilter("running")}
-                color="text-yellow-500"
-              />
+              {RUN_STATUS_FILTER.map((status) => (
+                <FilterCheckbox
+                  key={status.value}
+                  label={status.label}
+                  checked={statusFilters.has(status.value)}
+                  onCheckedChange={() => toggleStatusFilter(status.value)}
+                  color={status.color}
+                />
+              ))}
             </div>
           </div>
 
@@ -332,11 +331,13 @@ export function WorkflowDashboard({
                 >
                   <Avatar className="h-6 w-6">
                     <AvatarImage src={user.avatar} />
-                    <AvatarFallback>{user.name[0]?.toUpperCase()}</AvatarFallback>
+                    <AvatarFallback>
+                      {user.name[0]?.toUpperCase()}
+                    </AvatarFallback>
                   </Avatar>
                   <span className="flex-1 text-left truncate">{user.name}</span>
                   {selectedUsers.has(user.id) ? (
-                    <Icons.Circle className="h-4 w-4 text-primary" />
+                    <Icons.CheckCircle className="h-4 w-4 text-primary" />
                   ) : null}
                 </button>
               ))}
@@ -371,7 +372,9 @@ export function WorkflowDashboard({
               WORKFLOWS
             </h3>
             {selectedWorkflows.size === 0 ? (
-              <p className="text-xs text-muted-foreground mb-2">No workflows selected.</p>
+              <p className="text-xs text-muted-foreground mb-2">
+                No workflows selected.
+              </p>
             ) : null}
             <Input
               placeholder="Filter by name..."
@@ -405,7 +408,9 @@ export function WorkflowDashboard({
               BRANCH
             </h3>
             {selectedBranches.size === 0 ? (
-              <p className="text-xs text-muted-foreground mb-2">No branches selected.</p>
+              <p className="text-xs text-muted-foreground mb-2">
+                No branches selected.
+              </p>
             ) : null}
             <Input
               placeholder="Filter by name..."
@@ -441,7 +446,9 @@ export function WorkflowDashboard({
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">{project.name}</h1>
-              <p className="text-sm text-muted-foreground font-mono">{project.slug}</p>
+              <p className="text-sm text-muted-foreground font-mono">
+                {project.slug}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="icon" asChild>
@@ -455,7 +462,10 @@ export function WorkflowDashboard({
                 </Link>
               </Button>
               <Button variant="outline" size="icon" asChild>
-                <Link to="/projects/$projectId/ai-analyses" params={{ projectId }}>
+                <Link
+                  to="/projects/$projectId/ai-analyses"
+                  params={{ projectId }}
+                >
                   <Icons.Lightbulb className="h-4 w-4" />
                 </Link>
               </Button>
@@ -518,6 +528,7 @@ export function WorkflowDashboard({
                       <YAxis
                         yAxisId="right"
                         orientation="right"
+                        tickFormatter={(v: number) => formatDuration(v)}
                         label={{
                           value: "Duration",
                           angle: 90,
@@ -525,7 +536,16 @@ export function WorkflowDashboard({
                         }}
                       />
                       <ChartTooltip
-                        content={<ChartTooltipContent indicator="dot" />}
+                        content={
+                          <ChartTooltipContent
+                            indicator="dot"
+                            formatter={(value, name) =>
+                              name === "duration"
+                                ? formatDuration(value as number)
+                                : value
+                            }
+                          />
+                        }
                       />
                       <Bar
                         yAxisId="left"
@@ -588,7 +608,10 @@ export function WorkflowDashboard({
             </Card>
           ) : null}
 
-          {latestWorkflow && (latestWorkflow.cache || latestWorkflow.ai || latestWorkflow.container) ? (
+          {latestWorkflow &&
+          (latestWorkflow.cache ||
+            latestWorkflow.ai ||
+            latestWorkflow.container) ? (
             <WorkflowConfigBadges workflow={latestWorkflow} />
           ) : null}
 
@@ -630,10 +653,9 @@ export function WorkflowDashboard({
               {totalPages > 1 ? (
                 <div className="flex items-center justify-between mt-4">
                   <p className="text-sm text-muted-foreground">
-                    Showing {(page - 1) * perPage + 1} - {Math.min(page * perPage, total)} of
-                    {" "}
-                    {total} runs. Use the date range and other filters to narrow your
-                    search.
+                    Showing {(page - 1) * perPage + 1} -{" "}
+                    {Math.min(page * perPage, total)} of {total} runs. Use the
+                    date range and other filters to narrow your search.
                   </p>
                   <div className="flex items-center gap-2">
                     <Button
@@ -761,7 +783,11 @@ function WorkflowConfigBadges({ workflow }: { workflow: Workflow }) {
 
   if (workflow.container?.enabled) {
     const c = workflow.container;
-    const parts = [c.image, c.memory_limit ? `mem:${c.memory_limit}` : "", c.cpu_limit ? `cpu:${c.cpu_limit}` : ""]
+    const parts = [
+      c.image,
+      c.memory_limit ? `mem:${c.memory_limit}` : "",
+      c.cpu_limit ? `cpu:${c.cpu_limit}` : "",
+    ]
       .filter(Boolean)
       .join(" / ");
     badges.push(
@@ -774,9 +800,5 @@ function WorkflowConfigBadges({ workflow }: { workflow: Workflow }) {
 
   if (badges.length === 0) return null;
 
-  return (
-    <div className="flex flex-wrap gap-2">
-      {badges}
-    </div>
-  );
+  return <div className="flex flex-wrap gap-2">{badges}</div>;
 }

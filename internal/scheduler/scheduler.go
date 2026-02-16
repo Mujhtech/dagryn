@@ -406,21 +406,30 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 	s.integrationRegistry.DispatchHook(ctx, plugin.HookOnTaskStart, taskHookCtx)
 
 	// Check cache
-	cacheHit, cacheKey, _ := s.cache.Check(ctx, t)
+	cacheHit, cacheKey, cacheErr := s.cache.Check(ctx, t)
+	if cacheErr != nil {
+		slog.Warn("cache check failed, proceeding without cache",
+			"task", taskName, "key", cacheKey, "error", cacheErr)
+	}
 
 	if cacheHit {
 		// Restore from cache
-		_ = s.cache.Restore(ctx, t, cacheKey)
-		result := &executor.Result{
-			Task:      taskName,
-			Status:    executor.Cached,
-			StartTime: time.Now(),
-			EndTime:   time.Now(),
+		if err := s.cache.Restore(ctx, t, cacheKey); err != nil {
+			slog.Warn("cache restore failed, re-executing task",
+				"task", taskName, "key", cacheKey, "error", err)
+			// Fall through to execution instead of returning Cached
+		} else {
+			result := &executor.Result{
+				Task:      taskName,
+				Status:    executor.Cached,
+				StartTime: time.Now(),
+				EndTime:   time.Now(),
+			}
+			if s.onTaskComplete != nil {
+				s.onTaskComplete(taskName, result, true)
+			}
+			return &taskState{result: result, cacheKey: cacheKey, cacheHit: true}
 		}
-		if s.onTaskComplete != nil {
-			s.onTaskComplete(taskName, result, true)
-		}
-		return &taskState{result: result, cacheKey: cacheKey, cacheHit: true}
 	}
 
 	// Dry run mode
@@ -495,7 +504,9 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 
 	// Save to cache on success
 	if result.IsSuccess() && cacheKey != "" {
-		_ = s.cache.Save(ctx, t, cacheKey, result.Duration)
+		if err := s.cache.Save(ctx, t, cacheKey, result.Duration); err != nil {
+			slog.Warn("cache save failed", "task", taskName, "key", cacheKey, "error", err)
+		}
 	}
 
 	if s.onTaskComplete != nil {
@@ -588,7 +599,9 @@ func (s *Scheduler) executeCompositeTask(ctx context.Context, t *task.Task, cach
 
 		// Save to cache on success
 		if cacheKey != "" {
-			_ = s.cache.Save(ctx, t, cacheKey, duration)
+			if err := s.cache.Save(ctx, t, cacheKey, duration); err != nil {
+				slog.Warn("cache save failed", "task", t.Name, "key", cacheKey, "error", err)
+			}
 		}
 	}
 

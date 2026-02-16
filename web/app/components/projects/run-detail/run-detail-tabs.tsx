@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { type RefObject, useMemo, useState } from "react";
 import type { Artifact, TaskResult } from "~/lib/api";
 import { api } from "~/lib/api";
 import { WorkflowDag, type TaskStatusInfo } from "~/components/workflow-dag";
@@ -14,6 +14,13 @@ import { Badge } from "~/components/ui/badge";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Input } from "~/components/ui/input";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "~/components/ui/accordion";
+import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import { Icons } from "~/components/icons";
 import { cn } from "~/lib/utils";
 import {
@@ -23,6 +30,15 @@ import {
   formatDuration,
 } from "./status-ui";
 import { AIAnalysisTab } from "./ai-analysis-tab";
+import { TasksWaterfall } from "./tasks-waterfall";
+// import {
+//   Select,
+//   SelectContent,
+//   SelectGroup,
+//   SelectItem,
+//   SelectTrigger,
+//   SelectValue,
+// } from "~/components/ui/select";
 
 export interface LogLine {
   id?: number;
@@ -40,8 +56,6 @@ type RunDetailTabsProps = {
   logsLoading: boolean;
   searchQuery: string;
   setSearchQuery: (value: string) => void;
-  taskFilter: string | null;
-  setTaskFilter: (value: string | null) => void;
   isRunning: boolean;
   artifactsLoading: boolean;
   artifacts: Artifact[];
@@ -61,8 +75,6 @@ export function RunDetailTabs({
   logsLoading,
   searchQuery,
   setSearchQuery,
-  taskFilter,
-  setTaskFilter,
   isRunning,
   artifactsLoading,
   artifacts,
@@ -73,21 +85,35 @@ export function RunDetailTabs({
   logsEndRef,
   runStatus,
 }: RunDetailTabsProps) {
-  const filteredLogs = logs.filter((log) => {
-    if (taskFilter && log.task_name !== taskFilter) return false;
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return (
-        log.line.toLowerCase().includes(query) ||
-        log.task_name?.toLowerCase().includes(query)
-      );
-    }
-    return true;
-  });
-
-  const uniqueTasks = Array.from(
-    new Set(logs.map((log) => log.task_name).filter(Boolean)),
+  const [tasksView, setTasksView] = useState<"table" | "canvas" | "waterfall">(
+    "table",
   );
+
+  const filteredLogs = useMemo(() => {
+    if (!searchQuery) return logs;
+    const query = searchQuery.toLowerCase();
+    return logs.filter(
+      (log) =>
+        log.line.toLowerCase().includes(query) ||
+        log.task_name?.toLowerCase().includes(query),
+    );
+  }, [logs, searchQuery]);
+
+  const groupedLogs = useMemo(() => {
+    const groups = new Map<string, LogLine[]>();
+    for (const log of filteredLogs) {
+      const key = log.task_name || "__system__";
+      const list = groups.get(key) || [];
+      list.push(log);
+      groups.set(key, list);
+    }
+    return groups;
+  }, [filteredLogs]);
+
+  const expandedGroups = useMemo(() => {
+    if (searchQuery) return Array.from(groupedLogs.keys());
+    return [];
+  }, [searchQuery, groupedLogs]);
 
   const handleDownloadLogs = () => {
     const content = logs
@@ -127,21 +153,16 @@ export function RunDetailTabs({
           <Icons.HardDrive className="h-4 w-4" />
           Artifacts ({artifacts.length})
         </TabsTrigger>
-        {workflow ? (
-          <TabsTrigger value="dag" className="gap-2">
-            <Icons.Network className="h-4 w-4" />
-            DAG
-          </TabsTrigger>
-        ) : null}
         <TabsTrigger value="ai" className="gap-2">
           <Icons.Lightbulb className="h-4 w-4" />
           AI
         </TabsTrigger>
       </TabsList>
 
+      {/* Logs Tab - Accordion by task */}
       <TabsContent value="logs">
-        <Card className="bg-zinc-950">
-          <CardHeader className="border-b border-zinc-800 py-3">
+        <Card className="bg-zinc-950 px-0 py-0 gap-0">
+          <CardHeader className="border-b border-zinc-800 pt-3 px-4 gap-0 [.border-b]:pb-3">
             <div className="flex items-center justify-between gap-4">
               <CardTitle className="text-sm text-zinc-400">Output</CardTitle>
               <div className="flex items-center gap-2 flex-1 max-w-xl">
@@ -154,25 +175,26 @@ export function RunDetailTabs({
                     className="pl-8 h-8 bg-zinc-900 border-zinc-700 text-sm"
                   />
                 </div>
-                {uniqueTasks.length > 0 ? (
-                  <select
-                    value={taskFilter || ""}
-                    onChange={(event) => setTaskFilter(event.target.value || null)}
-                    className="h-8 px-2 text-sm bg-zinc-900 border border-zinc-700 rounded-none text-zinc-300"
-                  >
-                    <option value="">All tasks</option>
-                    {uniqueTasks.map((task) => (
-                      <option key={task} value={task || ""}>
-                        {task}
-                      </option>
-                    ))}
-                  </select>
-                ) : null}
+                {/* <Select>
+                  <SelectTrigger className="w-45">
+                    <SelectValue placeholder="Theme" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="light">Light</SelectItem>
+                      <SelectItem value="dark">Dark</SelectItem>
+                      <SelectItem value="system">System</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select> */}
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-zinc-500">
                   {filteredLogs.length}
-                  {filteredLogs.length !== logs.length ? ` / ${logs.length}` : ""} lines
+                  {filteredLogs.length !== logs.length
+                    ? ` / ${logs.length}`
+                    : ""}{" "}
+                  lines
                 </span>
                 <Button
                   variant="ghost"
@@ -193,34 +215,70 @@ export function RunDetailTabs({
                   <Icons.Loader className="h-5 w-5 animate-spin mr-2" />
                   Loading logs...
                 </div>
-              ) : filteredLogs.length === 0 ? (
+              ) : groupedLogs.size === 0 ? (
                 <div className="flex items-center justify-center h-32 text-zinc-500">
-                  {searchQuery || taskFilter
+                  {searchQuery
                     ? "No matching logs"
                     : isRunning
                       ? "Waiting for output..."
                       : "No output"}
                 </div>
               ) : (
-                filteredLogs.map((log, index) => (
-                  <div
-                    key={log.id || index}
-                    className={cn(
-                      "flex gap-2 hover:bg-zinc-900/50 px-2 -mx-2 rounded",
-                      log.stream === "stderr" && "text-red-400",
-                    )}
-                  >
-                    <span className="select-none text-zinc-600 w-10 text-right shrink-0">
-                      {log.line_num}
-                    </span>
-                    {log.task_name ? (
-                      <span className="text-zinc-500 shrink-0">[{log.task_name}]</span>
-                    ) : null}
-                    <span className="text-zinc-200 whitespace-pre-wrap break-all">
-                      {log.line}
-                    </span>
-                  </div>
-                ))
+                <Accordion
+                  type="multiple"
+                  defaultValue={expandedGroups}
+                  key={searchQuery}
+                >
+                  {Array.from(groupedLogs.entries()).map(
+                    ([groupKey, groupLogs]) => {
+                      const displayName =
+                        groupKey === "__system__" ? "System" : groupKey;
+                      const taskStatus = taskStatusMap.get(groupKey);
+
+                      return (
+                        <AccordionItem
+                          key={groupKey}
+                          value={groupKey}
+                          className="border-zinc-800"
+                        >
+                          <AccordionTrigger className="text-zinc-300 hover:no-underline py-2 px-2">
+                            <div className="flex items-center gap-2">
+                              {taskStatus ? (
+                                <TaskStatusIcon status={taskStatus.status} />
+                              ) : (
+                                <Icons.Terminal className="h-4 w-4 text-zinc-500" />
+                              )}
+                              <span className="font-medium">{displayName}</span>
+                              <span className="text-xs text-zinc-500">
+                                ({groupLogs.length} lines)
+                              </span>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="pb-0">
+                            <div className="pl-2">
+                              {groupLogs.map((log, index) => (
+                                <div
+                                  key={log.id || index}
+                                  className={cn(
+                                    "flex gap-2 hover:bg-zinc-900/50 px-2 -mx-2 rounded",
+                                    log.stream === "stderr" && "text-red-400",
+                                  )}
+                                >
+                                  <span className="select-none text-zinc-600 w-10 text-right shrink-0">
+                                    {log.line_num}
+                                  </span>
+                                  <span className="text-zinc-200 whitespace-pre-wrap break-all">
+                                    {log.line}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      );
+                    },
+                  )}
+                </Accordion>
               )}
               <div ref={logsEndRef} />
             </div>
@@ -228,13 +286,48 @@ export function RunDetailTabs({
         </Card>
       </TabsContent>
 
+      {/* Tasks Tab - Canvas / Table / Waterfall views */}
       <TabsContent value="tasks">
-        <Card>
-          <CardContent className="py-6">
+        <Card className="py-0 gap-0">
+          <CardContent className="py-4 px-4">
+            <div className="flex items-center justify-between mb-4">
+              <ToggleGroup
+                type="single"
+                value={tasksView}
+                onValueChange={(v) => v && setTasksView(v as typeof tasksView)}
+                variant="outline"
+                className="rounded-none"
+                size="sm"
+              >
+                <ToggleGroupItem value="canvas">
+                  <Icons.Network className="h-3.5 w-3.5 mr-1" />
+                  Canvas
+                </ToggleGroupItem>
+                <ToggleGroupItem value="table">
+                  <Icons.ListDetails className="h-3.5 w-3.5 mr-1" />
+                  Table
+                </ToggleGroupItem>
+                <ToggleGroupItem value="waterfall">
+                  <Icons.GripVertical className="h-3.5 w-3.5 mr-1" />
+                  Waterfall
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+
             {tasks.length === 0 ? (
               <div className="flex items-center justify-center h-32 text-muted-foreground">
                 No tasks yet
               </div>
+            ) : tasksView === "canvas" ? (
+              workflow ? (
+                <WorkflowDag workflow={workflow} taskStatuses={taskStatusMap} />
+              ) : (
+                <div className="flex items-center justify-center h-32 text-muted-foreground">
+                  No workflow data
+                </div>
+              )
+            ) : tasksView === "waterfall" ? (
+              <TasksWaterfall tasks={tasks} />
             ) : (
               <div className="space-y-2">
                 {tasks.map((task) => (
@@ -273,13 +366,13 @@ export function RunDetailTabs({
 
       <TabsContent value="artifacts">
         <Card>
-          <CardHeader>
+          <CardHeader className="px-4">
             <CardTitle>Artifacts</CardTitle>
             <CardDescription>
               Files captured from task outputs for this run.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4">
             {artifactsLoading ? (
               <div className="flex items-center justify-center h-32 text-muted-foreground">
                 <Icons.Loader className="h-5 w-5 animate-spin mr-2" />
@@ -300,13 +393,17 @@ export function RunDetailTabs({
                       <div className="flex items-center gap-2">
                         <p className="font-medium truncate">{artifact.name}</p>
                         {artifact.task_name ? (
-                          <Badge variant="secondary">{artifact.task_name}</Badge>
+                          <Badge variant="secondary">
+                            {artifact.task_name}
+                          </Badge>
                         ) : null}
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span>{artifact.file_name}</span>
                         <span>{formatBytes(artifact.size_bytes)}</span>
-                        <span>{new Date(artifact.created_at).toLocaleString()}</span>
+                        <span>
+                          {new Date(artifact.created_at).toLocaleString()}
+                        </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -335,16 +432,6 @@ export function RunDetailTabs({
           </CardContent>
         </Card>
       </TabsContent>
-
-      {workflow ? (
-        <TabsContent value="dag">
-          <Card>
-            <CardContent className="py-6">
-              <WorkflowDag workflow={workflow} taskStatuses={taskStatusMap} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-      ) : null}
 
       <TabsContent value="ai">
         <AIAnalysisTab

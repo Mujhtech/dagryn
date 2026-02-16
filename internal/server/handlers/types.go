@@ -296,6 +296,9 @@ type RunResponse struct {
 	CommitMessage     string        `json:"commit_message,omitempty" example:"fix: resolve authentication issue"`
 	CommitAuthorName  string        `json:"commit_author_name,omitempty" example:"John Doe"`
 	CommitAuthorEmail string        `json:"commit_author_email,omitempty" example:"john@example.com"`
+	HostOS            string        `json:"host_os,omitempty" example:"darwin"`
+	HostArch          string        `json:"host_arch,omitempty" example:"arm64"`
+	HostName          string        `json:"host_name,omitempty" example:"macbook-pro.local"`
 	TriggeredByUser   *UserResponse `json:"triggered_by_user,omitempty"` // User who triggered (for local/API runs)
 	StartedAt         *time.Time    `json:"started_at,omitempty" example:"2024-01-15T10:30:00Z"`
 	FinishedAt        *time.Time    `json:"finished_at,omitempty" example:"2024-01-15T10:35:00Z"`
@@ -328,7 +331,10 @@ type TriggerRunRequest struct {
 	Force     bool     `json:"force,omitempty" example:"false"`
 	// SyncOnly when true creates a run record for status tracking without triggering remote execution.
 	// Use this when the CLI is executing locally and only needs to sync status to the server.
-	SyncOnly bool `json:"sync_only,omitempty" example:"false"`
+	SyncOnly bool   `json:"sync_only,omitempty" example:"false"`
+	HostOS   string `json:"host_os,omitempty" example:"darwin"`
+	HostArch string `json:"host_arch,omitempty" example:"arm64"`
+	HostName string `json:"host_name,omitempty" example:"macbook-pro.local"`
 }
 
 // TriggerRunResponse represents the response after triggering a run.
@@ -421,13 +427,15 @@ type UpdateRunStatusRequest struct {
 // UpdateTaskStatusRequest represents a request to update task status.
 // @Description Update task status request
 type UpdateTaskStatusRequest struct {
-	Status     string `json:"status" example:"running"`
-	ExitCode   *int   `json:"exit_code,omitempty" example:"0"`
-	DurationMs *int64 `json:"duration_ms,omitempty" example:"5000"`
-	CacheHit   bool   `json:"cache_hit,omitempty" example:"false"`
-	CacheKey   string `json:"cache_key,omitempty" example:"task-abc123"`
-	Output     string `json:"output,omitempty" example:"Build successful"`
-	Error      string `json:"error,omitempty" example:"Command failed"`
+	Status     string     `json:"status" example:"running"`
+	ExitCode   *int       `json:"exit_code,omitempty" example:"0"`
+	DurationMs *int64     `json:"duration_ms,omitempty" example:"5000"`
+	CacheHit   bool       `json:"cache_hit,omitempty" example:"false"`
+	CacheKey   string     `json:"cache_key,omitempty" example:"task-abc123"`
+	Output     string     `json:"output,omitempty" example:"Build successful"`
+	Error      string     `json:"error,omitempty" example:"Command failed"`
+	StartedAt  *time.Time `json:"started_at,omitempty"`
+	FinishedAt *time.Time `json:"finished_at,omitempty"`
 }
 
 // CreateTaskRequest represents a request to create a task result.

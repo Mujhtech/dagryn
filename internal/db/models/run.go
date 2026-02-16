@@ -31,6 +31,9 @@ type Run struct {
 	CommitAuthorEmail  *string       `json:"commit_author_email,omitempty" db:"commit_author_email"`
 	GitHubPRCommentID  *int64        `json:"github_pr_comment_id,omitempty" db:"github_pr_comment_id"`
 	GitHubCheckRunID   *int64        `json:"github_check_run_id,omitempty" db:"github_check_run_id"`
+	HostOS             *string       `json:"host_os,omitempty" db:"host_os"`
+	HostArch           *string       `json:"host_arch,omitempty" db:"host_arch"`
+	HostName           *string       `json:"host_name,omitempty" db:"host_name"`
 	StartedAt          *time.Time    `json:"started_at,omitempty" db:"started_at"`
 	FinishedAt         *time.Time    `json:"finished_at,omitempty" db:"finished_at"`
 	LastHeartbeatAt    *time.Time    `json:"last_heartbeat_at,omitempty" db:"last_heartbeat_at"`

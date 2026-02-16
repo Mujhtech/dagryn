@@ -132,4 +132,5 @@ export const Icons = {
   ShieldCheck: ShieldCheckIcon,
   Cloud: CloudIcon,
   Box: CubeIcon,
+  Monitor: MonitorIcon,
 };

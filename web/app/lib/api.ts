@@ -145,6 +145,9 @@ export interface Run {
   commit_message?: string;
   commit_author_name?: string;
   commit_author_email?: string;
+  host_os?: string;
+  host_arch?: string;
+  host_name?: string;
   triggered_by_user?: {
     id: string;
     email: string;
@@ -1253,9 +1256,12 @@ class ApiClient {
   }
 
   async retryAIAnalysis(projectId: string, runId: string) {
-    return this.fetch(`/projects/${projectId}/runs/${runId}/ai-analysis/retry`, {
-      method: "POST",
-    });
+    return this.fetch(
+      `/projects/${projectId}/runs/${runId}/ai-analysis/retry`,
+      {
+        method: "POST",
+      },
+    );
   }
 
   async getAISuggestions(projectId: string, runId: string) {
@@ -1325,11 +1331,7 @@ class ApiClient {
     );
   }
 
-  async getRegistryPluginAnalytics(
-    publisher: string,
-    name: string,
-    days = 30,
-  ) {
+  async getRegistryPluginAnalytics(publisher: string, name: string, days = 30) {
     return this.fetch<PluginAnalytics>(
       `/registry/plugins/${publisher}/${name}/analytics?days=${days}`,
     );
@@ -1363,13 +1365,10 @@ class ApiClient {
       release_notes?: string;
     },
   ) {
-    return this.fetch(
-      `/registry/plugins/${publisher}/${name}/versions`,
-      {
-        method: "POST",
-        body: JSON.stringify(data),
-      },
-    );
+    return this.fetch(`/registry/plugins/${publisher}/${name}/versions`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   }
 
   async installProjectPlugin(projectId: string, spec: string) {
