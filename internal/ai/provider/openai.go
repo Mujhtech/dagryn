@@ -105,7 +105,16 @@ func (p *OpenAIProvider) AnalyzeFailure(ctx context.Context, input aitypes.Analy
 
 // mapSDKError classifies an SDK error into the appropriate aitypes error.
 func mapSDKError(ctx context.Context, err error) error {
+	// Check parent context first (caller-side cancellation or deadline).
 	if ctx.Err() != nil {
+		return aitypes.ErrProviderTimeout
+	}
+
+	// The SDK's per-request timeout (WithRequestTimeout) creates its own
+	// context, so ctx.Err() is nil while the underlying error is still a
+	// deadline/cancellation. Detect this before falling through to the
+	// generic "unavailable" bucket.
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return aitypes.ErrProviderTimeout
 	}
 

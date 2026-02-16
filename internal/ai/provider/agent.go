@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -97,7 +98,7 @@ func (a *AgentAdapter) AnalyzeFailure(ctx context.Context, input aitypes.Analysi
 
 	resp, err := a.httpClient.Do(req)
 	if err != nil {
-		if ctx.Err() != nil {
+		if ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 			return nil, aitypes.ErrProviderTimeout
 		}
 		return nil, fmt.Errorf("%w: %v", aitypes.ErrProviderUnavailable, err)
