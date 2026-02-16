@@ -74,6 +74,7 @@ export const queryKeys = {
     ["projectAIAnalyses", projectId, offset ?? 0] as const,
   aiSuggestions: (projectId: string, runId: string) =>
     ["aiSuggestions", projectId, runId] as const,
+  dashboardOverview: ["dashboardOverview"] as const,
   billingPlans: ["billingPlans"] as const,
   billingPlan: (slug: string) => ["billingPlan", slug] as const,
   billingOverview: ["billingOverview"] as const,

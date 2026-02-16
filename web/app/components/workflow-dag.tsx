@@ -249,7 +249,10 @@ export function WorkflowDag({
             orient="auto"
             markerUnits="userSpaceOnUse"
           >
-            <path d="M 0 0 L 8 4 L 0 8 Z" className="fill-muted-foreground/60" />
+            <path
+              d="M 0 0 L 8 4 L 0 8 Z"
+              className="fill-muted-foreground/60"
+            />
           </marker>
           <marker
             id="arrowhead-active"
@@ -376,7 +379,10 @@ export function WorkflowDag({
           });
 
           return (
-            <div key={levelIndex} className="flex flex-wrap gap-6 justify-center items-stretch">
+            <div
+              key={levelIndex}
+              className="flex flex-wrap gap-6 justify-center items-stretch"
+            >
               {/* Render grouped tasks in containers */}
               {Array.from(grouped.entries()).map(([groupName, nodes]) => (
                 <div
@@ -434,7 +440,7 @@ function TriggerInfo({
   if (parts.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-2 px-6 pt-4 pb-0 text-xs text-muted-foreground">
+    <div className="flex items-center gap-2 pt-4 pb-0 text-xs text-muted-foreground">
       <span className="font-medium">Triggers:</span>
       {parts.map((part, i) => (
         <span key={i} className="bg-muted px-2 py-0.5 rounded-none">
@@ -464,7 +470,9 @@ function ConfigInfo({ workflow }: { workflow: Workflow }) {
   if (workflow.container?.enabled) {
     const parts = [
       workflow.container.image,
-      workflow.container.memory_limit ? `mem:${workflow.container.memory_limit}` : "",
+      workflow.container.memory_limit
+        ? `mem:${workflow.container.memory_limit}`
+        : "",
       workflow.container.cpu_limit ? `cpu:${workflow.container.cpu_limit}` : "",
     ]
       .filter(Boolean)
@@ -475,7 +483,7 @@ function ConfigInfo({ workflow }: { workflow: Workflow }) {
   if (badges.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-2 px-6 pt-2 pb-0 text-xs text-muted-foreground flex-wrap">
+    <div className="flex items-center gap-2 pt-2 pb-0 text-xs text-muted-foreground flex-wrap">
       <span className="font-medium">Config:</span>
       {badges.map((badge, i) => (
         <span key={i} className="bg-muted px-2 py-0.5 rounded-none">

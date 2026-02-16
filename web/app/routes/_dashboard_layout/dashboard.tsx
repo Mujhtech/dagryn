@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAuth } from "~/lib/auth";
-import { useProjects } from "~/hooks/queries";
+import { useDashboardOverview } from "~/hooks/queries";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Icons } from "~/components/icons";
@@ -15,11 +15,10 @@ export const Route = createFileRoute("/_dashboard_layout/dashboard")({
 
 function IndexPage() {
   const { isAuthenticated } = useAuth();
-  const { data: projectsData, isLoading: projectsLoading } =
-    useProjects(isAuthenticated);
+  const { data: overview, isLoading } = useDashboardOverview(isAuthenticated);
   const [copiedStep, setCopiedStep] = useState<number | null>(null);
 
-  if (projectsLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Icons.Loader className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -66,7 +65,8 @@ function IndexPage() {
     },
   };
 
-  const projects = projectsData?.data ?? [];
+  const projects = overview?.projects ?? [];
+  const recentRuns = overview?.recent_runs ?? [];
 
   const recentProjects = [...projects]
     .sort(
@@ -112,7 +112,7 @@ function IndexPage() {
             {/* Left: Usage + Recent Runs */}
             <div className="w-full lg:w-85 space-y-6 shrink-0">
               <UsageSummaryCard />
-              <RecentRunsSection projects={projects} />
+              <RecentRunsSection runs={recentRuns} />
             </div>
             {/* Right: Projects grid */}
             <div className="flex-1 min-w-0">

@@ -12,9 +12,10 @@ import (
 	"github.com/mujhtech/dagryn/internal/cache"
 )
 
-// createArchive builds a tar.gz archive from files matching the output patterns
-// rooted at projectRoot.
-func createArchive(projectRoot string, outputPatterns []string) (*os.File, error) {
+// CreateArchive builds a tar.gz archive from files matching the output patterns
+// rooted at projectRoot. Files whose relative paths fall under any of skipDirs
+// are excluded from the archive.
+func CreateArchive(projectRoot string, outputPatterns []string, skipDirs []string) (*os.File, error) {
 	tmp, err := os.CreateTemp("", "dagryn-cache-*.tar.gz")
 	if err != nil {
 		return nil, fmt.Errorf("create temp file: %w", err)
@@ -30,11 +31,16 @@ func createArchive(projectRoot string, outputPatterns []string) (*os.File, error
 		return nil, fmt.Errorf("resolve output patterns: %w", err)
 	}
 	for _, absPath := range files {
+		relPath, _ := filepath.Rel(projectRoot, absPath)
+		if shouldSkip(relPath, skipDirs) {
+			continue
+		}
+
 		info, err := os.Stat(absPath)
 		if err != nil {
 			continue
 		}
-		if err := addFileToTar(tw, projectRoot, absPath, info); err != nil {
+		if err := AddFileToTar(tw, projectRoot, absPath, info); err != nil {
 			continue
 		}
 	}
@@ -60,7 +66,8 @@ func createArchive(projectRoot string, outputPatterns []string) (*os.File, error
 	return tmp, nil
 }
 
-func addFileToTar(tw *tar.Writer, projectRoot, absPath string, info os.FileInfo) error {
+// AddFileToTar adds a single file to a tar writer using a path relative to projectRoot.
+func AddFileToTar(tw *tar.Writer, projectRoot, absPath string, info os.FileInfo) error {
 	relPath, err := filepath.Rel(projectRoot, absPath)
 	if err != nil {
 		return err
@@ -86,9 +93,9 @@ func addFileToTar(tw *tar.Writer, projectRoot, absPath string, info os.FileInfo)
 	return err
 }
 
-// extractArchive reads a tar.gz stream and writes files to projectRoot.
+// ExtractArchive reads a tar.gz stream and writes files to projectRoot.
 // It validates paths to prevent directory traversal.
-func extractArchive(projectRoot string, r io.Reader) error {
+func ExtractArchive(projectRoot string, r io.Reader) error {
 	gr, err := gzip.NewReader(r)
 	if err != nil {
 		return fmt.Errorf("open gzip reader: %w", err)
@@ -139,4 +146,18 @@ func extractArchive(projectRoot string, r io.Reader) error {
 	}
 
 	return nil
+}
+
+// shouldSkip returns true if relPath falls inside any of the given skip directories.
+func shouldSkip(relPath string, skipDirs []string) bool {
+	for _, dir := range skipDirs {
+		if relPath == dir || strings.HasPrefix(relPath, dir+string(filepath.Separator)) {
+			return true
+		}
+		nested := string(filepath.Separator) + dir + string(filepath.Separator)
+		if strings.Contains(relPath, nested) {
+			return true
+		}
+	}
+	return false
 }

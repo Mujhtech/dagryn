@@ -394,6 +394,51 @@ type RunDashboardSummaryResponse struct {
 	StatusCounts map[string]int                   `json:"status_counts"`
 }
 
+// --- Dashboard Overview types ---
+
+// DashboardOverviewResponse contains the full dashboard overview payload.
+// @Description Dashboard overview response
+type DashboardOverviewResponse struct {
+	Projects   []DashboardProjectResponse `json:"projects"`
+	RecentRuns []DashboardRunResponse     `json:"recent_runs"`
+}
+
+// DashboardProjectResponse represents a project with inline stats in the dashboard overview.
+// @Description Dashboard project with inline stats
+type DashboardProjectResponse struct {
+	ID            uuid.UUID                        `json:"id"`
+	Name          string                           `json:"name"`
+	Slug          string                           `json:"slug"`
+	Visibility    string                           `json:"visibility"`
+	RepoURL       string                           `json:"repo_url,omitempty"`
+	MemberCount   int                              `json:"member_count"`
+	UpdatedAt     time.Time                        `json:"updated_at"`
+	CreatedAt     time.Time                        `json:"created_at"`
+	Chart         []RunDashboardChartPointResponse `json:"chart"`
+	LatestRun     *DashboardRunResponse            `json:"latest_run,omitempty"`
+	TotalRuns7d   int                              `json:"total_runs_7d"`
+	SuccessRuns7d int                              `json:"success_runs_7d"`
+	FailedRuns7d  int                              `json:"failed_runs_7d"`
+	AvgDurationMs int64                            `json:"avg_duration_ms"`
+	TopBranch     string                           `json:"top_branch,omitempty"`
+}
+
+// DashboardRunResponse represents a run in the dashboard overview.
+// @Description Dashboard run entry
+type DashboardRunResponse struct {
+	ID               uuid.UUID     `json:"id"`
+	ProjectID        uuid.UUID     `json:"project_id"`
+	ProjectName      string        `json:"project_name"`
+	WorkflowName     string        `json:"workflow_name"`
+	Status           string        `json:"status"`
+	TriggerRef       string        `json:"trigger_ref,omitempty"`
+	CommitSHA        string        `json:"commit_sha,omitempty"`
+	CommitAuthorName string        `json:"commit_author_name,omitempty"`
+	TriggeredByUser  *UserResponse `json:"triggered_by_user,omitempty"`
+	DurationMs       *int64        `json:"duration_ms,omitempty"`
+	CreatedAt        time.Time     `json:"created_at"`
+}
+
 // --- Artifact types ---
 
 // ArtifactResponse represents a stored artifact.

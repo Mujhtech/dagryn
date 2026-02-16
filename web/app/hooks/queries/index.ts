@@ -25,6 +25,7 @@ export { useCacheAnalytics } from "./use-cache-analytics";
 export { useRegistryPlugins, useFeaturedPlugins, useTrendingPlugins } from "./use-registry-plugins";
 export { useRegistryPluginDetail, useRegistryPluginVersions } from "./use-registry-plugin-detail";
 export { usePluginAnalytics } from "./use-plugin-analytics";
+export { useDashboardOverview } from "./use-dashboard-overview";
 export { useBillingPlans, useBillingPlan, useBillingOverview, useBillingInvoices } from "./use-billing";
 export { useRunAIAnalysis, useProjectAIAnalyses } from "./use-ai-analysis";
 export { useAISuggestions } from "./use-ai-suggestions";

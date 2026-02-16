@@ -765,20 +765,16 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		}
 	}()
 
+	// Run tasks — returns as soon as all tasks finish; cache saves may still
+	// be running in the background.
 	summary, err := sched.Run(ctx, targets)
 	flushLogs()
 
-	// Collect artifacts from completed tasks before handling failures.
-	// collectArtifacts filters internally to only Success/Cached tasks, so it's
-	// safe to call even when some tasks failed. Uses background context since
-	// the parent ctx may be cancelled.
-	if h.artifactService != nil && summary != nil && len(summary.Results) > 0 {
-		artifactCtx, artifactCancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		h.collectArtifacts(artifactCtx, projectID, runID, workflow, summary, workDir)
-		artifactCancel()
-	}
+	// Report run status first so users see the final state immediately via
+	// SSE/DB. Artifact collection and cache save completion happen after.
 
 	if ctx.Err() == context.Canceled {
+		sched.WaitCacheSaves()
 		h.markRunCancelled(runID, projectID, project, "Cancelled by user")
 		return nil
 	}
@@ -789,6 +785,7 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		h.eventPublisher.PublishRunEvent(ctx, sse.EventRunFailed, runID, projectID, string(models.RunStatusFailed), msg)
 		h.notifyGitHub(ctx, run, project, models.RunStatusFailed)
 		h.enqueueAIAnalysis(run, projectID, payload.GitBranch, payload.GitCommit, targets, cfg.AI)
+		sched.WaitCacheSaves()
 		return err
 	}
 
@@ -800,12 +797,25 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		h.eventPublisher.PublishRunEvent(ctx, sse.EventRunFailed, runID, projectID, string(models.RunStatusFailed), msg)
 		h.notifyGitHub(ctx, run, project, models.RunStatusFailed)
 		h.enqueueAIAnalysis(run, projectID, payload.GitBranch, payload.GitCommit, targets, cfg.AI)
-		return nil
+	} else {
+		_ = h.runs.Complete(ctx, runID, models.RunStatusSuccess, nil)
+		h.eventPublisher.PublishRunEvent(ctx, sse.EventRunCompleted, runID, projectID, string(models.RunStatusSuccess), "")
+		h.notifyGitHub(ctx, run, project, models.RunStatusSuccess)
 	}
 
-	_ = h.runs.Complete(ctx, runID, models.RunStatusSuccess, nil)
-	h.eventPublisher.PublishRunEvent(ctx, sse.EventRunCompleted, runID, projectID, string(models.RunStatusSuccess), "")
-	h.notifyGitHub(ctx, run, project, models.RunStatusSuccess)
+	// Wait for background cache saves to complete before artifact collection
+	// and handler exit (context must stay alive for remote uploads).
+	sched.WaitCacheSaves()
+
+	// Collect artifacts after status reporting. Uses background context since
+	// the parent ctx may be cancelled. collectArtifacts filters internally to
+	// only Success/Cached tasks, so it's safe to call even when some tasks failed.
+	if h.artifactService != nil && summary != nil && len(summary.Results) > 0 {
+		artifactCtx, artifactCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		h.collectArtifacts(artifactCtx, projectID, runID, workflow, summary, workDir)
+		artifactCancel()
+	}
+
 	return nil
 }
 
@@ -1010,17 +1020,15 @@ func (h *ExecuteRunHandler) collectArtifacts(ctx context.Context, projectID, run
 			}
 		}
 
+		// Resolve output patterns and filter skip paths.
 		resolved, err := cache.ResolveFilePatterns(workDir, outputs)
 		if err != nil {
 			slog.Warn("execute_run: resolve artifact patterns failed", "run_id", runID, "task", tsk.Name, "error", err)
 			continue
 		}
-		for _, path := range resolved {
-			info, err := os.Stat(path)
-			if err != nil {
-				continue
-			}
 
+		var filtered []string
+		for _, path := range resolved {
 			relPath, err := filepath.Rel(workDir, path)
 			if err != nil {
 				continue
@@ -1028,16 +1036,67 @@ func (h *ExecuteRunHandler) collectArtifacts(ctx context.Context, projectID, run
 			if isArtifactSkipPath(relPath) {
 				continue
 			}
+			filtered = append(filtered, path)
+		}
+
+		if len(filtered) == 0 {
+			continue
+		}
+
+		if len(filtered) == 1 {
+			// Single file — upload directly (existing behavior).
+			path := filtered[0]
+			info, err := os.Stat(path)
+			if err != nil {
+				continue
+			}
+			relPath, _ := filepath.Rel(workDir, path)
 			fileName := filepath.Base(relPath)
 			f, err := os.Open(path)
 			if err != nil {
 				continue
 			}
-			_, err = h.artifactService.Upload(ctx, projectID, runID, tsk.Name, relPath, fileName, f, info.Size(), 0, "")
+			_, err = h.artifactService.Upload(ctx, projectID, runID, tsk.Name, relPath, fileName, f, info.Size(), 0, "", nil)
 			_ = f.Close()
 			if err != nil {
 				slog.Warn("execute_run: artifact upload failed", "run_id", runID, "task", tsk.Name, "file", relPath, "error", err)
 			}
+			continue
+		}
+
+		// 2+ files — bundle into a single tar.gz archive.
+		// Build relative patterns that cloud.CreateArchive can resolve.
+		var relPatterns []string
+		for _, path := range filtered {
+			relPath, _ := filepath.Rel(workDir, path)
+			relPatterns = append(relPatterns, relPath)
+		}
+
+		archive, err := cloud.CreateArchive(workDir, relPatterns, artifactSkipDirs)
+		if err != nil {
+			slog.Warn("execute_run: artifact archive failed", "run_id", runID, "task", tsk.Name, "error", err)
+			continue
+		}
+
+		info, err := archive.Stat()
+		if err != nil {
+			_ = archive.Close()
+			_ = os.Remove(archive.Name())
+			continue
+		}
+
+		archiveMeta, _ := json.Marshal(map[string]interface{}{
+			"archive":    true,
+			"file_count": len(filtered),
+		})
+
+		artifactName := tsk.Name + " outputs"
+		archiveFileName := tsk.Name + "-outputs.tar.gz"
+		_, err = h.artifactService.Upload(ctx, projectID, runID, tsk.Name, artifactName, archiveFileName, archive, info.Size(), 0, "application/gzip", archiveMeta)
+		_ = archive.Close()
+		_ = os.Remove(archive.Name())
+		if err != nil {
+			slog.Warn("execute_run: artifact archive upload failed", "run_id", runID, "task", tsk.Name, "error", err)
 		}
 	}
 }

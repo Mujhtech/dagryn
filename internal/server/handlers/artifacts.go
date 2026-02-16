@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -216,11 +217,22 @@ func (h *Handler) UploadArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 
 	contentType := fileHeader.Header.Get("Content-Type")
+	if ct := r.FormValue("content_type"); ct != "" {
+		contentType = ct
+	}
 	if !isAllowedContentType(contentType) {
 		_ = response.BadRequest(w, r, errors.New("unsupported content type"))
 		return
 	}
-	artifact, err := h.artifactService.Upload(ctx, projectID, runID, taskName, name, filepath.Base(fileHeader.Filename), file, fileHeader.Size, ttl, contentType)
+
+	var extraMetadata json.RawMessage
+	if metaStr := r.FormValue("metadata"); metaStr != "" {
+		if json.Valid([]byte(metaStr)) {
+			extraMetadata = json.RawMessage(metaStr)
+		}
+	}
+
+	artifact, err := h.artifactService.Upload(ctx, projectID, runID, taskName, name, filepath.Base(fileHeader.Filename), file, fileHeader.Size, ttl, contentType, extraMetadata)
 	if err != nil {
 		if service.IsQuotaExceeded(err) {
 			_ = response.PaymentRequired(w, r, err)

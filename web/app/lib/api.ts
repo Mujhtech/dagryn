@@ -567,6 +567,49 @@ export interface AISuggestionsResponse {
   analysis_id: string;
 }
 
+// Dashboard Overview types
+export interface DashboardOverview {
+  projects: DashboardProject[];
+  recent_runs: DashboardRun[];
+}
+
+export interface DashboardProject {
+  id: string;
+  name: string;
+  slug: string;
+  visibility: string;
+  repo_url?: string;
+  member_count: number;
+  updated_at: string;
+  created_at: string;
+  chart: RunDashboardChartPoint[];
+  latest_run?: DashboardRun;
+  total_runs_7d: number;
+  success_runs_7d: number;
+  failed_runs_7d: number;
+  avg_duration_ms: number;
+  top_branch?: string;
+}
+
+export interface DashboardRun {
+  id: string;
+  project_id: string;
+  project_name: string;
+  workflow_name: string;
+  status: RunStatus;
+  trigger_ref?: string;
+  commit_sha?: string;
+  commit_author_name?: string;
+  triggered_by_user?: {
+    id: string;
+    email: string;
+    name: string;
+    avatar_url?: string;
+  };
+  duration_ms?: number;
+  created_at: string;
+}
+
 // Billing types
 export interface BillingPlan {
   id: string;
@@ -678,6 +721,7 @@ export class ApiError extends Error {
 
 class ApiClient {
   private token: string | null = null;
+  private refreshPromise: Promise<TokenResponse> | null = null;
 
   constructor() {
     // Load token from localStorage on init
@@ -708,7 +752,7 @@ class ApiClient {
     }
   }
 
-  private async fetch<T>(
+  private async fetchInternal<T>(
     path: string,
     options: RequestInit = {},
   ): Promise<{
@@ -750,7 +794,29 @@ class ApiClient {
     };
   }
 
-  private async fetchBlob(
+  private async fetch<T>(
+    path: string,
+    options: RequestInit = {},
+  ): Promise<{
+    data: T;
+    message?: string;
+  }> {
+    try {
+      return await this.fetchInternal<T>(path, options);
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.status === 401 &&
+        this.hasRefreshToken()
+      ) {
+        await this.refreshTokenInternal();
+        return this.fetchInternal<T>(path, options);
+      }
+      throw error;
+    }
+  }
+
+  private async fetchBlobInternal(
     path: string,
   ): Promise<{ blob: Blob; filename?: string; contentType?: string }> {
     const headers: HeadersInit = {};
@@ -779,6 +845,24 @@ class ApiClient {
     const filename = filenameMatch ? filenameMatch[1] : undefined;
     const blob = await response.blob();
     return { blob, filename, contentType };
+  }
+
+  private async fetchBlob(
+    path: string,
+  ): Promise<{ blob: Blob; filename?: string; contentType?: string }> {
+    try {
+      return await this.fetchBlobInternal(path);
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.status === 401 &&
+        this.hasRefreshToken()
+      ) {
+        await this.refreshTokenInternal();
+        return this.fetchBlobInternal(path);
+      }
+      throw error;
+    }
   }
 
   // Auth
@@ -810,7 +894,25 @@ class ApiClient {
     return data;
   }
 
-  async refreshToken(): Promise<TokenResponse> {
+  private hasRefreshToken(): boolean {
+    return (
+      typeof window !== "undefined" &&
+      !!localStorage.getItem("refresh_token")
+    );
+  }
+
+  // Deduplicates concurrent refresh attempts — all callers share one in-flight request.
+  private async refreshTokenInternal(): Promise<TokenResponse> {
+    if (!this.refreshPromise) {
+      this.refreshPromise = this.doRefresh().finally(() => {
+        this.refreshPromise = null;
+      });
+    }
+    return this.refreshPromise;
+  }
+
+  // Performs the actual token refresh. Uses fetchInternal to avoid triggering the 401 interceptor.
+  private async doRefresh(): Promise<TokenResponse> {
     const refreshToken =
       typeof window !== "undefined"
         ? localStorage.getItem("refresh_token")
@@ -818,7 +920,7 @@ class ApiClient {
     if (!refreshToken) {
       throw new ApiError(401, "no_refresh_token", "No refresh token available");
     }
-    const response = await this.fetch<TokenResponse>("/auth/refresh", {
+    const response = await this.fetchInternal<TokenResponse>("/auth/refresh", {
       method: "POST",
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
@@ -827,6 +929,10 @@ class ApiClient {
       localStorage.setItem("refresh_token", response.data.refresh_token);
     }
     return response.data;
+  }
+
+  async refreshToken(): Promise<TokenResponse> {
+    return this.refreshTokenInternal();
   }
 
   async logout(): Promise<void> {
@@ -1382,6 +1488,11 @@ class ApiClient {
     return this.fetch(`/projects/${projectId}/plugins/${pluginName}`, {
       method: "DELETE",
     });
+  }
+
+  // Dashboard Overview
+  async getDashboardOverview() {
+    return this.fetch<DashboardOverview>("/dashboard/overview");
   }
 
   // Billing

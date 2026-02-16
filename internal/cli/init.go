@@ -534,6 +534,7 @@ func setupRemoteProject(projectRoot string) error {
 	}
 
 	apiClient.SetCredentials(creds)
+	apiClient.SetCredentialsStore(store)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()

@@ -1,13 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import type { Project } from "~/lib/api";
-import { useRunDashboardSummary, useRuns } from "~/hooks/queries";
+import type { DashboardProject } from "~/lib/api";
 import {
   RunStatusIcon,
   formatDuration,
 } from "~/components/projects/run-detail/status-ui";
 import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
-import { Skeleton } from "~/components/ui/skeleton";
 import { Icons } from "~/components/icons";
 import { cn } from "~/lib/utils";
 
@@ -28,61 +26,24 @@ function statusBgColor(status: string): string {
   }
 }
 
-export function ProjectStatsCard({ project }: { project: Project }) {
-  const { data: summary, isLoading: summaryLoading } = useRunDashboardSummary(
-    project.id,
-    7,
-  );
-  const { data: runsData, isLoading: runsLoading } = useRuns(project.id, 1, 1);
-
-  const isLoading = summaryLoading || runsLoading;
-  const latestRun = runsData?.data?.[0];
-  const chart = summary?.chart ?? [];
+export function ProjectStatsCard({ project }: { project: DashboardProject }) {
+  const chart = project.chart ?? [];
+  const latestRun = project.latest_run;
   const repoName = project.repo_url
     ? project.repo_url
         .replace(/^https?:\/\/(www\.)?github\.com\//, "")
         .replace(/\.git$/, "")
     : "";
 
-  // Stats computation from 7-day chart data
-  const totalSuccess = chart.reduce((s, d) => s + d.success, 0);
-  const totalFailed = chart.reduce((s, d) => s + d.failed, 0);
-  const totalRuns = totalSuccess + totalFailed;
+  // Stats from inline data
+  const totalSuccess = project.success_runs_7d;
+  const totalRuns = project.total_runs_7d;
   const reliability =
     totalRuns > 0 ? Math.round((totalSuccess / totalRuns) * 100) : 0;
-
-  const durationsWithData = chart
-    .map((d) => d.duration_ms)
-    .filter((d) => d > 0);
-  const avgDuration =
-    durationsWithData.length > 0
-      ? durationsWithData.reduce((s, d) => s + d, 0) / durationsWithData.length
-      : 0;
+  const avgDuration = project.avg_duration_ms;
+  const primaryBranch = project.top_branch;
 
   const maxDaily = Math.max(...chart.map((d) => d.success + d.failed), 1);
-  const primaryBranch = summary?.branches?.[0];
-
-  if (isLoading) {
-    return (
-      <Card className="overflow-hidden gap-0 py-0">
-        <CardContent className="p-4 space-y-3">
-          <Skeleton className="h-5 w-40" />
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="h-3 w-32" />
-          <div className="flex gap-1 items-end h-10">
-            {Array.from({ length: 7 }).map((_, i) => (
-              <Skeleton key={i} className="flex-1 h-6" />
-            ))}
-          </div>
-          <div className="flex gap-4">
-            <Skeleton className="h-4 w-16" />
-            <Skeleton className="h-4 w-16" />
-            <Skeleton className="h-4 w-16" />
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <Link

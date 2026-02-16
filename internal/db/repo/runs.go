@@ -25,6 +25,18 @@ type RunDashboardChartPoint struct {
 	DurationMs int64
 }
 
+// ProjectDashboardStats holds per-project aggregated stats for the dashboard.
+type ProjectDashboardStats struct {
+	ProjectID     uuid.UUID
+	Chart         []RunDashboardChartPoint
+	LatestRun     *models.Run
+	TotalRuns7d   int
+	SuccessRuns7d int
+	FailedRuns7d  int
+	AvgDurationMs int64
+	TopBranch     string
+}
+
 // RunDashboardUserFacet is a selectable user facet in run dashboards.
 type RunDashboardUserFacet struct {
 	ID        string
@@ -785,4 +797,181 @@ func (r *RunRepo) DeleteLogsOlderThanForProjects(ctx context.Context, projectIDs
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+// GetRecentRunsAcrossProjects fetches the most recent runs across multiple projects.
+func (r *RunRepo) GetRecentRunsAcrossProjects(ctx context.Context, projectIDs []uuid.UUID, limit int) ([]models.Run, error) {
+	if len(projectIDs) == 0 {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, project_id, targets, status, total_tasks, completed_tasks, failed_tasks, cache_hits,
+		       duration_ms, error_message, triggered_by, triggered_by_user_id, git_branch, git_commit,
+		       pr_title, pr_number, commit_message, commit_author_name, commit_author_email,
+		       workflow_id, workflow_name,
+		       github_pr_comment_id, github_check_run_id,
+		       host_os, host_arch, host_name,
+		       started_at, finished_at, last_heartbeat_at, client_disconnected, created_at
+		FROM runs
+		WHERE project_id = ANY($1)
+		ORDER BY created_at DESC
+		LIMIT $2
+	`, projectIDs, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var runs []models.Run
+	for rows.Next() {
+		var run models.Run
+		if err := rows.Scan(&run.ID, &run.ProjectID, &run.Targets, &run.Status, &run.TotalTasks, &run.CompletedTasks,
+			&run.FailedTasks, &run.CacheHits, &run.DurationMs, &run.ErrorMessage, &run.TriggeredBy,
+			&run.TriggeredByUserID, &run.GitBranch, &run.GitCommit, &run.PRTitle, &run.PRNumber,
+			&run.CommitMessage, &run.CommitAuthorName, &run.CommitAuthorEmail, &run.WorkflowID, &run.WorkflowName,
+			&run.GitHubPRCommentID, &run.GitHubCheckRunID,
+			&run.HostOS, &run.HostArch, &run.HostName,
+			&run.StartedAt, &run.FinishedAt, &run.LastHeartbeatAt, &run.ClientDisconnected, &run.CreatedAt); err != nil {
+			return nil, err
+		}
+		runs = append(runs, run)
+	}
+	return runs, rows.Err()
+}
+
+// GetProjectStats returns per-project aggregated stats for the dashboard overview.
+func (r *RunRepo) GetProjectStats(ctx context.Context, projectIDs []uuid.UUID, days int) (map[uuid.UUID]*ProjectDashboardStats, error) {
+	if len(projectIDs) == 0 {
+		return nil, nil
+	}
+	if days <= 0 {
+		days = 7
+	}
+
+	result := make(map[uuid.UUID]*ProjectDashboardStats, len(projectIDs))
+	for _, id := range projectIDs {
+		result[id] = &ProjectDashboardStats{
+			ProjectID: id,
+			Chart:     make([]RunDashboardChartPoint, 0),
+		}
+	}
+
+	// 1. Aggregated stats per project (counts, avg duration, top branch)
+	statsRows, err := r.pool.Query(ctx, `
+		SELECT
+			project_id,
+			COUNT(*)::int AS total,
+			COUNT(*) FILTER (WHERE status = 'success')::int AS success,
+			COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+			COALESCE(ROUND(AVG(duration_ms) FILTER (WHERE duration_ms IS NOT NULL)), 0)::bigint AS avg_duration_ms,
+			COALESCE(
+				(SELECT git_branch FROM runs r2
+				 WHERE r2.project_id = runs.project_id
+				   AND r2.git_branch IS NOT NULL AND r2.git_branch <> ''
+				   AND r2.created_at >= NOW() - ($2::int * INTERVAL '1 day')
+				 GROUP BY git_branch ORDER BY COUNT(*) DESC LIMIT 1),
+				''
+			) AS top_branch
+		FROM runs
+		WHERE project_id = ANY($1)
+		  AND created_at >= NOW() - ($2::int * INTERVAL '1 day')
+		GROUP BY project_id
+	`, projectIDs, days)
+	if err != nil {
+		return nil, err
+	}
+	defer statsRows.Close()
+
+	for statsRows.Next() {
+		var pid uuid.UUID
+		var total, success, failed int
+		var avgMs int64
+		var branch string
+		if err := statsRows.Scan(&pid, &total, &success, &failed, &avgMs, &branch); err != nil {
+			return nil, err
+		}
+		if s, ok := result[pid]; ok {
+			s.TotalRuns7d = total
+			s.SuccessRuns7d = success
+			s.FailedRuns7d = failed
+			s.AvgDurationMs = avgMs
+			s.TopBranch = branch
+		}
+	}
+	if err := statsRows.Err(); err != nil {
+		return nil, err
+	}
+
+	// 2. Per-project chart data (batched)
+	chartRows, err := r.pool.Query(ctx, `
+		SELECT
+			project_id,
+			DATE(created_at) AS day,
+			COUNT(*) FILTER (WHERE status = 'success')::int AS success_count,
+			COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_count,
+			COALESCE(ROUND(AVG(duration_ms)), 0)::bigint AS avg_duration_ms
+		FROM runs
+		WHERE project_id = ANY($1)
+		  AND created_at >= NOW() - ($2::int * INTERVAL '1 day')
+		GROUP BY project_id, day
+		ORDER BY project_id, day ASC
+	`, projectIDs, days)
+	if err != nil {
+		return nil, err
+	}
+	defer chartRows.Close()
+
+	for chartRows.Next() {
+		var pid uuid.UUID
+		var p RunDashboardChartPoint
+		if err := chartRows.Scan(&pid, &p.Date, &p.Success, &p.Failed, &p.DurationMs); err != nil {
+			return nil, err
+		}
+		if s, ok := result[pid]; ok {
+			s.Chart = append(s.Chart, p)
+		}
+	}
+	if err := chartRows.Err(); err != nil {
+		return nil, err
+	}
+
+	// 3. Latest run per project using DISTINCT ON
+	latestRows, err := r.pool.Query(ctx, `
+		SELECT DISTINCT ON (project_id)
+			id, project_id, targets, status, total_tasks, completed_tasks, failed_tasks, cache_hits,
+			duration_ms, error_message, triggered_by, triggered_by_user_id, git_branch, git_commit,
+			pr_title, pr_number, commit_message, commit_author_name, commit_author_email,
+			workflow_id, workflow_name,
+			github_pr_comment_id, github_check_run_id,
+			host_os, host_arch, host_name,
+			started_at, finished_at, last_heartbeat_at, client_disconnected, created_at
+		FROM runs
+		WHERE project_id = ANY($1)
+		ORDER BY project_id, created_at DESC
+	`, projectIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer latestRows.Close()
+
+	for latestRows.Next() {
+		var run models.Run
+		if err := latestRows.Scan(&run.ID, &run.ProjectID, &run.Targets, &run.Status, &run.TotalTasks, &run.CompletedTasks,
+			&run.FailedTasks, &run.CacheHits, &run.DurationMs, &run.ErrorMessage, &run.TriggeredBy,
+			&run.TriggeredByUserID, &run.GitBranch, &run.GitCommit, &run.PRTitle, &run.PRNumber,
+			&run.CommitMessage, &run.CommitAuthorName, &run.CommitAuthorEmail, &run.WorkflowID, &run.WorkflowName,
+			&run.GitHubPRCommentID, &run.GitHubCheckRunID,
+			&run.HostOS, &run.HostArch, &run.HostName,
+			&run.StartedAt, &run.FinishedAt, &run.LastHeartbeatAt, &run.ClientDisconnected, &run.CreatedAt); err != nil {
+			return nil, err
+		}
+		if s, ok := result[run.ProjectID]; ok {
+			s.LatestRun = &run
+		}
+	}
+	return result, latestRows.Err()
 }

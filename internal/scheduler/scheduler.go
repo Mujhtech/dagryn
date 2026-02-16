@@ -81,6 +81,9 @@ type Scheduler struct {
 	opts              Options
 	projectRoot       string
 
+	// Background cache saves
+	cacheSaveWg sync.WaitGroup
+
 	// Integration plugin hooks
 	integrationRegistry *plugin.IntegrationRegistry
 
@@ -336,6 +339,13 @@ func (s *Scheduler) RunAll(ctx context.Context) (*RunSummary, error) {
 	return s.Run(ctx, leaves)
 }
 
+// WaitCacheSaves blocks until all background cache save goroutines complete.
+// Callers should invoke this before cancelling the context that was passed to
+// Run, since saves need a live context to upload to remote backends.
+func (s *Scheduler) WaitCacheSaves() {
+	s.cacheSaveWg.Wait()
+}
+
 // executeTask executes a single task, checking dependencies and cache.
 func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map[string]*taskState, statesMu *sync.Mutex) *taskState {
 	t, ok := s.workflow.GetTask(taskName)
@@ -502,11 +512,20 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 		stderrLW.Flush()
 	}
 
-	// Save to cache on success
+	// Save to cache on success (non-blocking — downstream tasks share data
+	// via the filesystem, not via cache, so the next DAG level can start
+	// immediately). Uses a detached context because Run()'s defer cancel()
+	// fires before WaitCacheSaves() is called by the caller.
 	if result.IsSuccess() && cacheKey != "" {
-		if err := s.cache.Save(ctx, t, cacheKey, result.Duration); err != nil {
-			slog.Warn("cache save failed", "task", taskName, "key", cacheKey, "error", err)
-		}
+		s.cacheSaveWg.Add(1)
+		go func() {
+			defer s.cacheSaveWg.Done()
+			saveCtx, saveCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer saveCancel()
+			if err := s.cache.Save(saveCtx, t, cacheKey, result.Duration); err != nil {
+				slog.Warn("cache save failed", "task", taskName, "key", cacheKey, "error", err)
+			}
+		}()
 	}
 
 	if s.onTaskComplete != nil {
@@ -597,11 +616,18 @@ func (s *Scheduler) executeCompositeTask(ctx context.Context, t *task.Task, cach
 			Duration:  duration,
 		}
 
-		// Save to cache on success
+		// Save to cache on success (non-blocking). Uses a detached context
+		// because Run()'s defer cancel() fires before WaitCacheSaves().
 		if cacheKey != "" {
-			if err := s.cache.Save(ctx, t, cacheKey, duration); err != nil {
-				slog.Warn("cache save failed", "task", t.Name, "key", cacheKey, "error", err)
-			}
+			s.cacheSaveWg.Add(1)
+			go func() {
+				defer s.cacheSaveWg.Done()
+				saveCtx, saveCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+				defer saveCancel()
+				if err := s.cache.Save(saveCtx, t, cacheKey, duration); err != nil {
+					slog.Warn("cache save failed", "task", t.Name, "key", cacheKey, "error", err)
+				}
+			}()
 		}
 	}
 

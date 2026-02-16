@@ -54,6 +54,7 @@ types = ["opened", "synchronize"] # PR event types to match
 # Global plugins (available to all tasks by reference name)
 [plugins]
 golangci-lint = "github:golangci/golangci-lint@v2.8.0"
+golang-vul = "go:golang.org/x/vuln/cmd/govulncheck@latest"
 setup-node = "local:./plugins/setup-node"
 setup-go = "local:./plugins/setup-go"
 
@@ -116,6 +117,14 @@ needs = ["go-build"]
 command = "golangci-lint run ./..."
 inputs = ["**/*.go", ".golangci.yml", ".golangci.yaml"]
 timeout = "2m"
+
+[tasks.go-vulnerability-scan]
+command = "govulncheck -C ./... -json > gosec-report.json"
+uses = ["golang-vul"]
+needs = ["go-build"]
+inputs = ["**/*.go", "go.mod", "go.sum"]
+outputs = ["gosec-report.json"]
+timeout = "5m"
 
 # Check code formatting (fails if files need formatting)
 [tasks.go-fmt]

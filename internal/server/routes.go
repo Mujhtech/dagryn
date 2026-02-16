@@ -97,6 +97,9 @@ func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHand
 				r.Patch("/me", h.UpdateCurrentUser)
 			})
 
+			// Dashboard overview
+			r.Get("/dashboard/overview", h.GetDashboardOverview)
+
 			// Team routes
 			r.Route("/teams", func(r chi.Router) {
 				r.Get("/", h.ListTeams)

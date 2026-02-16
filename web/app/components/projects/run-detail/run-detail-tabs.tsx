@@ -22,7 +22,7 @@ import {
 } from "~/components/ui/accordion";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import { Icons } from "~/components/icons";
-import { cn } from "~/lib/utils";
+import { cn, stripAnsi } from "~/lib/utils";
 import {
   TaskStatusIcon,
   StatusBadge,
@@ -86,7 +86,7 @@ export function RunDetailTabs({
   runStatus,
 }: RunDetailTabsProps) {
   const [tasksView, setTasksView] = useState<"table" | "canvas" | "waterfall">(
-    "table",
+    "canvas",
   );
 
   const filteredLogs = useMemo(() => {
@@ -94,7 +94,7 @@ export function RunDetailTabs({
     const query = searchQuery.toLowerCase();
     return logs.filter(
       (log) =>
-        log.line.toLowerCase().includes(query) ||
+        stripAnsi(log.line).toLowerCase().includes(query) ||
         log.task_name?.toLowerCase().includes(query),
     );
   }, [logs, searchQuery]);
@@ -117,7 +117,7 @@ export function RunDetailTabs({
 
   const handleDownloadLogs = () => {
     const content = logs
-      .map((log) => `[${log.task_name || "system"}] ${log.line}`)
+      .map((log) => `[${log.task_name || "system"}] ${stripAnsi(log.line)}`)
       .join("\n");
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -268,7 +268,7 @@ export function RunDetailTabs({
                                     {log.line_num}
                                   </span>
                                   <span className="text-zinc-200 whitespace-pre-wrap break-all">
-                                    {log.line}
+                                    {stripAnsi(log.line)}
                                   </span>
                                 </div>
                               ))}
@@ -397,6 +397,11 @@ export function RunDetailTabs({
                             {artifact.task_name}
                           </Badge>
                         ) : null}
+                        {artifact.metadata?.archive === true && (
+                          <Badge variant="outline">
+                            {String(artifact.metadata.file_count)} files
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span>{artifact.file_name}</span>

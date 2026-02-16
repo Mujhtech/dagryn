@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,6 +21,8 @@ type Client struct {
 	baseURL    string
 	httpClient *http.Client
 	creds      *Credentials
+	credStore  *CredentialsStore
+	refreshMu  sync.Mutex
 }
 
 // Config holds client configuration.
@@ -36,6 +40,12 @@ func DefaultConfig() Config {
 }
 
 // New creates a new API client.
+//
+// Per-request timeouts should be controlled via context deadlines (which callers
+// already provide). The http.Client.Timeout is intentionally NOT set so that
+// long-running uploads (cache, artifacts) aren't killed by a blanket timeout.
+// Connection-level timeouts on the Transport protect against hung dials and idle
+// connection reuse issues.
 func New(cfg Config) *Client {
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "http://localhost:9000"
@@ -44,10 +54,24 @@ func New(cfg Config) *Client {
 		cfg.Timeout = 30 * time.Second
 	}
 
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   cfg.Timeout,      // Dial timeout (connect phase only)
+			KeepAlive: 30 * time.Second, // TCP keep-alive probes
+		}).DialContext,
+		IdleConnTimeout:       60 * time.Second, // Close idle connections before server does
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: cfg.Timeout, // Time to wait for response headers
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   10,
+	}
+
 	return &Client{
 		baseURL: cfg.BaseURL,
 		httpClient: &http.Client{
-			Timeout: cfg.Timeout,
+			Transport: transport,
+			// No blanket Timeout — per-request context deadlines control timeouts.
+			// This prevents long uploads from being killed prematurely.
 		},
 	}
 }
@@ -55,6 +79,11 @@ func New(cfg Config) *Client {
 // SetCredentials sets the authentication credentials.
 func (c *Client) SetCredentials(creds *Credentials) {
 	c.creds = creds
+}
+
+// SetCredentialsStore sets the credentials store for persisting refreshed tokens.
+func (c *Client) SetCredentialsStore(store *CredentialsStore) {
+	c.credStore = store
 }
 
 // --- Request/Response Types ---
@@ -218,9 +247,10 @@ func (c *Client) PollDeviceCode(ctx context.Context, deviceCode string) (*TokenR
 }
 
 // RefreshToken refreshes the access token.
+// Uses doRequestInternal to avoid triggering the auto-refresh interceptor.
 func (c *Client) RefreshToken(ctx context.Context, refreshToken string) (*TokenResponse, error) {
 	body := map[string]string{"refresh_token": refreshToken}
-	resp, err := c.doRequest(ctx, "POST", "/api/v1/auth/refresh", body)
+	resp, err := c.doRequestInternal(ctx, "POST", "/api/v1/auth/refresh", body)
 	if err != nil {
 		return nil, err
 	}
@@ -354,6 +384,38 @@ func (c *Client) CancelRun(ctx context.Context, projectID, runID uuid.UUID) erro
 	}
 
 	return nil
+}
+
+// --- Heartbeat ---
+
+// HeartbeatResponse represents the response from a heartbeat request.
+type HeartbeatResponse struct {
+	RunID           uuid.UUID `json:"run_id"`
+	Status          string    `json:"status"`
+	LastHeartbeatAt time.Time `json:"last_heartbeat_at"`
+}
+
+// Heartbeat sends a heartbeat for a run and returns the current run status.
+func (c *Client) Heartbeat(ctx context.Context, projectID, runID uuid.UUID) (*HeartbeatResponse, error) {
+	path := fmt.Sprintf("/api/v1/projects/%s/runs/%s/heartbeat", projectID, runID)
+	resp, err := c.doRequest(ctx, "POST", path, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.parseError(resp)
+	}
+
+	var result struct {
+		Data HeartbeatResponse `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse heartbeat response: %w", err)
+	}
+
+	return &result.Data, nil
 }
 
 // --- Run Status Update Methods ---
@@ -662,6 +724,11 @@ func (c *Client) CheckCache(ctx context.Context, projectID uuid.UUID, taskName, 
 // UploadCache stores cache content for the given task/key.
 // The body is sent as raw bytes (tar.gz archive).
 func (c *Client) UploadCache(ctx context.Context, projectID uuid.UUID, taskName, cacheKey string, body io.Reader, size int64) error {
+	// Proactively refresh token before building the request — body is consumed once.
+	if err := c.ensureValidToken(ctx); err != nil {
+		_ = err // non-fatal, proceed with current token
+	}
+
 	path := fmt.Sprintf("/api/v1/projects/%s/cache/%s/%s", projectID, taskName, cacheKey)
 	fullURL := c.baseURL + path
 
@@ -708,8 +775,36 @@ func (c *Client) DownloadCache(ctx context.Context, projectID uuid.UUID, taskNam
 	}
 }
 
+// ArtifactUploadOption configures optional fields for artifact uploads.
+type ArtifactUploadOption func(*artifactUploadOpts)
+
+type artifactUploadOpts struct {
+	contentType string
+	metadata    string // JSON string
+}
+
+// WithArtifactContentType sets an explicit content type for the artifact.
+func WithArtifactContentType(ct string) ArtifactUploadOption {
+	return func(o *artifactUploadOpts) { o.contentType = ct }
+}
+
+// WithArtifactMetadata sets JSON metadata for the artifact.
+func WithArtifactMetadata(meta string) ArtifactUploadOption {
+	return func(o *artifactUploadOpts) { o.metadata = meta }
+}
+
 // UploadArtifact uploads an artifact file for a run via multipart form.
-func (c *Client) UploadArtifact(ctx context.Context, projectID, runID uuid.UUID, taskName, name, fileName string, reader io.Reader) error {
+func (c *Client) UploadArtifact(ctx context.Context, projectID, runID uuid.UUID, taskName, name, fileName string, reader io.Reader, opts ...ArtifactUploadOption) error {
+	// Proactively refresh token before building the multipart body — reader is consumed once.
+	if err := c.ensureValidToken(ctx); err != nil {
+		_ = err // non-fatal, proceed with current token
+	}
+
+	var options artifactUploadOpts
+	for _, o := range opts {
+		o(&options)
+	}
+
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 
@@ -718,6 +813,16 @@ func (c *Client) UploadArtifact(ctx context.Context, projectID, runID uuid.UUID,
 	}
 	if err := writer.WriteField("name", name); err != nil {
 		return fmt.Errorf("failed to write name field: %w", err)
+	}
+	if options.contentType != "" {
+		if err := writer.WriteField("content_type", options.contentType); err != nil {
+			return fmt.Errorf("failed to write content_type field: %w", err)
+		}
+	}
+	if options.metadata != "" {
+		if err := writer.WriteField("metadata", options.metadata); err != nil {
+			return fmt.Errorf("failed to write metadata field: %w", err)
+		}
 	}
 
 	part, err := writer.CreateFormFile("file", fileName)
@@ -895,7 +1000,35 @@ func (c *Client) CreateCheckoutSession(ctx context.Context, planSlug, successURL
 
 // --- Internal Methods ---
 
+// doRequest wraps doRequestInternal with automatic token refresh.
+// It proactively refreshes expired tokens before the request and retries once on 401.
 func (c *Client) doRequest(ctx context.Context, method, path string, body any) (*http.Response, error) {
+	// Proactively refresh token if expired
+	if err := c.ensureValidToken(ctx); err != nil {
+		// Non-fatal: proceed with existing token, server will reject if truly expired
+		_ = err
+	}
+
+	resp, err := c.doRequestInternal(ctx, method, path, body)
+	if err != nil {
+		return nil, err
+	}
+
+	// If 401 and we have a refresh token, try refreshing and retry once
+	if resp.StatusCode == http.StatusUnauthorized && c.creds != nil && c.creds.RefreshToken != "" {
+		_ = resp.Body.Close()
+
+		if refreshErr := c.ensureValidToken(ctx); refreshErr != nil {
+			return nil, refreshErr
+		}
+		return c.doRequestInternal(ctx, method, path, body)
+	}
+
+	return resp, nil
+}
+
+// doRequestInternal performs the raw HTTP request without token refresh logic.
+func (c *Client) doRequestInternal(ctx context.Context, method, path string, body any) (*http.Response, error) {
 	var bodyReader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -928,6 +1061,52 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body any) (
 	}
 
 	return resp, nil
+}
+
+// ensureValidToken refreshes the access token if it has expired.
+// It serializes concurrent refresh attempts so only one refresh occurs.
+func (c *Client) ensureValidToken(ctx context.Context) error {
+	if c.creds == nil || c.creds.RefreshToken == "" {
+		return nil
+	}
+
+	c.refreshMu.Lock()
+	defer c.refreshMu.Unlock()
+
+	// Double-check after acquiring lock — another goroutine may have refreshed
+	if !c.creds.IsExpired() {
+		return nil
+	}
+
+	body := map[string]string{"refresh_token": c.creds.RefreshToken}
+	resp, err := c.doRequestInternal(ctx, "POST", "/api/v1/auth/refresh", body)
+	if err != nil {
+		return fmt.Errorf("token refresh failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("token refresh failed: %w", c.parseError(resp))
+	}
+
+	var result TokenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("failed to parse refresh response: %w", err)
+	}
+
+	c.creds.AccessToken = result.Data.AccessToken
+	c.creds.RefreshToken = result.Data.RefreshToken
+	c.creds.ExpiresAt = result.Data.ExpiresAt
+
+	// Persist refreshed credentials to disk if store is available
+	if c.credStore != nil {
+		if err := c.credStore.Save(c.creds); err != nil {
+			// Non-fatal — token is refreshed in memory even if disk save fails
+			_ = err
+		}
+	}
+
+	return nil
 }
 
 func (c *Client) parseError(resp *http.Response) error {
