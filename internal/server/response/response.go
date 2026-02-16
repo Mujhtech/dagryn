@@ -212,6 +212,23 @@ func PaymentRequired(w http.ResponseWriter, r *http.Request, err error) error {
 	return nil
 }
 
+func RequestEntityTooLarge(w http.ResponseWriter, r *http.Request, err error) error {
+	errMsg := ""
+	if err != nil {
+		errMsg = err.Error()
+	}
+
+	_ = render.Render(w, r, ServerResponse{
+		Response: Response{
+			StatusCode: http.StatusRequestEntityTooLarge,
+		},
+		Message: "Request Entity Too Large",
+		Error:   errMsg,
+	})
+
+	return nil
+}
+
 func ServiceUnavailable(w http.ResponseWriter, r *http.Request, err error) error {
 	errMsg := ""
 	if err != nil {

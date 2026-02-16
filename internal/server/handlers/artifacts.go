@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -18,7 +20,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/service"
 )
 
-const maxArtifactUploadSize = 100 << 20 // 100MB
+const maxArtifactUploadSize = 200 << 20 // 200MB
 
 // ListRunArtifacts godoc
 // @Summary List run artifacts
@@ -182,9 +184,15 @@ func (h *Handler) UploadArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, maxArtifactUploadSize)
-	if err := r.ParseMultipartForm(maxArtifactUploadSize); err != nil {
-		_ = response.BadRequest(w, r, errors.New("invalid multipart form"))
+	// Allow extra room for multipart boundaries, headers, and form fields.
+	r.Body = http.MaxBytesReader(w, r.Body, maxArtifactUploadSize+1<<20)
+	if err := r.ParseMultipartForm(32 << 20); err != nil { // 32MB in-memory; larger files spill to temp
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			_ = response.RequestEntityTooLarge(w, r, fmt.Errorf("file exceeds maximum upload size of %d MB", maxArtifactUploadSize>>20))
+			return
+		}
+		_ = response.BadRequest(w, r, fmt.Errorf("invalid multipart form: %w", err))
 		return
 	}
 
@@ -209,11 +217,22 @@ func (h *Handler) UploadArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 
 	contentType := fileHeader.Header.Get("Content-Type")
+	if ct := r.FormValue("content_type"); ct != "" {
+		contentType = ct
+	}
 	if !isAllowedContentType(contentType) {
 		_ = response.BadRequest(w, r, errors.New("unsupported content type"))
 		return
 	}
-	artifact, err := h.artifactService.Upload(ctx, projectID, runID, taskName, name, filepath.Base(fileHeader.Filename), file, fileHeader.Size, ttl, contentType)
+
+	var extraMetadata json.RawMessage
+	if metaStr := r.FormValue("metadata"); metaStr != "" {
+		if json.Valid([]byte(metaStr)) {
+			extraMetadata = json.RawMessage(metaStr)
+		}
+	}
+
+	artifact, err := h.artifactService.Upload(ctx, projectID, runID, taskName, name, filepath.Base(fileHeader.Filename), file, fileHeader.Size, ttl, contentType, extraMetadata)
 	if err != nil {
 		if service.IsQuotaExceeded(err) {
 			_ = response.PaymentRequired(w, r, err)

@@ -77,23 +77,20 @@ func (s *Store) Save(taskName, key string, outputPatterns []string, meta Metadat
 
 	// Copy output files
 	var savedOutputs []string
-	for _, pattern := range outputPatterns {
-		matches, err := filepath.Glob(filepath.Join(s.root, pattern))
+	files, err := ResolveFilePatterns(s.root, outputPatterns)
+	if err != nil {
+		return fmt.Errorf("failed to resolve output patterns: %w", err)
+	}
+	for _, src := range files {
+		relPath, err := filepath.Rel(s.root, src)
 		if err != nil {
 			continue
 		}
-		for _, src := range matches {
-			relPath, err := filepath.Rel(s.root, src)
-			if err != nil {
-				continue
-			}
-			dest := filepath.Join(outputsPath, relPath)
-			if err := copyFile(src, dest); err != nil {
-				// Log but don't fail - some outputs might not exist
-				continue
-			}
-			savedOutputs = append(savedOutputs, relPath)
+		dest := filepath.Join(outputsPath, relPath)
+		if err := copyFile(src, dest); err != nil {
+			continue
 		}
+		savedOutputs = append(savedOutputs, relPath)
 	}
 
 	// Save metadata

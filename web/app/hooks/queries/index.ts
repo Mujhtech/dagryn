@@ -22,8 +22,23 @@ export { useRunArtifacts } from "./use-run-artifacts";
 export { useProjectWorkflows, useRunWorkflow } from "./use-project-workflows";
 export { useCacheStats } from "./use-cache-stats";
 export { useCacheAnalytics } from "./use-cache-analytics";
-export { useRegistryPlugins, useFeaturedPlugins, useTrendingPlugins } from "./use-registry-plugins";
-export { useRegistryPluginDetail, useRegistryPluginVersions } from "./use-registry-plugin-detail";
+export {
+  useRegistryPlugins,
+  useFeaturedPlugins,
+  useTrendingPlugins,
+} from "./use-registry-plugins";
+export {
+  useRegistryPluginDetail,
+  useRegistryPluginVersions,
+} from "./use-registry-plugin-detail";
 export { usePluginAnalytics } from "./use-plugin-analytics";
-export { useBillingPlans, useBillingPlan, useBillingOverview, useBillingInvoices } from "./use-billing";
+export { useDashboardOverview } from "./use-dashboard-overview";
+export {
+  useBillingPlans,
+  useBillingPlan,
+  useBillingOverview,
+  useBillingInvoices,
+} from "./use-billing";
 export { useLicenseStatus } from "./use-license-status";
+export { useRunAIAnalysis, useProjectAIAnalyses } from "./use-ai-analysis";
+export { useAISuggestions } from "./use-ai-suggestions";

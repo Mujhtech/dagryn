@@ -10,6 +10,7 @@ import { Separator } from "~/components/ui/separator";
 import { useAuth } from "~/lib/auth";
 import { Icons } from "~/components/icons";
 import { useLicenseStatus } from "~/hooks/queries/use-license-status";
+import { useFavicon } from "~/hooks/use-favicon";
 
 export const Route = createFileRoute("/_dashboard_layout")({
   component: LayoutComponent,
@@ -17,6 +18,7 @@ export const Route = createFileRoute("/_dashboard_layout")({
 
 function LayoutComponent() {
   const { isAuthenticated, isLoading } = useAuth();
+  useFavicon(null);
 
   if (isLoading) {
     return (

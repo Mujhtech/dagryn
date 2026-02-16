@@ -54,6 +54,7 @@ types = ["opened", "synchronize"] # PR event types to match
 # Global plugins (available to all tasks by reference name)
 [plugins]
 golangci-lint = "github:golangci/golangci-lint@v2.8.0"
+golang-vul = "go:golang.org/x/vuln/cmd/govulncheck@latest"
 setup-node = "local:./plugins/setup-node"
 setup-go = "local:./plugins/setup-go"
 
@@ -117,6 +118,14 @@ command = "golangci-lint run ./..."
 inputs = ["**/*.go", ".golangci.yml", ".golangci.yaml"]
 timeout = "2m"
 
+[tasks.go-vulnerability-scan]
+command = "govulncheck -C ./... -json > gosec-report.json"
+uses = ["golang-vul"]
+needs = ["go-build"]
+inputs = ["**/*.go", "go.mod", "go.sum"]
+outputs = ["gosec-report.json"]
+timeout = "5m"
+
 # Check code formatting (fails if files need formatting)
 [tasks.go-fmt]
 command = "test -z \"$(gofmt -l .)\""
@@ -135,3 +144,22 @@ enabled = true
 # endpoint = "grpc://cache.example.com:9092"
 # Or use Dagryn Cloud cache
 cloud = true
+
+
+[ai]
+enabled = true                   # Enable AI analysis (default: false)
+mode = "summarize_and_suggest"   # "summarize" or "summarize_and_suggest"
+provider = "google"              # "openai", "google", or "gemini"
+model = "gemini-3-flash-preview" # Model name (default varies by provider)
+
+[ai.backend]
+mode = "managed"
+
+[ai.guardrails]
+min_confidence = 0.7             # Minimum confidence threshold (0.0-1.0)
+max_suggestions_per_analysis = 5 # Max suggestions per run
+
+[ai.publish]
+github_comment = true     # Post analysis as PR comment
+github_check = true       # Create GitHub check run
+github_suggestions = true # Post inline code suggestions

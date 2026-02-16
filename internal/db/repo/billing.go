@@ -31,6 +31,7 @@ func (r *BillingRepo) ListActivePlans(ctx context.Context) ([]models.BillingPlan
 		       max_projects, max_team_members, max_cache_bytes, max_storage_bytes, max_bandwidth_bytes,
 		       max_concurrent_runs, cache_ttl_days, artifact_retention_days, log_retention_days,
 		       container_execution, priority_queue, sso_enabled, audit_logs,
+		       max_ai_analyses_per_month, ai_enabled, ai_suggestions_enabled,
 		       is_active, sort_order, created_at, updated_at
 		FROM billing_plans
 		WHERE is_active = TRUE
@@ -50,6 +51,7 @@ func (r *BillingRepo) ListActivePlans(ctx context.Context) ([]models.BillingPlan
 			&p.MaxProjects, &p.MaxTeamMembers, &p.MaxCacheBytes, &p.MaxStorageBytes, &p.MaxBandwidthBytes,
 			&p.MaxConcurrentRuns, &p.CacheTTLDays, &p.ArtifactRetentionDays, &p.LogRetentionDays,
 			&p.ContainerExecution, &p.PriorityQueue, &p.SSOEnabled, &p.AuditLogs,
+			&p.MaxAIAnalysesPerMonth, &p.AIEnabled, &p.AISuggestionsEnabled,
 			&p.IsActive, &p.SortOrder, &p.CreatedAt, &p.UpdatedAt,
 		); err != nil {
 			return nil, err
@@ -67,6 +69,7 @@ func (r *BillingRepo) GetPlanBySlug(ctx context.Context, slug string) (*models.B
 		       max_projects, max_team_members, max_cache_bytes, max_storage_bytes, max_bandwidth_bytes,
 		       max_concurrent_runs, cache_ttl_days, artifact_retention_days, log_retention_days,
 		       container_execution, priority_queue, sso_enabled, audit_logs,
+		       max_ai_analyses_per_month, ai_enabled, ai_suggestions_enabled,
 		       is_active, sort_order, created_at, updated_at
 		FROM billing_plans WHERE slug = $1
 	`, slug)
@@ -80,6 +83,7 @@ func (r *BillingRepo) GetPlanByID(ctx context.Context, id uuid.UUID) (*models.Bi
 		       max_projects, max_team_members, max_cache_bytes, max_storage_bytes, max_bandwidth_bytes,
 		       max_concurrent_runs, cache_ttl_days, artifact_retention_days, log_retention_days,
 		       container_execution, priority_queue, sso_enabled, audit_logs,
+		       max_ai_analyses_per_month, ai_enabled, ai_suggestions_enabled,
 		       is_active, sort_order, created_at, updated_at
 		FROM billing_plans WHERE id = $1
 	`, id)
@@ -93,6 +97,7 @@ func (r *BillingRepo) GetPlanByStripePriceID(ctx context.Context, priceID string
 		       max_projects, max_team_members, max_cache_bytes, max_storage_bytes, max_bandwidth_bytes,
 		       max_concurrent_runs, cache_ttl_days, artifact_retention_days, log_retention_days,
 		       container_execution, priority_queue, sso_enabled, audit_logs,
+		       max_ai_analyses_per_month, ai_enabled, ai_suggestions_enabled,
 		       is_active, sort_order, created_at, updated_at
 		FROM billing_plans WHERE stripe_price_id = $1
 	`, priceID)
@@ -106,6 +111,7 @@ func (r *BillingRepo) scanPlan(ctx context.Context, query string, args ...any) (
 		&p.MaxProjects, &p.MaxTeamMembers, &p.MaxCacheBytes, &p.MaxStorageBytes, &p.MaxBandwidthBytes,
 		&p.MaxConcurrentRuns, &p.CacheTTLDays, &p.ArtifactRetentionDays, &p.LogRetentionDays,
 		&p.ContainerExecution, &p.PriorityQueue, &p.SSOEnabled, &p.AuditLogs,
+		&p.MaxAIAnalysesPerMonth, &p.AIEnabled, &p.AISuggestionsEnabled,
 		&p.IsActive, &p.SortOrder, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {
@@ -605,6 +611,20 @@ func (r *BillingRepo) GetTotalStorageByAccount(ctx context.Context, accountID uu
 		WHERE cq.billing_account_id = $1
 	`, accountID).Scan(&total)
 	return total, err
+}
+
+// CountAIAnalysesByAccount returns the number of non-superseded AI analyses
+// across all projects linked to a billing account since the given time.
+func (r *BillingRepo) CountAIAnalysesByAccount(ctx context.Context, accountID uuid.UUID, since time.Time) (int, error) {
+	var count int
+	err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM ai_analyses a
+		JOIN projects p ON a.project_id = p.id
+		WHERE p.billing_account_id = $1
+		  AND a.created_at >= $2
+		  AND a.status NOT IN ('superseded')
+	`, accountID, since).Scan(&count)
+	return count, err
 }
 
 // GetTotalArtifactSizeByAccount returns the total artifact size across all projects for an account.

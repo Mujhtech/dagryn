@@ -55,6 +55,9 @@ func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHand
 
 	// API v1 routes
 	r.Route("/api/v1", func(r chi.Router) {
+		// Public workflow tooling endpoints.
+		r.Post("/workflows/translate", h.TranslateGitHubWorkflowYAML)
+
 		// Provider webhooks (public, no auth) - GitHub, GitLab, Bitbucket, Stripe.
 		r.Route("/webhooks", func(r chi.Router) {
 			r.Post("/github", h.GitHubWebhook)
@@ -94,6 +97,9 @@ func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHand
 				r.Get("/me", h.GetCurrentUser)
 				r.Patch("/me", h.UpdateCurrentUser)
 			})
+
+			// Dashboard overview
+			r.Get("/dashboard/overview", h.GetDashboardOverview)
 
 			// Team routes
 			r.Route("/teams", func(r chi.Router) {
@@ -187,6 +193,12 @@ func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHand
 									r.Delete("/", h.DeleteArtifact)
 								})
 							})
+
+							// AI analysis endpoints
+							r.Get("/ai-analysis", h.GetAIAnalysis)
+							r.Post("/ai-analysis/retry", h.RetryAIAnalysis)
+							r.Get("/ai-suggestions", h.GetAISuggestions)
+							r.Post("/ai-suggestions/post", h.PostAISuggestions)
 						})
 					})
 
@@ -216,6 +228,9 @@ func (s *Server) setupRoutes(h *handlers.Handler, authHandler *handlers.AuthHand
 						r.Post("/sync", h.SyncProjectWorkflow)
 						r.Post("/sync-from-toml", h.SyncProjectWorkflowFromToml)
 					})
+
+					// Project AI analyses
+					r.Get("/ai-analyses", h.ListAIAnalyses)
 
 					// Project plugins
 					r.Route("/plugins", func(r chi.Router) {

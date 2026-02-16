@@ -263,6 +263,7 @@ func runWhoami(cmd *cobra.Command, args []string) error {
 	}
 
 	apiClient.SetCredentials(creds)
+	apiClient.SetCredentialsStore(store)
 
 	user, err := apiClient.GetCurrentUser(ctx)
 	if err != nil {

@@ -30,6 +30,16 @@ type GitHubPushEvent struct {
 	Installation struct {
 		ID int64 `json:"id"`
 	} `json:"installation"`
+	Commits []GitHubPushCommit `json:"commits"`
+}
+
+// GitHubPushCommit represents a commit in a push event.
+type GitHubPushCommit struct {
+	ID       string   `json:"id"`
+	Message  string   `json:"message"`
+	Added    []string `json:"added"`
+	Removed  []string `json:"removed"`
+	Modified []string `json:"modified"`
 }
 
 // GitHubPullRequestEvent is a minimal representation of a GitHub pull_request webhook.
@@ -276,6 +286,11 @@ func (h *Handler) handleGitHubPush(ctx context.Context, payload *GitHubPushEvent
 		if err == nil {
 			_ = h.jobClient.Enqueue(job.QueueNameDefault, job.ExecuteRunTaskName, &job.ClientPayload{Data: data})
 		}
+	}
+
+	// Best-effort: detect suggestion acceptance from push commits.
+	if h.aiRepo != nil && len(payload.Commits) > 0 && branch != "" {
+		go h.detectSuggestionAcceptance(context.Background(), project, branch, payload.Commits)
 	}
 
 	return nil

@@ -111,38 +111,37 @@ func (b *Backend) Restore(ctx context.Context, taskName, key string) error {
 
 func (b *Backend) Save(ctx context.Context, taskName, key string, outputPatterns []string, _ cache.Metadata) error {
 	// Collect files and compute digests.
+	resolved, err := cache.ResolveFilePatterns(b.projectRoot, outputPatterns)
+	if err != nil {
+		return fmt.Errorf("grpc cache resolve patterns: %w", err)
+	}
+
 	var files []fileEntry
-	for _, pattern := range outputPatterns {
-		matches, err := filepath.Glob(filepath.Join(b.projectRoot, pattern))
+	for _, src := range resolved {
+		info, err := os.Stat(src)
 		if err != nil {
 			continue
 		}
-		for _, src := range matches {
-			info, err := os.Stat(src)
-			if err != nil || info.IsDir() {
-				continue
-			}
-			relPath, err := filepath.Rel(b.projectRoot, src)
-			if err != nil {
-				continue
-			}
-
-			data, err := os.ReadFile(src)
-			if err != nil {
-				continue
-			}
-
-			h := sha256.Sum256(data)
-			files = append(files, fileEntry{
-				relPath: relPath,
-				data:    data,
-				digest: &repb.Digest{
-					Hash:      hex.EncodeToString(h[:]),
-					SizeBytes: int64(len(data)),
-				},
-				isExecutable: info.Mode()&0111 != 0,
-			})
+		relPath, err := filepath.Rel(b.projectRoot, src)
+		if err != nil {
+			continue
 		}
+
+		data, err := os.ReadFile(src)
+		if err != nil {
+			continue
+		}
+
+		h := sha256.Sum256(data)
+		files = append(files, fileEntry{
+			relPath: relPath,
+			data:    data,
+			digest: &repb.Digest{
+				Hash:      hex.EncodeToString(h[:]),
+				SizeBytes: int64(len(data)),
+			},
+			isExecutable: info.Mode()&0111 != 0,
+		})
 	}
 
 	// Find which blobs are missing from CAS.
@@ -182,7 +181,7 @@ func (b *Backend) Save(ctx context.Context, taskName, key string, outputPatterns
 		}
 	}
 
-	_, err := b.actionCache.UpdateActionResult(ctx, &repb.UpdateActionResultRequest{
+	_, err = b.actionCache.UpdateActionResult(ctx, &repb.UpdateActionResultRequest{
 		InstanceName:   b.instanceName,
 		ActionDigest:   actionDigest(taskName, key),
 		ActionResult:   &repb.ActionResult{OutputFiles: outputFiles},

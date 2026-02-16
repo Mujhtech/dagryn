@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/mujhtech/dagryn/internal/db/models"
@@ -27,6 +28,11 @@ type PlanLimits struct {
 	PriorityQueue         bool   `json:"priority_queue"`
 	SSOEnabled            bool   `json:"sso_enabled"`
 	AuditLogs             bool   `json:"audit_logs"`
+
+	// AI quotas
+	MaxAIAnalysesPerMonth *int `json:"max_ai_analyses_per_month,omitempty"`
+	AIEnabled             bool `json:"ai_enabled"`
+	AISuggestionsEnabled  bool `json:"ai_suggestions_enabled"`
 }
 
 // QuotaService checks and enforces plan limits.
@@ -70,6 +76,9 @@ func (s *QuotaService) GetLimits(ctx context.Context, accountID uuid.UUID) (*Pla
 		PriorityQueue:         plan.PriorityQueue,
 		SSOEnabled:            plan.SSOEnabled,
 		AuditLogs:             plan.AuditLogs,
+		MaxAIAnalysesPerMonth: plan.MaxAIAnalysesPerMonth,
+		AIEnabled:             plan.AIEnabled,
+		AISuggestionsEnabled:  plan.AISuggestionsEnabled,
 	}, nil
 }
 
@@ -254,6 +263,108 @@ func (s *QuotaService) CheckConcurrentRuns(ctx context.Context, accountID uuid.U
 			Resource:   "concurrent_runs",
 			Current:    int64(count),
 			Limit:      int64(*plan.MaxConcurrentRuns),
+			PlanSlug:   plan.Slug,
+			UpgradeURL: "/billing/plans",
+		}
+	}
+	return nil
+}
+
+// CheckAIAnalysis returns nil if the account can run another AI analysis.
+// Checks both the ai_enabled flag and the monthly analysis count limit.
+func (s *QuotaService) CheckAIAnalysis(ctx context.Context, accountID uuid.UUID) error {
+	plan, err := s.getPlanForAccount(ctx, accountID)
+	if err != nil || plan == nil {
+		return nil // no plan = no limits (fail open)
+	}
+	if !plan.AIEnabled {
+		return &QuotaExceededError{
+			Resource:   "ai_analysis",
+			Current:    0,
+			Limit:      0,
+			PlanSlug:   plan.Slug,
+			UpgradeURL: "/billing/plans",
+		}
+	}
+	if plan.MaxAIAnalysesPerMonth == nil {
+		return nil // unlimited
+	}
+
+	// Count from start of current calendar month.
+	now := time.Now()
+	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+
+	count, err := s.billing.CountAIAnalysesByAccount(ctx, accountID, startOfMonth)
+	if err != nil {
+		s.logger.Warn().Err(err).Msg("failed to count AI analyses for quota check")
+		return nil // fail open
+	}
+
+	if count >= *plan.MaxAIAnalysesPerMonth {
+		return &QuotaExceededError{
+			Resource:   "ai_analyses_per_month",
+			Current:    int64(count),
+			Limit:      int64(*plan.MaxAIAnalysesPerMonth),
+			PlanSlug:   plan.Slug,
+			UpgradeURL: "/billing/plans",
+		}
+	}
+	return nil
+}
+
+// AIAnalysisQuota holds the current AI analysis usage and plan limit for an account.
+type AIAnalysisQuota struct {
+	Count int // analyses this month (non-superseded)
+	Limit int // plan's max_ai_analyses_per_month; 0 means unlimited
+}
+
+// IsOverage returns true when the current count exceeds the plan's included limit.
+func (q AIAnalysisQuota) IsOverage() bool {
+	return q.Limit > 0 && q.Count > q.Limit
+}
+
+// OverageQuantity returns how many analyses exceed the included limit (min 0).
+func (q AIAnalysisQuota) OverageQuantity() int {
+	if q.Limit <= 0 || q.Count <= q.Limit {
+		return 0
+	}
+	return q.Count - q.Limit
+}
+
+// GetAIAnalysisQuota returns the current month's AI analysis count and plan limit
+// for the given billing account. Returns a zero-value quota on errors (fail open).
+func (s *QuotaService) GetAIAnalysisQuota(ctx context.Context, accountID uuid.UUID) AIAnalysisQuota {
+	plan, err := s.getPlanForAccount(ctx, accountID)
+	if err != nil || plan == nil {
+		return AIAnalysisQuota{}
+	}
+	if plan.MaxAIAnalysesPerMonth == nil {
+		// Unlimited plan — no overage possible.
+		return AIAnalysisQuota{Limit: 0}
+	}
+
+	now := time.Now()
+	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	count, err := s.billing.CountAIAnalysesByAccount(ctx, accountID, startOfMonth)
+	if err != nil {
+		s.logger.Warn().Err(err).Msg("failed to count AI analyses for overage check")
+		return AIAnalysisQuota{Limit: *plan.MaxAIAnalysesPerMonth}
+	}
+
+	return AIAnalysisQuota{Count: count, Limit: *plan.MaxAIAnalysesPerMonth}
+}
+
+// CheckAISuggestions returns nil if the account's plan allows AI suggestions.
+func (s *QuotaService) CheckAISuggestions(ctx context.Context, accountID uuid.UUID) error {
+	plan, err := s.getPlanForAccount(ctx, accountID)
+	if err != nil || plan == nil {
+		return nil // no plan = no limits (fail open)
+	}
+	if !plan.AISuggestionsEnabled {
+		return &QuotaExceededError{
+			Resource:   "ai_suggestions",
+			Current:    0,
+			Limit:      0,
 			PlanSlug:   plan.Slug,
 			UpgradeURL: "/billing/plans",
 		}

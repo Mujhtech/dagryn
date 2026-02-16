@@ -149,6 +149,28 @@ func formatHeader(projectType, description string) string {
 #   access_key_id = ""
 #   secret_access_key = ""
 #   prefix = ""                       # Key prefix in the bucket
+#
+# AI analysis configuration (optional, enables AI-powered failure analysis):
+#   [ai]
+#   enabled = true                    # Enable AI analysis (default: false)
+#   mode = "summarize"                # "summarize" or "summarize_and_suggest"
+#   provider = "openai"               # "openai", "google", or "gemini"
+#   model = "gpt-4o"                  # Model name (default varies by provider)
+#
+#   [ai.backend]
+#   mode = "byok"                     # "byok" (bring your own key), "managed", or "agent"
+#
+#   [ai.backend.byok]
+#   api_key_env = "OPENAI_API_KEY"    # Env var containing the API key
+#
+#   [ai.guardrails]
+#   min_confidence = 0.7              # Minimum confidence threshold (0.0-1.0)
+#   max_suggestions_per_analysis = 5  # Max suggestions per run
+#
+#   [ai.publish]
+#   github_comment = true             # Post analysis as PR comment
+#   github_check = true               # Create GitHub check run
+#   github_suggestions = false        # Post inline code suggestions
 
 `, projectType, description)
 }

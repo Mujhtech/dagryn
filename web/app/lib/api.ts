@@ -145,6 +145,9 @@ export interface Run {
   commit_message?: string;
   commit_author_name?: string;
   commit_author_email?: string;
+  host_os?: string;
+  host_arch?: string;
+  host_name?: string;
   triggered_by_user?: {
     id: string;
     email: string;
@@ -275,6 +278,29 @@ export interface WorkflowTrigger {
   pull_request?: { branches?: string[]; types?: string[] };
 }
 
+export interface WorkflowCacheConfig {
+  enabled: boolean;
+  dir?: string;
+  remote_enabled: boolean;
+  remote_cloud: boolean;
+}
+
+export interface WorkflowAIConfig {
+  enabled: boolean;
+  mode?: string;
+  provider?: string;
+  model?: string;
+  backend_mode?: string;
+}
+
+export interface WorkflowContainerConfig {
+  enabled: boolean;
+  image?: string;
+  memory_limit?: string;
+  cpu_limit?: string;
+  network?: string;
+}
+
 export interface Workflow {
   id: string;
   name: string;
@@ -283,6 +309,9 @@ export interface Workflow {
   synced_at: string;
   tasks: WorkflowTask[];
   trigger?: WorkflowTrigger;
+  cache?: WorkflowCacheConfig;
+  ai?: WorkflowAIConfig;
+  container?: WorkflowContainerConfig;
 }
 
 export interface WorkflowTask {
@@ -445,6 +474,142 @@ export interface PluginDailyDownload {
   downloads: number;
 }
 
+// AI Analysis types
+export type AIAnalysisStatus =
+  | "pending"
+  | "in_progress"
+  | "success"
+  | "failed"
+  | "quota_exceeded"
+  | "superseded";
+
+export interface AIAnalysis {
+  id: string;
+  run_id: string;
+  project_id: string;
+  status: AIAnalysisStatus;
+  provider?: string;
+  model?: string;
+  summary?: string;
+  root_cause?: string;
+  confidence?: number;
+  evidence_json?: string;
+  error_message?: string;
+  provider_mode?: string;
+  prompt_version?: string;
+  prompt_hash?: string;
+  response_hash?: string;
+  raw_response_blob_key?: string;
+  dedup_key?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AIPublicationStatus = "pending" | "sent" | "updated" | "failed";
+export type AIPublicationDestination =
+  | "github_pr_comment"
+  | "github_check"
+  | "github_pr_review";
+
+export interface AIPublication {
+  id: string;
+  analysis_id: string;
+  run_id: string;
+  destination: AIPublicationDestination;
+  external_id?: string;
+  status: AIPublicationStatus;
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AISuggestionStatus =
+  | "pending"
+  | "posted"
+  | "accepted"
+  | "dismissed"
+  | "failed_validation";
+
+export interface AISuggestion {
+  id: string;
+  analysis_id: string;
+  run_id: string;
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  original_code: string;
+  suggested_code: string;
+  explanation: string;
+  confidence: number;
+  status: AISuggestionStatus;
+  github_comment_id?: string;
+  risk_score?: number;
+  failure_reason?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AIAnalysisDetail {
+  analysis: AIAnalysis;
+  publications: AIPublication[] | null;
+  suggestions: AISuggestion[] | null;
+}
+
+export interface AIAnalysesList {
+  analyses: AIAnalysis[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AISuggestionsResponse {
+  suggestions: AISuggestion[];
+  analysis_id: string;
+}
+
+// Dashboard Overview types
+export interface DashboardOverview {
+  projects: DashboardProject[];
+  recent_runs: DashboardRun[];
+}
+
+export interface DashboardProject {
+  id: string;
+  name: string;
+  slug: string;
+  visibility: string;
+  repo_url?: string;
+  member_count: number;
+  updated_at: string;
+  created_at: string;
+  chart: RunDashboardChartPoint[];
+  latest_run?: DashboardRun;
+  total_runs_7d: number;
+  success_runs_7d: number;
+  failed_runs_7d: number;
+  avg_duration_ms: number;
+  top_branch?: string;
+}
+
+export interface DashboardRun {
+  id: string;
+  project_id: string;
+  project_name: string;
+  workflow_name: string;
+  status: RunStatus;
+  trigger_ref?: string;
+  commit_sha?: string;
+  commit_author_name?: string;
+  triggered_by_user?: {
+    id: string;
+    email: string;
+    name: string;
+    avatar_url?: string;
+  };
+  duration_ms?: number;
+  created_at: string;
+}
+
 // Billing types
 export interface BillingPlan {
   id: string;
@@ -468,6 +633,9 @@ export interface BillingPlan {
   priority_queue: boolean;
   sso_enabled: boolean;
   audit_logs: boolean;
+  max_ai_analyses_per_month?: number;
+  ai_enabled: boolean;
+  ai_suggestions_enabled: boolean;
   stripe_price_id: string;
   sort_order: number;
 }
@@ -514,6 +682,7 @@ export interface ResourceUsage {
   projects_used: number;
   team_members_used: number;
   concurrent_runs: number;
+  ai_analyses_used: number;
 }
 
 export interface BillingOverview {
@@ -571,6 +740,7 @@ export class ApiError extends Error {
 
 class ApiClient {
   private token: string | null = null;
+  private refreshPromise: Promise<TokenResponse> | null = null;
 
   constructor() {
     // Load token from localStorage on init
@@ -601,7 +771,7 @@ class ApiClient {
     }
   }
 
-  private async fetch<T>(
+  private async fetchInternal<T>(
     path: string,
     options: RequestInit = {},
   ): Promise<{
@@ -643,7 +813,29 @@ class ApiClient {
     };
   }
 
-  private async fetchBlob(
+  private async fetch<T>(
+    path: string,
+    options: RequestInit = {},
+  ): Promise<{
+    data: T;
+    message?: string;
+  }> {
+    try {
+      return await this.fetchInternal<T>(path, options);
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.status === 401 &&
+        this.hasRefreshToken()
+      ) {
+        await this.refreshTokenInternal();
+        return this.fetchInternal<T>(path, options);
+      }
+      throw error;
+    }
+  }
+
+  private async fetchBlobInternal(
     path: string,
   ): Promise<{ blob: Blob; filename?: string; contentType?: string }> {
     const headers: HeadersInit = {};
@@ -672,6 +864,24 @@ class ApiClient {
     const filename = filenameMatch ? filenameMatch[1] : undefined;
     const blob = await response.blob();
     return { blob, filename, contentType };
+  }
+
+  private async fetchBlob(
+    path: string,
+  ): Promise<{ blob: Blob; filename?: string; contentType?: string }> {
+    try {
+      return await this.fetchBlobInternal(path);
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.status === 401 &&
+        this.hasRefreshToken()
+      ) {
+        await this.refreshTokenInternal();
+        return this.fetchBlobInternal(path);
+      }
+      throw error;
+    }
   }
 
   // Auth
@@ -703,7 +913,25 @@ class ApiClient {
     return data;
   }
 
-  async refreshToken(): Promise<TokenResponse> {
+  private hasRefreshToken(): boolean {
+    return (
+      typeof window !== "undefined" &&
+      !!localStorage.getItem("refresh_token")
+    );
+  }
+
+  // Deduplicates concurrent refresh attempts — all callers share one in-flight request.
+  private async refreshTokenInternal(): Promise<TokenResponse> {
+    if (!this.refreshPromise) {
+      this.refreshPromise = this.doRefresh().finally(() => {
+        this.refreshPromise = null;
+      });
+    }
+    return this.refreshPromise;
+  }
+
+  // Performs the actual token refresh. Uses fetchInternal to avoid triggering the 401 interceptor.
+  private async doRefresh(): Promise<TokenResponse> {
     const refreshToken =
       typeof window !== "undefined"
         ? localStorage.getItem("refresh_token")
@@ -711,7 +939,7 @@ class ApiClient {
     if (!refreshToken) {
       throw new ApiError(401, "no_refresh_token", "No refresh token available");
     }
-    const response = await this.fetch<TokenResponse>("/auth/refresh", {
+    const response = await this.fetchInternal<TokenResponse>("/auth/refresh", {
       method: "POST",
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
@@ -720,6 +948,10 @@ class ApiClient {
       localStorage.setItem("refresh_token", response.data.refresh_token);
     }
     return response.data;
+  }
+
+  async refreshToken(): Promise<TokenResponse> {
+    return this.refreshTokenInternal();
   }
 
   async logout(): Promise<void> {
@@ -891,6 +1123,16 @@ class ApiClient {
         body: JSON.stringify(data),
       },
     );
+  }
+
+  async translateGitHubWorkflowYAML(data: {
+    workflow_yaml: string;
+    file_name?: string;
+  }) {
+    return this.fetch<GitHubWorkflowTranslateResponse>("/workflows/translate", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   }
 
   async createProject(data: {
@@ -1118,6 +1360,48 @@ class ApiClient {
     );
   }
 
+  // AI Analysis
+  async getRunAIAnalysis(projectId: string, runId: string) {
+    return this.fetch<AIAnalysisDetail>(
+      `/projects/${projectId}/runs/${runId}/ai-analysis`,
+    );
+  }
+
+  async listProjectAIAnalyses(
+    projectId: string,
+    options?: { limit?: number; offset?: number },
+  ) {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set("limit", String(options.limit));
+    if (options?.offset) params.set("offset", String(options.offset));
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return this.fetch<AIAnalysesList>(
+      `/projects/${projectId}/ai-analyses${query}`,
+    );
+  }
+
+  async retryAIAnalysis(projectId: string, runId: string) {
+    return this.fetch(
+      `/projects/${projectId}/runs/${runId}/ai-analysis/retry`,
+      {
+        method: "POST",
+      },
+    );
+  }
+
+  async getAISuggestions(projectId: string, runId: string) {
+    return this.fetch<AISuggestionsResponse>(
+      `/projects/${projectId}/runs/${runId}/ai-suggestions`,
+    );
+  }
+
+  async postAISuggestions(projectId: string, runId: string) {
+    return this.fetch(
+      `/projects/${projectId}/runs/${runId}/ai-suggestions/post`,
+      { method: "POST" },
+    );
+  }
+
   // Plugins
   async listOfficialPlugins(params?: {
     q?: string;
@@ -1172,11 +1456,7 @@ class ApiClient {
     );
   }
 
-  async getRegistryPluginAnalytics(
-    publisher: string,
-    name: string,
-    days = 30,
-  ) {
+  async getRegistryPluginAnalytics(publisher: string, name: string, days = 30) {
     return this.fetch<PluginAnalytics>(
       `/registry/plugins/${publisher}/${name}/analytics?days=${days}`,
     );
@@ -1210,13 +1490,10 @@ class ApiClient {
       release_notes?: string;
     },
   ) {
-    return this.fetch(
-      `/registry/plugins/${publisher}/${name}/versions`,
-      {
-        method: "POST",
-        body: JSON.stringify(data),
-      },
-    );
+    return this.fetch(`/registry/plugins/${publisher}/${name}/versions`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   }
 
   async installProjectPlugin(projectId: string, spec: string) {
@@ -1230,6 +1507,11 @@ class ApiClient {
     return this.fetch(`/projects/${projectId}/plugins/${pluginName}`, {
       method: "DELETE",
     });
+  }
+
+  // Dashboard Overview
+  async getDashboardOverview() {
+    return this.fetch<DashboardOverview>("/dashboard/overview");
   }
 
   // Billing

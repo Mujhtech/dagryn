@@ -68,6 +68,13 @@ export const queryKeys = {
   featuredPlugins: ["featuredPlugins"] as const,
   trendingPlugins: ["trendingPlugins"] as const,
   publisher: (name: string) => ["publisher", name] as const,
+  runAIAnalysis: (projectId: string, runId: string) =>
+    ["runAIAnalysis", projectId, runId] as const,
+  projectAIAnalyses: (projectId: string, offset?: number) =>
+    ["projectAIAnalyses", projectId, offset ?? 0] as const,
+  aiSuggestions: (projectId: string, runId: string) =>
+    ["aiSuggestions", projectId, runId] as const,
+  dashboardOverview: ["dashboardOverview"] as const,
   billingPlans: ["billingPlans"] as const,
   billingPlan: (slug: string) => ["billingPlan", slug] as const,
   billingOverview: ["billingOverview"] as const,

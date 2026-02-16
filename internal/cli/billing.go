@@ -238,6 +238,28 @@ func runBillingStatus() error {
 	}
 	printUsageLine("Concurrent runs", fmt.Sprintf("%d", runsCurrent), runsLimit, int64(runsCurrent), fmtInt)
 
+	// AI Analyses (monthly)
+	if plan.AIEnabled {
+		var aiCurrent int
+		if res != nil {
+			aiCurrent = res.AIAnalysesUsed
+		}
+		var aiLimit *int64
+		if plan.MaxAIAnalysesPerMonth != nil {
+			v := int64(*plan.MaxAIAnalysesPerMonth)
+			aiLimit = &v
+		}
+		printUsageLine("AI analyses", fmt.Sprintf("%d", aiCurrent), aiLimit, int64(aiCurrent), fmtInt)
+
+		suggestStatus := "disabled"
+		if plan.AISuggestionsEnabled {
+			suggestStatus = "enabled"
+		}
+		fmt.Printf("  %-17s %s\n", "AI suggestions:", suggestStatus)
+	} else {
+		fmt.Printf("  %-17s %s\n", "AI analyses:", "not included in plan")
+	}
+
 	if len(overview.Data.Usage) > 0 {
 		fmt.Println("\nCurrent period events:")
 		for k, v := range overview.Data.Usage {

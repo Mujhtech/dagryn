@@ -26,7 +26,6 @@
   },
   "include": [
     "app/**/*",
-    "vite.config.ts",
     "trigger.config.ts"
   ]
 }

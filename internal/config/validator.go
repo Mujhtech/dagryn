@@ -3,8 +3,10 @@ package config
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
+	"github.com/mujhtech/dagryn/internal/ai/provider"
 	"github.com/mujhtech/dagryn/internal/dag"
 	"github.com/mujhtech/dagryn/internal/plugin"
 )
@@ -48,6 +50,7 @@ func Validate(cfg *Config) ValidationErrors {
 	errors = append(errors, validatePlugins(cfg)...)
 	errors = append(errors, validateGroups(cfg)...)
 	errors = append(errors, validateTriggers(cfg)...)
+	errors = append(errors, validateAI(cfg)...)
 
 	return errors
 }
@@ -344,6 +347,132 @@ func validateTriggers(cfg *Config) ValidationErrors {
 				})
 			}
 		}
+	}
+
+	return errors
+}
+
+// validateAI validates the AI analysis configuration.
+func validateAI(cfg *Config) ValidationErrors {
+	var errors ValidationErrors
+
+	if !cfg.AI.IsEnabled() {
+		return errors
+	}
+
+	// Mode validation
+	switch cfg.AI.Mode {
+	case "summarize", "summarize_and_suggest":
+		// valid
+	case "":
+		errors = append(errors, ValidationError{
+			Message: "ai.mode is required when AI is enabled (use \"summarize\" or \"summarize_and_suggest\")",
+		})
+	default:
+		errors = append(errors, ValidationError{
+			Message: fmt.Sprintf("ai.mode %q is not supported (use \"summarize\" or \"summarize_and_suggest\")", cfg.AI.Mode),
+		})
+	}
+
+	// Provider validation
+	switch cfg.AI.Provider {
+	case "openai", "google", "gemini", "":
+		// valid
+	default:
+		errors = append(errors, ValidationError{
+			Message: fmt.Sprintf("ai.provider %q is not supported (use \"openai\", \"google\", or \"gemini\")", cfg.AI.Provider),
+		})
+	}
+
+	// Model validation for managed mode
+	if cfg.AI.Model != "" && cfg.AI.Backend.Mode == "managed" {
+		providerKey := cfg.AI.Provider
+		if providerKey == "" {
+			providerKey = "openai"
+		}
+		if providerKey == "gemini" {
+			providerKey = "google"
+		}
+		if !provider.IsSupportedManagedModel(providerKey, cfg.AI.Model) {
+			allowed := provider.ManagedModels[providerKey]
+			errors = append(errors, ValidationError{
+				Message: fmt.Sprintf(
+					"ai.model %q is not supported for managed mode with provider %q (supported: %s)",
+					cfg.AI.Model, providerKey, strings.Join(allowed, ", "),
+				),
+			})
+		}
+	}
+
+	// Backend mode validation
+	switch cfg.AI.Backend.Mode {
+	case "managed", "byok", "agent":
+		// valid
+	case "":
+		errors = append(errors, ValidationError{
+			Message: "ai.backend.mode is required when AI is enabled (use \"managed\", \"byok\", or \"agent\")",
+		})
+	default:
+		errors = append(errors, ValidationError{
+			Message: fmt.Sprintf("ai.backend.mode %q is not supported (use \"managed\", \"byok\", or \"agent\")", cfg.AI.Backend.Mode),
+		})
+	}
+
+	// BYOK-specific validation
+	if cfg.AI.Backend.Mode == "byok" && cfg.AI.Backend.BYOK.APIKeyEnv == "" {
+		errors = append(errors, ValidationError{
+			Message: "ai.backend.byok.api_key_env should be set when backend mode is \"byok\"",
+		})
+	}
+
+	// Agent-specific validation
+	if cfg.AI.Backend.Mode == "agent" {
+		if cfg.AI.Backend.Agent.Endpoint == "" {
+			errors = append(errors, ValidationError{
+				Message: "ai.backend.agent.endpoint is required when backend mode is \"agent\"",
+			})
+		}
+		if cfg.AI.Backend.Agent.TimeoutSeconds <= 0 {
+			errors = append(errors, ValidationError{
+				Message: "ai.backend.agent.timeout_seconds must be > 0 when backend mode is \"agent\"",
+			})
+		}
+	}
+
+	// Guardrails validation
+	g := cfg.AI.Guardrails
+	if g.MinConfidence < 0 || g.MinConfidence > 1 {
+		errors = append(errors, ValidationError{
+			Message: fmt.Sprintf("ai.guardrails.min_confidence must be between 0.0 and 1.0, got %v", g.MinConfidence),
+		})
+	}
+	if g.MaxSuggestionLines < 0 {
+		errors = append(errors, ValidationError{
+			Message: "ai.guardrails.max_suggestion_lines must be >= 0",
+		})
+	}
+	if g.MaxSuggestionsPerAnalysis < 0 {
+		errors = append(errors, ValidationError{
+			Message: "ai.guardrails.max_suggestions_per_analysis must be >= 0",
+		})
+	}
+
+	// Rate limit validation
+	rl := cfg.AI.RateLimit
+	if rl.MaxAnalysesPerHour < 0 {
+		errors = append(errors, ValidationError{
+			Message: "ai.rate_limit.max_analyses_per_hour must be >= 0",
+		})
+	}
+	if rl.CooldownSeconds < 0 {
+		errors = append(errors, ValidationError{
+			Message: "ai.rate_limit.cooldown_seconds must be >= 0",
+		})
+	}
+	if rl.MaxConcurrentAnalyses < 0 {
+		errors = append(errors, ValidationError{
+			Message: "ai.rate_limit.max_concurrent_analyses must be >= 0",
+		})
 	}
 
 	return errors

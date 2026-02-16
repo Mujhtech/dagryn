@@ -39,7 +39,7 @@ func (b *Backend) Restore(ctx context.Context, taskName, key string) error {
 	}
 	defer func() { _ = rc.Close() }()
 
-	if err := extractArchive(b.projectRoot, rc); err != nil {
+	if err := ExtractArchive(b.projectRoot, rc); err != nil {
 		return fmt.Errorf("cloud cache extract: %w", err)
 	}
 	return nil
@@ -50,7 +50,7 @@ func (b *Backend) Save(ctx context.Context, taskName, key string, outputPatterns
 		return nil
 	}
 
-	archive, err := createArchive(b.projectRoot, outputPatterns)
+	archive, err := CreateArchive(b.projectRoot, outputPatterns, nil)
 	if err != nil {
 		return fmt.Errorf("cloud cache archive: %w", err)
 	}

@@ -117,10 +117,11 @@ func (h *Handler) SyncProjectWorkflowFromToml(w http.ResponseWriter, r *http.Req
 	}
 
 	syncReq := SyncWorkflowRequest{
-		Name:      cfg.Workflow.Name,
-		IsDefault: cfg.Workflow.Default,
-		RawConfig: req.RawConfig,
-		Tasks:     make([]SyncWorkflowTaskData, 0, len(cfg.Tasks)),
+		Name:       cfg.Workflow.Name,
+		IsDefault:  cfg.Workflow.Default,
+		ConfigHash: config.ComputeConfigHash([]byte(req.RawConfig)),
+		RawConfig:  req.RawConfig,
+		Tasks:      make([]SyncWorkflowTaskData, 0, len(cfg.Tasks)),
 	}
 	if syncReq.Name == "" {
 		syncReq.Name = "default"
@@ -312,22 +313,53 @@ func toWorkflowResponse(wf models.WorkflowWithTasks) WorkflowResponse {
 		Tasks:     tasks,
 	}
 
-	// Extract trigger from raw_config if available
+	// Extract trigger, cache, AI, and container config from raw_config if available
 	if wf.RawConfig != nil && *wf.RawConfig != "" {
-		if cfg, err := config.ParseBytes([]byte(*wf.RawConfig)); err == nil && cfg.Workflow.Trigger != nil {
-			trigger := &WorkflowTriggerResponse{}
-			if cfg.Workflow.Trigger.Push != nil {
-				trigger.Push = &PushTriggerResponse{
-					Branches: cfg.Workflow.Trigger.Push.Branches,
+		if cfg, err := config.ParseBytes([]byte(*wf.RawConfig)); err == nil {
+			// Trigger
+			if cfg.Workflow.Trigger != nil {
+				trigger := &WorkflowTriggerResponse{}
+				if cfg.Workflow.Trigger.Push != nil {
+					trigger.Push = &PushTriggerResponse{
+						Branches: cfg.Workflow.Trigger.Push.Branches,
+					}
+				}
+				if cfg.Workflow.Trigger.PullRequest != nil {
+					trigger.PullRequest = &PullRequestTriggerResponse{
+						Branches: cfg.Workflow.Trigger.PullRequest.Branches,
+						Types:    cfg.Workflow.Trigger.PullRequest.Types,
+					}
+				}
+				resp.Trigger = trigger
+			}
+
+			// Cache config
+			resp.Cache = &WorkflowCacheConfig{
+				Enabled:       cfg.Cache.IsEnabled(),
+				Dir:           cfg.Cache.Dir,
+				RemoteEnabled: cfg.Cache.Remote.Enabled,
+				RemoteCloud:   cfg.Cache.Remote.Cloud,
+			}
+
+			// AI config
+			resp.AI = &WorkflowAIConfig{
+				Enabled:     cfg.AI.IsEnabled(),
+				Mode:        cfg.AI.Mode,
+				Provider:    cfg.AI.Provider,
+				Model:       cfg.AI.Model,
+				BackendMode: cfg.AI.Backend.Mode,
+			}
+
+			// Container config
+			if cfg.Container.Enabled {
+				resp.Container = &WorkflowContainerConfig{
+					Enabled:     true,
+					Image:       cfg.Container.Image,
+					MemoryLimit: cfg.Container.MemoryLimit,
+					CPULimit:    cfg.Container.CPULimit,
+					Network:     cfg.Container.Network,
 				}
 			}
-			if cfg.Workflow.Trigger.PullRequest != nil {
-				trigger.PullRequest = &PullRequestTriggerResponse{
-					Branches: cfg.Workflow.Trigger.PullRequest.Branches,
-					Types:    cfg.Workflow.Trigger.PullRequest.Types,
-				}
-			}
-			resp.Trigger = trigger
 		}
 	}
 

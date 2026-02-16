@@ -51,23 +51,27 @@ function PluginCard({ plugin }: { plugin: RegistryPluginSummary }) {
           {plugin.description}
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="flex flex-wrap gap-2 mb-3">
-          <Badge variant="outline">{plugin.type}</Badge>
-          <Badge variant="outline">v{plugin.latest_version}</Badge>
-          {plugin.featured && <Badge variant="secondary">Featured</Badge>}
-          {plugin.deprecated && <Badge variant="destructive">Deprecated</Badge>}
-        </div>
+      <CardContent className="flex-1">
+        <div className="flex-1">
+          <div className="flex flex-wrap gap-2 mb-3">
+            <Badge variant="outline">{plugin.type}</Badge>
+            <Badge variant="outline">v{plugin.latest_version}</Badge>
+            {plugin.featured && <Badge variant="secondary">Featured</Badge>}
+            {plugin.deprecated && (
+              <Badge variant="destructive">Deprecated</Badge>
+            )}
+          </div>
 
-        <div className="flex items-center gap-3 mb-4 text-sm text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <Icons.Download className="h-3 w-3" />
-            {formatNumber(plugin.total_downloads)}
-          </span>
-          <span className="flex items-center gap-1">
-            <Icons.User className="h-3 w-3" />
-            {plugin.publisher_name}
-          </span>
+          <div className="flex items-center gap-3 mb-4 text-sm text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Icons.Download className="h-3 w-3" />
+              {formatNumber(plugin.total_downloads)}
+            </span>
+            <span className="flex items-center gap-1">
+              <Icons.User className="h-3 w-3" />
+              {plugin.publisher_name}
+            </span>
+          </div>
         </div>
 
         <Link
@@ -166,7 +170,7 @@ function BrowsePluginsPage() {
             setPage(1);
           }}
         >
-          <SelectTrigger className="w-[140px]">
+          <SelectTrigger className="w-35">
             <SelectValue placeholder="Type" />
           </SelectTrigger>
           <SelectContent>
@@ -177,7 +181,7 @@ function BrowsePluginsPage() {
           </SelectContent>
         </Select>
         <Select value={sort} onValueChange={setSort}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-40">
             <SelectValue placeholder="Sort by" />
           </SelectTrigger>
           <SelectContent>

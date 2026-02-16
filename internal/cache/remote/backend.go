@@ -84,41 +84,35 @@ func (b *StorageBackend) Save(ctx context.Context, taskName, key string, outputP
 	manifest := &Manifest{Files: make(map[string]*Digest)}
 
 	// Resolve output patterns and upload each file
-	for _, pattern := range outputPatterns {
-		matches, err := filepath.Glob(filepath.Join(b.projectRoot, pattern))
+	files, err := cache.ResolveFilePatterns(b.projectRoot, outputPatterns)
+	if err != nil {
+		return fmt.Errorf("remote cache: resolve patterns: %w", err)
+	}
+	for _, src := range files {
+		relPath, err := filepath.Rel(b.projectRoot, src)
 		if err != nil {
 			continue
 		}
-		for _, src := range matches {
-			info, err := os.Stat(src)
-			if err != nil || info.IsDir() {
-				continue
-			}
-			relPath, err := filepath.Rel(b.projectRoot, src)
-			if err != nil {
-				continue
-			}
 
-			data, err := os.ReadFile(src)
-			if err != nil {
-				continue
-			}
-
-			digest := DigestBytes(data)
-
-			// Upload to CAS if not already present
-			exists, err := b.bucket.Exists(ctx, digest.Key())
-			if err != nil {
-				return fmt.Errorf("remote cache: check CAS %q: %w", digest.Key(), err)
-			}
-			if !exists {
-				if err := b.bucket.Put(ctx, digest.Key(), bytes.NewReader(data), nil); err != nil {
-					return fmt.Errorf("remote cache: upload CAS %q: %w", digest.Key(), err)
-				}
-			}
-
-			manifest.Files[relPath] = &digest
+		data, err := os.ReadFile(src)
+		if err != nil {
+			continue
 		}
+
+		digest := DigestBytes(data)
+
+		// Upload to CAS if not already present
+		exists, err := b.bucket.Exists(ctx, digest.Key())
+		if err != nil {
+			return fmt.Errorf("remote cache: check CAS %q: %w", digest.Key(), err)
+		}
+		if !exists {
+			if err := b.bucket.Put(ctx, digest.Key(), bytes.NewReader(data), nil); err != nil {
+				return fmt.Errorf("remote cache: upload CAS %q: %w", digest.Key(), err)
+			}
+		}
+
+		manifest.Files[relPath] = &digest
 	}
 
 	// Upload manifest

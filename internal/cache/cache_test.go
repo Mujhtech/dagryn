@@ -370,6 +370,51 @@ func TestCache_SaveAndRestore_WithWorkdir(t *testing.T) {
 	assert.True(t, os.IsNotExist(err), "output should not be restored at project root")
 }
 
+func TestStore_SaveAndRestore_WithSubdirectories(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Simulate a web build with dist/ containing files and an assets/ subdirectory.
+	distDir := filepath.Join(tmpDir, "dist")
+	assetsDir := filepath.Join(distDir, "assets")
+	require.NoError(t, os.MkdirAll(assetsDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(distDir, "index.html"), []byte("<html></html>"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(assetsDir, "app.js"), []byte("console.log('app')"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(assetsDir, "style.css"), []byte("body{}"), 0644))
+
+	store := NewStore(tmpDir)
+	meta := Metadata{TaskName: "web-build", CacheKey: "dir-test"}
+
+	// Save cache — dist/* matches index.html AND the assets/ directory.
+	err := store.Save("web-build", "dir-test", []string{"dist/*"}, meta)
+	require.NoError(t, err)
+
+	// Delete original outputs
+	require.NoError(t, os.RemoveAll(distDir))
+
+	// Restore cache
+	err = store.Restore("web-build", "dir-test")
+	require.NoError(t, err)
+
+	// Verify top-level file was restored
+	content, err := os.ReadFile(filepath.Join(tmpDir, "dist", "index.html"))
+	require.NoError(t, err)
+	assert.Equal(t, "<html></html>", string(content))
+
+	// Verify assets directory was restored as a directory, not a file
+	info, err := os.Stat(filepath.Join(tmpDir, "dist", "assets"))
+	require.NoError(t, err)
+	assert.True(t, info.IsDir(), "assets should be restored as a directory, not a file")
+
+	// Verify files inside assets/ were restored
+	jsContent, err := os.ReadFile(filepath.Join(tmpDir, "dist", "assets", "app.js"))
+	require.NoError(t, err)
+	assert.Equal(t, "console.log('app')", string(jsContent))
+
+	cssContent, err := os.ReadFile(filepath.Join(tmpDir, "dist", "assets", "style.css"))
+	require.NoError(t, err)
+	assert.Equal(t, "body{}", string(cssContent))
+}
+
 func TestCache_NoInputsOrOutputs(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "cache-test")
 	require.NoError(t, err)
@@ -393,4 +438,80 @@ func TestCache_NoInputsOrOutputs(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, hit)
 	assert.Empty(t, key)
+}
+
+func TestStore_SaveAndRestore_DoublestarGlob(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Simulate node_modules with deep nesting
+	for _, rel := range []string{
+		"node_modules/pkg-a/index.js",
+		"node_modules/pkg-a/lib/core.js",
+		"node_modules/pkg-b/index.js",
+		"node_modules/pkg-b/node_modules/pkg-c/index.js",
+	} {
+		abs := filepath.Join(tmpDir, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(abs), 0755))
+		require.NoError(t, os.WriteFile(abs, []byte("module.exports={}"), 0644))
+	}
+
+	store := NewStore(tmpDir)
+	meta := Metadata{TaskName: "install", CacheKey: "ds-test"}
+
+	// Save with ** pattern
+	err := store.Save("install", "ds-test", []string{"node_modules/**"}, meta)
+	require.NoError(t, err)
+
+	// Verify metadata includes all files
+	retrieved, err := store.GetMetadata("install", "ds-test")
+	require.NoError(t, err)
+	assert.Len(t, retrieved.Outputs, 4, "all 4 deeply nested files should be saved")
+
+	// Delete originals and restore
+	require.NoError(t, os.RemoveAll(filepath.Join(tmpDir, "node_modules")))
+	require.NoError(t, store.Restore("install", "ds-test"))
+
+	// Verify all files restored
+	for _, rel := range []string{
+		"node_modules/pkg-a/index.js",
+		"node_modules/pkg-a/lib/core.js",
+		"node_modules/pkg-b/index.js",
+		"node_modules/pkg-b/node_modules/pkg-c/index.js",
+	} {
+		content, err := os.ReadFile(filepath.Join(tmpDir, rel))
+		require.NoError(t, err, "file %s should be restored", rel)
+		assert.Equal(t, "module.exports={}", string(content))
+	}
+}
+
+func TestHashFiles_DoublestarRecursive(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create nested Go source files
+	for _, rel := range []string{
+		"src/main.go",
+		"src/pkg/util.go",
+		"src/pkg/deep/nested.go",
+	} {
+		abs := filepath.Join(tmpDir, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(abs), 0755))
+		require.NoError(t, os.WriteFile(abs, []byte("package main"), 0644))
+	}
+	// Non-.go file that should be excluded
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "src/readme.md"), []byte("# readme"), 0644))
+
+	hash1, err := HashFiles([]string{"src/**/*.go"}, tmpDir)
+	require.NoError(t, err)
+	assert.NotEmpty(t, hash1)
+
+	// Modify a deeply nested file — hash should change
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "src/pkg/deep/nested.go"), []byte("package changed"), 0644))
+	hash2, err := HashFiles([]string{"src/**/*.go"}, tmpDir)
+	require.NoError(t, err)
+	assert.NotEqual(t, hash1, hash2, "hash should change when nested file changes")
+
+	// Modifying the .md file should NOT change the hash
+	hash3, err := HashFiles([]string{"src/**/*.go"}, tmpDir)
+	require.NoError(t, err)
+	assert.Equal(t, hash2, hash3, "non-.go file changes should not affect hash")
 }

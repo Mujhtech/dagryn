@@ -181,6 +181,7 @@ type ResourceUsage struct {
 	ProjectsUsed          int   `json:"projects_used"`
 	TeamMembersUsed       int   `json:"team_members_used"`
 	ConcurrentRuns        int   `json:"concurrent_runs"`
+	AIAnalysesUsed        int   `json:"ai_analyses_used"`
 }
 
 // BillingOverview holds the account, subscription, plan, and usage data for display.
@@ -270,6 +271,13 @@ func (s *BillingService) GetOverview(ctx context.Context, accountID uuid.UUID) (
 	runCount, err := s.repo.CountActiveRunsByAccount(ctx, accountID)
 	if err == nil {
 		resUsage.ConcurrentRuns = runCount
+	}
+
+	// AI analyses this month
+	startOfMonth := time.Date(time.Now().Year(), time.Now().Month(), 1, 0, 0, 0, 0, time.UTC)
+	aiCount, err := s.repo.CountAIAnalysesByAccount(ctx, accountID, startOfMonth)
+	if err == nil {
+		resUsage.AIAnalysesUsed = aiCount
 	}
 
 	overview.ResourceUsage = resUsage

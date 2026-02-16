@@ -41,7 +41,7 @@ func (b *ServerBackend) Restore(ctx context.Context, taskName, key string) error
 	}
 	defer func() { _ = rc.Close() }()
 
-	if err := extractArchive(b.projectRoot, rc); err != nil {
+	if err := ExtractArchive(b.projectRoot, rc); err != nil {
 		return fmt.Errorf("server cache extract: %w", err)
 	}
 	return nil
@@ -52,7 +52,7 @@ func (b *ServerBackend) Save(ctx context.Context, taskName, key string, outputPa
 		return nil
 	}
 
-	archive, err := createArchive(b.projectRoot, outputPatterns)
+	archive, err := CreateArchive(b.projectRoot, outputPatterns, nil)
 	if err != nil {
 		return fmt.Errorf("server cache archive: %w", err)
 	}

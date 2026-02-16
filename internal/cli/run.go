@@ -6,8 +6,10 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -194,6 +196,11 @@ func runRun(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Allow remote cancellation to stop the local scheduler
+	if remoteSync != nil {
+		remoteSync.SetCancelFunc(cancel)
+	}
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -210,33 +217,48 @@ func runRun(cmd *cobra.Command, args []string) error {
 		remoteSync.OnRunStart()
 	}
 
-	// Run tasks
+	// Run tasks — returns as soon as all tasks finish; cache saves may still
+	// be running in the background.
 	summary, err := sched.Run(ctx, targets)
 
-	// Collect artifacts from successful tasks when remote sync is active
-	if remoteSync != nil && summary != nil && len(summary.Results) > 0 {
-		remoteSync.CollectArtifacts(workflow, summary, projectRoot)
-	}
-
-	// Notify remote sync of completion and cleanup
-	if remoteSync != nil {
+	// Report run status first so the user sees the result immediately.
+	// Skip if remotely cancelled — the server already has the correct status,
+	// and the heartbeat goroutine updated the local record.
+	if remoteSync != nil && !remoteSync.IsRemoteCancelled() {
 		if err != nil {
 			remoteSync.OnRunFailed(err)
-		} else if summary.Failures > 0 {
+		} else if summary != nil && summary.Failures > 0 {
 			remoteSync.OnRunFailed(fmt.Errorf("%d task(s) failed", summary.Failures))
 		} else {
 			remoteSync.OnRunComplete(summary)
 		}
-		// Stop periodic flusher and close resources
-		remoteSync.Stop()
 	}
 
 	if err != nil {
+		// Wait for cache saves before cancelling the context.
+		sched.WaitCacheSaves()
+		if remoteSync != nil {
+			remoteSync.Stop()
+		}
 		return err
 	}
 
-	// Print summary
+	// Print summary immediately so the user sees the result.
 	log.Summary(summary.Results, summary.Total, summary.CacheHits)
+
+	// Wait for background cache saves to complete (context must stay alive).
+	sched.WaitCacheSaves()
+
+	// Collect artifacts after status reporting. Stays synchronous so workDir
+	// and remote sync resources are still available.
+	if remoteSync != nil && summary != nil && len(summary.Results) > 0 {
+		remoteSync.CollectArtifacts(workflow, summary, projectRoot)
+	}
+
+	// Stop periodic flusher and close resources
+	if remoteSync != nil {
+		remoteSync.Stop()
+	}
 
 	// Exit with error if any tasks failed
 	if summary.Failures > 0 {
@@ -259,15 +281,21 @@ type RemoteSync struct {
 	offlineOnce sync.Once // ensures we only print offline message once
 	errorCount  int       // count of consecutive errors
 	maxErrors   int       // max errors before giving up on sync
+	maxLogBuf   int       // max log entries to buffer before discarding oldest
 
 	// Local run storage for offline fallback
 	runStore     *client.RunStore
 	projectRoot  string
 	taskLineNums map[string]int // per-task line counters
 
+	// Cancellation from remote
+	cancelFunc      context.CancelFunc
+	remoteCancelled atomic.Bool
+
 	// Periodic flush
-	flushTicker *time.Ticker
-	done        chan struct{}
+	flushTicker    *time.Ticker
+	done           chan struct{}
+	lastFlushError time.Time // tracks last flush failure for backoff
 }
 
 // setupRemoteSync creates a remote sync handler.
@@ -336,6 +364,7 @@ func setupRemoteSync(projectRoot string, targets []string) (*RemoteSync, error) 
 	}
 
 	apiClient.SetCredentials(creds)
+	apiClient.SetCredentialsStore(store)
 
 	// Sync workflow to remote before triggering the run
 	// This ensures the remote has the latest workflow definition
@@ -354,11 +383,16 @@ func setupRemoteSync(projectRoot string, targets []string) (*RemoteSync, error) 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	hostname, _ := os.Hostname()
+
 	resp, err := apiClient.TriggerRun(ctx, projID, client.TriggerRunRequest{
 		Targets:   targets,
 		GitBranch: gitBranch,
 		GitCommit: gitCommit,
 		SyncOnly:  true, // CLI executes locally, only sync status to server
+		HostOS:    runtime.GOOS,
+		HostArch:  runtime.GOARCH,
+		HostName:  hostname,
 	})
 	if err != nil {
 		// Provide helpful error messages based on error type
@@ -398,15 +432,17 @@ func setupRemoteSync(projectRoot string, targets []string) (*RemoteSync, error) 
 		RunID:        resp.Data.RunID,
 		creds:        creds,
 		logBuffer:    make([]client.LogEntry, 0, 100),
-		maxErrors:    5, // Give up on sync after 5 consecutive failures
+		maxErrors:    5,     // Give up on sync after 5 consecutive failures
+		maxLogBuf:    10000, // Cap buffer at 10k entries to prevent unbounded growth
 		runStore:     runStore,
 		projectRoot:  projectRoot,
 		taskLineNums: make(map[string]int),
 		done:         make(chan struct{}),
 	}
 
-	// Start periodic log flusher
+	// Start periodic log flusher and heartbeat poller
 	rs.startPeriodicFlush(2 * time.Second)
+	rs.startHeartbeat(5 * time.Second)
 
 	return rs, nil
 }
@@ -465,7 +501,8 @@ func (s *RemoteSync) OnTaskStart(name string, cacheHit bool) {
 	if cacheHit {
 		status = "cached"
 	}
-	if err := s.client.UpdateTaskStatus(ctx, s.projectID, s.RunID, name, status, nil, nil, cacheHit, ""); err != nil {
+	now := time.Now()
+	if err := s.client.UpdateTaskStatus(ctx, s.projectID, s.RunID, name, status, nil, nil, cacheHit, "", &now, nil); err != nil {
 		s.handleSyncError(fmt.Sprintf("update task %s status", name), err)
 	} else {
 		s.resetErrorCount()
@@ -502,7 +539,16 @@ func (s *RemoteSync) OnTaskComplete(name string, result *executor.Result, cacheH
 	durationMs := result.Duration.Milliseconds()
 	exitCode := result.ExitCode
 
-	if err := s.client.UpdateTaskStatus(ctx, s.projectID, s.RunID, name, status, &exitCode, &durationMs, cacheHit, ""); err != nil {
+	// Send accurate client-side timestamps
+	var startedAt, finishedAt *time.Time
+	if !result.StartTime.IsZero() {
+		startedAt = &result.StartTime
+	}
+	if !result.EndTime.IsZero() {
+		finishedAt = &result.EndTime
+	}
+
+	if err := s.client.UpdateTaskStatus(ctx, s.projectID, s.RunID, name, status, &exitCode, &durationMs, cacheHit, "", startedAt, finishedAt); err != nil {
 		s.handleSyncError(fmt.Sprintf("update task %s completion", name), err)
 	} else {
 		s.resetErrorCount()
@@ -624,8 +670,9 @@ func (s *RemoteSync) AppendLog(taskName, stream, line string) {
 		LineNum:  lineNum,
 	})
 
-	// Flush when buffer is full
-	if len(s.logBuffer) >= 100 {
+	// Flush when buffer is full, but skip if we recently had a flush failure
+	// to avoid a retry storm. The periodic flusher (every 2s) handles retries.
+	if len(s.logBuffer) >= 100 && time.Since(s.lastFlushError) > 2*time.Second {
 		s.flushLogsLocked()
 	}
 }
@@ -638,6 +685,8 @@ func (s *RemoteSync) flushLogs() {
 }
 
 // flushLogsLocked sends buffered logs (must be called with lock held).
+// On success the buffer is cleared. On error the logs are retained for retry
+// on the next flush, subject to the maxLogBuf cap.
 func (s *RemoteSync) flushLogsLocked() {
 	if len(s.logBuffer) == 0 {
 		return
@@ -653,10 +702,16 @@ func (s *RemoteSync) flushLogsLocked() {
 
 	if err := s.client.AppendLogs(ctx, s.projectID, s.RunID, s.logBuffer); err != nil {
 		s.handleSyncError("send logs", err)
-	} else {
-		s.resetErrorCount()
+		s.lastFlushError = time.Now()
+		// Keep logs in buffer for retry on next flush.
+		// Trim oldest entries if the buffer exceeds the cap.
+		if s.maxLogBuf > 0 && len(s.logBuffer) > s.maxLogBuf {
+			s.logBuffer = s.logBuffer[len(s.logBuffer)-s.maxLogBuf:]
+		}
+		return
 	}
 
+	s.resetErrorCount()
 	s.logBuffer = s.logBuffer[:0]
 }
 
@@ -731,8 +786,60 @@ func (s *RemoteSync) startPeriodicFlush(interval time.Duration) {
 	}()
 }
 
+// SetCancelFunc sets the context cancel function so that a remote cancellation
+// detected via heartbeat can stop the local scheduler.
+func (s *RemoteSync) SetCancelFunc(cancel context.CancelFunc) {
+	s.cancelFunc = cancel
+}
+
+// IsRemoteCancelled returns true if the run was cancelled via the dashboard.
+func (s *RemoteSync) IsRemoteCancelled() bool {
+	return s.remoteCancelled.Load()
+}
+
+// startHeartbeat starts a goroutine that periodically sends heartbeats to the
+// server. If the server reports the run as "cancelled", it cancels the local
+// context to stop running tasks.
+func (s *RemoteSync) startHeartbeat(interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if s.isOffline() {
+					continue
+				}
+
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				resp, err := s.client.Heartbeat(ctx, s.projectID, s.RunID)
+				cancel()
+
+				if err != nil {
+					// Heartbeat failure is non-critical — silently ignore.
+					continue
+				}
+
+				if resp.Status == "cancelled" {
+					fmt.Fprintf(os.Stderr, "\nRun cancelled remotely. Stopping tasks...\n")
+					s.remoteCancelled.Store(true)
+					s.updateLocalRunStatus("cancelled", "Cancelled remotely")
+					if s.cancelFunc != nil {
+						s.cancelFunc()
+					}
+					return
+				}
+			case <-s.done:
+				return
+			}
+		}
+	}()
+}
+
 // Stop stops the periodic flusher, flushes remaining logs, and closes resources.
 // CollectArtifacts uploads artifacts from successful tasks to the remote server.
+// When a task produces 2+ output files they are bundled into a single tar.gz archive.
 func (s *RemoteSync) CollectArtifacts(workflow *task.Workflow, summary *scheduler.RunSummary, projectRoot string) {
 	if s.isOffline() || workflow == nil || summary == nil {
 		return
@@ -760,43 +867,79 @@ func (s *RemoteSync) CollectArtifacts(workflow *task.Workflow, summary *schedule
 			}
 		}
 
-		seen := make(map[string]struct{})
-		for _, pattern := range outputs {
-			matches, err := filepath.Glob(filepath.Join(projectRoot, pattern))
+		resolved, err := cache.ResolveFilePatterns(projectRoot, outputs)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to resolve artifact patterns for %s: %v\n", tsk.Name, err)
+			continue
+		}
+
+		// Filter out skip paths.
+		var filtered []string
+		for _, path := range resolved {
+			relPath, err := filepath.Rel(projectRoot, path)
 			if err != nil {
 				continue
 			}
-			for _, path := range matches {
-				if _, ok := seen[path]; ok {
-					continue
-				}
-				seen[path] = struct{}{}
-
-				info, err := os.Stat(path)
-				if err != nil || info.IsDir() {
-					continue
-				}
-
-				relPath, err := filepath.Rel(projectRoot, path)
-				if err != nil {
-					continue
-				}
-				fileName := filepath.Base(relPath)
-
-				f, err := os.Open(path)
-				if err != nil {
-					continue
-				}
-
-				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-				err = s.client.UploadArtifact(ctx, s.projectID, s.RunID, tsk.Name, relPath, fileName, f)
-				cancel()
-				_ = f.Close()
-
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: artifact upload failed for %s: %v\n", relPath, err)
-				}
+			if isArtifactSkipPath(relPath) {
+				continue
 			}
+			filtered = append(filtered, path)
+		}
+
+		if len(filtered) == 0 {
+			continue
+		}
+
+		if len(filtered) == 1 {
+			// Single file — upload directly.
+			path := filtered[0]
+			relPath, _ := filepath.Rel(projectRoot, path)
+			fileName := filepath.Base(relPath)
+
+			f, err := os.Open(path)
+			if err != nil {
+				continue
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			err = s.client.UploadArtifact(ctx, s.projectID, s.RunID, tsk.Name, relPath, fileName, f)
+			cancel()
+			_ = f.Close()
+
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: artifact upload failed for %s: %v\n", relPath, err)
+			}
+			continue
+		}
+
+		// 2+ files — bundle into a single tar.gz archive.
+		var relPatterns []string
+		for _, path := range filtered {
+			relPath, _ := filepath.Rel(projectRoot, path)
+			relPatterns = append(relPatterns, relPath)
+		}
+
+		archive, err := cloud.CreateArchive(projectRoot, relPatterns, artifactSkipDirs)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: artifact archive failed for %s: %v\n", tsk.Name, err)
+			continue
+		}
+
+		artifactName := tsk.Name + " outputs"
+		archiveFileName := tsk.Name + "-outputs.tar.gz"
+		metaJSON := fmt.Sprintf(`{"archive":true,"file_count":%d}`, len(filtered))
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		err = s.client.UploadArtifact(ctx, s.projectID, s.RunID, tsk.Name, artifactName, archiveFileName, archive,
+			client.WithArtifactContentType("application/gzip"),
+			client.WithArtifactMetadata(metaJSON),
+		)
+		cancel()
+		_ = archive.Close()
+		_ = os.Remove(archive.Name())
+
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: artifact archive upload failed for %s: %v\n", tsk.Name, err)
 		}
 	}
 }
@@ -812,8 +955,18 @@ func (s *RemoteSync) Stop() {
 		s.flushTicker.Stop()
 	}
 
-	// Final flush of any remaining logs
-	s.flushLogs()
+	// Final flush with retries — this is the last chance to deliver logs.
+	for attempt := 0; attempt < 3; attempt++ {
+		s.flushLogs()
+		s.logMu.Lock()
+		empty := len(s.logBuffer) == 0
+		s.logMu.Unlock()
+		if empty || s.isOffline() {
+			break
+		}
+		// Brief backoff before retry
+		time.Sleep(500 * time.Millisecond)
+	}
 
 	// Close run store (closes log file descriptors)
 	if s.runStore != nil {
@@ -821,6 +974,29 @@ func (s *RemoteSync) Stop() {
 			fmt.Fprintf(os.Stderr, "Warning: Failed to close log file: %v\n", err)
 		}
 	}
+}
+
+// artifactSkipDirs are directories whose contents should never be uploaded as
+// artifacts — they are dependencies or metadata, not build outputs.
+var artifactSkipDirs = []string{
+	"node_modules",
+	".git",
+	".dagryn",
+}
+
+// isArtifactSkipPath returns true if relPath falls inside a skip directory.
+func isArtifactSkipPath(relPath string) bool {
+	for _, dir := range artifactSkipDirs {
+		if relPath == dir || strings.HasPrefix(relPath, dir+string(filepath.Separator)) {
+			return true
+		}
+		// Also check nested occurrences (e.g. web/node_modules/...)
+		nested := string(filepath.Separator) + dir + string(filepath.Separator)
+		if strings.Contains(relPath, nested) {
+			return true
+		}
+	}
+	return false
 }
 
 // buildCacheBackend creates a cache.Backend from the configuration.

@@ -17,9 +17,10 @@ import (
 
 // S3Bucket implements Bucket using an S3-compatible object store.
 type S3Bucket struct {
-	client *s3.Client
-	bucket string
-	prefix string
+	client   *s3.Client
+	bucket   string
+	prefix   string
+	provider ProviderType
 }
 
 // NewS3Bucket creates an S3-backed Bucket from the given Config.
@@ -40,7 +41,7 @@ func NewS3Bucket(cfg Config) (*S3Bucket, error) {
 
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, optFns...)
 	if err != nil {
-		return nil, fmt.Errorf("storage/s3: load config: %w", err)
+		return nil, fmt.Errorf("storage/%s: load config: %w", cfg.Provider, err)
 	}
 
 	var s3OptFns []func(*s3.Options)
@@ -64,9 +65,10 @@ func NewS3Bucket(cfg Config) (*S3Bucket, error) {
 	client := s3.NewFromConfig(awsCfg, s3OptFns...)
 
 	return &S3Bucket{
-		client: client,
-		bucket: cfg.Bucket,
-		prefix: cfg.Prefix,
+		client:   client,
+		bucket:   cfg.Bucket,
+		prefix:   cfg.Prefix,
+		provider: cfg.Provider,
 	}, nil
 }
 
@@ -90,7 +92,7 @@ func (b *S3Bucket) Put(ctx context.Context, key string, r io.Reader, opts *PutOp
 	}
 	_, err := b.client.PutObject(ctx, input)
 	if err != nil {
-		return fmt.Errorf("storage/s3: put %q: %w", key, err)
+		return fmt.Errorf("storage/%s: put %q: %w", b.provider, key, err)
 	}
 	return nil
 }
@@ -109,7 +111,7 @@ func (b *S3Bucket) Get(ctx context.Context, key string) (io.ReadCloser, error) {
 		if strings.Contains(err.Error(), "NoSuchKey") || strings.Contains(err.Error(), "404") {
 			return nil, ErrNotFound
 		}
-		return nil, fmt.Errorf("storage/s3: get %q: %w", key, err)
+		return nil, fmt.Errorf("storage/%s: get %q: %w", b.provider, key, err)
 	}
 	return out.Body, nil
 }
@@ -120,7 +122,7 @@ func (b *S3Bucket) Delete(ctx context.Context, key string) error {
 		Key:    aws.String(b.fullKey(key)),
 	})
 	if err != nil {
-		return fmt.Errorf("storage/s3: delete %q: %w", key, err)
+		return fmt.Errorf("storage/%s: delete %q: %w", b.provider, key, err)
 	}
 	return nil
 }
@@ -138,7 +140,7 @@ func (b *S3Bucket) Exists(ctx context.Context, key string) (bool, error) {
 		if strings.Contains(err.Error(), "NotFound") || strings.Contains(err.Error(), "404") {
 			return false, nil
 		}
-		return false, fmt.Errorf("storage/s3: head %q: %w", key, err)
+		return false, fmt.Errorf("storage/%s: head %q: %w", b.provider, key, err)
 	}
 	return true, nil
 }
@@ -157,7 +159,7 @@ func (b *S3Bucket) List(ctx context.Context, prefix string, opts *ListOptions) (
 
 	out, err := b.client.ListObjectsV2(ctx, input)
 	if err != nil {
-		return nil, fmt.Errorf("storage/s3: list prefix %q: %w", prefix, err)
+		return nil, fmt.Errorf("storage/%s: list prefix %q: %w", b.provider, prefix, err)
 	}
 
 	result := &ListResult{
@@ -181,7 +183,7 @@ func (b *S3Bucket) SignedPutURL(ctx context.Context, key string, expiry time.Dur
 		Key:    aws.String(b.fullKey(key)),
 	}, s3.WithPresignExpires(expiry))
 	if err != nil {
-		return "", fmt.Errorf("storage/s3: signed put url %q: %w", key, err)
+		return "", fmt.Errorf("storage/%s: signed put url %q: %w", b.provider, key, err)
 	}
 	return req.URL, nil
 }
@@ -194,7 +196,7 @@ func (b *S3Bucket) SignedGetURL(ctx context.Context, key string, expiry time.Dur
 		Key:    aws.String(b.fullKey(key)),
 	}, s3.WithPresignExpires(expiry))
 	if err != nil {
-		return "", fmt.Errorf("storage/s3: signed get url %q: %w", key, err)
+		return "", fmt.Errorf("storage/%s: signed get url %q: %w", b.provider, key, err)
 	}
 	return req.URL, nil
 }

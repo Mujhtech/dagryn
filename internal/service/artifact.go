@@ -48,7 +48,7 @@ func NewArtifactService(artifactRepo *repo.ArtifactRepo, bucket storage.Bucket, 
 }
 
 // Upload stores artifact content and creates the DB record.
-func (s *ArtifactService) Upload(ctx context.Context, projectID, runID uuid.UUID, taskName, name, fileName string, reader io.Reader, size int64, ttl time.Duration, contentType string) (*models.Artifact, error) {
+func (s *ArtifactService) Upload(ctx context.Context, projectID, runID uuid.UUID, taskName, name, fileName string, reader io.Reader, size int64, ttl time.Duration, contentType string, extraMetadata json.RawMessage) (*models.Artifact, error) {
 	if s.repo == nil || s.bucket == nil {
 		return nil, fmt.Errorf("artifact service not configured")
 	}
@@ -103,11 +103,22 @@ func (s *ArtifactService) Upload(ctx context.Context, projectID, runID uuid.UUID
 		taskNamePtr = &taskName
 	}
 
-	metadata := json.RawMessage(`{}`)
-	if name != fileName {
+	var metadata json.RawMessage
+	if extraMetadata != nil {
+		// Start with caller-provided metadata and merge path if needed.
+		merged := make(map[string]interface{})
+		_ = json.Unmarshal(extraMetadata, &merged)
+		if name != fileName {
+			merged["path"] = name
+		}
+		metadata, _ = json.Marshal(merged)
+	} else if name != fileName {
 		if encoded, err := json.Marshal(map[string]string{"path": name}); err == nil {
 			metadata = encoded
 		}
+	}
+	if metadata == nil {
+		metadata = json.RawMessage(`{}`)
 	}
 
 	artifact := &models.Artifact{

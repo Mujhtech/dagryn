@@ -94,6 +94,7 @@ type Repositories struct {
 	Workflows           *repo.WorkflowRepo
 	PluginRegistry      *repo.PluginRegistryRepo
 	Billing             *repo.BillingRepo
+	AI                  *repo.AIRepo
 }
 
 // New creates a new server instance.
@@ -145,6 +146,7 @@ func (s *Server) Initialize(ctx context.Context) error {
 		Workflows:           repo.NewWorkflowRepo(database.Pool()),
 		PluginRegistry:      repo.NewPluginRegistryRepo(database.Pool()),
 		Billing:             repo.NewBillingRepo(database.Pool()),
+		AI:                  repo.NewAIRepo(database.Pool()),
 	}
 
 	// Initialize GitHub App client if configured
@@ -371,6 +373,8 @@ func (s *Server) Initialize(ctx context.Context) error {
 		billingService,
 		stripeClient,
 		quotaService,
+		s.repos.AI,
+		s.config.Server.BaseURL,
 	)
 
 	// Set cloud mode and license feature gate

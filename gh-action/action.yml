@@ -1,0 +1,64 @@
+name: "Dagryn"
+description: "Run dagryn workflows in GitHub Actions"
+author: "mujhtech"
+
+branding:
+  icon: "play-circle"
+  color: "blue"
+
+inputs:
+  version:
+    description: "Dagryn CLI version to install"
+    required: false
+    default: "latest"
+  targets:
+    description: "Space-separated task names (empty = default workflow)"
+    required: false
+    default: ""
+  config:
+    description: "Path to config file"
+    required: false
+    default: "dagryn.toml"
+  parallel:
+    description: "Max parallel tasks"
+    required: false
+  remote-cache:
+    description: "Enable remote cache"
+    required: false
+    default: "false"
+  no-cache:
+    description: "Disable all caching"
+    required: false
+    default: "false"
+  verbose:
+    description: "Verbose output"
+    required: false
+    default: "false"
+  working-directory:
+    description: "Working directory"
+    required: false
+    default: "."
+  dry-run:
+    description: "Show plan without executing"
+    required: false
+    default: "false"
+  matrix-label:
+    description: "Label for this matrix leg (e.g., 'Node 20 / Linux')"
+    required: false
+    default: ""
+  matrix-context:
+    description: "JSON object of matrix variables to pass as DAGRYN_MATRIX_* env vars"
+    required: false
+    default: ""
+
+outputs:
+  status:
+    description: "Run status (success / failure)"
+  duration:
+    description: "Total duration in seconds"
+  matrix-label:
+    description: "The matrix label for this leg"
+
+runs:
+  using: "node20"
+  main: "dist/index.js"

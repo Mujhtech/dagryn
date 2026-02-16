@@ -187,6 +187,13 @@ type GitHubWorkflowTranslateRequest struct {
 	GitHubInstallationID *uuid.UUID `json:"github_installation_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
+// GitHubWorkflowYAMLTranslateRequest represents a request to translate pasted GitHub workflow YAML.
+// @Description Request payload for direct GitHub Actions YAML translation
+type GitHubWorkflowYAMLTranslateRequest struct {
+	WorkflowYAML string `json:"workflow_yaml" binding:"required" example:"name: CI\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: npm test"`
+	FileName     string `json:"file_name,omitempty" example:"ci.yml"`
+}
+
 // GitHubWorkflowSummary is a minimal summary of a translated workflow file.
 // @Description Summary of a GitHub Actions workflow file
 type GitHubWorkflowSummary struct {
@@ -292,6 +299,9 @@ type RunResponse struct {
 	CommitMessage     string        `json:"commit_message,omitempty" example:"fix: resolve authentication issue"`
 	CommitAuthorName  string        `json:"commit_author_name,omitempty" example:"John Doe"`
 	CommitAuthorEmail string        `json:"commit_author_email,omitempty" example:"john@example.com"`
+	HostOS            string        `json:"host_os,omitempty" example:"darwin"`
+	HostArch          string        `json:"host_arch,omitempty" example:"arm64"`
+	HostName          string        `json:"host_name,omitempty" example:"macbook-pro.local"`
 	TriggeredByUser   *UserResponse `json:"triggered_by_user,omitempty"` // User who triggered (for local/API runs)
 	StartedAt         *time.Time    `json:"started_at,omitempty" example:"2024-01-15T10:30:00Z"`
 	FinishedAt        *time.Time    `json:"finished_at,omitempty" example:"2024-01-15T10:35:00Z"`
@@ -324,7 +334,10 @@ type TriggerRunRequest struct {
 	Force     bool     `json:"force,omitempty" example:"false"`
 	// SyncOnly when true creates a run record for status tracking without triggering remote execution.
 	// Use this when the CLI is executing locally and only needs to sync status to the server.
-	SyncOnly bool `json:"sync_only,omitempty" example:"false"`
+	SyncOnly bool   `json:"sync_only,omitempty" example:"false"`
+	HostOS   string `json:"host_os,omitempty" example:"darwin"`
+	HostArch string `json:"host_arch,omitempty" example:"arm64"`
+	HostName string `json:"host_name,omitempty" example:"macbook-pro.local"`
 }
 
 // TriggerRunResponse represents the response after triggering a run.
@@ -384,6 +397,51 @@ type RunDashboardSummaryResponse struct {
 	StatusCounts map[string]int                   `json:"status_counts"`
 }
 
+// --- Dashboard Overview types ---
+
+// DashboardOverviewResponse contains the full dashboard overview payload.
+// @Description Dashboard overview response
+type DashboardOverviewResponse struct {
+	Projects   []DashboardProjectResponse `json:"projects"`
+	RecentRuns []DashboardRunResponse     `json:"recent_runs"`
+}
+
+// DashboardProjectResponse represents a project with inline stats in the dashboard overview.
+// @Description Dashboard project with inline stats
+type DashboardProjectResponse struct {
+	ID            uuid.UUID                        `json:"id"`
+	Name          string                           `json:"name"`
+	Slug          string                           `json:"slug"`
+	Visibility    string                           `json:"visibility"`
+	RepoURL       string                           `json:"repo_url,omitempty"`
+	MemberCount   int                              `json:"member_count"`
+	UpdatedAt     time.Time                        `json:"updated_at"`
+	CreatedAt     time.Time                        `json:"created_at"`
+	Chart         []RunDashboardChartPointResponse `json:"chart"`
+	LatestRun     *DashboardRunResponse            `json:"latest_run,omitempty"`
+	TotalRuns7d   int                              `json:"total_runs_7d"`
+	SuccessRuns7d int                              `json:"success_runs_7d"`
+	FailedRuns7d  int                              `json:"failed_runs_7d"`
+	AvgDurationMs int64                            `json:"avg_duration_ms"`
+	TopBranch     string                           `json:"top_branch,omitempty"`
+}
+
+// DashboardRunResponse represents a run in the dashboard overview.
+// @Description Dashboard run entry
+type DashboardRunResponse struct {
+	ID               uuid.UUID     `json:"id"`
+	ProjectID        uuid.UUID     `json:"project_id"`
+	ProjectName      string        `json:"project_name"`
+	WorkflowName     string        `json:"workflow_name"`
+	Status           string        `json:"status"`
+	TriggerRef       string        `json:"trigger_ref,omitempty"`
+	CommitSHA        string        `json:"commit_sha,omitempty"`
+	CommitAuthorName string        `json:"commit_author_name,omitempty"`
+	TriggeredByUser  *UserResponse `json:"triggered_by_user,omitempty"`
+	DurationMs       *int64        `json:"duration_ms,omitempty"`
+	CreatedAt        time.Time     `json:"created_at"`
+}
+
 // --- Artifact types ---
 
 // ArtifactResponse represents a stored artifact.
@@ -417,13 +475,15 @@ type UpdateRunStatusRequest struct {
 // UpdateTaskStatusRequest represents a request to update task status.
 // @Description Update task status request
 type UpdateTaskStatusRequest struct {
-	Status     string `json:"status" example:"running"`
-	ExitCode   *int   `json:"exit_code,omitempty" example:"0"`
-	DurationMs *int64 `json:"duration_ms,omitempty" example:"5000"`
-	CacheHit   bool   `json:"cache_hit,omitempty" example:"false"`
-	CacheKey   string `json:"cache_key,omitempty" example:"task-abc123"`
-	Output     string `json:"output,omitempty" example:"Build successful"`
-	Error      string `json:"error,omitempty" example:"Command failed"`
+	Status     string     `json:"status" example:"running"`
+	ExitCode   *int       `json:"exit_code,omitempty" example:"0"`
+	DurationMs *int64     `json:"duration_ms,omitempty" example:"5000"`
+	CacheHit   bool       `json:"cache_hit,omitempty" example:"false"`
+	CacheKey   string     `json:"cache_key,omitempty" example:"task-abc123"`
+	Output     string     `json:"output,omitempty" example:"Build successful"`
+	Error      string     `json:"error,omitempty" example:"Command failed"`
+	StartedAt  *time.Time `json:"started_at,omitempty"`
+	FinishedAt *time.Time `json:"finished_at,omitempty"`
 }
 
 // CreateTaskRequest represents a request to create a task result.
@@ -500,6 +560,35 @@ type SyncWorkflowTaskData struct {
 	Condition      string            `json:"condition,omitempty" example:"branch == 'main'"`
 }
 
+// WorkflowCacheConfig represents cache configuration in workflow responses.
+// @Description Workflow cache configuration
+type WorkflowCacheConfig struct {
+	Enabled       bool   `json:"enabled"`
+	Dir           string `json:"dir,omitempty"`
+	RemoteEnabled bool   `json:"remote_enabled"`
+	RemoteCloud   bool   `json:"remote_cloud"`
+}
+
+// WorkflowAIConfig represents AI configuration in workflow responses.
+// @Description Workflow AI configuration
+type WorkflowAIConfig struct {
+	Enabled     bool   `json:"enabled"`
+	Mode        string `json:"mode,omitempty"`
+	Provider    string `json:"provider,omitempty"`
+	Model       string `json:"model,omitempty"`
+	BackendMode string `json:"backend_mode,omitempty"`
+}
+
+// WorkflowContainerConfig represents container configuration in workflow responses.
+// @Description Workflow container configuration
+type WorkflowContainerConfig struct {
+	Enabled     bool   `json:"enabled"`
+	Image       string `json:"image,omitempty"`
+	MemoryLimit string `json:"memory_limit,omitempty"`
+	CPULimit    string `json:"cpu_limit,omitempty"`
+	Network     string `json:"network,omitempty"`
+}
+
 // WorkflowResponse represents a workflow in API responses.
 // @Description Workflow information
 type WorkflowResponse struct {
@@ -510,6 +599,9 @@ type WorkflowResponse struct {
 	SyncedAt  time.Time                `json:"synced_at" example:"2024-01-15T10:30:00Z"`
 	Tasks     []WorkflowTaskResponse   `json:"tasks"`
 	Trigger   *WorkflowTriggerResponse `json:"trigger,omitempty"`
+	Cache     *WorkflowCacheConfig     `json:"cache,omitempty"`
+	AI        *WorkflowAIConfig        `json:"ai,omitempty"`
+	Container *WorkflowContainerConfig `json:"container,omitempty"`
 }
 
 // WorkflowTriggerResponse represents trigger configuration in API responses.

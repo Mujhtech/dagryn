@@ -1,11 +1,26 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
-import { useRunArtifacts, useRunDetail, useRunLogs, useRunWorkflow } from "~/hooks/queries";
+import {
+  useRunArtifacts,
+  useRunDetail,
+  useRunLogs,
+  useRunWorkflow,
+} from "~/hooks/queries";
 import { useCancelRun, useDeleteArtifact } from "~/hooks/mutations";
-import type { TaskResult, LogEntry, Artifact } from "~/lib/api";
-import { RunStreamClient, type LogEventData, type TaskEventData } from "~/lib/sse";
+import type { TaskResult, LogEntry, Artifact, RunStatus } from "~/lib/api";
+import {
+  RunStreamClient,
+  type LogEventData,
+  type TaskEventData,
+} from "~/lib/sse";
 import type { TaskStatusInfo } from "~/components/workflow-dag";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Progress } from "~/components/ui/progress";
 import { cn } from "~/lib/utils";
@@ -18,6 +33,7 @@ import {
   RunDetailTabs,
   type LogLine,
 } from "~/components/projects/run-detail/run-detail-tabs";
+import { useFavicon } from "~/hooks/use-favicon";
 
 export const Route = createFileRoute(
   "/_dashboard_layout/projects/$projectId/runs/$runId",
@@ -60,8 +76,9 @@ function RunDetailPage() {
   const [logs, setLogs] = useState<LogLine[]>([]);
   const [connected, setConnected] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [taskFilter, setTaskFilter] = useState<string | null>(null);
   const [autoScroll] = useState(true);
+
+  useFavicon((runStatus as RunStatus) ?? null);
 
   const streamRef = useRef<RunStreamClient | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
@@ -82,16 +99,20 @@ function RunDetailPage() {
       return;
     }
 
-    const histLogs: LogLine[] = historicalLogs.data.data.map((log: LogEntry) => ({
-      id: log.id,
-      task_name: log.task_name,
-      stream: log.stream,
-      line: log.content,
-      line_num: log.line_num,
-    }));
+    const histLogs: LogLine[] = historicalLogs.data.data.map(
+      (log: LogEntry) => ({
+        id: log.id,
+        task_name: log.task_name,
+        stream: log.stream,
+        line: log.content,
+        line_num: log.line_num,
+      }),
+    );
 
     setLogs(histLogs);
-    const maxId = Math.max(...historicalLogs.data.data.map((entry) => entry.id));
+    const maxId = Math.max(
+      ...historicalLogs.data.data.map((entry) => entry.id),
+    );
     lastLogIdRef.current = maxId;
   }, [historicalLogs]);
 
@@ -269,7 +290,9 @@ function RunDetailPage() {
       <Card className="border-destructive">
         <CardHeader>
           <CardTitle className="text-destructive">Error</CardTitle>
-          <CardDescription>{runError?.message || "Run not found"}</CardDescription>
+          <CardDescription>
+            {runError?.message || "Run not found"}
+          </CardDescription>
         </CardHeader>
       </Card>
     );
@@ -277,14 +300,16 @@ function RunDetailPage() {
 
   const currentStatus = runStatus || run.data.status;
   const currentError = errorMessage || run.data.error_message;
-  const isClientDisconnected = clientDisconnected || run.data.client_disconnected;
+  const isClientDisconnected =
+    clientDisconnected || run.data.client_disconnected;
   const completedTasks = tasks.filter(
     (task) => task.status === "success" || task.status === "cached",
   ).length;
   const isRunning = currentStatus === "running" || currentStatus === "pending";
   const progress = tasks.length > 0 ? (completedTasks / tasks.length) * 100 : 0;
   const artifactsList = artifacts?.data ?? [];
-  const displayStatus = isRunning && isClientDisconnected ? "stale" : currentStatus;
+  const displayStatus =
+    isRunning && isClientDisconnected ? "stale" : currentStatus;
 
   return (
     <div className="space-y-6 px-6 @container/main py-3">
@@ -297,21 +322,34 @@ function RunDetailPage() {
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <RunStatusIcon status={displayStatus} className="h-6 w-6" />
-            <h1 className="text-2xl font-bold tracking-tight">{run.data.workflow_name}</h1>
+            <h1 className="text-2xl font-bold tracking-tight">
+              {run.data.workflow_name}
+            </h1>
             <StatusBadge status={displayStatus} />
           </div>
           <p className="text-muted-foreground">
             {run.data.trigger_source}
             {run.data.trigger_ref && ` - ${run.data.trigger_ref}`}
             {run.data.commit_sha ? (
-              <span className="ml-2 font-mono text-xs">{run.data.commit_sha.slice(0, 7)}</span>
+              <span className="ml-2 font-mono text-xs">
+                {run.data.commit_sha.slice(0, 7)}
+              </span>
+            ) : null}
+            {run.data.host_os ? (
+              <span className="ml-2 text-xs text-muted-foreground">
+                {run.data.host_os}/{run.data.host_arch}
+                {run.data.host_name ? ` on ${run.data.host_name}` : ""}
+              </span>
             ) : null}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <Icons.BroadCast
-              className={cn("h-3 w-3", connected ? "text-green-500" : "text-gray-400")}
+              className={cn(
+                "h-3 w-3",
+                connected ? "text-green-500" : "text-gray-400",
+              )}
             />
             <span className="text-sm text-muted-foreground">
               {connected ? "Live" : "Offline"}
@@ -341,7 +379,8 @@ function RunDetailPage() {
             <div>
               <h3 className="font-medium text-yellow-500">Connection Lost</h3>
               <p className="text-sm text-muted-foreground">
-                The CLI client has lost connection. The run status may be outdated.
+                The CLI client has lost connection. The run status may be
+                outdated.
                 {lastHeartbeatAt ? (
                   <span className="block mt-1">
                     Last heartbeat: {new Date(lastHeartbeatAt).toLocaleString()}
@@ -353,8 +392,8 @@ function RunDetailPage() {
         </div>
       ) : null}
 
-      <Card>
-        <CardContent className="py-6">
+      <Card className="py-0 gap-0">
+        <CardContent className="py-4 px-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium">Progress</span>
             <span className="text-sm text-muted-foreground">
@@ -378,8 +417,6 @@ function RunDetailPage() {
         logsLoading={logsLoading}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
-        taskFilter={taskFilter}
-        setTaskFilter={setTaskFilter}
         isRunning={isRunning}
         artifactsLoading={artifactsLoading}
         artifacts={artifactsList}
@@ -388,6 +425,7 @@ function RunDetailPage() {
         workflow={workflow}
         taskStatusMap={taskStatusMap}
         logsEndRef={logsEndRef}
+        runStatus={currentStatus}
       />
     </div>
   );

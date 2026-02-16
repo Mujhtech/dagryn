@@ -17,6 +17,7 @@ func TestOfficialPlugins_AllValid(t *testing.T) {
 	require.NotEmpty(t, entries, "plugins directory should not be empty")
 
 	expectedPlugins := []string{
+		"ai-ci",
 		"cache-s3",
 		"deploy-ssh",
 		"docker-build",

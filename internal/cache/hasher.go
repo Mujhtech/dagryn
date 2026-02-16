@@ -63,29 +63,14 @@ func HashTask(t *task.Task, projectRoot string) (string, error) {
 func HashFiles(patterns []string, root string) (string, error) {
 	h := sha256.New()
 
-	// Collect all matching files
-	var files []string
-	for _, pattern := range patterns {
-		matches, err := filepath.Glob(filepath.Join(root, pattern))
-		if err != nil {
-			return "", fmt.Errorf("invalid glob pattern %q: %w", pattern, err)
-		}
-		files = append(files, matches...)
+	// Collect all matching files (already deduplicated and sorted)
+	files, err := ResolveFilePatterns(root, patterns)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve file patterns: %w", err)
 	}
-
-	// Sort for determinism
-	sort.Strings(files)
 
 	// Hash each file
 	for _, file := range files {
-		info, err := os.Stat(file)
-		if err != nil {
-			continue // Skip files that don't exist
-		}
-		if info.IsDir() {
-			continue // Skip directories
-		}
-
 		// Hash relative path
 		relPath, _ := filepath.Rel(root, file)
 		h.Write([]byte(relPath))

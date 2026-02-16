@@ -53,7 +53,10 @@ function PublishPluginPage() {
         if (parsed.plugin.name && typeof parsed.plugin.name === "string") {
           setPluginName(parsed.plugin.name);
         }
-        if (parsed.plugin.version && typeof parsed.plugin.version === "string") {
+        if (
+          parsed.plugin.version &&
+          typeof parsed.plugin.version === "string"
+        ) {
           setVersion(parsed.plugin.version);
         }
       }
@@ -163,13 +166,11 @@ function PublishPluginPage() {
         <Card>
           <CardHeader>
             <CardTitle>Manifest (JSON)</CardTitle>
-            <CardDescription>
-              Your plugin manifest as JSON
-            </CardDescription>
+            <CardDescription>Your plugin manifest as JSON</CardDescription>
           </CardHeader>
           <CardContent>
             <Textarea
-              className="font-mono text-sm min-h-[300px]"
+              className="font-mono text-sm min-h-75"
               value={manifestJson}
               onChange={(e) => handleManifestChange(e.target.value)}
             />
@@ -191,7 +192,7 @@ function PublishPluginPage() {
               placeholder="Describe what changed in this version..."
               value={releaseNotes}
               onChange={(e) => setReleaseNotes(e.target.value)}
-              className="min-h-[100px]"
+              className="min-h-25"
             />
           </CardContent>
         </Card>
