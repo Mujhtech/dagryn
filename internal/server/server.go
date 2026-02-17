@@ -34,71 +34,45 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/mujhtech/dagryn/internal/db"
-	"github.com/mujhtech/dagryn/internal/db/repo"
-	"github.com/mujhtech/dagryn/internal/encrypt"
 	"github.com/mujhtech/dagryn/internal/githubapp"
-	"github.com/mujhtech/dagryn/internal/job"
-	"github.com/mujhtech/dagryn/internal/license"
-	"github.com/mujhtech/dagryn/internal/redis"
-	"github.com/mujhtech/dagryn/internal/server/auth"
-	"github.com/mujhtech/dagryn/internal/server/auth/oauth"
-	"github.com/mujhtech/dagryn/internal/server/handlers"
-	"github.com/mujhtech/dagryn/internal/server/middleware"
 	"github.com/mujhtech/dagryn/internal/server/sse"
 	"github.com/mujhtech/dagryn/internal/service"
 	dagrynstripe "github.com/mujhtech/dagryn/internal/stripe"
 	"github.com/mujhtech/dagryn/internal/telemetry"
+	"github.com/mujhtech/dagryn/pkg/api"
+	"github.com/mujhtech/dagryn/pkg/api/handlers"
+	"github.com/mujhtech/dagryn/pkg/authn"
+	"github.com/mujhtech/dagryn/pkg/authz"
+	"github.com/mujhtech/dagryn/pkg/cache"
+	"github.com/mujhtech/dagryn/pkg/config"
+	"github.com/mujhtech/dagryn/pkg/database"
+	"github.com/mujhtech/dagryn/pkg/database/store"
+	"github.com/mujhtech/dagryn/pkg/encrypt"
+	"github.com/mujhtech/dagryn/pkg/licensing"
+	"github.com/mujhtech/dagryn/pkg/redis"
 	"github.com/mujhtech/dagryn/pkg/storage"
+	"github.com/mujhtech/dagryn/pkg/worker"
 	"github.com/rs/zerolog/log"
 )
 
 // Server represents the HTTP server.
 type Server struct {
-	config    *Config
-	router    *chi.Mux
-	server    *http.Server
-	db        *db.DB
-	telemetry *telemetry.Provider
-
-	// Repositories
-	repos *Repositories
-
-	// GitHub App client (optional; nil when not configured)
-	githubApp *githubapp.Client
-
-	// Auth services
-	jwtService        *auth.JWTService
-	deviceCodeService *auth.DeviceCodeService
-	oauthProviders    map[string]oauth.Provider
-
-	// SSE Hub for real-time events
-	sseHub *sse.Hub
-
-	// SSE Redis subscriber (nil when Redis is unavailable)
-	sseSubscriber *sse.RedisSubscriber
-}
-
-// Repositories holds all repository instances.
-type Repositories struct {
-	Users               *repo.UserRepo
-	Tokens              *repo.TokenRepo
-	Teams               *repo.TeamRepo
-	Projects            *repo.ProjectRepo
-	APIKeys             *repo.APIKeyRepo
-	Invitations         *repo.InvitationRepo
-	Runs                *repo.RunRepo
-	Artifacts           *repo.ArtifactRepo
-	ProviderTokens      *repo.ProviderTokenRepo
-	GitHubInstallations *repo.GitHubInstallationRepo
-	Workflows           *repo.WorkflowRepo
-	PluginRegistry      *repo.PluginRegistryRepo
-	Billing             *repo.BillingRepo
-	AI                  *repo.AIRepo
+	config            *config.Config
+	router            *chi.Mux
+	server            *http.Server
+	telemetry         *telemetry.Provider
+	db                *database.DB
+	store             store.Store
+	githubApp         *githubapp.Client
+	jwtService        *authz.JWTService
+	deviceCodeService *authz.DeviceCodeService
+	oauthProviders    map[string]authn.Provider
+	sseHub            *sse.Hub
+	sseSubscriber     *sse.RedisSubscriber
 }
 
 // New creates a new server instance.
-func New(cfg *Config) *Server {
+func New(cfg *config.Config) *Server {
 	router := chi.NewRouter()
 
 	return &Server{
@@ -125,29 +99,22 @@ func (s *Server) Initialize(ctx context.Context) error {
 	}
 
 	// Connect to database
-	database, err := db.New(ctx, s.config.Database)
+	db, err := database.New(ctx, s.config.Database)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
-	s.db = database
+	s.db = db
+
+	rds := redis.New(s.config.Redis)
+
+	cache, err := cache.NewCache(s.config, rds)
+
+	if err != nil {
+		return fmt.Errorf("failed to create cache: %w", err)
+	}
 
 	// Initialize repositories
-	s.repos = &Repositories{
-		Users:               repo.NewUserRepo(database.Pool()),
-		Tokens:              repo.NewTokenRepo(database.Pool()),
-		Teams:               repo.NewTeamRepo(database.Pool()),
-		Projects:            repo.NewProjectRepo(database.Pool()),
-		APIKeys:             repo.NewAPIKeyRepo(database.Pool()),
-		Invitations:         repo.NewInvitationRepo(database.Pool()),
-		Runs:                repo.NewRunRepo(database.Pool()),
-		Artifacts:           repo.NewArtifactRepo(database.Pool()),
-		ProviderTokens:      repo.NewProviderTokenRepo(database.Pool()),
-		GitHubInstallations: repo.NewGitHubInstallationRepo(database.Pool()),
-		Workflows:           repo.NewWorkflowRepo(database.Pool()),
-		PluginRegistry:      repo.NewPluginRegistryRepo(database.Pool()),
-		Billing:             repo.NewBillingRepo(database.Pool()),
-		AI:                  repo.NewAIRepo(database.Pool()),
-	}
+	s.store = store.New(cache, db)
 
 	// Initialize GitHub App client if configured
 	if s.config.GitHubApp.AppID != 0 && s.config.GitHubApp.PrivateKey != "" {
@@ -174,10 +141,6 @@ func (s *Server) Initialize(ctx context.Context) error {
 	log.Debug().Msg("SSE hub started")
 
 	// Optional Redis (for job client and/or ready check)
-	var rds *redis.Redis
-	if s.config.Redis.Host != "" || s.config.Redis.Port != 0 {
-		rds = redis.New(s.config.Redis)
-	}
 
 	// Start SSE Redis subscriber to receive events published by the worker
 	if rds != nil {
@@ -187,7 +150,7 @@ func (s *Server) Initialize(ctx context.Context) error {
 	}
 
 	// Optional job client for enqueueing ExecuteRun
-	var jobClient *job.Client
+	var jobClient *worker.Client
 	if rds != nil {
 		var enc encrypt.Encrypt
 		if s.config.Job.EncryptionKey != "" {
@@ -199,7 +162,7 @@ func (s *Server) Initialize(ctx context.Context) error {
 		} else {
 			enc = encrypt.NewNoOpEncrypt()
 		}
-		jobClient = job.NewClient(rds, enc)
+		jobClient = worker.NewClient(rds, enc)
 		log.Debug().Msg("Job client initialized for server-triggered runs")
 	}
 
@@ -207,21 +170,6 @@ func (s *Server) Initialize(ctx context.Context) error {
 	var redisForReady handlers.ReadyChecker
 	if s.config.Health.ReadyCheckRedis && rds != nil {
 		redisForReady = &redisReadyChecker{rds}
-	}
-
-	// Provider token encrypter (for storing GitHub token; use first 32 bytes of JWT secret)
-	providerEncKey := s.config.Auth.JWTSecret
-	if len(providerEncKey) > 32 {
-		providerEncKey = providerEncKey[:32]
-	}
-	var providerEnc encrypt.Encrypt
-	if len(providerEncKey) >= 16 {
-		if enc, err := encrypt.NewAESEncrypt(providerEncKey); err == nil {
-			providerEnc = enc
-		}
-	}
-	if providerEnc == nil {
-		providerEnc = encrypt.NewNoOpEncrypt()
 	}
 
 	// Optional cache service (when cache storage is configured)
@@ -244,8 +192,7 @@ func (s *Server) Initialize(ctx context.Context) error {
 			log.Warn().Err(err).Msg("Cache storage not initialized (invalid configuration)")
 		}
 
-		cacheRepo := repo.NewCacheRepo(database.Pool())
-		cacheService = service.NewCacheService(cacheRepo, cacheBucket, log.Logger)
+		cacheService = service.NewCacheService(s.store.Cache, cacheBucket, log.Logger)
 		log.Debug().Str("provider", s.config.CacheStorage.Provider).Msg("Cache service initialized")
 	}
 
@@ -269,26 +216,19 @@ func (s *Server) Initialize(ctx context.Context) error {
 			log.Warn().Err(err).Msg("Artifact storage not initialized (invalid configuration)")
 		}
 		if artifactBucket != nil {
-			artifactService = service.NewArtifactService(s.repos.Artifacts, artifactBucket, log.Logger)
+			artifactService = service.NewArtifactService(s.store.Artifacts, artifactBucket, log.Logger)
 			log.Debug().Str("provider", s.config.ArtifactStorage.Provider).Msg("Artifact service initialized")
 		}
 	}
 
-	var cancelManager *job.CancelManager
-	if rds != nil {
-		cancelManager = job.NewCancelManager(rds)
-	}
+	cancelManager := worker.NewCancelManager(rds)
 
-	// Initialize plugin registry service (optional)
-	var registryService *service.PluginRegistryService
-	if s.repos.PluginRegistry != nil {
-		registryService = service.NewPluginRegistryService(s.repos.PluginRegistry, log.Logger)
-	}
+	registryService := service.NewPluginRegistryService(s.store.PluginRegistry, log.Logger)
 
 	// Optional quota service (when billing repo is available)
 	var quotaService *service.QuotaService
-	if s.repos.Billing != nil {
-		quotaService = service.NewQuotaService(s.repos.Billing, s.repos.Projects, log.Logger)
+	if s.store.Billing != nil {
+		quotaService = service.NewQuotaService(s.store.Billing, s.store.Projects, log.Logger)
 		if cacheService != nil {
 			cacheService.SetQuotaService(quotaService)
 		}
@@ -307,32 +247,32 @@ func (s *Server) Initialize(ctx context.Context) error {
 			WebhookSecret:  s.config.Stripe.WebhookSecret,
 			PublishableKey: s.config.Stripe.PublishableKey,
 		})
-		billingService = service.NewBillingService(s.repos.Billing, stripeClient, log.Logger)
+		billingService = service.NewBillingService(s.store.Billing, stripeClient, log.Logger)
 		log.Debug().Msg("Stripe billing service initialized")
 	}
 
 	// Validate license key (self-hosted only).
 	// In cloud mode, the billing system handles all quota/feature gating;
 	// the license system is not used and featureGate remains nil.
-	var featureGate *license.FeatureGate
+	var featureGate *licensing.FeatureGate
 	if s.config.CloudMode {
 		log.Info().Msg("Cloud mode enabled -- license system disabled")
 	} else if s.config.License.Key != "" {
-		keys, err := license.ParsePublicKeys()
+		keys, err := licensing.ParsePublicKeys()
 		if err != nil {
 			log.Warn().Err(err).Msg("Invalid license keyring -- running as Community edition")
-			featureGate = license.NewFeatureGate(nil, log.Logger)
+			featureGate = licensing.NewFeatureGate(nil, log.Logger)
 		} else if len(keys) == 0 {
 			log.Warn().Msg("No license public keys embedded in binary -- running as Community edition")
-			featureGate = license.NewFeatureGate(nil, log.Logger)
+			featureGate = licensing.NewFeatureGate(nil, log.Logger)
 		} else {
-			validator := license.NewValidator(keys)
+			validator := licensing.NewValidator(keys)
 			claims, err := validator.Validate(s.config.License.Key)
 			if err != nil {
 				log.Warn().Err(err).Msg("Invalid license key -- running as Community edition")
-				featureGate = license.NewFeatureGate(nil, log.Logger)
+				featureGate = licensing.NewFeatureGate(nil, log.Logger)
 			} else {
-				featureGate = license.NewFeatureGate(claims, log.Logger)
+				featureGate = licensing.NewFeatureGate(claims, log.Logger)
 				log.Info().
 					Str("edition", string(claims.Edition)).
 					Str("customer", claims.Subject).
@@ -351,21 +291,41 @@ func (s *Server) Initialize(ctx context.Context) error {
 			}
 		}
 	} else {
-		featureGate = license.NewFeatureGate(nil, log.Logger)
+		featureGate = licensing.NewFeatureGate(nil, log.Logger)
 		log.Info().Msg("No license key configured -- running as Community edition")
 	}
 
+	// Provider token encrypter (for storing GitHub token; use first 32 bytes of JWT secret)
+	providerEncKey := s.config.Auth.JWTSecret
+	if len(providerEncKey) > 32 {
+		providerEncKey = providerEncKey[:32]
+	}
+	var providerEnc encrypt.Encrypt
+	if len(providerEncKey) >= 16 {
+		if enc, err := encrypt.NewAESEncrypt(providerEncKey); err == nil {
+			providerEnc = enc
+		}
+	}
+	if providerEnc == nil {
+		providerEnc = encrypt.NewNoOpEncrypt()
+	}
+
 	// Create handlers
-	h := handlers.New(
-		s.db, s.repos.Users, s.repos.Tokens, s.repos.Teams, s.repos.Projects,
-		s.repos.APIKeys, s.repos.Invitations, s.repos.Runs, s.sseHub, jobClient,
-		s.repos.ProviderTokens, providerEnc,
+	api, err := api.New(
+		s.config,
+		jobClient,
+		s.telemetry,
+		s.db,
+		s.store,
+		s.githubApp,
+		s.jwtService,
+		s.deviceCodeService,
+		s.oauthProviders,
+		s.sseHub,
+		providerEnc,
 		s.config.Health.ReadyCheckDatabase,
 		s.config.Health.ReadyCheckRedis,
 		redisForReady,
-		s.githubApp,
-		s.repos.GitHubInstallations,
-		s.repos.Workflows,
 		cacheService,
 		artifactService,
 		cancelManager,
@@ -373,33 +333,15 @@ func (s *Server) Initialize(ctx context.Context) error {
 		billingService,
 		stripeClient,
 		quotaService,
-		s.repos.AI,
-		s.config.Server.BaseURL,
 	)
 
 	// Set cloud mode and license feature gate
-	h.SetCloudMode(s.config.CloudMode)
-	h.SetFeatureGate(featureGate)
-
-	// Create auth handler
-	authHandler := handlers.NewAuthHandler(
-		s.jwtService,
-		s.deviceCodeService,
-		s.repos.Users,
-		s.repos.ProviderTokens,
-		providerEnc,
-		s.oauthProviders,
-		fmt.Sprintf("http://%s", s.config.Server.Address()),
-	)
-
-	// Setup middleware
-	s.setupMiddleware()
-
-	// Create auth middleware
-	authMiddleware := s.createAuthMiddleware()
+	// h.SetCloudMode(s.config.CloudMode)
+	// h.SetFeatureGate(featureGate)
 
 	// Setup routes
-	s.setupRoutes(h, authHandler, authMiddleware, jobClient, featureGate)
+	// s.setupRoutes(h, authHandler, authMiddleware, jobClient, featureGate)
+	api.BuildRouter(s.router)
 
 	log.Info().
 		Str("addr", s.config.Server.Address()).
@@ -414,28 +356,28 @@ func (s *Server) Initialize(ctx context.Context) error {
 // initAuthServices initializes all authentication services.
 func (s *Server) initAuthServices() error {
 	// Initialize JWT service
-	jwtConfig := auth.JWTConfig{
+	jwtConfig := authz.JWTConfig{
 		Secret:        s.config.Auth.JWTSecret,
 		AccessExpiry:  s.config.Auth.JWTAccessExpiry,
 		RefreshExpiry: s.config.Auth.JWTRefreshExpiry,
 		Issuer:        "dagryn",
 	}
-	s.jwtService = auth.NewJWTService(jwtConfig, s.repos.Tokens)
+	s.jwtService = authz.NewJWTService(jwtConfig, s.store.Tokens)
 
 	// Initialize device code service
-	deviceCodeConfig := auth.DeviceCodeConfig{
+	deviceCodeConfig := authz.DeviceCodeConfig{
 		Expiry:          15 * time.Minute,
 		PollInterval:    5 * time.Second,
 		VerificationURI: fmt.Sprintf("http://%s/auth/device", s.config.Server.Address()),
 	}
-	s.deviceCodeService = auth.NewDeviceCodeService(s.db.Pool(), deviceCodeConfig)
+	s.deviceCodeService = authz.NewDeviceCodeService(s.db.Pool(), deviceCodeConfig)
 
 	// Initialize OAuth providers
-	s.oauthProviders = make(map[string]oauth.Provider)
+	s.oauthProviders = make(map[string]authn.Provider)
 
 	// GitHub provider (repo scope for listing repos / Import from GitHub)
 	if s.config.OAuth.GitHub.ClientID != "" && s.config.OAuth.GitHub.ClientSecret != "" {
-		s.oauthProviders["github"] = oauth.NewGitHubProvider(oauth.Config{
+		s.oauthProviders["github"] = authn.NewGitHubProvider(authn.Config{
 			ClientID:     s.config.OAuth.GitHub.ClientID,
 			ClientSecret: s.config.OAuth.GitHub.ClientSecret,
 			RedirectURL:  fmt.Sprintf("http://%s/auth/github/callback", s.config.Server.Address()),
@@ -446,7 +388,7 @@ func (s *Server) initAuthServices() error {
 
 	// Google provider
 	if s.config.OAuth.Google.ClientID != "" && s.config.OAuth.Google.ClientSecret != "" {
-		s.oauthProviders["google"] = oauth.NewGoogleProvider(oauth.Config{
+		s.oauthProviders["google"] = authn.NewGoogleProvider(authn.Config{
 			ClientID:     s.config.OAuth.Google.ClientID,
 			ClientSecret: s.config.OAuth.Google.ClientSecret,
 			RedirectURL:  fmt.Sprintf("http://%s/api/v1/auth/google/callback", s.config.Server.Address()),
@@ -460,32 +402,6 @@ func (s *Server) initAuthServices() error {
 	}
 
 	return nil
-}
-
-// setupMiddleware configures all middleware.
-func (s *Server) setupMiddleware() {
-	// Request ID
-	s.router.Use(middleware.RequestID)
-
-	// Real IP
-	s.router.Use(middleware.RealIP)
-
-	// Logging
-	s.router.Use(middleware.Logger)
-
-	// Recoverer
-	s.router.Use(middleware.Recoverer)
-
-	// OpenTelemetry
-	if s.config.Telemetry.Enabled {
-		s.router.Use(middleware.OTel("dagryn-api"))
-	}
-
-	// CORS
-	s.router.Use(middleware.CORS())
-
-	// Timeout
-	s.router.Use(middleware.Timeout(s.config.Server.WriteTimeout))
 }
 
 // Start starts the HTTP server.
@@ -548,12 +464,12 @@ func (s *Server) Router() *chi.Mux {
 }
 
 // DB returns the database connection.
-func (s *Server) DB() *db.DB {
+func (s *Server) DB() *database.DB {
 	return s.db
 }
 
 // Config returns the server configuration.
-func (s *Server) Config() *Config {
+func (s *Server) Config() *config.Config {
 	return s.config
 }
 

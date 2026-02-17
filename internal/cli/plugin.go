@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"text/tabwriter"
 
-	"github.com/mujhtech/dagryn/internal/config"
-	"github.com/mujhtech/dagryn/internal/plugin"
+	"github.com/mujhtech/dagryn/pkg/dagryn/config"
+	"github.com/mujhtech/dagryn/pkg/dagryn/plugin"
 	"github.com/spf13/cobra"
 )
 

@@ -79,7 +79,9 @@ function LicensePage() {
               </CardDescription>
             </div>
             <Badge
-              className={editionColors[license.edition] || editionColors.community}
+              className={
+                editionColors[license.edition] || editionColors.community
+              }
             >
               {license.edition.charAt(0).toUpperCase() +
                 license.edition.slice(1)}
@@ -135,10 +137,7 @@ function LicensePage() {
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {Object.entries(license.features).map(([feature, enabled]) => (
-              <div
-                key={feature}
-                className="flex items-center gap-2 text-sm"
-              >
+              <div key={feature} className="flex items-center gap-2 text-sm">
                 {enabled ? (
                   <Icons.Check className="h-4 w-4 text-green-500" />
                 ) : (
@@ -184,7 +183,7 @@ function LicensePage() {
 
       {!license.licensed && (
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-0">
             <p className="text-sm text-muted-foreground">
               Want to unlock more features?{" "}
               <a
@@ -195,7 +194,11 @@ function LicensePage() {
               >
                 View pricing
               </a>{" "}
-              or run <code className="text-xs bg-muted px-1 py-0.5 rounded">dagryn license activate &lt;key&gt;</code> to activate a license.
+              or run{" "}
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">
+                dagryn license activate &lt;key&gt;
+              </code>{" "}
+              to activate a license.
             </p>
           </CardContent>
         </Card>
@@ -213,7 +216,8 @@ function LimitRow({
   current: number;
   limit: number | null;
 }) {
-  const pct = limit != null && limit > 0 ? Math.min((current / limit) * 100, 100) : 0;
+  const pct =
+    limit != null && limit > 0 ? Math.min((current / limit) * 100, 100) : 0;
 
   return (
     <div>
@@ -227,7 +231,11 @@ function LimitRow({
         <div className="h-2 bg-muted rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all ${
-              pct > 90 ? "bg-destructive" : pct > 70 ? "bg-yellow-500" : "bg-primary"
+              pct > 90
+                ? "bg-destructive"
+                : pct > 70
+                  ? "bg-yellow-500"
+                  : "bg-primary"
             }`}
             style={{ width: `${pct}%` }}
           />

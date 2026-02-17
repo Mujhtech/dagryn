@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
-	"github.com/mujhtech/dagryn/internal/redis"
+	"github.com/mujhtech/dagryn/pkg/redis"
 )
 
 const (

@@ -7,7 +7,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
-	"github.com/mujhtech/dagryn/internal/redis"
+	"github.com/mujhtech/dagryn/pkg/redis"
 )
 
 // RedisSubscriber subscribes to the Redis SSE channel and forwards events to the Hub.

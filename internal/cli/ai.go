@@ -11,7 +11,7 @@ import (
 	"github.com/mujhtech/dagryn/internal/ai/aitypes"
 	"github.com/mujhtech/dagryn/internal/ai/provider"
 	"github.com/mujhtech/dagryn/internal/client"
-	"github.com/mujhtech/dagryn/internal/config"
+	"github.com/mujhtech/dagryn/pkg/dagryn/config"
 	"github.com/mujhtech/dagryn/pkg/logger"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"

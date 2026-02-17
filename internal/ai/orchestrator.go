@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mujhtech/dagryn/internal/ai/aitypes"
 	"github.com/mujhtech/dagryn/internal/ai/evidence"
-	"github.com/mujhtech/dagryn/internal/db/models"
+	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/rs/zerolog"
 )
 

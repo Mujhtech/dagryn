@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/mujhtech/dagryn/internal/server"
+	"github.com/mujhtech/dagryn/pkg/config"
 )
 
 func init() {
@@ -17,7 +18,7 @@ func init() {
 }
 
 func newServerCmd() *cobra.Command {
-	var opts server.ConfigOpts
+	var opts config.ConfigOpts
 
 	cmd := &cobra.Command{
 		Use:   "server",
@@ -67,9 +68,9 @@ Configuration priority: CLI flags > environment variables > config file > defaul
 	return cmd
 }
 
-func runServer(opts server.ConfigOpts) error {
+func runServer(opts config.ConfigOpts) error {
 	// Load configuration
-	cfg, err := server.LoadConfig(opts)
+	cfg, err := config.LoadConfig(opts)
 	if err != nil {
 		return err
 	}

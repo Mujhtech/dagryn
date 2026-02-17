@@ -14,9 +14,9 @@ import { Route as Dashboard_layoutRouteImport } from './routes/_dashboard_layout
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthDeviceRouteImport } from './routes/auth/device'
 import { Route as Dashboard_layoutSettingsRouteImport } from './routes/_dashboard_layout/settings'
+import { Route as Dashboard_layoutLicenseRouteImport } from './routes/_dashboard_layout/license'
 import { Route as Dashboard_layoutDashboardRouteImport } from './routes/_dashboard_layout/dashboard'
 import { Route as Dashboard_layoutBillingRouteImport } from './routes/_dashboard_layout/billing'
-import { Route as Dashboard_layoutLicenseRouteImport } from './routes/_dashboard_layout/license'
 import { Route as Dashboard_layoutTeamsIndexRouteImport } from './routes/_dashboard_layout/teams/index'
 import { Route as Dashboard_layoutProjectsIndexRouteImport } from './routes/_dashboard_layout/projects/index'
 import { Route as Dashboard_layoutInvitationsIndexRouteImport } from './routes/_dashboard_layout/invitations/index'
@@ -61,6 +61,11 @@ const Dashboard_layoutSettingsRoute =
     path: '/settings',
     getParentRoute: () => Dashboard_layoutRoute,
   } as any)
+const Dashboard_layoutLicenseRoute = Dashboard_layoutLicenseRouteImport.update({
+  id: '/license',
+  path: '/license',
+  getParentRoute: () => Dashboard_layoutRoute,
+} as any)
 const Dashboard_layoutDashboardRoute =
   Dashboard_layoutDashboardRouteImport.update({
     id: '/dashboard',
@@ -70,11 +75,6 @@ const Dashboard_layoutDashboardRoute =
 const Dashboard_layoutBillingRoute = Dashboard_layoutBillingRouteImport.update({
   id: '/billing',
   path: '/billing',
-  getParentRoute: () => Dashboard_layoutRoute,
-} as any)
-const Dashboard_layoutLicenseRoute = Dashboard_layoutLicenseRouteImport.update({
-  id: '/license',
-  path: '/license',
   getParentRoute: () => Dashboard_layoutRoute,
 } as any)
 const Dashboard_layoutTeamsIndexRoute =
@@ -398,6 +398,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Dashboard_layoutSettingsRouteImport
       parentRoute: typeof Dashboard_layoutRoute
     }
+    '/_dashboard_layout/license': {
+      id: '/_dashboard_layout/license'
+      path: '/license'
+      fullPath: '/license'
+      preLoaderRoute: typeof Dashboard_layoutLicenseRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
+    }
     '/_dashboard_layout/dashboard': {
       id: '/_dashboard_layout/dashboard'
       path: '/dashboard'
@@ -410,13 +417,6 @@ declare module '@tanstack/react-router' {
       path: '/billing'
       fullPath: '/billing'
       preLoaderRoute: typeof Dashboard_layoutBillingRouteImport
-      parentRoute: typeof Dashboard_layoutRoute
-    }
-    '/_dashboard_layout/license': {
-      id: '/_dashboard_layout/license'
-      path: '/license'
-      fullPath: '/license'
-      preLoaderRoute: typeof Dashboard_layoutLicenseRouteImport
       parentRoute: typeof Dashboard_layoutRoute
     }
     '/_dashboard_layout/teams/': {
