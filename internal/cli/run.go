@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mujhtech/dagryn/internal/client"
+	"github.com/mujhtech/dagryn/pkg/client"
 	"github.com/mujhtech/dagryn/pkg/dagryn/cache"
 	"github.com/mujhtech/dagryn/pkg/dagryn/cache/cloud"
 	grpccache "github.com/mujhtech/dagryn/pkg/dagryn/cache/grpc"

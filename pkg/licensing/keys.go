@@ -12,7 +12,7 @@ import (
 //
 // Override at build time:
 //
-//	-ldflags "-X github.com/mujhtech/dagryn/internal/license.publicKeysJSON=<json>"
+//	-ldflags "-X github.com/mujhtech/dagryn/pkg/licensing.publicKeysJSON=<json>"
 var publicKeysJSON = "{}"
 
 // ParsePublicKeys decodes the embedded keyring.

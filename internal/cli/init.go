@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mujhtech/dagryn/internal/client"
+	"github.com/mujhtech/dagryn/pkg/client"
 	"github.com/mujhtech/dagryn/pkg/dagryn/config"
 	"github.com/mujhtech/dagryn/pkg/workflow/ghactions"
 	"github.com/spf13/cobra"

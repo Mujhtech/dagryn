@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
-	"github.com/mujhtech/dagryn/internal/ai/aitypes"
-	"github.com/mujhtech/dagryn/internal/ai/provider"
-	"github.com/mujhtech/dagryn/internal/telemetry"
+	"github.com/mujhtech/dagryn/pkg/ai/aitypes"
+	"github.com/mujhtech/dagryn/pkg/ai/provider"
+	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
 	"github.com/rs/zerolog"

@@ -10,7 +10,7 @@ import (
 )
 
 func TestOfficialPlugins_AllValid(t *testing.T) {
-	pluginsDir := filepath.Join("..", "..", "plugins")
+	pluginsDir := filepath.Join("..", "..", "..", "plugins")
 
 	entries, err := os.ReadDir(pluginsDir)
 	require.NoError(t, err, "failed to read plugins directory")
@@ -92,7 +92,7 @@ func TestOfficialPlugins_AllValid(t *testing.T) {
 }
 
 func TestOfficialPlugins_RequiredInputs(t *testing.T) {
-	pluginsDir := filepath.Join("..", "..", "plugins")
+	pluginsDir := filepath.Join("..", "..", "..", "plugins")
 
 	tests := []struct {
 		plugin         string
@@ -123,7 +123,7 @@ func TestOfficialPlugins_RequiredInputs(t *testing.T) {
 }
 
 func TestOfficialPlugins_DefaultInputs(t *testing.T) {
-	pluginsDir := filepath.Join("..", "..", "plugins")
+	pluginsDir := filepath.Join("..", "..", "..", "plugins")
 
 	tests := []struct {
 		plugin   string

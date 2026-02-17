@@ -3,7 +3,7 @@ package ai
 import (
 	"testing"
 
-	"github.com/mujhtech/dagryn/internal/ai/aitypes"
+	"github.com/mujhtech/dagryn/pkg/ai/aitypes"
 	"github.com/mujhtech/dagryn/pkg/dagryn/config"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"

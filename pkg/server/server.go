@@ -34,11 +34,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/mujhtech/dagryn/internal/githubapp"
-	"github.com/mujhtech/dagryn/internal/server/sse"
-	"github.com/mujhtech/dagryn/internal/service"
-	dagrynstripe "github.com/mujhtech/dagryn/internal/stripe"
-	"github.com/mujhtech/dagryn/internal/telemetry"
+	"github.com/mujhtech/dagryn/pkg/githubapp"
+	"github.com/mujhtech/dagryn/pkg/server/sse"
+	"github.com/mujhtech/dagryn/pkg/service"
+	dagrynstripe "github.com/mujhtech/dagryn/pkg/stripe"
+	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/mujhtech/dagryn/pkg/api"
 	"github.com/mujhtech/dagryn/pkg/api/handlers"
 	"github.com/mujhtech/dagryn/pkg/authn"

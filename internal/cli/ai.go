@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mujhtech/dagryn/internal/ai/aitypes"
-	"github.com/mujhtech/dagryn/internal/ai/provider"
-	"github.com/mujhtech/dagryn/internal/client"
+	"github.com/mujhtech/dagryn/pkg/ai/aitypes"
+	"github.com/mujhtech/dagryn/pkg/ai/provider"
+	"github.com/mujhtech/dagryn/pkg/client"
 	"github.com/mujhtech/dagryn/pkg/dagryn/config"
 	"github.com/mujhtech/dagryn/pkg/logger"
 	"github.com/rs/zerolog"

@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/mujhtech/dagryn/internal/client"
+	"github.com/mujhtech/dagryn/pkg/client"
 	"github.com/mujhtech/dagryn/pkg/dagryn/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

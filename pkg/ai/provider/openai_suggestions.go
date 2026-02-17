@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mujhtech/dagryn/internal/ai/aitypes"
+	"github.com/mujhtech/dagryn/pkg/ai/aitypes"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/openai/openai-go/v3/shared"

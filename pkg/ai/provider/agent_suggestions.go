@@ -8,7 +8,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/mujhtech/dagryn/internal/ai/aitypes"
+	"github.com/mujhtech/dagryn/pkg/ai/aitypes"
 )
 
 // ProposeSuggestions sends the suggestion input to the BYOA agent and returns suggestions.

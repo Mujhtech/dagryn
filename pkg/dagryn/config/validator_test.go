@@ -10,7 +10,7 @@ import (
 )
 
 func TestValidate_ValidConfig(t *testing.T) {
-	cfg, err := Parse(filepath.Join("..", "..", "testdata", "valid.toml"))
+	cfg, err := Parse(filepath.Join("..", "..", "..", "testdata", "valid.toml"))
 	require.NoError(t, err)
 
 	errors := Validate(cfg)
@@ -127,7 +127,7 @@ func pluginSpec(s string) pluginSpecType {
 type pluginSpecType = plugin.Spec
 
 func TestValidate_MissingDependency(t *testing.T) {
-	cfg, err := Parse(filepath.Join("..", "..", "testdata", "missing_dep.toml"))
+	cfg, err := Parse(filepath.Join("..", "..", "..", "testdata", "missing_dep.toml"))
 	require.NoError(t, err)
 
 	errors := Validate(cfg)
@@ -144,7 +144,7 @@ func TestValidate_MissingDependency(t *testing.T) {
 }
 
 func TestValidate_InvalidTimeout(t *testing.T) {
-	cfg, err := Parse(filepath.Join("..", "..", "testdata", "invalid_timeout.toml"))
+	cfg, err := Parse(filepath.Join("..", "..", "..", "testdata", "invalid_timeout.toml"))
 	require.NoError(t, err)
 
 	errors := Validate(cfg)
@@ -161,7 +161,7 @@ func TestValidate_InvalidTimeout(t *testing.T) {
 }
 
 func TestValidate_CyclicDependency(t *testing.T) {
-	cfg, err := Parse(filepath.Join("..", "..", "testdata", "cycle.toml"))
+	cfg, err := Parse(filepath.Join("..", "..", "..", "testdata", "cycle.toml"))
 	require.NoError(t, err)
 
 	errors := Validate(cfg)

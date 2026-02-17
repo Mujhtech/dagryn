@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	dagrynstripe "github.com/mujhtech/dagryn/internal/stripe"
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
+	dagrynstripe "github.com/mujhtech/dagryn/pkg/stripe"
 	"github.com/rs/zerolog"
 )
 
@@ -28,8 +28,6 @@ func NewBillingService(billingRepo *repo.BillingRepo, stripeClient *dagrynstripe
 	}
 }
 
-// --- Plans ---
-
 // ListPlans returns all active billing plans.
 func (s *BillingService) ListPlans(ctx context.Context) ([]models.BillingPlan, error) {
 	return s.repo.ListActivePlans(ctx)
@@ -39,8 +37,6 @@ func (s *BillingService) ListPlans(ctx context.Context) ([]models.BillingPlan, e
 func (s *BillingService) GetPlan(ctx context.Context, slug string) (*models.BillingPlan, error) {
 	return s.repo.GetPlanBySlug(ctx, slug)
 }
-
-// --- Accounts ---
 
 // GetOrCreateAccount returns the billing account for a user, creating one if needed.
 func (s *BillingService) GetOrCreateAccount(ctx context.Context, userID uuid.UUID, email, name string) (*models.BillingAccount, error) {
@@ -169,8 +165,6 @@ func (s *BillingService) GetAccountForTeam(ctx context.Context, teamID uuid.UUID
 func (s *BillingService) GetAccount(ctx context.Context, accountID uuid.UUID) (*models.BillingAccount, error) {
 	return s.repo.GetAccountByID(ctx, accountID)
 }
-
-// --- Subscriptions ---
 
 // ResourceUsage holds actual resource consumption for a billing account.
 type ResourceUsage struct {
@@ -425,14 +419,10 @@ func (s *BillingService) GetUsageSummary(ctx context.Context, accountID uuid.UUI
 	return s.repo.GetUsageSummary(ctx, accountID, since)
 }
 
-// --- Invoices ---
-
 // ListInvoices returns paginated invoices for a billing account.
 func (s *BillingService) ListInvoices(ctx context.Context, accountID uuid.UUID, limit, offset int) ([]models.Invoice, error) {
 	return s.repo.ListInvoices(ctx, accountID, limit, offset)
 }
-
-// --- Webhook Processing ---
 
 // HandleSubscriptionUpdated processes a Stripe subscription update event.
 func (s *BillingService) HandleSubscriptionUpdated(ctx context.Context, stripeSubID string, status models.SubscriptionStatus, periodStart, periodEnd *time.Time, cancelAtPeriodEnd bool) error {

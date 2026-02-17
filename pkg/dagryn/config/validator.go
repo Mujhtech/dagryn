@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mujhtech/dagryn/internal/ai/provider"
+	"github.com/mujhtech/dagryn/pkg/ai/provider"
 	"github.com/mujhtech/dagryn/pkg/dagryn/dag"
 	"github.com/mujhtech/dagryn/pkg/dagryn/plugin"
 )

@@ -10,7 +10,7 @@ import (
 )
 
 func TestParse_ValidConfig(t *testing.T) {
-	cfg, err := Parse(filepath.Join("..", "..", "testdata", "valid.toml"))
+	cfg, err := Parse(filepath.Join("..", "..", "..", "testdata", "valid.toml"))
 	require.NoError(t, err)
 
 	assert.Equal(t, "ci", cfg.Workflow.Name)
@@ -51,7 +51,7 @@ func TestParseBytes_InvalidTOML(t *testing.T) {
 }
 
 func TestConfig_ToWorkflow(t *testing.T) {
-	cfg, err := Parse(filepath.Join("..", "..", "testdata", "valid.toml"))
+	cfg, err := Parse(filepath.Join("..", "..", "..", "testdata", "valid.toml"))
 	require.NoError(t, err)
 
 	w, err := cfg.ToWorkflow()

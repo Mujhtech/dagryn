@@ -9,7 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
-	"github.com/mujhtech/dagryn/internal/server"
+	"github.com/mujhtech/dagryn/pkg/server"
 	"github.com/mujhtech/dagryn/pkg/config"
 )
 

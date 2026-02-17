@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
-	dagrynstripe "github.com/mujhtech/dagryn/internal/stripe"
+	dagrynstripe "github.com/mujhtech/dagryn/pkg/stripe"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
 	"github.com/rs/zerolog/log"
 )

@@ -3,7 +3,7 @@ package provider
 import (
 	"fmt"
 
-	"github.com/mujhtech/dagryn/internal/ai/aitypes"
+	"github.com/mujhtech/dagryn/pkg/ai/aitypes"
 	"github.com/rs/zerolog"
 )
 

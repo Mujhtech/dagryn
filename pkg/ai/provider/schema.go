@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mujhtech/dagryn/internal/ai/aitypes"
+	"github.com/mujhtech/dagryn/pkg/ai/aitypes"
 )
 
 // ValidationError contains the list of invalid fields.

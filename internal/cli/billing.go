@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/mujhtech/dagryn/internal/client"
+	"github.com/mujhtech/dagryn/pkg/client"
 	"github.com/spf13/cobra"
 )
 

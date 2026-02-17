@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mujhtech/dagryn/internal/ai/aitypes"
+	"github.com/mujhtech/dagryn/pkg/ai/aitypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
