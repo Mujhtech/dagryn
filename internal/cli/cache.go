@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mujhtech/dagryn/internal/cache"
-	"github.com/mujhtech/dagryn/internal/cache/remote"
-	"github.com/mujhtech/dagryn/internal/config"
+	"github.com/mujhtech/dagryn/pkg/dagryn/cache"
+	"github.com/mujhtech/dagryn/pkg/dagryn/cache/remote"
+	"github.com/mujhtech/dagryn/pkg/dagryn/config"
 	"github.com/mujhtech/dagryn/pkg/logger"
 	"github.com/mujhtech/dagryn/pkg/storage"
 	"github.com/spf13/cobra"

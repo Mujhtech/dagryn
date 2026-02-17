@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mujhtech/dagryn/internal/executor"
-	"github.com/mujhtech/dagryn/internal/plugin"
+	"github.com/mujhtech/dagryn/pkg/dagryn/executor"
+	"github.com/mujhtech/dagryn/pkg/dagryn/plugin"
 	"github.com/rs/zerolog"
 )
 

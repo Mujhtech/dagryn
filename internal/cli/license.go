@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mujhtech/dagryn/internal/license"
-	"github.com/mujhtech/dagryn/internal/server/handlers"
+	"github.com/mujhtech/dagryn/pkg/api/handlers"
+	"github.com/mujhtech/dagryn/pkg/licensing"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 )
@@ -88,18 +88,18 @@ func runLicenseStatus() error {
 		return nil
 	}
 
-	keys, err := license.ParsePublicKeys()
+	keys, err := licensing.ParsePublicKeys()
 	if err != nil || len(keys) == 0 {
 		return fmt.Errorf("no license verification keys available in this build")
 	}
 
-	validator := license.NewValidator(keys)
+	validator := licensing.NewValidator(keys)
 	claims, err := validator.Validate(key)
 	if err != nil {
 		return fmt.Errorf("invalid license: %w", err)
 	}
 
-	gate := license.NewFeatureGate(claims, zerolog.Nop())
+	gate := licensing.NewFeatureGate(claims, zerolog.Nop())
 
 	fmt.Println("Dagryn License Status")
 	fmt.Println(strings.Repeat("─", 21))
@@ -121,17 +121,17 @@ func runLicenseStatus() error {
 	// Features
 	fmt.Println("\nFeatures:")
 	allFeatures := []struct {
-		feature license.Feature
+		feature licensing.Feature
 		label   string
 	}{
-		{license.FeatureContainerExecution, "Container Execution"},
-		{license.FeaturePriorityQueue, "Priority Queue"},
-		{license.FeatureSSO, "SSO / SAML"},
-		{license.FeatureAuditLogs, "Audit Logs"},
-		{license.FeatureCustomRBAC, "Custom RBAC"},
-		{license.FeatureMultiCluster, "Multi-cluster"},
-		{license.FeatureDashboardFull, "Dashboard (full)"},
-		{license.FeatureCloudCache, "Cloud Cache"},
+		{licensing.FeatureContainerExecution, "Container Execution"},
+		{licensing.FeaturePriorityQueue, "Priority Queue"},
+		{licensing.FeatureSSO, "SSO / SAML"},
+		{licensing.FeatureAuditLogs, "Audit Logs"},
+		{licensing.FeatureCustomRBAC, "Custom RBAC"},
+		{licensing.FeatureMultiCluster, "Multi-cluster"},
+		{licensing.FeatureDashboardFull, "Dashboard (full)"},
+		{licensing.FeatureCloudCache, "Cloud Cache"},
 	}
 	for _, f := range allFeatures {
 		if gate.HasFeature(f.feature) {
@@ -171,12 +171,12 @@ func printLicenseLimit[T int | int64](label string, limit *T) {
 
 func runLicenseActivate(key string, instanceName string) error {
 	// 1. Validate locally
-	keys, err := license.ParsePublicKeys()
+	keys, err := licensing.ParsePublicKeys()
 	if err != nil || len(keys) == 0 {
 		return fmt.Errorf("no license verification keys available in this build")
 	}
 
-	validator := license.NewValidator(keys)
+	validator := licensing.NewValidator(keys)
 	claims, err := validator.Validate(key)
 	if err != nil {
 		return fmt.Errorf("invalid license key: %w", err)
@@ -201,7 +201,7 @@ func runLicenseActivate(key string, instanceName string) error {
 		serverURL = "https://license.dagryn.dev"
 	}
 
-	serverClient := license.NewServerClient(license.ServerConfig{
+	serverClient := licensing.NewServerClient(licensing.ServerConfig{
 		BaseURL: serverURL,
 		Timeout: 10 * time.Second,
 	})
@@ -209,7 +209,7 @@ func runLicenseActivate(key string, instanceName string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	resp, err := serverClient.Activate(ctx, license.ActivationRequest{
+	resp, err := serverClient.Activate(ctx, licensing.ActivationRequest{
 		LicenseKey:   key,
 		InstanceID:   stored.InstanceID,
 		InstanceName: stored.InstanceName,
@@ -250,7 +250,7 @@ func runLicenseDeactivate() error {
 	}
 
 	if stored.LicenseID != "" && stored.InstanceID != "" {
-		serverClient := license.NewServerClient(license.ServerConfig{
+		serverClient := licensing.NewServerClient(licensing.ServerConfig{
 			BaseURL: serverURL,
 			Timeout: 10 * time.Second,
 		})
@@ -258,7 +258,7 @@ func runLicenseDeactivate() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
-		if err := serverClient.Deactivate(ctx, license.DeactivateRequest{
+		if err := serverClient.Deactivate(ctx, licensing.DeactivateRequest{
 			LicenseID:  stored.LicenseID,
 			InstanceID: stored.InstanceID,
 		}); err != nil {
