@@ -23,9 +23,9 @@ func (e *CLIError) Unwrap() error {
 	return e.Err
 }
 
-// wrapError converts known Go errors into user-friendly CLIErrors.
+// WrapError converts known Go errors into user-friendly CLIErrors.
 // If the error is not recognized, it is returned unchanged.
-func wrapError(err error, cfg *config.Config) error {
+func WrapError(err error, cfg *config.Config) error {
 	if err == nil {
 		return nil
 	}
@@ -78,7 +78,7 @@ func wrapError(err error, cfg *config.Config) error {
 		taskName := extractQuotedString(msg)
 		suggestion := ""
 		if taskName != "" && cfg != nil {
-			if closest := findClosestTask(taskName, cfg); closest != "" {
+			if closest := FindClosestTask(taskName, cfg); closest != "" {
 				suggestion = fmt.Sprintf("Did you mean '%s'?", closest)
 			}
 		}
@@ -119,9 +119,9 @@ func extractQuotedString(msg string) string {
 	return msg[start+1 : start+1+end]
 }
 
-// findClosestTask finds the task name in the config that is closest
+// FindClosestTask finds the task name in the config that is closest
 // to the given name using Levenshtein distance.
-func findClosestTask(name string, cfg *config.Config) string {
+func FindClosestTask(name string, cfg *config.Config) string {
 	if cfg == nil {
 		return ""
 	}

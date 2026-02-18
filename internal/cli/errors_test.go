@@ -11,7 +11,7 @@ import (
 )
 
 func TestWrapErrorConfigNotFound(t *testing.T) {
-	err := wrapError(fmt.Errorf("open dagryn.toml: no such file or directory"), nil)
+	err := WrapError(fmt.Errorf("open dagryn.toml: no such file or directory"), nil)
 	var cliErr *CLIError
 	require.True(t, errors.As(err, &cliErr))
 	assert.Contains(t, cliErr.Message, "No dagryn.toml")
@@ -19,28 +19,28 @@ func TestWrapErrorConfigNotFound(t *testing.T) {
 }
 
 func TestWrapErrorNotLoggedIn(t *testing.T) {
-	err := wrapError(fmt.Errorf("not logged in"), nil)
+	err := WrapError(fmt.Errorf("not logged in"), nil)
 	var cliErr *CLIError
 	require.True(t, errors.As(err, &cliErr))
 	assert.Contains(t, cliErr.Suggestion, "dagryn auth login")
 }
 
 func TestWrapErrorNoProjectLinked(t *testing.T) {
-	err := wrapError(fmt.Errorf("no project linked"), nil)
+	err := WrapError(fmt.Errorf("no project linked"), nil)
 	var cliErr *CLIError
 	require.True(t, errors.As(err, &cliErr))
 	assert.Contains(t, cliErr.Suggestion, "dagryn init --remote")
 }
 
 func TestWrapErrorDocker(t *testing.T) {
-	err := wrapError(fmt.Errorf("Docker not available"), nil)
+	err := WrapError(fmt.Errorf("Docker not available"), nil)
 	var cliErr *CLIError
 	require.True(t, errors.As(err, &cliErr))
 	assert.Contains(t, cliErr.Suggestion, "dagryn doctor")
 }
 
 func TestWrapErrorRemoteCacheNotEnabled(t *testing.T) {
-	err := wrapError(fmt.Errorf("remote cache is not enabled in config"), nil)
+	err := WrapError(fmt.Errorf("remote cache is not enabled in config"), nil)
 	var cliErr *CLIError
 	require.True(t, errors.As(err, &cliErr))
 	assert.Contains(t, cliErr.Suggestion, "cache.remote")
@@ -54,7 +54,7 @@ func TestWrapErrorTaskNotFoundWithSuggestion(t *testing.T) {
 			"lint":  {},
 		},
 	}
-	err := wrapError(fmt.Errorf("task \"bild\" not found"), cfg)
+	err := WrapError(fmt.Errorf("task \"bild\" not found"), cfg)
 	var cliErr *CLIError
 	require.True(t, errors.As(err, &cliErr))
 	assert.Contains(t, cliErr.Suggestion, "build")
@@ -62,12 +62,12 @@ func TestWrapErrorTaskNotFoundWithSuggestion(t *testing.T) {
 
 func TestWrapErrorPassthrough(t *testing.T) {
 	original := fmt.Errorf("some unknown error")
-	err := wrapError(original, nil)
+	err := WrapError(original, nil)
 	assert.Equal(t, original, err)
 }
 
 func TestWrapErrorNil(t *testing.T) {
-	assert.Nil(t, wrapError(nil, nil))
+	assert.Nil(t, WrapError(nil, nil))
 }
 
 func TestLevenshtein(t *testing.T) {

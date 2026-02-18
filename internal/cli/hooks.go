@@ -19,9 +19,9 @@ const (
 // updateChecker is initialised in PersistentPreRun and read in PersistentPostRun.
 var updateChecker *cliui.UpdateChecker
 
-// registerHooks wires Cobra PersistentPre/PostRunE on the root command.
-// It must be called during init after all subcommands have been added.
-func registerHooks(root *cobra.Command) {
+// RegisterHooks wires Cobra PersistentPre/PostRunE on the root command.
+// It must be called after all subcommands have been added.
+func RegisterHooks(root *cobra.Command) {
 	// Wrap any existing hooks so they are preserved.
 	prevPre := root.PersistentPreRunE
 	prevPost := root.PersistentPostRunE

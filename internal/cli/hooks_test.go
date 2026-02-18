@@ -23,7 +23,7 @@ func TestRegisterHooksPreservesExisting(t *testing.T) {
 		},
 	}
 
-	registerHooks(cmd)
+	RegisterHooks(cmd)
 
 	// The hooks should wrap the existing ones
 	assert.NotNil(t, cmd.PersistentPreRunE)
@@ -41,7 +41,7 @@ func TestRegisterHooksPreservesExisting(t *testing.T) {
 
 func TestRegisterHooksNilExisting(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
-	registerHooks(cmd)
+	RegisterHooks(cmd)
 
 	// Should not panic with nil pre-existing hooks
 	err := cmd.PersistentPreRunE(cmd, nil)
