@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"text/tabwriter"
 
+	"github.com/mujhtech/dagryn/pkg/cliui"
 	"github.com/mujhtech/dagryn/pkg/dagryn/config"
 	"github.com/mujhtech/dagryn/pkg/dagryn/plugin"
 	"github.com/spf13/cobra"
@@ -34,6 +35,7 @@ func newPluginListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List installed plugins",
 		Long:  `Lists all plugins currently installed in the project's .dagryn/plugins directory.`,
+		Example: `  dagryn plugin list`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectRoot, err := os.Getwd()
 			if err != nil {
@@ -175,22 +177,24 @@ This command allows you to pre-install plugins.`,
 
 			manager := plugin.NewManager(projectRoot)
 
-			fmt.Printf("Installing %s...\n", spec)
+			spinner := cliui.NewSpinner(os.Stderr, fmt.Sprintf("Installing %s...", spec))
+			spinner.Start()
 
 			result, err := manager.Install(cmd.Context(), spec)
 			if err != nil {
+				spinner.Stop("")
 				return fmt.Errorf("failed to install plugin: %w", err)
 			}
 
 			switch result.Status {
 			case plugin.StatusInstalled:
-				fmt.Printf("Installed %s\n", result.Plugin.Name)
-				fmt.Printf("  Version: %s\n", result.Plugin.ResolvedVersion)
-				fmt.Printf("  Binary:  %s\n", result.Plugin.BinaryPath)
+				spinner.Stop(fmt.Sprintf("Installed %s %s", result.Plugin.Name, result.Plugin.ResolvedVersion))
+				fmt.Printf("  Binary: %s\n", result.Plugin.BinaryPath)
 			case plugin.StatusCached:
-				fmt.Printf("Plugin %s already installed (cached)\n", result.Plugin.Name)
+				spinner.Stop(fmt.Sprintf("Plugin %s already installed (cached)", result.Plugin.Name))
 				fmt.Printf("  Binary: %s\n", result.Plugin.BinaryPath)
 			default:
+				spinner.Stop("")
 				return fmt.Errorf("unexpected status: %s", result.Status)
 			}
 
@@ -316,6 +320,7 @@ func newPluginUpdateCmd() *cobra.Command {
 
 Reads plugin specs from dagryn.toml and compares with the lock file.
 Plugins with "latest" or semver range versions will be re-resolved.`,
+		Example: `  dagryn plugin update`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectRoot, err := os.Getwd()
 			if err != nil {

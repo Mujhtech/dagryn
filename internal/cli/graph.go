@@ -14,6 +14,8 @@ var graphCmd = &cobra.Command{
 	Use:   "graph",
 	Short: "Visualize the task DAG",
 	Long:  `Display an ASCII representation of the task dependency graph.`,
+	Example: `  dagryn graph
+  dagryn graph -c custom.toml`,
 	RunE:  runGraph,
 }
 

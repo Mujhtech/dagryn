@@ -18,7 +18,9 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(newAICmd())
+	cmd := newAICmd()
+	cmd.GroupID = "tools"
+	rootCmd.AddCommand(cmd)
 }
 
 func newAICmd() *cobra.Command {

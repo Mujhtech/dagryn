@@ -861,6 +861,58 @@ func (c *Client) UploadArtifact(ctx context.Context, projectID, runID uuid.UUID,
 	return nil
 }
 
+// --- Artifact Types and Methods ---
+
+// ArtifactResponse represents an artifact in a run.
+type ArtifactResponse struct {
+	ID        uuid.UUID `json:"id"`
+	RunID     uuid.UUID `json:"run_id"`
+	TaskName  string    `json:"task_name"`
+	Name      string    `json:"name"`
+	FileName  string    `json:"file_name"`
+	SizeBytes int64     `json:"size_bytes"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// ListRunArtifacts lists all artifacts for a run.
+func (c *Client) ListRunArtifacts(ctx context.Context, projectID, runID uuid.UUID) ([]ArtifactResponse, error) {
+	path := fmt.Sprintf("/api/v1/projects/%s/runs/%s/artifacts", projectID, runID)
+	resp, err := c.doRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.parseError(resp)
+	}
+
+	var result struct {
+		Data []ArtifactResponse `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+	return result.Data, nil
+}
+
+// DownloadArtifact downloads an artifact by ID and returns the response body.
+// Caller must close the returned ReadCloser.
+func (c *Client) DownloadArtifact(ctx context.Context, projectID, runID, artifactID uuid.UUID) (io.ReadCloser, error) {
+	path := fmt.Sprintf("/api/v1/projects/%s/runs/%s/artifacts/%s/download", projectID, runID, artifactID)
+	resp, err := c.doRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		defer func() { _ = resp.Body.Close() }()
+		return nil, c.parseError(resp)
+	}
+
+	return resp.Body, nil
+}
+
 // --- Billing ---
 
 // BillingPlanResponse represents a billing plan.

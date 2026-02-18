@@ -301,6 +301,7 @@ func (h *Handler) GetArtifact(w http.ResponseWriter, r *http.Request) {
 		_ = response.BadRequest(w, r, err)
 		return
 	}
+
 	runID, err := getRunIDFromPath(r)
 	if err != nil {
 		_ = response.BadRequest(w, r, err)

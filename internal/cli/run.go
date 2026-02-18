@@ -70,7 +70,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 	// Load config
 	cfg, err := config.Parse(cfgFile)
 	if err != nil {
-		return err
+		return wrapError(err, nil)
 	}
 
 	// Validate config
@@ -106,7 +106,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 	// Verify targets exist
 	for _, target := range targets {
 		if _, ok := workflow.GetTask(target); !ok {
-			return fmt.Errorf("task %q not found", target)
+			return wrapError(fmt.Errorf("task %q not found", target), cfg)
 		}
 	}
 
@@ -331,11 +331,23 @@ func setupRemoteSync(projectRoot string, targets []string) (*RemoteSync, error) 
 		if err != nil {
 			return nil, fmt.Errorf("failed to load project config: %w", err)
 		}
-		if projectConfig == nil {
-			return nil, fmt.Errorf("no project linked. Run 'dagryn init --remote' first, or use --project flag")
+		if projectConfig != nil {
+			projID = projectConfig.ProjectID
+			fmt.Printf("Using linked project: %s (%s)\n", projectConfig.ProjectName, projectConfig.ProjectID)
+		} else {
+			// Fallback to .dagryn/context.json
+			contextID := loadContextProjectID(projectRoot)
+			if contextID != "" {
+				id, err := uuid.Parse(contextID)
+				if err != nil {
+					return nil, fmt.Errorf("invalid context project ID: %w", err)
+				}
+				projID = id
+				fmt.Printf("Using context project: %s\n", projID)
+			} else {
+				return nil, fmt.Errorf("no project linked. Run 'dagryn init --remote' or 'dagryn use <project-id>'")
+			}
 		}
-		projID = projectConfig.ProjectID
-		fmt.Printf("Using linked project: %s (%s)\n", projectConfig.ProjectName, projectConfig.ProjectID)
 	}
 
 	// Create client

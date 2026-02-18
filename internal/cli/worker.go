@@ -27,7 +27,9 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(newWorkerCmd())
+	cmd := newWorkerCmd()
+	cmd.GroupID = "server"
+	rootCmd.AddCommand(cmd)
 }
 
 // WorkerConfigOpts holds CLI options for the worker command.

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/mujhtech/dagryn/pkg/client"
+	"github.com/mujhtech/dagryn/pkg/cliui"
 	"github.com/spf13/cobra"
 )
 
@@ -78,9 +79,10 @@ func runLogin(cmd *cobra.Command, args []string) error {
 	fmt.Println("And enter the code:")
 	fmt.Printf("  %s\n", deviceCode.Data.UserCode)
 	fmt.Println()
-	fmt.Println("Waiting for authorization...")
+	// Poll for authorization with spinner
+	spinner := cliui.NewSpinner(os.Stderr, "Waiting for authorization...")
+	spinner.Start()
 
-	// Poll for authorization
 	pollInterval := time.Duration(deviceCode.Data.Interval) * time.Second
 	if pollInterval < time.Second {
 		pollInterval = 5 * time.Second
@@ -94,23 +96,24 @@ func runLogin(cmd *cobra.Command, args []string) error {
 	for {
 		select {
 		case <-ctx.Done():
+			spinner.Stop("")
 			return fmt.Errorf("login cancelled")
 		case <-timeout:
+			spinner.Stop("")
 			return fmt.Errorf("device code expired, please try again")
 		case <-ticker.C:
 			tokens, pending, err := apiClient.PollDeviceCode(ctx, deviceCode.Data.DeviceCode)
 			if err != nil {
+				spinner.Stop("")
 				return fmt.Errorf("failed to poll device code: %w", err)
 			}
 
 			if pending {
-				fmt.Print(".")
 				continue
 			}
 
 			// Successfully authenticated
-			fmt.Println()
-			fmt.Println()
+			spinner.Stop("")
 
 			// Save credentials
 			store, err := client.NewCredentialsStore()

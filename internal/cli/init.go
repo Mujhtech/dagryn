@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mujhtech/dagryn/pkg/client"
 	"github.com/mujhtech/dagryn/pkg/dagryn/config"
+	"github.com/mujhtech/dagryn/pkg/logger"
 	"github.com/mujhtech/dagryn/pkg/workflow/ghactions"
 	"github.com/spf13/cobra"
 )
@@ -57,6 +58,8 @@ func init() {
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
+	log := logger.New(verbose)
+
 	// Handle --list-templates
 	if listTemplates {
 		PrintTemplateList()
@@ -113,17 +116,17 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 			// Print detection message
 			if projectType != ProjectGeneric {
-				fmt.Printf("Detected %s project", projectType.DisplayName())
+				msg := fmt.Sprintf("Detected %s project", projectType.DisplayName())
 				if result.IndicatorFile != "" {
-					fmt.Printf(" (found %s)", result.IndicatorFile)
+					msg += fmt.Sprintf(" (found %s)", result.IndicatorFile)
 				}
 				if pm != "" {
-					fmt.Printf(" using %s", pm)
+					msg += fmt.Sprintf(" using %s", pm)
 				}
-				fmt.Println()
+				log.Info(msg)
 			} else {
-				fmt.Println("Could not detect project type, using generic template")
-				fmt.Println("Tip: Use --template to specify a template, or --interactive to select one")
+				log.Warn("Could not detect project type, using generic template")
+				log.Info("Tip: Use --template to specify a template, or --interactive to select one")
 			}
 		}
 	}
@@ -136,12 +139,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
-	fmt.Printf("\nCreated %s\n", configPath)
+	log.Successf("Created %s", configPath)
 
 	// If the repo already has GitHub Actions workflows, offer to add hints
 	// so users can mirror them as Dagryn tasks.
 	if err := maybeSuggestGitHubWorkflows(projectRoot, configPath); err != nil {
-		fmt.Printf("Warning: failed to inspect GitHub workflows: %v\n", err)
+		log.Warnf("Failed to inspect GitHub workflows: %v", err)
 	}
 
 	// Handle .gitignore
@@ -157,8 +160,8 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	if shouldSetupRemote {
 		if err := setupRemoteProject(projectRoot); err != nil {
-			fmt.Printf("\nWarning: Failed to set up remote project: %v\n", err)
-			fmt.Println("You can run 'dagryn init --remote' again later to link this project.")
+			log.Warnf("Failed to set up remote project: %v", err)
+			log.Info("You can run 'dagryn init --remote' again later to link this project.")
 		}
 	}
 

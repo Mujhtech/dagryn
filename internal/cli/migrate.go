@@ -14,7 +14,9 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(newMigrateCmd())
+	cmd := newMigrateCmd()
+	cmd.GroupID = "server"
+	rootCmd.AddCommand(cmd)
 }
 
 func newMigrateCmd() *cobra.Command {

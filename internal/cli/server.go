@@ -14,7 +14,9 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(newServerCmd())
+	cmd := newServerCmd()
+	cmd.GroupID = "server"
+	rootCmd.AddCommand(cmd)
 }
 
 func newServerCmd() *cobra.Command {

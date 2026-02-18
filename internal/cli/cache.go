@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/mujhtech/dagryn/pkg/cliui"
 	"github.com/mujhtech/dagryn/pkg/dagryn/cache"
 	"github.com/mujhtech/dagryn/pkg/dagryn/cache/remote"
 	"github.com/mujhtech/dagryn/pkg/dagryn/config"
@@ -31,6 +32,7 @@ func newCacheStatusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Show cache status and remote connectivity",
+		Example: `  dagryn cache status`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			log := logger.New(verbose)
 			projectRoot, err := getProjectRoot()
@@ -80,6 +82,8 @@ func newCacheClearCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "clear",
 		Short: "Clear the local cache",
+		Example: `  dagryn cache clear
+  dagryn cache clear --task build`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			log := logger.New(verbose)
 			projectRoot, err := getProjectRoot()
@@ -111,6 +115,8 @@ func newCachePushCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "push",
 		Short: "Push local cache to remote",
+		Example: `  dagryn cache push
+  dagryn cache push --task build`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			log := logger.New(verbose)
 			projectRoot, err := getProjectRoot()
@@ -124,7 +130,7 @@ func newCachePushCmd() *cobra.Command {
 			}
 
 			if !cfg.Cache.Remote.Enabled {
-				return fmt.Errorf("remote cache is not enabled in config")
+				return wrapError(fmt.Errorf("remote cache is not enabled in config"), nil)
 			}
 
 			bucket, err := buildBucket(cfg.Cache.Remote)
@@ -146,7 +152,10 @@ func newCachePushCmd() *cobra.Command {
 				return nil
 			}
 
-			log.Info(fmt.Sprintf("Pushing %d cache entries to remote (provider=%s)...", len(entries), cfg.Cache.Remote.Provider))
+			log.Infof("Pushing %d cache entries to remote (provider=%s)...", len(entries), cfg.Cache.Remote.Provider)
+
+			spinner := cliui.NewSpinner(os.Stderr, "Pushing cache entries...")
+			spinner.Start()
 
 			pushed := 0
 			for _, entry := range entries {
@@ -225,7 +234,8 @@ func newCachePushCmd() *cobra.Command {
 				}
 			}
 
-			log.Info(fmt.Sprintf("Pushed %d/%d cache entries", pushed, len(entries)))
+			spinner.Stop("")
+			log.Successf("Pushed %d/%d cache entries", pushed, len(entries))
 			return nil
 		},
 	}
@@ -238,6 +248,8 @@ func newCachePullCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "pull",
 		Short: "Pull remote cache to local",
+		Example: `  dagryn cache pull
+  dagryn cache pull --task build`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			log := logger.New(verbose)
 			projectRoot, err := getProjectRoot()
@@ -251,7 +263,7 @@ func newCachePullCmd() *cobra.Command {
 			}
 
 			if !cfg.Cache.Remote.Enabled {
-				return fmt.Errorf("remote cache is not enabled in config")
+				return wrapError(fmt.Errorf("remote cache is not enabled in config"), nil)
 			}
 
 			bucket, err := buildBucket(cfg.Cache.Remote)
@@ -279,7 +291,10 @@ func newCachePullCmd() *cobra.Command {
 				return nil
 			}
 
-			log.Info(fmt.Sprintf("Found %d remote cache entries (provider=%s)...", len(result.Keys), cfg.Cache.Remote.Provider))
+			log.Infof("Found %d remote cache entries (provider=%s)...", len(result.Keys), cfg.Cache.Remote.Provider)
+
+			spinner := cliui.NewSpinner(os.Stderr, "Pulling cache entries...")
+			spinner.Start()
 
 			pulled := 0
 			for _, key := range result.Keys {
@@ -321,7 +336,8 @@ func newCachePullCmd() *cobra.Command {
 				}
 			}
 
-			log.Info(fmt.Sprintf("Pulled %d/%d cache entries", pulled, len(result.Keys)))
+			spinner.Stop("")
+			log.Successf("Pulled %d/%d cache entries", pulled, len(result.Keys))
 			return nil
 		},
 	}
