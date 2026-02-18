@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/mujhtech/dagryn/pkg/service"
 	apiCtx "github.com/mujhtech/dagryn/pkg/api/context"
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
@@ -15,17 +14,18 @@ import (
 )
 
 // ListTeams godoc
-// @Summary List teams
-// @Description Returns all teams the current user is a member of
-// @Tags teams
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce json
-// @Param page query int false "Page number" default(1)
-// @Param per_page query int false "Items per page" default(20) maximum(100)
-// @Success 200 {object} PaginatedResponse{data=[]TeamResponse}
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/teams [get]
+//
+//	@Summary		List teams
+//	@Description	Returns all teams the current user is a member of
+//	@Tags			teams
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			page		query		int	false	"Page number"		default(1)
+//	@Param			per_page	query		int	false	"Items per page"	default(20)	maximum(100)
+//	@Success		200			{object}	PaginatedResponse{data=[]TeamResponse}
+//	@Failure		401			{object}	ErrorResponse
+//	@Router			/api/v1/teams [get]
 func (h *Handler) ListTeams(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -59,18 +59,19 @@ func (h *Handler) ListTeams(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateTeam godoc
-// @Summary Create a team
-// @Description Creates a new team with the current user as owner
-// @Tags teams
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Accept json
-// @Produce json
-// @Param body body CreateTeamRequest true "Create team request"
-// @Success 201 {object} TeamResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/teams [post]
+//
+//	@Summary		Create a team
+//	@Description	Creates a new team with the current user as owner
+//	@Tags			teams
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		CreateTeamRequest	true	"Create team request"
+//	@Success		201		{object}	TeamResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Router			/api/v1/teams [post]
 func (h *Handler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -125,18 +126,19 @@ func (h *Handler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetTeam godoc
-// @Summary Get a team
-// @Description Returns a team by ID
-// @Tags teams
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce json
-// @Param teamID path string true "Team ID" format(uuid)
-// @Success 200 {object} TeamResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/teams/{teamID} [get]
+//
+//	@Summary		Get a team
+//	@Description	Returns a team by ID
+//	@Tags			teams
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			teamID	path		string	true	"Team ID"	format(uuid)
+//	@Success		200		{object}	TeamResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Router			/api/v1/teams/{teamID} [get]
 func (h *Handler) GetTeam(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -176,21 +178,22 @@ func (h *Handler) GetTeam(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateTeam godoc
-// @Summary Update a team
-// @Description Updates a team's details
-// @Tags teams
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Accept json
-// @Produce json
-// @Param teamID path string true "Team ID" format(uuid)
-// @Param body body UpdateTeamRequest true "Update team request"
-// @Success 200 {object} TeamResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/teams/{teamID} [patch]
+//
+//	@Summary		Update a team
+//	@Description	Updates a team's details
+//	@Tags			teams
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			teamID	path		string				true	"Team ID"	format(uuid)
+//	@Param			body	body		UpdateTeamRequest	true	"Update team request"
+//	@Success		200		{object}	TeamResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Router			/api/v1/teams/{teamID} [patch]
 func (h *Handler) UpdateTeam(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -254,17 +257,18 @@ func (h *Handler) UpdateTeam(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteTeam godoc
-// @Summary Delete a team
-// @Description Deletes a team (requires owner role)
-// @Tags teams
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Param teamID path string true "Team ID" format(uuid)
-// @Success 204 "No Content"
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/teams/{teamID} [delete]
+//
+//	@Summary		Delete a team
+//	@Description	Deletes a team (requires owner role)
+//	@Tags			teams
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Param			teamID	path	string	true	"Team ID"	format(uuid)
+//	@Success		204		"No Content"
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Router			/api/v1/teams/{teamID} [delete]
 func (h *Handler) DeleteTeam(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -310,18 +314,19 @@ func (h *Handler) DeleteTeam(w http.ResponseWriter, r *http.Request) {
 // --- Team Member Handlers ---
 
 // ListTeamMembers godoc
-// @Summary List team members
-// @Description Returns all members of a team
-// @Tags teams
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce json
-// @Param teamID path string true "Team ID" format(uuid)
-// @Success 200 {object} []TeamMemberResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/teams/{teamID}/members [get]
+//
+//	@Summary		List team members
+//	@Description	Returns all members of a team
+//	@Tags			teams
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			teamID	path		string	true	"Team ID"	format(uuid)
+//	@Success		200		{object}	[]TeamMemberResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Router			/api/v1/teams/{teamID}/members [get]
 func (h *Handler) ListTeamMembers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -362,21 +367,22 @@ func (h *Handler) ListTeamMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 // AddTeamMember godoc
-// @Summary Add team member
-// @Description Adds a user to a team
-// @Tags teams
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Accept json
-// @Produce json
-// @Param teamID path string true "Team ID" format(uuid)
-// @Param body body AddTeamMemberRequest true "Add member request"
-// @Success 201 {object} TeamMemberResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/teams/{teamID}/members [post]
+//
+//	@Summary		Add team member
+//	@Description	Adds a user to a team
+//	@Tags			teams
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			teamID	path		string					true	"Team ID"	format(uuid)
+//	@Param			body	body		AddTeamMemberRequest	true	"Add member request"
+//	@Success		201		{object}	TeamMemberResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Router			/api/v1/teams/{teamID}/members [post]
 func (h *Handler) AddTeamMember(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -405,16 +411,6 @@ func (h *Handler) AddTeamMember(w http.ResponseWriter, r *http.Request) {
 	if !member.Role.CanManageMembers() {
 		_ = response.Forbidden(w, r, errors.New("you don't have permission to manage members"))
 		return
-	}
-
-	// Enforce max_team_members quota if billing is configured
-	if h.quotaService != nil {
-		if err := h.quotaService.CheckTeamMemberByTeamID(ctx, teamID); err != nil {
-			if service.IsQuotaExceeded(err) {
-				_ = response.PaymentRequired(w, r, err)
-				return
-			}
-		}
 	}
 
 	var req AddTeamMemberRequest
@@ -472,18 +468,19 @@ func (h *Handler) AddTeamMember(w http.ResponseWriter, r *http.Request) {
 }
 
 // RemoveTeamMember godoc
-// @Summary Remove team member
-// @Description Removes a user from a team
-// @Tags teams
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Param teamID path string true "Team ID" format(uuid)
-// @Param userID path string true "User ID" format(uuid)
-// @Success 204 "No Content"
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/teams/{teamID}/members/{userID} [delete]
+//
+//	@Summary		Remove team member
+//	@Description	Removes a user from a team
+//	@Tags			teams
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Param			teamID	path	string	true	"Team ID"	format(uuid)
+//	@Param			userID	path	string	true	"User ID"	format(uuid)
+//	@Success		204		"No Content"
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Router			/api/v1/teams/{teamID}/members/{userID} [delete]
 func (h *Handler) RemoveTeamMember(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -546,22 +543,23 @@ func (h *Handler) RemoveTeamMember(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateTeamMemberRole godoc
-// @Summary Update team member role
-// @Description Updates a team member's role
-// @Tags teams
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Accept json
-// @Produce json
-// @Param teamID path string true "Team ID" format(uuid)
-// @Param userID path string true "User ID" format(uuid)
-// @Param body body UpdateMemberRoleRequest true "Update role request"
-// @Success 200 {object} TeamMemberResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/teams/{teamID}/members/{userID}/role [patch]
+//
+//	@Summary		Update team member role
+//	@Description	Updates a team member's role
+//	@Tags			teams
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			teamID	path		string					true	"Team ID"	format(uuid)
+//	@Param			userID	path		string					true	"User ID"	format(uuid)
+//	@Param			body	body		UpdateMemberRoleRequest	true	"Update role request"
+//	@Success		200		{object}	TeamMemberResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Router			/api/v1/teams/{teamID}/members/{userID}/role [patch]
 func (h *Handler) UpdateTeamMemberRole(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -642,18 +640,19 @@ func (h *Handler) UpdateTeamMemberRole(w http.ResponseWriter, r *http.Request) {
 // --- Team Invitation Handlers ---
 
 // ListTeamInvitations godoc
-// @Summary List team invitations
-// @Description Returns all pending invitations for a team
-// @Tags teams
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce json
-// @Param teamID path string true "Team ID" format(uuid)
-// @Success 200 {object} []InvitationResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/teams/{teamID}/invitations [get]
+//
+//	@Summary		List team invitations
+//	@Description	Returns all pending invitations for a team
+//	@Tags			teams
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			teamID	path		string	true	"Team ID"	format(uuid)
+//	@Success		200		{object}	[]InvitationResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Router			/api/v1/teams/{teamID}/invitations [get]
 func (h *Handler) ListTeamInvitations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -699,21 +698,22 @@ func (h *Handler) ListTeamInvitations(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateTeamInvitation godoc
-// @Summary Create team invitation
-// @Description Creates an invitation to join a team
-// @Tags teams
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Accept json
-// @Produce json
-// @Param teamID path string true "Team ID" format(uuid)
-// @Param body body CreateInvitationRequest true "Create invitation request"
-// @Success 201 {object} InvitationResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/teams/{teamID}/invitations [post]
+//
+//	@Summary		Create team invitation
+//	@Description	Creates an invitation to join a team
+//	@Tags			teams
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			teamID	path		string					true	"Team ID"	format(uuid)
+//	@Param			body	body		CreateInvitationRequest	true	"Create invitation request"
+//	@Success		201		{object}	InvitationResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Router			/api/v1/teams/{teamID}/invitations [post]
 func (h *Handler) CreateTeamInvitation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -784,18 +784,19 @@ func (h *Handler) CreateTeamInvitation(w http.ResponseWriter, r *http.Request) {
 }
 
 // RevokeTeamInvitation godoc
-// @Summary Revoke team invitation
-// @Description Revokes a pending team invitation
-// @Tags teams
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Param teamID path string true "Team ID" format(uuid)
-// @Param invitationID path string true "Invitation ID" format(uuid)
-// @Success 204 "No Content"
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/teams/{teamID}/invitations/{invitationID} [delete]
+//
+//	@Summary		Revoke team invitation
+//	@Description	Revokes a pending team invitation
+//	@Tags			teams
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Param			teamID			path	string	true	"Team ID"		format(uuid)
+//	@Param			invitationID	path	string	true	"Invitation ID"	format(uuid)
+//	@Success		204				"No Content"
+//	@Failure		401				{object}	ErrorResponse
+//	@Failure		403				{object}	ErrorResponse
+//	@Failure		404				{object}	ErrorResponse
+//	@Router			/api/v1/teams/{teamID}/invitations/{invitationID} [delete]
 func (h *Handler) RevokeTeamInvitation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)

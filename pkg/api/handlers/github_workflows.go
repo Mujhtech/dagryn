@@ -19,14 +19,15 @@ import (
 )
 
 // TranslateGitHubWorkflowYAML godoc
-// @Summary Translate pasted GitHub Actions YAML into Dagryn tasks
-// @Description Converts a GitHub Actions workflow YAML string into a Dagryn TOML snippet
-// @Tags workflows
-// @Produce json
-// @Param request body GitHubWorkflowYAMLTranslateRequest true "Workflow YAML payload"
-// @Success 200 {object} GitHubWorkflowTranslateResponse
-// @Failure 400 {object} ErrorResponse
-// @Router /api/v1/workflows/translate [post]
+//
+//	@Summary		Translate pasted GitHub Actions YAML into Dagryn tasks
+//	@Description	Converts a GitHub Actions workflow YAML string into a Dagryn TOML snippet
+//	@Tags			workflows
+//	@Produce		json
+//	@Param			request	body		GitHubWorkflowYAMLTranslateRequest	true	"Workflow YAML payload"
+//	@Success		200		{object}	GitHubWorkflowTranslateResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Router			/api/v1/workflows/translate [post]
 func (h *Handler) TranslateGitHubWorkflowYAML(w http.ResponseWriter, r *http.Request) {
 	var req GitHubWorkflowYAMLTranslateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -73,17 +74,18 @@ func (h *Handler) TranslateGitHubWorkflowYAML(w http.ResponseWriter, r *http.Req
 }
 
 // TranslateGitHubWorkflows godoc
-// @Summary Translate GitHub Actions workflows into Dagryn tasks
-// @Description Fetches .github/workflows from a GitHub repo and returns a Dagryn TOML snippet
-// @Tags providers
-// @Security BearerAuth
-// @Produce json
-// @Param request body GitHubWorkflowTranslateRequest true "Repository details"
-// @Success 200 {object} GitHubWorkflowTranslateResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Router /api/v1/providers/github/workflows/translate [post]
+//
+//	@Summary		Translate GitHub Actions workflows into Dagryn tasks
+//	@Description	Fetches .github/workflows from a GitHub repo and returns a Dagryn TOML snippet
+//	@Tags			providers
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			request	body		GitHubWorkflowTranslateRequest	true	"Repository details"
+//	@Success		200		{object}	GitHubWorkflowTranslateResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Router			/api/v1/providers/github/workflows/translate [post]
 func (h *Handler) TranslateGitHubWorkflows(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)

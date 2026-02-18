@@ -13,8 +13,23 @@ import (
 	"github.com/mujhtech/dagryn/pkg/worker"
 )
 
-// GetAIAnalysis returns the latest AI analysis for a run.
-// GET /api/v1/projects/{projectId}/runs/{runID}/ai-analysis
+// GetAIAnalysis godoc
+//
+//	@Summary		Get AI analysis for a run
+//	@Description	Returns the latest AI analysis for a run, including publications and suggestions
+//	@Tags			ai
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			runId		path		string	true	"Run ID"		format(uuid)
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runId}/ai-analysis [get]
 func (h *Handler) GetAIAnalysis(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -84,8 +99,23 @@ func (h *Handler) GetAIAnalysis(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ListAIAnalyses returns paginated AI analyses for a project.
-// GET /api/v1/projects/{projectId}/ai-analyses
+// ListAIAnalyses godoc
+//
+//	@Summary		List AI analyses for a project
+//	@Description	Returns paginated AI analyses for a project
+//	@Tags			ai
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"		format(uuid)
+//	@Param			limit		query		int		false	"Items per page"	default(20)	maximum(100)
+//	@Param			offset		query		int		false	"Offset"			default(0)
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/ai-analyses [get]
 func (h *Handler) ListAIAnalyses(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -146,8 +176,23 @@ func (h *Handler) ListAIAnalyses(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// RetryAIAnalysis re-enqueues an AI analysis job for a run.
-// POST /api/v1/projects/{projectId}/runs/{runID}/ai-analysis/retry
+// RetryAIAnalysis godoc
+//
+//	@Summary		Retry AI analysis for a run
+//	@Description	Re-enqueues an AI analysis job for a specific run
+//	@Tags			ai
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			runId		path		string	true	"Run ID"		format(uuid)
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runId}/ai-analysis/retry [post]
 func (h *Handler) RetryAIAnalysis(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -226,8 +271,22 @@ func (h *Handler) RetryAIAnalysis(w http.ResponseWriter, r *http.Request) {
 	_ = response.Ok(w, r, "AI analysis retry enqueued", nil)
 }
 
-// GetAISuggestions returns AI suggestions for a run.
-// GET /api/v1/projects/{projectId}/runs/{runID}/ai-suggestions
+// GetAISuggestions godoc
+//
+//	@Summary		Get AI suggestions for a run
+//	@Description	Returns AI-generated suggestions for a specific run
+//	@Tags			ai
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			runId		path		string	true	"Run ID"		format(uuid)
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runId}/ai-suggestions [get]
 func (h *Handler) GetAISuggestions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -285,8 +344,23 @@ func (h *Handler) GetAISuggestions(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// PostAISuggestions publishes AI suggestions as a GitHub PR review.
-// POST /api/v1/projects/{projectId}/runs/{runID}/ai-suggestions/post
+// PostAISuggestions godoc
+//
+//	@Summary		Publish AI suggestions
+//	@Description	Publishes AI suggestions as a GitHub PR review
+//	@Tags			ai
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			runId		path		string	true	"Run ID"		format(uuid)
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runId}/ai-suggestions/post [post]
 func (h *Handler) PostAISuggestions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)

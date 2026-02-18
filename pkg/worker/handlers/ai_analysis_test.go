@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
-	"github.com/mujhtech/dagryn/pkg/service"
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
 	"github.com/rs/zerolog"
@@ -148,36 +147,6 @@ func (m *mockWorkflowDS) GetByID(_ context.Context, _ uuid.UUID) (*models.Workfl
 	return nil, fmt.Errorf("not found")
 }
 
-// --- Mock quota and billing ---
-
-type mockQuotaChecker struct {
-	accountID uuid.UUID
-	err       error
-	checkErr  error
-	quota     service.AIAnalysisQuota
-}
-
-func (m *mockQuotaChecker) GetAccountForProject(_ context.Context, _ uuid.UUID) (uuid.UUID, error) {
-	return m.accountID, m.err
-}
-
-func (m *mockQuotaChecker) CheckAIAnalysis(_ context.Context, _ uuid.UUID) error {
-	return m.checkErr
-}
-
-func (m *mockQuotaChecker) GetAIAnalysisQuota(_ context.Context, _ uuid.UUID) service.AIAnalysisQuota {
-	return m.quota
-}
-
-// type mockBillingRecorder struct {
-// 	events []*models.UsageEvent
-// }
-
-// func (m *mockBillingRecorder) RecordUsageEvent(_ context.Context, event *models.UsageEvent) error {
-// 	m.events = append(m.events, event)
-// 	return nil
-// }
-
 // encodePayload marshals and base64-encodes a payload (matching NoOpEncrypt.Encrypt).
 func encodePayload(t *testing.T, v any) []byte {
 	t.Helper()
@@ -245,7 +214,7 @@ func TestAIAnalysis_Dedup_SkipExisting(t *testing.T) {
 		},
 		nil, // jobEnqueuer
 		zerolog.Nop(),
-		nil, nil, nil, // quota, billing, metrics
+		nil, // metrics
 	)
 
 	task := asynq.NewTask("ai_analysis:run", payloadBytes)
@@ -284,7 +253,7 @@ func TestAIAnalysis_RateLimit_Exceeded(t *testing.T) {
 		},
 		nil, // jobEnqueuer
 		zerolog.Nop(),
-		nil, nil, nil, // quota, billing, metrics
+		nil, // metrics
 	)
 
 	task := asynq.NewTask("ai_analysis:run", payloadBytes)
@@ -351,7 +320,7 @@ func TestAIAnalysis_Supersede_OldCommit(t *testing.T) {
 		},
 		nil, // jobEnqueuer
 		zerolog.Nop(),
-		nil, nil, nil, // quota, billing, metrics
+		nil, // metrics
 	)
 
 	task := asynq.NewTask("ai_analysis:run", payloadBytes)
@@ -392,7 +361,7 @@ func TestAIAnalysis_ProviderError_NoRetry(t *testing.T) {
 		},
 		nil, // jobEnqueuer
 		zerolog.Nop(),
-		nil, nil, nil, // quota, billing, metrics
+		nil, // metrics
 	)
 
 	task := asynq.NewTask("ai_analysis:run", payloadBytes)
@@ -467,7 +436,7 @@ func TestAIAnalysis_HappyPath(t *testing.T) {
 		},
 		nil, // jobEnqueuer
 		zerolog.Nop(),
-		nil, nil, nil, // quota, billing, metrics
+		nil, // metrics
 	)
 
 	task := asynq.NewTask("ai_analysis:run", payloadBytes)
@@ -551,104 +520,6 @@ func TestAIAnalysis_EnqueuesPublishAndSuggestJobs(t *testing.T) {
 	assert.Equal(t, "ai_suggest:run", enqueuer.enqueued[1].taskName)
 }
 
-func TestAIAnalysis_ManagedBackend_QuotaExceeded(t *testing.T) {
-	projectID := uuid.New()
-	runID := uuid.New()
-	accountID := uuid.New()
-
-	payload := aiAnalysisPayload{
-		RunID:     runID.String(),
-		ProjectID: projectID.String(),
-		GitBranch: "main",
-		GitCommit: "abc123",
-	}
-	payloadBytes := encodePayload(t, payload)
-
-	mockAI := newMockAIRepoForHandler()
-
-	quotaMock := &mockQuotaChecker{
-		accountID: accountID,
-		checkErr: &service.QuotaExceededError{
-			Resource: "ai_analyses_per_month",
-			Current:  100,
-			Limit:    100,
-			PlanSlug: "free",
-		},
-	}
-
-	handler := NewAIAnalysisHandler(
-		&mockRunDS{},
-		&mockWorkflowDS{},
-		mockAI,
-		encrypt.NewNoOpEncrypt(),
-		&AIAnalysisConfig{
-			Enabled:            true,
-			BackendMode:        "managed",
-			Provider:           "openai",
-			MaxAnalysesPerHour: 10,
-		},
-		nil, // jobEnqueuer
-		zerolog.Nop(),
-		quotaMock, nil, nil, // quota, billing, metrics
-	)
-
-	task := asynq.NewTask("ai_analysis:run", payloadBytes)
-	err := handler.Handle(context.Background(), task)
-	require.NoError(t, err)
-
-	// Should have created an analysis with quota_exceeded status.
-	assert.Equal(t, 1, mockAI.createCallCount)
-	for _, a := range mockAI.analyses {
-		assert.Equal(t, models.AIAnalysisStatusQuotaExceeded, a.Status)
-	}
-}
-
-func TestAIAnalysis_BYOKBackend_SkipsBilling(t *testing.T) {
-	projectID := uuid.New()
-	runID := uuid.New()
-
-	payload := aiAnalysisPayload{
-		RunID:     runID.String(),
-		ProjectID: projectID.String(),
-		GitBranch: "main",
-		GitCommit: "abc",
-	}
-	payloadBytes := encodePayload(t, payload)
-
-	mockAI := newMockAIRepoForHandler()
-
-	// Quota checker should NOT be called for byok mode.
-	quotaMock := &mockQuotaChecker{
-		checkErr: &service.QuotaExceededError{Resource: "should_not_be_called"},
-	}
-
-	handler := NewAIAnalysisHandler(
-		&mockRunDS{},
-		&mockWorkflowDS{},
-		mockAI,
-		encrypt.NewNoOpEncrypt(),
-		&AIAnalysisConfig{
-			Enabled:            true,
-			BackendMode:        "byok",
-			Provider:           "openai",
-			MaxAnalysesPerHour: 10,
-		},
-		nil, // jobEnqueuer
-		zerolog.Nop(),
-		quotaMock, nil, nil, // quota, billing, metrics
-	)
-
-	task := asynq.NewTask("ai_analysis:run", payloadBytes)
-	err := handler.Handle(context.Background(), task)
-	require.NoError(t, err)
-	// The handler should proceed past the billing check (byok mode skips it).
-	// It will fail at provider creation (no real API key), returning nil.
-	// The key assertion: no quota_exceeded analysis was created.
-	for _, a := range mockAI.analyses {
-		assert.NotEqual(t, models.AIAnalysisStatusQuotaExceeded, a.Status)
-	}
-}
-
 func TestAIAnalysis_CooldownEnforced(t *testing.T) {
 	projectID := uuid.New()
 	runID := uuid.New()
@@ -682,7 +553,7 @@ func TestAIAnalysis_CooldownEnforced(t *testing.T) {
 		},
 		nil, // jobEnqueuer
 		zerolog.Nop(),
-		nil, nil, nil, // quota, billing, metrics
+		nil, // metrics
 	)
 
 	task := asynq.NewTask("ai_analysis:run", payloadBytes)
@@ -721,7 +592,7 @@ func TestAIAnalysis_ConcurrentLimitExceeded(t *testing.T) {
 		},
 		nil, // jobEnqueuer
 		zerolog.Nop(),
-		nil, nil, nil, // quota, billing, metrics
+		nil, // metrics
 	)
 
 	task := asynq.NewTask("ai_analysis:run", payloadBytes)

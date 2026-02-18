@@ -15,22 +15,23 @@ import (
 	"github.com/google/uuid"
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
+	"github.com/mujhtech/dagryn/pkg/entitlement"
 	"github.com/mujhtech/dagryn/pkg/storage"
 	"github.com/rs/zerolog"
 )
 
 // ArtifactService coordinates artifact storage and database operations.
 type ArtifactService struct {
-	repo   *repo.ArtifactRepo
-	bucket storage.Bucket
-	signer storage.SignedURLer
-	logger zerolog.Logger
-	quota  *QuotaService
+	repo         *repo.ArtifactRepo
+	bucket       storage.Bucket
+	signer       storage.SignedURLer
+	logger       zerolog.Logger
+	entitlements entitlement.Checker
 }
 
-// SetQuotaService sets the optional quota enforcement service.
-func (s *ArtifactService) SetQuotaService(quota *QuotaService) {
-	s.quota = quota
+// SetEntitlements sets the entitlement checker for quota enforcement.
+func (s *ArtifactService) SetEntitlements(c entitlement.Checker) {
+	s.entitlements = c
 }
 
 // NewArtifactService creates a new artifact service.
@@ -52,13 +53,10 @@ func (s *ArtifactService) Upload(ctx context.Context, projectID, runID uuid.UUID
 	if s.repo == nil || s.bucket == nil {
 		return nil, fmt.Errorf("artifact service not configured")
 	}
-	// Unified storage quota check (billing)
-	if s.quota != nil {
-		accountID, _ := s.quota.GetAccountForProject(ctx, projectID)
-		if accountID != uuid.Nil {
-			if err := s.quota.CheckStorageUpload(ctx, accountID, size); err != nil {
-				return nil, err // QuotaExceededError
-			}
+	// Entitlement-based storage quota check (unified path for OSS + cloud).
+	if s.entitlements != nil {
+		if err := s.entitlements.CheckQuota(ctx, "storage", projectID, size); err != nil {
+			return nil, err
 		}
 	}
 
@@ -143,8 +141,8 @@ func (s *ArtifactService) Upload(ctx context.Context, projectID, runID uuid.UUID
 	}
 
 	// Record bandwidth usage for upload (fire-and-forget)
-	if s.quota != nil {
-		go s.quota.RecordBandwidthUsage(context.Background(), projectID, size)
+	if s.entitlements != nil {
+		go s.entitlements.RecordUsage(context.Background(), "bandwidth", projectID, size)
 	}
 
 	s.logger.Debug().
@@ -168,13 +166,10 @@ func (s *ArtifactService) Download(ctx context.Context, artifactID string) (io.R
 		return nil, err
 	}
 
-	// Bandwidth quota check
-	if s.quota != nil {
-		accountID, _ := s.quota.GetAccountForProject(ctx, artifact.ProjectID)
-		if accountID != uuid.Nil {
-			if err := s.quota.CheckBandwidthUsage(ctx, accountID, artifact.SizeBytes); err != nil {
-				return nil, err // QuotaExceededError
-			}
+	// Bandwidth quota check.
+	if s.entitlements != nil {
+		if err := s.entitlements.CheckQuota(ctx, "bandwidth", artifact.ProjectID, artifact.SizeBytes); err != nil {
+			return nil, err
 		}
 	}
 
@@ -187,8 +182,8 @@ func (s *ArtifactService) Download(ctx context.Context, artifactID string) (io.R
 	}
 
 	// Record bandwidth usage (fire-and-forget)
-	if s.quota != nil {
-		go s.quota.RecordBandwidthUsage(context.Background(), artifact.ProjectID, artifact.SizeBytes)
+	if s.entitlements != nil {
+		go s.entitlements.RecordUsage(context.Background(), "bandwidth", artifact.ProjectID, artifact.SizeBytes)
 	}
 
 	return rc, nil

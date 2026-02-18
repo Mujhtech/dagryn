@@ -50,17 +50,18 @@ func NewAuthHandler(
 }
 
 // ListProviders godoc
-// @Summary List authentication providers
-// @Description Returns the list of available OAuth authentication providers
-// @Tags auth
-// @Produce json
-// @Accept			json
-// @Security		BearerAuth
-// @Success 200 {object} response.ServerResponse{data=dto.AuthProviderResponse}	"Authentication providers retrieved"
-// @Failure 400 {object} response.ServerResponse	"Bad request"
-// @Failure 401 {object} response.ServerResponse	"Unauthorized"
-// @Failure 500 {object} response.ServerResponse	"Internal server error"
-// @Router /api/v1/auth/providers [get]
+//
+//	@Summary		List authentication providers
+//	@Description	Returns the list of available OAuth authentication providers
+//	@Tags			auth
+//	@Produce		json
+//	@Accept			json
+//	@Security		BearerAuth
+//	@Success		200	{object}	response.ServerResponse{data=dto.AuthProviderResponse}	"Authentication providers retrieved"
+//	@Failure		400	{object}	response.ServerResponse									"Bad request"
+//	@Failure		401	{object}	response.ServerResponse									"Unauthorized"
+//	@Failure		500	{object}	response.ServerResponse									"Internal server error"
+//	@Router			/api/v1/auth/providers [get]
 func (h *AuthHandler) ListProviders(w http.ResponseWriter, r *http.Request) {
 	var providers []dto.AuthProvider
 	for name, p := range h.providers {
@@ -76,14 +77,15 @@ func (h *AuthHandler) ListProviders(w http.ResponseWriter, r *http.Request) {
 }
 
 // StartOAuth godoc
-// @Summary Start OAuth flow
-// @Description Initiates OAuth authentication with the specified provider
-// @Tags auth
-// @Produce json
-// @Param provider path string true "OAuth provider (github, google)"
-// @Success 200 {object} OAuthStartResponse
-// @Failure 400 {object} ErrorResponse
-// @Router /api/v1/auth/{provider} [get]
+//
+//	@Summary		Start OAuth flow
+//	@Description	Initiates OAuth authentication with the specified provider
+//	@Tags			auth
+//	@Produce		json
+//	@Param			provider	path		string	true	"OAuth provider (github, google)"
+//	@Success		200			{object}	OAuthStartResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Router			/api/v1/auth/{provider} [get]
 func (h *AuthHandler) StartOAuth(w http.ResponseWriter, r *http.Request) {
 	providerName := chi.URLParam(r, "provider")
 
@@ -111,17 +113,18 @@ func (h *AuthHandler) StartOAuth(w http.ResponseWriter, r *http.Request) {
 }
 
 // OAuthCallback godoc
-// @Summary OAuth callback
-// @Description Handles OAuth callback from providers and returns tokens
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param provider path string true "OAuth provider (github, google)"
-// @Param body body OAuthCallbackRequest true "OAuth callback data"
-// @Success 200 {object} TokenResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/auth/{provider}/callback [post]
+//
+//	@Summary		OAuth callback
+//	@Description	Handles OAuth callback from providers and returns tokens
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			provider	path		string					true	"OAuth provider (github, google)"
+//	@Param			body		body		OAuthCallbackRequest	true	"OAuth callback data"
+//	@Success		200			{object}	TokenResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Router			/api/v1/auth/{provider}/callback [post]
 func (h *AuthHandler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 	providerName := chi.URLParam(r, "provider")
 
@@ -202,16 +205,17 @@ func (h *AuthHandler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 // RefreshToken godoc
-// @Summary Refresh access token
-// @Description Exchanges a refresh token for a new access token
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param body body RefreshTokenRequest true "Refresh token request"
-// @Success 200 {object} TokenResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/auth/refresh [post]
+//
+//	@Summary		Refresh access token
+//	@Description	Exchanges a refresh token for a new access token
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		RefreshTokenRequest	true	"Refresh token request"
+//	@Success		200		{object}	TokenResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Router			/api/v1/auth/refresh [post]
 func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	var req RefreshTokenRequest
 	if err := ParseJSON(r, &req); err != nil {
@@ -262,16 +266,17 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 }
 
 // Logout godoc
-// @Summary Logout
-// @Description Revokes the current access token and optionally all tokens
-// @Tags auth
-// @Security BearerAuth
-// @Accept json
-// @Produce json
-// @Param body body LogoutRequest false "Logout options"
-// @Success 200 {object} SuccessResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/auth/logout [post]
+//
+//	@Summary		Logout
+//	@Description	Revokes the current access token and optionally all tokens
+//	@Tags			auth
+//	@Security		BearerAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		LogoutRequest	false	"Logout options"
+//	@Success		200		{object}	SuccessResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Router			/api/v1/auth/logout [post]
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -303,13 +308,14 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 // RequestDeviceCode godoc
-// @Summary Request device code
-// @Description Initiates device code flow for CLI authentication
-// @Tags auth
-// @Produce json
-// @Success 200 {object} DeviceCodeResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/v1/auth/device [post]
+//
+//	@Summary		Request device code
+//	@Description	Initiates device code flow for CLI authentication
+//	@Tags			auth
+//	@Produce		json
+//	@Success		200	{object}	DeviceCodeResponse
+//	@Failure		500	{object}	ErrorResponse
+//	@Router			/api/v1/auth/device [post]
 func (h *AuthHandler) RequestDeviceCode(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -329,16 +335,17 @@ func (h *AuthHandler) RequestDeviceCode(w http.ResponseWriter, r *http.Request) 
 }
 
 // PollDeviceCode godoc
-// @Summary Poll device code
-// @Description Polls for device code authorization status
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param body body DeviceCodePollRequest true "Device code poll request"
-// @Success 200 {object} TokenResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 428 {object} DeviceCodePendingResponse "Authorization pending"
-// @Router /api/v1/auth/device/poll [post]
+//
+//	@Summary		Poll device code
+//	@Description	Polls for device code authorization status
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		DeviceCodePollRequest	true	"Device code poll request"
+//	@Success		200		{object}	TokenResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		428		{object}	DeviceCodePendingResponse	"Authorization pending"
+//	@Router			/api/v1/auth/device/poll [post]
 func (h *AuthHandler) PollDeviceCode(w http.ResponseWriter, r *http.Request) {
 	var req DeviceCodePollRequest
 	if err := ParseJSON(r, &req); err != nil {
@@ -406,17 +413,18 @@ func (h *AuthHandler) PollDeviceCode(w http.ResponseWriter, r *http.Request) {
 }
 
 // AuthorizeDevice godoc
-// @Summary Authorize device
-// @Description Authorizes a device code (called by user in browser)
-// @Tags auth
-// @Security BearerAuth
-// @Accept json
-// @Produce json
-// @Param body body DeviceAuthorizeRequest true "Device authorize request"
-// @Success 200 {object} SuccessResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/auth/device/authorize [post]
+//
+//	@Summary		Authorize device
+//	@Description	Authorizes a device code (called by user in browser)
+//	@Tags			auth
+//	@Security		BearerAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		DeviceAuthorizeRequest	true	"Device authorize request"
+//	@Success		200		{object}	SuccessResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Router			/api/v1/auth/device/authorize [post]
 func (h *AuthHandler) AuthorizeDevice(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -460,17 +468,18 @@ func (h *AuthHandler) AuthorizeDevice(w http.ResponseWriter, r *http.Request) {
 }
 
 // DenyDevice godoc
-// @Summary Deny device
-// @Description Denies a device code authorization
-// @Tags auth
-// @Security BearerAuth
-// @Accept json
-// @Produce json
-// @Param body body DeviceAuthorizeRequest true "Device deny request"
-// @Success 200 {object} SuccessResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/auth/device/deny [post]
+//
+//	@Summary		Deny device
+//	@Description	Denies a device code authorization
+//	@Tags			auth
+//	@Security		BearerAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		DeviceAuthorizeRequest	true	"Device deny request"
+//	@Success		200		{object}	SuccessResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Router			/api/v1/auth/device/deny [post]
 func (h *AuthHandler) DenyDevice(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -554,21 +563,24 @@ func providerDisplayName(provider string) string {
 // --- Auth Response Types ---
 
 // OAuthStartResponse represents the response when starting OAuth flow.
-// @Description OAuth flow start response
+//
+//	@Description	OAuth flow start response
 type OAuthStartResponse struct {
 	AuthURL string `json:"auth_url" example:"https://github.com/login/oauth/authorize?client_id=..."`
 	State   string `json:"state" example:"abc123xyz"`
 }
 
 // OAuthCallbackRequest represents the OAuth callback request.
-// @Description OAuth callback request
+//
+//	@Description	OAuth callback request
 type OAuthCallbackRequest struct {
 	Code  string `json:"code" example:"abc123"`
 	State string `json:"state" example:"xyz789"`
 }
 
 // TokenResponse represents a token response.
-// @Description Authentication token response
+//
+//	@Description	Authentication token response
 type TokenResponse struct {
 	AccessToken  string       `json:"access_token" example:"eyJhbGciOiJIUzI1NiIs..."`
 	RefreshToken string       `json:"refresh_token" example:"eyJhbGciOiJIUzI1NiIs..."`
@@ -579,19 +591,22 @@ type TokenResponse struct {
 }
 
 // RefreshTokenRequest represents a refresh token request.
-// @Description Refresh token request
+//
+//	@Description	Refresh token request
 type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" example:"eyJhbGciOiJIUzI1NiIs..."`
 }
 
 // LogoutRequest represents a logout request.
-// @Description Logout request
+//
+//	@Description	Logout request
 type LogoutRequest struct {
 	RevokeAll bool `json:"revoke_all" example:"false"`
 }
 
 // DeviceCodeResponse represents a device code response.
-// @Description Device code flow response
+//
+//	@Description	Device code flow response
 type DeviceCodeResponse struct {
 	DeviceCode      string `json:"device_code" example:"abc123xyz789..."`
 	UserCode        string `json:"user_code" example:"ABCD-1234"`
@@ -601,20 +616,23 @@ type DeviceCodeResponse struct {
 }
 
 // DeviceCodePollRequest represents a device code poll request.
-// @Description Device code poll request
+//
+//	@Description	Device code poll request
 type DeviceCodePollRequest struct {
 	DeviceCode string `json:"device_code" example:"abc123xyz789..."`
 }
 
 // DeviceCodePendingResponse represents a pending device code response.
-// @Description Device code pending response
+//
+//	@Description	Device code pending response
 type DeviceCodePendingResponse struct {
 	Error       string `json:"error" example:"authorization_pending"`
 	Description string `json:"error_description" example:"The user has not yet authorized the device"`
 }
 
 // DeviceAuthorizeRequest represents a device authorization request.
-// @Description Device authorization request
+//
+//	@Description	Device authorization request
 type DeviceAuthorizeRequest struct {
 	UserCode string `json:"user_code" example:"ABCD-1234"`
 }

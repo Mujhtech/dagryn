@@ -6,20 +6,23 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	apiCtx "github.com/mujhtech/dagryn/pkg/api/context"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
+	"github.com/mujhtech/dagryn/pkg/entitlement"
 	"github.com/mujhtech/dagryn/pkg/http/response"
 )
 
 // ListPendingInvitations godoc
-// @Summary List pending invitations
-// @Description Returns all pending invitations for the current user
-// @Tags invitations
-// @Security BearerAuth
-// @Produce json
-// @Success 200 {object} []InvitationResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/invitations [get]
+//
+//	@Summary		List pending invitations
+//	@Description	Returns all pending invitations for the current user
+//	@Tags			invitations
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Success		200	{object}	[]InvitationResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Router			/api/v1/invitations [get]
 func (h *Handler) ListPendingInvitations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -45,17 +48,18 @@ func (h *Handler) ListPendingInvitations(w http.ResponseWriter, r *http.Request)
 }
 
 // AcceptInvitation godoc
-// @Summary Accept invitation
-// @Description Accepts a pending invitation to join a team or project
-// @Tags invitations
-// @Security BearerAuth
-// @Param token path string true "Invitation token"
-// @Success 200 {object} SuccessResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 410 {object} ErrorResponse "Invitation expired"
-// @Router /api/v1/invitations/{token}/accept [post]
+//
+//	@Summary		Accept invitation
+//	@Description	Accepts a pending invitation to join a team or project
+//	@Tags			invitations
+//	@Security		BearerAuth
+//	@Param			token	path		string	true	"Invitation token"
+//	@Success		200		{object}	SuccessResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		410		{object}	ErrorResponse	"Invitation expired"
+//	@Router			/api/v1/invitations/{token}/accept [post]
 func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -93,6 +97,22 @@ func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check team members quota before accepting
+	if h.entitlements != nil {
+		var quotaProjectID uuid.UUID
+		if inv.ProjectID != nil {
+			quotaProjectID = *inv.ProjectID
+		}
+		if err := h.entitlements.CheckQuota(ctx, "team_members", quotaProjectID, 0); err != nil {
+			if entitlement.IsQuotaError(err) {
+				_ = response.PaymentRequired(w, r, err)
+				return
+			}
+			_ = response.InternalServerError(w, r, errors.New("failed to check quota"))
+			return
+		}
+	}
+
 	// Accept the invitation based on type
 	if inv.TeamID != nil {
 		// Team invitation - add user to team
@@ -123,15 +143,16 @@ func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeclineInvitation godoc
-// @Summary Decline invitation
-// @Description Declines a pending invitation
-// @Tags invitations
-// @Security BearerAuth
-// @Param token path string true "Invitation token"
-// @Success 200 {object} SuccessResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/invitations/{token}/decline [post]
+//
+//	@Summary		Decline invitation
+//	@Description	Declines a pending invitation
+//	@Tags			invitations
+//	@Security		BearerAuth
+//	@Param			token	path		string	true	"Invitation token"
+//	@Success		200		{object}	SuccessResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Router			/api/v1/invitations/{token}/decline [post]
 func (h *Handler) DeclineInvitation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)

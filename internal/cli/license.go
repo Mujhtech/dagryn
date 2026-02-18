@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mujhtech/dagryn/pkg/api/handlers"
+	"github.com/mujhtech/dagryn/pkg/config"
 	"github.com/mujhtech/dagryn/pkg/licensing"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
@@ -69,6 +70,7 @@ func newLicenseDeactivateCmd() *cobra.Command {
 }
 
 func runLicenseStatus() error {
+	config.LoadDotEnv()
 	key := os.Getenv("DAGRYN_LICENSE_KEY")
 	if key == "" {
 		// Try to read from stored license
@@ -170,6 +172,7 @@ func printLicenseLimit[T int | int64](label string, limit *T) {
 }
 
 func runLicenseActivate(key string, instanceName string) error {
+	config.LoadDotEnv()
 	// 1. Validate locally
 	keys, err := licensing.ParsePublicKeys()
 	if err != nil || len(keys) == 0 {
@@ -237,6 +240,7 @@ func runLicenseActivate(key string, instanceName string) error {
 }
 
 func runLicenseDeactivate() error {
+	config.LoadDotEnv()
 	stored, err := loadStoredLicense()
 	if err != nil || stored.Key == "" {
 		fmt.Println("No license is currently activated.")

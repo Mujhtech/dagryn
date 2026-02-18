@@ -6,13 +6,27 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/mujhtech/dagryn/pkg/service"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
+	"github.com/mujhtech/dagryn/pkg/entitlement"
 	"github.com/mujhtech/dagryn/pkg/http/response"
 )
 
-// CheckCache checks whether a cache entry exists for the given task/key.
-// GET /api/v1/projects/{projectId}/cache/{taskName}/{cacheKey}
+// CheckCache godoc
+//
+//	@Summary		Check cache entry
+//	@Description	Checks whether a cache entry exists for the given task and key
+//	@Tags			cache
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			taskName	path		string	true	"Task name"
+//	@Param			cacheKey	path		string	true	"Cache key"
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/cache/{taskName}/{cacheKey} [get]
 func (h *Handler) CheckCache(w http.ResponseWriter, r *http.Request) {
 	projectID, err := getProjectIDFromPath(r)
 	if err != nil {
@@ -39,8 +53,23 @@ func (h *Handler) CheckCache(w http.ResponseWriter, r *http.Request) {
 	_ = response.Ok(w, r, "cache hit", nil)
 }
 
-// UploadCache stores cache content for the given task/key.
-// PUT /api/v1/projects/{projectId}/cache/{taskName}/{cacheKey}
+// UploadCache godoc
+//
+//	@Summary		Upload cache entry
+//	@Description	Stores cache content for the given task and key
+//	@Tags			cache
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Accept			application/octet-stream
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			taskName	path		string	true	"Task name"
+//	@Param			cacheKey	path		string	true	"Cache key"
+//	@Success		201			{object}	SuccessResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		402			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/cache/{taskName}/{cacheKey} [put]
 func (h *Handler) UploadCache(w http.ResponseWriter, r *http.Request) {
 	projectID, err := getProjectIDFromPath(r)
 	if err != nil {
@@ -62,7 +91,7 @@ func (h *Handler) UploadCache(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = r.Body.Close() }()
 
 	if err := h.cacheService.Upload(r.Context(), projectID, taskName, cacheKey, r.Body, r.ContentLength); err != nil {
-		if service.IsQuotaExceeded(err) {
+		if entitlement.IsQuotaError(err) {
 			_ = response.PaymentRequired(w, r, err)
 			return
 		}
@@ -72,8 +101,23 @@ func (h *Handler) UploadCache(w http.ResponseWriter, r *http.Request) {
 	_ = response.Created(w, r, "cache entry created", nil)
 }
 
-// DownloadCache retrieves cache content for the given task/key.
-// GET /api/v1/projects/{projectId}/cache/{taskName}/{cacheKey}/download
+// DownloadCache godoc
+//
+//	@Summary		Download cache entry
+//	@Description	Retrieves cache content for the given task and key as a binary stream
+//	@Tags			cache
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		application/octet-stream
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			taskName	path		string	true	"Task name"
+//	@Param			cacheKey	path		string	true	"Cache key"
+//	@Success		200			{file}		binary
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		402			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/cache/{taskName}/{cacheKey}/download [get]
 func (h *Handler) DownloadCache(w http.ResponseWriter, r *http.Request) {
 	projectID, err := getProjectIDFromPath(r)
 	if err != nil {
@@ -90,7 +134,7 @@ func (h *Handler) DownloadCache(w http.ResponseWriter, r *http.Request) {
 
 	rc, err := h.cacheService.Download(r.Context(), projectID, taskName, cacheKey)
 	if err != nil {
-		if service.IsQuotaExceeded(err) {
+		if entitlement.IsQuotaError(err) {
 			_ = response.PaymentRequired(w, r, err)
 			return
 		}
@@ -108,8 +152,21 @@ func (h *Handler) DownloadCache(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, rc)
 }
 
-// DeleteCache removes a cache entry.
-// DELETE /api/v1/projects/{projectId}/cache/{taskName}/{cacheKey}
+// DeleteCache godoc
+//
+//	@Summary		Delete cache entry
+//	@Description	Removes a cache entry for the given task and key
+//	@Tags			cache
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			taskName	path		string	true	"Task name"
+//	@Param			cacheKey	path		string	true	"Cache key"
+//	@Success		204			{string}	string	"No content"
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/cache/{taskName}/{cacheKey} [delete]
 func (h *Handler) DeleteCache(w http.ResponseWriter, r *http.Request) {
 	projectID, err := getProjectIDFromPath(r)
 	if err != nil {
@@ -135,8 +192,19 @@ func (h *Handler) DeleteCache(w http.ResponseWriter, r *http.Request) {
 	_ = response.NoContent(w, r)
 }
 
-// GetCacheStats returns aggregate cache statistics for a project.
-// GET /api/v1/projects/{projectId}/cache/stats
+// GetCacheStats godoc
+//
+//	@Summary		Get cache statistics
+//	@Description	Returns aggregate cache statistics for a project
+//	@Tags			cache
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/cache/stats [get]
 func (h *Handler) GetCacheStats(w http.ResponseWriter, r *http.Request) {
 	projectID, err := getProjectIDFromPath(r)
 	if err != nil {
@@ -157,8 +225,19 @@ func (h *Handler) GetCacheStats(w http.ResponseWriter, r *http.Request) {
 	_ = response.Ok(w, r, "cache stats", stats)
 }
 
-// TriggerCacheGC triggers garbage collection for a project's cache.
-// POST /api/v1/projects/{projectId}/cache/gc
+// TriggerCacheGC godoc
+//
+//	@Summary		Trigger cache garbage collection
+//	@Description	Triggers garbage collection for a project's cache
+//	@Tags			cache
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/cache/gc [post]
 func (h *Handler) TriggerCacheGC(w http.ResponseWriter, r *http.Request) {
 	projectID, err := getProjectIDFromPath(r)
 	if err != nil {
@@ -179,8 +258,20 @@ func (h *Handler) TriggerCacheGC(w http.ResponseWriter, r *http.Request) {
 	_ = response.Ok(w, r, "cache GC completed", result)
 }
 
-// GetCacheAnalytics returns daily cache usage analytics for a project.
-// GET /api/v1/projects/{projectId}/cache/analytics?days=30
+// GetCacheAnalytics godoc
+//
+//	@Summary		Get cache analytics
+//	@Description	Returns daily cache usage analytics for a project
+//	@Tags			cache
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"		format(uuid)
+//	@Param			days		query		int		false	"Number of days"	default(30)	maximum(365)
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/cache/analytics [get]
 func (h *Handler) GetCacheAnalytics(w http.ResponseWriter, r *http.Request) {
 	projectID, err := getProjectIDFromPath(r)
 	if err != nil {

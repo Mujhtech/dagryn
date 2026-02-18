@@ -11,15 +11,16 @@ import (
 )
 
 // GetDashboardOverview returns a consolidated dashboard overview for the current user.
-// @Summary Get dashboard overview
-// @Description Returns projects with inline stats and recent runs across all user projects
-// @Tags dashboard
-// @Security BearerAuth
-// @Produce json
-// @Success 200 {object} DashboardOverviewResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/v1/dashboard/overview [get]
+//
+//	@Summary		Get dashboard overview
+//	@Description	Returns projects with inline stats and recent runs across all user projects
+//	@Tags			dashboard
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Success		200	{object}	DashboardOverviewResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
+//	@Router			/api/v1/dashboard/overview [get]
 func (h *Handler) GetDashboardOverview(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)

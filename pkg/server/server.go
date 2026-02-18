@@ -1,29 +1,29 @@
 // Package server provides the HTTP server for the Dagryn API.
 //
-// @title Dagryn API
-// @version 1.0
-// @description Local-first, self-hosted developer workflow orchestrator API
-// @termsOfService http://swagger.io/terms/
+//	@title						Dagryn API
+//	@version					1.0
+//	@description				Local-first, self-hosted developer workflow orchestrator API
+//	@termsOfService				http://swagger.io/terms/
 //
-// @contact.name Dagryn Support
-// @contact.url https://github.com/mujhtech/dagryn
-// @contact.email support@dagryn.dev
+//	@contact.name				Dagryn Support
+//	@contact.url				https://github.com/mujhtech/dagryn
+//	@contact.email				support@dagryn.dev
 //
-// @license.name MIT
-// @license.url https://opensource.org/licenses/MIT
+//	@license.name				MIT
+//	@license.url				https://opensource.org/licenses/MIT
 //
-// @host localhost:9000
-// @BasePath /api/v1
+//	@host						localhost:9000
+//	@BasePath					/api/v1
 //
-// @securityDefinitions.apikey BearerAuth
-// @in header
-// @name Authorization
-// @description JWT Bearer token authentication
+//	@securityDefinitions.apikey	BearerAuth
+//	@in							header
+//	@name						Authorization
+//	@description				JWT Bearer token authentication
 //
-// @securityDefinitions.apikey APIKeyAuth
-// @in header
-// @name X-API-Key
-// @description API key authentication
+//	@securityDefinitions.apikey	APIKeyAuth
+//	@in							header
+//	@name						X-API-Key
+//	@description				API key authentication
 package server
 
 import (
@@ -34,11 +34,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/mujhtech/dagryn/pkg/githubapp"
-	"github.com/mujhtech/dagryn/pkg/server/sse"
-	"github.com/mujhtech/dagryn/pkg/service"
-	dagrynstripe "github.com/mujhtech/dagryn/pkg/stripe"
-	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/mujhtech/dagryn/pkg/api"
 	"github.com/mujhtech/dagryn/pkg/api/handlers"
 	"github.com/mujhtech/dagryn/pkg/authn"
@@ -48,9 +43,13 @@ import (
 	"github.com/mujhtech/dagryn/pkg/database"
 	"github.com/mujhtech/dagryn/pkg/database/store"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
-	"github.com/mujhtech/dagryn/pkg/licensing"
+	"github.com/mujhtech/dagryn/pkg/entitlement"
+	"github.com/mujhtech/dagryn/pkg/githubapp"
 	"github.com/mujhtech/dagryn/pkg/redis"
+	"github.com/mujhtech/dagryn/pkg/server/sse"
+	"github.com/mujhtech/dagryn/pkg/service"
 	"github.com/mujhtech/dagryn/pkg/storage"
+	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/mujhtech/dagryn/pkg/worker"
 	"github.com/rs/zerolog/log"
 )
@@ -69,6 +68,33 @@ type Server struct {
 	oauthProviders    map[string]authn.Provider
 	sseHub            *sse.Hub
 	sseSubscriber     *sse.RedisSubscriber
+	entitlements      entitlement.Checker
+	extraRoutes       func(chi.Router)
+	dashboardHandler  http.Handler
+}
+
+// SetEntitlementChecker allows an external binary to override the default
+// Must be called before Initialize.
+func (s *Server) SetEntitlementChecker(c entitlement.Checker) {
+	s.entitlements = c
+}
+
+// RegisterExtraRoutes allows an external binary to add routes
+// Must be called before Initialize.
+func (s *Server) RegisterExtraRoutes(fn func(chi.Router)) {
+	s.extraRoutes = fn
+}
+
+// SetDashboardHandler allows an external binary to override the default
+// Must be called before Initialize.
+func (s *Server) SetDashboardHandler(h http.Handler) {
+	s.dashboardHandler = h
+}
+
+// SetDatabase allows an external binary to inject a pre-created database
+// connection. Must be called before Initialize.
+func (s *Server) SetDatabase(db *database.DB) {
+	s.db = db
 }
 
 // New creates a new server instance.
@@ -98,12 +124,14 @@ func (s *Server) Initialize(ctx context.Context) error {
 		s.telemetry = tp
 	}
 
-	// Connect to database
-	db, err := database.New(ctx, s.config.Database)
-	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
+	// Connect to database (skip if already injected via SetDatabase)
+	if s.db == nil {
+		db, err := database.New(ctx, s.config.Database)
+		if err != nil {
+			return fmt.Errorf("failed to connect to database: %w", err)
+		}
+		s.db = db
 	}
-	s.db = db
 
 	rds := redis.New(s.config.Redis)
 
@@ -114,7 +142,7 @@ func (s *Server) Initialize(ctx context.Context) error {
 	}
 
 	// Initialize repositories
-	s.store = store.New(cache, db)
+	s.store = store.New(cache, s.db)
 
 	// Initialize GitHub App client if configured
 	if s.config.GitHubApp.AppID != 0 && s.config.GitHubApp.PrivateKey != "" {
@@ -143,28 +171,22 @@ func (s *Server) Initialize(ctx context.Context) error {
 	// Optional Redis (for job client and/or ready check)
 
 	// Start SSE Redis subscriber to receive events published by the worker
-	if rds != nil {
-		s.sseSubscriber = sse.NewRedisSubscriber(rds, s.sseHub)
-		s.sseSubscriber.Start(ctx)
-		log.Debug().Msg("SSE Redis subscriber started")
-	}
+	s.sseSubscriber = sse.NewRedisSubscriber(rds, s.sseHub)
+	s.sseSubscriber.Start(ctx)
+	log.Debug().Msg("SSE Redis subscriber started")
 
-	// Optional job client for enqueueing ExecuteRun
-	var jobClient *worker.Client
-	if rds != nil {
-		var enc encrypt.Encrypt
-		if s.config.Job.EncryptionKey != "" {
-			var err error
-			enc, err = encrypt.NewAESEncrypt(s.config.Job.EncryptionKey)
-			if err != nil {
-				return fmt.Errorf("job encryption: %w", err)
-			}
-		} else {
-			enc = encrypt.NewNoOpEncrypt()
+	var enc encrypt.Encrypt
+	if s.config.Job.EncryptionKey != "" {
+		var err error
+		enc, err = encrypt.NewAESEncrypt(s.config.Job.EncryptionKey)
+		if err != nil {
+			return fmt.Errorf("job encryption: %w", err)
 		}
-		jobClient = worker.NewClient(rds, enc)
-		log.Debug().Msg("Job client initialized for server-triggered runs")
+	} else {
+		enc = encrypt.NewNoOpEncrypt()
 	}
+	jobClient := worker.NewClient(rds, enc)
+	log.Debug().Msg("Job client initialized for server-triggered runs")
 
 	// Redis readiness checker (implements handlers.ReadyChecker)
 	var redisForReady handlers.ReadyChecker
@@ -225,75 +247,7 @@ func (s *Server) Initialize(ctx context.Context) error {
 
 	registryService := service.NewPluginRegistryService(s.store.PluginRegistry, log.Logger)
 
-	// Optional quota service (when billing repo is available)
-	var quotaService *service.QuotaService
-	if s.store.Billing != nil {
-		quotaService = service.NewQuotaService(s.store.Billing, s.store.Projects, log.Logger)
-		if cacheService != nil {
-			cacheService.SetQuotaService(quotaService)
-		}
-		if artifactService != nil {
-			artifactService.SetQuotaService(quotaService)
-		}
-		log.Debug().Msg("Quota enforcement service initialized")
-	}
-
-	// Optional Stripe client and billing service
-	var stripeClient *dagrynstripe.Client
-	var billingService *service.BillingService
-	if s.config.Stripe.SecretKey != "" {
-		stripeClient = dagrynstripe.New(dagrynstripe.Config{
-			SecretKey:      s.config.Stripe.SecretKey,
-			WebhookSecret:  s.config.Stripe.WebhookSecret,
-			PublishableKey: s.config.Stripe.PublishableKey,
-		})
-		billingService = service.NewBillingService(s.store.Billing, stripeClient, log.Logger)
-		log.Debug().Msg("Stripe billing service initialized")
-	}
-
-	// Validate license key (self-hosted only).
-	// In cloud mode, the billing system handles all quota/feature gating;
-	// the license system is not used and featureGate remains nil.
-	var featureGate *licensing.FeatureGate
-	if s.config.CloudMode {
-		log.Info().Msg("Cloud mode enabled -- license system disabled")
-	} else if s.config.License.Key != "" {
-		keys, err := licensing.ParsePublicKeys()
-		if err != nil {
-			log.Warn().Err(err).Msg("Invalid license keyring -- running as Community edition")
-			featureGate = licensing.NewFeatureGate(nil, log.Logger)
-		} else if len(keys) == 0 {
-			log.Warn().Msg("No license public keys embedded in binary -- running as Community edition")
-			featureGate = licensing.NewFeatureGate(nil, log.Logger)
-		} else {
-			validator := licensing.NewValidator(keys)
-			claims, err := validator.Validate(s.config.License.Key)
-			if err != nil {
-				log.Warn().Err(err).Msg("Invalid license key -- running as Community edition")
-				featureGate = licensing.NewFeatureGate(nil, log.Logger)
-			} else {
-				featureGate = licensing.NewFeatureGate(claims, log.Logger)
-				log.Info().
-					Str("edition", string(claims.Edition)).
-					Str("customer", claims.Subject).
-					Int("seats", claims.Seats).
-					Int("days_remaining", claims.DaysUntilExpiry()).
-					Msg("License validated")
-
-				if featureGate.IsExpiring() {
-					log.Warn().
-						Int("days_remaining", claims.DaysUntilExpiry()).
-						Msg("License expiring soon -- please renew")
-				}
-				if featureGate.InGracePeriod() {
-					log.Warn().Msg("License expired -- running in grace period, features will be disabled soon")
-				}
-			}
-		}
-	} else {
-		featureGate = licensing.NewFeatureGate(nil, log.Logger)
-		log.Info().Msg("No license key configured -- running as Community edition")
-	}
+	featureGate := service.NewLicensingService(s.config.License.Key, s.entitlements)
 
 	// Provider token encrypter (for storing GitHub token; use first 32 bytes of JWT secret)
 	providerEncKey := s.config.Auth.JWTSecret
@@ -330,17 +284,40 @@ func (s *Server) Initialize(ctx context.Context) error {
 		artifactService,
 		cancelManager,
 		registryService,
-		billingService,
-		stripeClient,
-		quotaService,
 	)
 
-	// Set cloud mode and license feature gate
-	// h.SetCloudMode(s.config.CloudMode)
-	// h.SetFeatureGate(featureGate)
+	api.SetFeatureGate(featureGate)
+
+	// Wire the unified entitlement checker.
+	// If the cloud binary has already injected one via SetEntitlementChecker,
+	// use that. Otherwise default to the license-backed checker.
+	var checker entitlement.Checker
+	if s.entitlements != nil {
+		checker = s.entitlements
+	} else {
+		checker = entitlement.NewLicenseChecker(featureGate)
+	}
+	api.SetEntitlementChecker(checker)
+
+	// Wire dashboard override from the cloud binary.
+	if s.dashboardHandler != nil {
+		api.SetDashboardHandler(s.dashboardHandler)
+	}
+
+	// Wire entitlements to services for quota enforcement.
+	if cacheService != nil {
+		cacheService.SetEntitlements(checker)
+	}
+	if artifactService != nil {
+		artifactService.SetEntitlements(checker)
+	}
+
+	// Wire extra routes from the cloud binary (e.g. billing routes).
+	if s.extraRoutes != nil {
+		api.RegisterExtraRoutes(s.extraRoutes)
+	}
 
 	// Setup routes
-	// s.setupRoutes(h, authHandler, authMiddleware, jobClient, featureGate)
 	api.BuildRouter(s.router)
 
 	log.Info().

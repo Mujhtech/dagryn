@@ -13,32 +13,33 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mujhtech/dagryn/pkg/notification"
-	"github.com/mujhtech/dagryn/pkg/server/sse"
-	"github.com/mujhtech/dagryn/pkg/service"
 	apiCtx "github.com/mujhtech/dagryn/pkg/api/context"
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
+	"github.com/mujhtech/dagryn/pkg/entitlement"
 	"github.com/mujhtech/dagryn/pkg/http/response"
+	"github.com/mujhtech/dagryn/pkg/notification"
+	"github.com/mujhtech/dagryn/pkg/server/sse"
 	"github.com/mujhtech/dagryn/pkg/worker"
 )
 
 // ListRuns godoc
-// @Summary List project runs
-// @Description Returns all workflow runs for a project
-// @Tags runs
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce json
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param page query int false "Page number" default(1)
-// @Param per_page query int false "Items per page" default(20) maximum(100)
-// @Param status query string false "Filter by status" Enums(pending, running, success, failed, cancelled)
-// @Success 200 {object} PaginatedResponse{data=[]RunResponse}
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/projects/{projectId}/runs [get]
+//
+//	@Summary		List project runs
+//	@Description	Returns all workflow runs for a project
+//	@Tags			runs
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"		format(uuid)
+//	@Param			page		query		int		false	"Page number"		default(1)
+//	@Param			per_page	query		int		false	"Items per page"	default(20)	maximum(100)
+//	@Param			status		query		string	false	"Filter by status"	Enums(pending, running, success, failed, cancelled)
+//	@Success		200			{object}	PaginatedResponse{data=[]RunResponse}
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs [get]
 func (h *Handler) ListRuns(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -101,19 +102,20 @@ func (h *Handler) ListRuns(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetRunDashboardSummary godoc
-// @Summary Get non-paginated run dashboard summary
-// @Description Returns stable chart and facet data for the project run dashboard.
-// @Tags runs
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce json
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param days query int false "Number of trailing days for chart data" default(30)
-// @Success 200 {object} RunDashboardSummaryResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/projects/{projectId}/runs/summary [get]
+//
+//	@Summary		Get non-paginated run dashboard summary
+//	@Description	Returns stable chart and facet data for the project run dashboard.
+//	@Tags			runs
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"								format(uuid)
+//	@Param			days		query		int		false	"Number of trailing days for chart data"	default(30)
+//	@Success		200			{object}	RunDashboardSummaryResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/summary [get]
 func (h *Handler) GetRunDashboardSummary(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -193,19 +195,20 @@ func (h *Handler) GetRunDashboardSummary(w http.ResponseWriter, r *http.Request)
 }
 
 // GetRun godoc
-// @Summary Get a run
-// @Description Returns a workflow run by ID
-// @Tags runs
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce json
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param runID path string true "Run ID" format(uuid)
-// @Success 200 {object} RunResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/projects/{projectId}/runs/{runID} [get]
+//
+//	@Summary		Get a run
+//	@Description	Returns a workflow run by ID
+//	@Tags			runs
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			runID		path		string	true	"Run ID"		format(uuid)
+//	@Success		200			{object}	RunResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runID} [get]
 func (h *Handler) GetRun(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -262,19 +265,20 @@ func (h *Handler) GetRun(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetRunTasks godoc
-// @Summary Get run tasks
-// @Description Returns all task results for a workflow run
-// @Tags runs
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce json
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param runID path string true "Run ID" format(uuid)
-// @Success 200 {object} []TaskResultResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/projects/{projectId}/runs/{runID}/tasks [get]
+//
+//	@Summary		Get run tasks
+//	@Description	Returns all task results for a workflow run
+//	@Tags			runs
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			runID		path		string	true	"Run ID"		format(uuid)
+//	@Success		200			{object}	[]TaskResultResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runID}/tasks [get]
 func (h *Handler) GetRunTasks(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -343,19 +347,20 @@ func (h *Handler) GetRunTasks(w http.ResponseWriter, r *http.Request) {
 }
 
 // StreamRunLogs godoc
-// @Summary Stream run logs
-// @Description Streams logs for a workflow run using Server-Sent Events
-// @Tags runs
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce text/event-stream
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param runID path string true "Run ID" format(uuid)
-// @Success 200 {string} string "SSE stream"
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/projects/{projectId}/runs/{runID}/logs [get]
+//
+//	@Summary		Stream run logs
+//	@Description	Streams logs for a workflow run using Server-Sent Events
+//	@Tags			runs
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		text/event-stream
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			runID		path		string	true	"Run ID"		format(uuid)
+//	@Success		200			{string}	string	"SSE stream"
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runID}/logs [get]
 func (h *Handler) StreamRunLogs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -417,21 +422,22 @@ func (h *Handler) StreamRunLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 // TriggerRun godoc
-// @Summary Trigger a workflow run
-// @Description Creates and queues a new workflow run for execution
-// @Tags runs
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Accept json
-// @Produce json
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param body body TriggerRunRequest true "Trigger run request"
-// @Success 201 {object} TriggerRunResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/projects/{projectId}/runs [post]
+//
+//	@Summary		Trigger a workflow run
+//	@Description	Creates and queues a new workflow run for execution
+//	@Tags			runs
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			projectId	path		string				true	"Project ID"	format(uuid)
+//	@Param			body		body		TriggerRunRequest	true	"Trigger run request"
+//	@Success		201			{object}	TriggerRunResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs [post]
 func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -482,13 +488,15 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Enforce max_concurrent_runs quota if billing is configured
-	if h.quotaService != nil && project.BillingAccountID != nil {
-		if err := h.quotaService.CheckConcurrentRuns(ctx, *project.BillingAccountID); err != nil {
-			if service.IsQuotaExceeded(err) {
+	// Check concurrent runs quota
+	if h.entitlements != nil {
+		if err := h.entitlements.CheckQuota(ctx, "concurrent_runs", projectID, 0); err != nil {
+			if entitlement.IsQuotaError(err) {
 				_ = response.PaymentRequired(w, r, err)
 				return
 			}
+			_ = response.InternalServerError(w, r, errors.New("failed to check quota"))
+			return
 		}
 	}
 
@@ -556,12 +564,10 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 			}
 			data, err := json.Marshal(payload)
 			if err == nil {
-				// Route to priority queue if the plan supports it
+				// Route to priority queue if the entitlement supports it
 				queue := worker.QueueNameDefault
-				if h.quotaService != nil && project.BillingAccountID != nil {
-					if h.quotaService.GetPriorityQueue(ctx, *project.BillingAccountID) {
-						queue = worker.QueueNamePriority
-					}
+				if h.entitlements != nil && h.entitlements.HasFeature(ctx, "priority_queue") {
+					queue = worker.QueueNamePriority
 				}
 				_ = h.jobClient.Enqueue(queue, worker.ExecuteRunTaskName, &worker.ClientPayload{Data: data})
 			}
@@ -1160,21 +1166,22 @@ func formatDurationMs(ms int64) string {
 }
 
 // CancelRun godoc
-// @Summary Cancel a workflow run
-// @Description Cancels a running or pending workflow run
-// @Tags runs
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce json
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param runID path string true "Run ID" format(uuid)
-// @Success 200 {object} CancelRunResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 409 {object} ErrorResponse "Run is already completed"
-// @Router /api/v1/projects/{projectId}/runs/{runID}/cancel [post]
+//
+//	@Summary		Cancel a workflow run
+//	@Description	Cancels a running or pending workflow run
+//	@Tags			runs
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			runID		path		string	true	"Run ID"		format(uuid)
+//	@Success		200			{object}	CancelRunResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		409			{object}	ErrorResponse	"Run is already completed"
+//	@Router			/api/v1/projects/{projectId}/runs/{runID}/cancel [post]
 func (h *Handler) CancelRun(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -1266,19 +1273,20 @@ func (h *Handler) CancelRun(w http.ResponseWriter, r *http.Request) {
 }
 
 // StreamRunEvents godoc
-// @Summary Stream run events
-// @Description Streams status events for a workflow run using Server-Sent Events
-// @Tags runs
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce text/event-stream
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param runID path string true "Run ID" format(uuid)
-// @Success 200 {string} string "SSE stream"
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/projects/{projectId}/runs/{runID}/events [get]
+//
+//	@Summary		Stream run events
+//	@Description	Streams status events for a workflow run using Server-Sent Events
+//	@Tags			runs
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		text/event-stream
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			runID		path		string	true	"Run ID"		format(uuid)
+//	@Success		200			{string}	string	"SSE stream"
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runID}/events [get]
 func (h *Handler) StreamRunEvents(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -1340,19 +1348,20 @@ func (h *Handler) StreamRunEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetRunDetail godoc
-// @Summary Get detailed run information
-// @Description Returns a workflow run with all task results
-// @Tags runs
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce json
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param runID path string true "Run ID" format(uuid)
-// @Success 200 {object} RunDetailResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/projects/{projectId}/runs/{runID}/detail [get]
+//
+//	@Summary		Get detailed run information
+//	@Description	Returns a workflow run with all task results
+//	@Tags			runs
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			runID		path		string	true	"Run ID"		format(uuid)
+//	@Success		200			{object}	RunDetailResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runID}/detail [get]
 func (h *Handler) GetRunDetail(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -1569,23 +1578,24 @@ func apiKeyWithProjectToResponse(key *models.APIKeyWithProject) APIKeyResponse {
 // --- Run Status Update Handlers ---
 
 // UpdateRunStatus godoc
-// @Summary Update run status
-// @Description Updates the status of a workflow run (used by CLI for remote sync)
-// @Tags runs
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Accept json
-// @Produce json
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param runID path string true "Run ID" format(uuid)
-// @Param body body UpdateRunStatusRequest true "Update run status request"
-// @Success 200 {object} RunResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 409 {object} ErrorResponse "Run is already completed"
-// @Router /api/v1/projects/{projectId}/runs/{runID}/status [patch]
+//
+//	@Summary		Update run status
+//	@Description	Updates the status of a workflow run (used by CLI for remote sync)
+//	@Tags			runs
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			projectId	path		string					true	"Project ID"	format(uuid)
+//	@Param			runID		path		string					true	"Run ID"		format(uuid)
+//	@Param			body		body		UpdateRunStatusRequest	true	"Update run status request"
+//	@Success		200			{object}	RunResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		409			{object}	ErrorResponse	"Run is already completed"
+//	@Router			/api/v1/projects/{projectId}/runs/{runID}/status [patch]
 func (h *Handler) UpdateRunStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -1733,22 +1743,23 @@ func (h *Handler) UpdateRunStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateTask godoc
-// @Summary Create a task result
-// @Description Creates a new task result record for a run
-// @Tags runs
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Accept json
-// @Produce json
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param runID path string true "Run ID" format(uuid)
-// @Param body body CreateTaskRequest true "Create task request"
-// @Success 201 {object} TaskResultResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/projects/{projectId}/runs/{runID}/tasks [post]
+//
+//	@Summary		Create a task result
+//	@Description	Creates a new task result record for a run
+//	@Tags			runs
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			projectId	path		string				true	"Project ID"	format(uuid)
+//	@Param			runID		path		string				true	"Run ID"		format(uuid)
+//	@Param			body		body		CreateTaskRequest	true	"Create task request"
+//	@Success		201			{object}	TaskResultResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runID}/tasks [post]
 func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -1831,23 +1842,24 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateTaskStatus godoc
-// @Summary Update task status
-// @Description Updates the status of a task result
-// @Tags runs
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Accept json
-// @Produce json
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param runId path string true "Run ID" format(uuid)
-// @Param taskName path string true "Task name"
-// @Param body body UpdateTaskStatusRequest true "Update task status request"
-// @Success 200 {object} TaskResultResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/projects/{projectId}/runs/{runId}/tasks/{taskName} [patch]
+//
+//	@Summary		Update task status
+//	@Description	Updates the status of a task result
+//	@Tags			runs
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			projectId	path		string					true	"Project ID"	format(uuid)
+//	@Param			runId		path		string					true	"Run ID"		format(uuid)
+//	@Param			taskName	path		string					true	"Task name"
+//	@Param			body		body		UpdateTaskStatusRequest	true	"Update task status request"
+//	@Success		200			{object}	TaskResultResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runId}/tasks/{taskName} [patch]
 func (h *Handler) UpdateTaskStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -2018,22 +2030,23 @@ func (h *Handler) UpdateTaskStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // AppendLog godoc
-// @Summary Append log lines
-// @Description Appends log lines to a run (single or batch)
-// @Tags runs
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Accept json
-// @Produce json
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param runID path string true "Run ID" format(uuid)
-// @Param body body BatchLogRequest true "Log lines to append"
-// @Success 200 {object} SuccessResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/projects/{projectId}/runs/{runID}/logs [post]
+//
+//	@Summary		Append log lines
+//	@Description	Appends log lines to a run (single or batch)
+//	@Tags			runs
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			projectId	path		string			true	"Project ID"	format(uuid)
+//	@Param			runID		path		string			true	"Run ID"		format(uuid)
+//	@Param			body		body		BatchLogRequest	true	"Log lines to append"
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runID}/logs [post]
 func (h *Handler) AppendLog(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -2123,23 +2136,24 @@ func (h *Handler) AppendLog(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetLogs godoc
-// @Summary Get logs for a run
-// @Description Returns paginated logs for a workflow run
-// @Tags runs
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce json
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param runID path string true "Run ID" format(uuid)
-// @Param task query string false "Filter by task name"
-// @Param page query int false "Page number" default(1)
-// @Param per_page query int false "Items per page" default(100) maximum(1000)
-// @Param after_id query int false "Return logs after this ID (for polling)"
-// @Success 200 {object} PaginatedResponse{data=[]LogResponse}
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/projects/{projectId}/runs/{runID}/logs/history [get]
+//
+//	@Summary		Get logs for a run
+//	@Description	Returns paginated logs for a workflow run
+//	@Tags			runs
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			runID		path		string	true	"Run ID"		format(uuid)
+//	@Param			task		query		string	false	"Filter by task name"
+//	@Param			page		query		int		false	"Page number"		default(1)
+//	@Param			per_page	query		int		false	"Items per page"	default(100)	maximum(1000)
+//	@Param			after_id	query		int		false	"Return logs after this ID (for polling)"
+//	@Success		200			{object}	PaginatedResponse{data=[]LogResponse}
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runID}/logs/history [get]
 func (h *Handler) GetLogs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -2279,19 +2293,20 @@ func logModelToResponse(log *models.RunLog) LogResponse {
 }
 
 // Heartbeat godoc
-// @Summary Send heartbeat for a run
-// @Description Updates the last heartbeat timestamp for a run (CLI calls this periodically)
-// @Tags runs
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce json
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param runID path string true "Run ID" format(uuid)
-// @Success 200 {object} HeartbeatResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/projects/{projectId}/runs/{runID}/heartbeat [post]
+//
+//	@Summary		Send heartbeat for a run
+//	@Description	Updates the last heartbeat timestamp for a run (CLI calls this periodically)
+//	@Tags			runs
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			runID		path		string	true	"Run ID"		format(uuid)
+//	@Success		200			{object}	HeartbeatResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runID}/heartbeat [post]
 func (h *Handler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)

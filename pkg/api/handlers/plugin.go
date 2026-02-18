@@ -73,8 +73,20 @@ type InstallPluginRequest struct {
 	Spec string `json:"spec"` // e.g., "dagryn/setup-node@v1" or "local:./plugins/my-plugin"
 }
 
-// ListPlugins returns plugins from the registry view.
-// Currently this is backed by official plugins in the local repository.
+// ListPlugins godoc
+//
+//	@Summary		List available plugins
+//	@Description	Returns plugins from the registry view with optional search and filtering
+//	@Tags			plugins
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			q		query		string	false	"Search query"
+//	@Param			type	query		string	false	"Filter by plugin type"
+//	@Param			sort	query		string	false	"Sort order"	Enums(name, downloads, updated)
+//	@Success		200		{object}	PluginListResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Router			/api/v1/plugins [get]
 func (h *Handler) ListPlugins(w http.ResponseWriter, r *http.Request) {
 	plugins, err := h.loadOfficialPlugins()
 	if err != nil {
@@ -113,12 +125,33 @@ func (h *Handler) ListPlugins(w http.ResponseWriter, r *http.Request) {
 	_ = response.Ok(w, r, "success", PluginListResponse{Plugins: filtered})
 }
 
-// ListOfficialPlugins returns all official Dagryn plugins.
+// ListOfficialPlugins godoc
+//
+//	@Summary		List official plugins
+//	@Description	Returns all official Dagryn plugins
+//	@Tags			plugins
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Success		200	{object}	PluginListResponse
+//	@Router			/api/v1/plugins/official [get]
 func (h *Handler) ListOfficialPlugins(w http.ResponseWriter, r *http.Request) {
 	h.ListPlugins(w, r)
 }
 
-// GetPluginManifest returns detailed plugin information.
+// GetPluginManifest godoc
+//
+//	@Summary		Get plugin manifest
+//	@Description	Returns detailed plugin information including inputs, outputs, and steps
+//	@Tags			plugins
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			pluginName	path		string	true	"Plugin name"
+//	@Success		200			{object}	PluginInfo
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Router			/api/v1/plugins/{pluginName} [get]
 func (h *Handler) GetPluginManifest(w http.ResponseWriter, r *http.Request) {
 	pluginName, err := pathParamOrError(r, PluginNameParam)
 	if err != nil {
@@ -144,7 +177,19 @@ func (h *Handler) GetPluginManifest(w http.ResponseWriter, r *http.Request) {
 	_ = response.Ok(w, r, "success", info)
 }
 
-// GetPluginByPublisherName returns plugin details using registry-style publisher/name addressing.
+// GetPluginByPublisherName godoc
+//
+//	@Summary		Get plugin by publisher and name
+//	@Description	Returns plugin details using registry-style publisher/name addressing
+//	@Tags			plugins
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			publisher	path		string	true	"Publisher name"
+//	@Param			name		path		string	true	"Plugin name"
+//	@Success		200			{object}	PluginInfo
+//	@Failure		404			{object}	ErrorResponse
+//	@Router			/api/v1/plugins/{publisher}/{name} [get]
 func (h *Handler) GetPluginByPublisherName(w http.ResponseWriter, r *http.Request) {
 
 	publisher, _ := pathParamOrError(r, PublisherParam)
@@ -168,7 +213,20 @@ func (h *Handler) GetPluginByPublisherName(w http.ResponseWriter, r *http.Reques
 	_ = response.Ok(w, r, "success", manifest)
 }
 
-// ListProjectPlugins returns all plugins configured for a project.
+// ListProjectPlugins godoc
+//
+//	@Summary		List project plugins
+//	@Description	Returns all plugins configured for a project
+//	@Tags			plugins
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Success		200			{object}	PluginListResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/plugins [get]
 func (h *Handler) ListProjectPlugins(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -225,7 +283,23 @@ func (h *Handler) ListProjectPlugins(w http.ResponseWriter, r *http.Request) {
 	_ = response.Ok(w, r, "success", PluginListResponse{Plugins: plugins})
 }
 
-// InstallPlugin is intentionally not implemented yet.
+// InstallPlugin godoc
+//
+//	@Summary		Install a plugin
+//	@Description	Installs a plugin for a project (not yet implemented)
+//	@Tags			plugins
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			projectId	path		string					true	"Project ID"	format(uuid)
+//	@Param			body		body		InstallPluginRequest	true	"Install plugin request"
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/plugins [post]
 func (h *Handler) InstallPlugin(w http.ResponseWriter, r *http.Request) {
 	projectID, err := getProjectIDFromPath(r)
 	if err != nil {
@@ -251,7 +325,22 @@ func (h *Handler) InstallPlugin(w http.ResponseWriter, r *http.Request) {
 	_ = response.ServiceUnavailable(w, r, errors.New("plugin install via API is not implemented yet; update dagryn.toml and sync workflow"))
 }
 
-// UninstallPlugin is intentionally not implemented yet.
+// UninstallPlugin godoc
+//
+//	@Summary		Uninstall a plugin
+//	@Description	Uninstalls a plugin from a project (not yet implemented)
+//	@Tags			plugins
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			pluginName	path		string	true	"Plugin name"
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/plugins/{pluginName} [delete]
 func (h *Handler) UninstallPlugin(w http.ResponseWriter, r *http.Request) {
 	projectID, err := getProjectIDFromPath(r)
 	if err != nil {

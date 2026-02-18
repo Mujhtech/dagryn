@@ -10,7 +10,8 @@ import (
 )
 
 // ErrorResponse represents an error response.
-// @Description Error response returned by the API
+//
+//	@Description	Error response returned by the API
 type ErrorResponse struct {
 	Error   string `json:"error" example:"bad_request"`
 	Message string `json:"message" example:"Invalid request body"`
@@ -18,13 +19,15 @@ type ErrorResponse struct {
 }
 
 // SuccessResponse represents a generic success response.
-// @Description Generic success response
+//
+//	@Description	Generic success response
 type SuccessResponse struct {
 	Message string `json:"message" example:"Operation completed successfully"`
 }
 
 // PaginationMeta contains pagination metadata.
-// @Description Pagination metadata
+//
+//	@Description	Pagination metadata
 type PaginationMeta struct {
 	Page       int   `json:"page" example:"1"`
 	PerPage    int   `json:"per_page" example:"20"`
@@ -33,14 +36,16 @@ type PaginationMeta struct {
 }
 
 // PaginatedResponse wraps paginated data.
-// @Description Paginated response wrapper
+//
+//	@Description	Paginated response wrapper
 type PaginatedResponse struct {
 	Data interface{}    `json:"data"`
 	Meta PaginationMeta `json:"meta"`
 }
 
 // HealthResponse represents the health check response.
-// @Description Health check response
+//
+//	@Description	Health check response
 type HealthResponse struct {
 	Status    string    `json:"status" example:"healthy"`
 	Version   string    `json:"version" example:"1.0.0"`
@@ -51,17 +56,17 @@ type HealthResponse struct {
 }
 
 // ReadyResponse represents the readiness check response.
-// @Description Readiness check response
+//
+//	@Description	Readiness check response
 type ReadyResponse struct {
 	Status   string            `json:"status" example:"ready"`
 	Database string            `json:"database" example:"connected"`
 	Checks   map[string]string `json:"checks,omitempty"`
 }
 
-// --- User types ---
-
 // UserResponse represents a user in API responses.
-// @Description User information
+//
+//	@Description	User information
 type UserResponse struct {
 	ID        uuid.UUID `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Email     string    `json:"email" example:"user@example.com"`
@@ -73,16 +78,16 @@ type UserResponse struct {
 }
 
 // UpdateUserRequest represents a request to update a user.
-// @Description Update user request
+//
+//	@Description	Update user request
 type UpdateUserRequest struct {
 	Name      *string `json:"name,omitempty" example:"John Doe"`
 	AvatarURL *string `json:"avatar_url,omitempty" example:"https://example.com/avatar.png"`
 }
 
-// --- Team types ---
-
 // TeamResponse represents a team in API responses.
-// @Description Team information
+//
+//	@Description	Team information
 type TeamResponse struct {
 	ID          uuid.UUID `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Name        string    `json:"name" example:"Engineering"`
@@ -95,7 +100,8 @@ type TeamResponse struct {
 }
 
 // CreateTeamRequest represents a request to create a team.
-// @Description Create team request
+//
+//	@Description	Create team request
 type CreateTeamRequest struct {
 	Name        string `json:"name" binding:"required" example:"Engineering"`
 	Slug        string `json:"slug,omitempty" example:"engineering"`
@@ -103,7 +109,8 @@ type CreateTeamRequest struct {
 }
 
 // UpdateTeamRequest represents a request to update a team.
-// @Description Update team request
+//
+//	@Description	Update team request
 type UpdateTeamRequest struct {
 	Name        *string `json:"name,omitempty" example:"Engineering"`
 	Description *string `json:"description,omitempty" example:"Engineering team"`
@@ -111,7 +118,8 @@ type UpdateTeamRequest struct {
 }
 
 // TeamMemberResponse represents a team member in API responses.
-// @Description Team member information
+//
+//	@Description	Team member information
 type TeamMemberResponse struct {
 	User     UserResponse `json:"user"`
 	Role     string       `json:"role" example:"admin"`
@@ -119,22 +127,23 @@ type TeamMemberResponse struct {
 }
 
 // AddTeamMemberRequest represents a request to add a team member.
-// @Description Add team member request
+//
+//	@Description	Add team member request
 type AddTeamMemberRequest struct {
 	UserID uuid.UUID `json:"user_id" binding:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Role   string    `json:"role" binding:"required" example:"member"`
 }
 
 // UpdateMemberRoleRequest represents a request to update a member's role.
-// @Description Update member role request
+//
+//	@Description	Update member role request
 type UpdateMemberRoleRequest struct {
 	Role string `json:"role" binding:"required" example:"admin"`
 }
 
-// --- Project types ---
-
 // ProjectResponse represents a project in API responses.
-// @Description Project information
+//
+//	@Description	Project information
 type ProjectResponse struct {
 	ID          uuid.UUID  `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	TeamID      uuid.UUID  `json:"team_id" example:"550e8400-e29b-41d4-a716-446655440000"`
@@ -151,7 +160,8 @@ type ProjectResponse struct {
 }
 
 // CreateProjectRequest represents a request to create a project.
-// @Description Create project request
+//
+//	@Description	Create project request
 type CreateProjectRequest struct {
 	TeamID               uuid.UUID  `json:"team_id" binding:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Name                 string     `json:"name" binding:"required" example:"api-service"`
@@ -164,7 +174,8 @@ type CreateProjectRequest struct {
 }
 
 // UpdateProjectRequest represents a request to update a project.
-// @Description Update project request
+//
+//	@Description	Update project request
 type UpdateProjectRequest struct {
 	Name        *string `json:"name,omitempty" example:"api-service"`
 	Description *string `json:"description,omitempty" example:"Main API service"`
@@ -173,7 +184,8 @@ type UpdateProjectRequest struct {
 }
 
 // ConnectGitHubRequest represents a request to connect a project to GitHub.
-// @Description Connect project to GitHub request
+//
+//	@Description	Connect project to GitHub request
 type ConnectGitHubRequest struct {
 	GitHubInstallationID uuid.UUID `json:"github_installation_id" binding:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
 	GitHubRepoID         int64     `json:"github_repo_id" binding:"required" example:"123456789"`
@@ -181,21 +193,24 @@ type ConnectGitHubRequest struct {
 }
 
 // GitHubWorkflowTranslateRequest represents a request to translate GitHub workflows.
-// @Description Request payload for GitHub Actions workflow translation
+//
+//	@Description	Request payload for GitHub Actions workflow translation
 type GitHubWorkflowTranslateRequest struct {
 	RepoFullName         string     `json:"repo_full_name" binding:"required" example:"owner/repo"`
 	GitHubInstallationID *uuid.UUID `json:"github_installation_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
 // GitHubWorkflowYAMLTranslateRequest represents a request to translate pasted GitHub workflow YAML.
-// @Description Request payload for direct GitHub Actions YAML translation
+//
+//	@Description	Request payload for direct GitHub Actions YAML translation
 type GitHubWorkflowYAMLTranslateRequest struct {
 	WorkflowYAML string `json:"workflow_yaml" binding:"required" example:"name: CI\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: npm test"`
 	FileName     string `json:"file_name,omitempty" example:"ci.yml"`
 }
 
 // GitHubWorkflowSummary is a minimal summary of a translated workflow file.
-// @Description Summary of a GitHub Actions workflow file
+//
+//	@Description	Summary of a GitHub Actions workflow file
 type GitHubWorkflowSummary struct {
 	File      string `json:"file" example:"ci.yml"`
 	Name      string `json:"name" example:"CI"`
@@ -203,7 +218,8 @@ type GitHubWorkflowSummary struct {
 }
 
 // GitHubWorkflowTranslateResponse contains the translated Dagryn TOML snippet.
-// @Description Translation result for GitHub Actions workflows
+//
+//	@Description	Translation result for GitHub Actions workflows
 type GitHubWorkflowTranslateResponse struct {
 	Detected  bool                    `json:"detected" example:"true"`
 	Workflows []GitHubWorkflowSummary `json:"workflows"`
@@ -212,7 +228,8 @@ type GitHubWorkflowTranslateResponse struct {
 }
 
 // ProjectMemberResponse represents a project member in API responses.
-// @Description Project member information
+//
+//	@Description	Project member information
 type ProjectMemberResponse struct {
 	User     UserResponse `json:"user"`
 	Role     string       `json:"role" example:"admin"`
@@ -220,16 +237,16 @@ type ProjectMemberResponse struct {
 }
 
 // AddProjectMemberRequest represents a request to add a project member.
-// @Description Add project member request
+//
+//	@Description	Add project member request
 type AddProjectMemberRequest struct {
 	UserID uuid.UUID `json:"user_id" binding:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Role   string    `json:"role" binding:"required" example:"member"`
 }
 
-// --- API Key types ---
-
 // APIKeyResponse represents an API key in API responses (without the secret).
-// @Description API key information (secret only shown on creation)
+//
+//	@Description	API key information (secret only shown on creation)
 type APIKeyResponse struct {
 	ID         uuid.UUID  `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Name       string     `json:"name" example:"CI/CD Key"`
@@ -242,23 +259,24 @@ type APIKeyResponse struct {
 }
 
 // APIKeyCreatedResponse represents a newly created API key (includes the secret).
-// @Description API key creation response (includes secret, shown only once)
+//
+//	@Description	API key creation response (includes secret, shown only once)
 type APIKeyCreatedResponse struct {
 	APIKeyResponse
 	Key string `json:"key" example:"dg_live_abc123xyz789..."`
 }
 
 // CreateAPIKeyRequest represents a request to create an API key.
-// @Description Create API key request
+//
+//	@Description	Create API key request
 type CreateAPIKeyRequest struct {
 	Name      string `json:"name" binding:"required" example:"CI/CD Key"`
 	ExpiresIn string `json:"expires_in,omitempty" example:"90d"`
 }
 
-// --- Invitation types ---
-
 // InvitationResponse represents an invitation in API responses.
-// @Description Invitation information
+//
+//	@Description	Invitation information
 type InvitationResponse struct {
 	ID          uuid.UUID    `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Email       string       `json:"email" example:"newuser@example.com"`
@@ -276,16 +294,16 @@ type InvitationResponse struct {
 }
 
 // CreateInvitationRequest represents a request to create an invitation.
-// @Description Create invitation request
+//
+//	@Description	Create invitation request
 type CreateInvitationRequest struct {
 	Email string `json:"email" binding:"required" example:"newuser@example.com"`
 	Role  string `json:"role" binding:"required" example:"member"`
 }
 
-// --- Run types ---
-
 // RunResponse represents a workflow run in API responses.
-// @Description Workflow run information
+//
+//	@Description	Workflow run information
 type RunResponse struct {
 	ID                uuid.UUID     `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	ProjectID         uuid.UUID     `json:"project_id" example:"550e8400-e29b-41d4-a716-446655440000"`
@@ -311,7 +329,8 @@ type RunResponse struct {
 }
 
 // TaskResultResponse represents a task execution result in API responses.
-// @Description Task execution result
+//
+//	@Description	Task execution result
 type TaskResultResponse struct {
 	ID         uuid.UUID  `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	RunID      uuid.UUID  `json:"run_id" example:"550e8400-e29b-41d4-a716-446655440000"`
@@ -326,7 +345,8 @@ type TaskResultResponse struct {
 }
 
 // TriggerRunRequest represents a request to trigger a workflow run.
-// @Description Trigger run request
+//
+//	@Description	Trigger run request
 type TriggerRunRequest struct {
 	Targets   []string `json:"targets,omitempty" example:"[\"build\",\"test\"]"`
 	GitBranch string   `json:"git_branch,omitempty" example:"main"`
@@ -341,7 +361,8 @@ type TriggerRunRequest struct {
 }
 
 // TriggerRunResponse represents the response after triggering a run.
-// @Description Trigger run response
+//
+//	@Description	Trigger run response
 type TriggerRunResponse struct {
 	RunID     uuid.UUID `json:"run_id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Status    string    `json:"status" example:"pending"`
@@ -351,7 +372,8 @@ type TriggerRunResponse struct {
 }
 
 // CancelRunResponse represents the response after cancelling a run.
-// @Description Cancel run response
+//
+//	@Description	Cancel run response
 type CancelRunResponse struct {
 	RunID       uuid.UUID `json:"run_id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Status      string    `json:"status" example:"cancelled"`
@@ -360,7 +382,8 @@ type CancelRunResponse struct {
 }
 
 // RunDetailResponse represents detailed run information including tasks.
-// @Description Detailed run information
+//
+//	@Description	Detailed run information
 type RunDetailResponse struct {
 	RunResponse
 	Tasks          []TaskResultResponse `json:"tasks"`
@@ -371,7 +394,8 @@ type RunDetailResponse struct {
 }
 
 // RunDashboardChartPointResponse is a daily aggregate for run dashboards.
-// @Description Daily chart point for project runs
+//
+//	@Description	Daily chart point for project runs
 type RunDashboardChartPointResponse struct {
 	Date       string `json:"date" example:"2026-02-11"`
 	Success    int    `json:"success" example:"12"`
@@ -380,7 +404,8 @@ type RunDashboardChartPointResponse struct {
 }
 
 // RunDashboardUserFacetResponse is a user facet for run filters.
-// @Description Filterable user value for run dashboards
+//
+//	@Description	Filterable user value for run dashboards
 type RunDashboardUserFacetResponse struct {
 	ID        string `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Name      string `json:"name" example:"Jane Doe"`
@@ -388,7 +413,8 @@ type RunDashboardUserFacetResponse struct {
 }
 
 // RunDashboardSummaryResponse contains non-paginated data for charts/facets.
-// @Description Stable run dashboard data independent of pagination
+//
+//	@Description	Stable run dashboard data independent of pagination
 type RunDashboardSummaryResponse struct {
 	Chart        []RunDashboardChartPointResponse `json:"chart"`
 	Users        []RunDashboardUserFacetResponse  `json:"users"`
@@ -397,17 +423,17 @@ type RunDashboardSummaryResponse struct {
 	StatusCounts map[string]int                   `json:"status_counts"`
 }
 
-// --- Dashboard Overview types ---
-
 // DashboardOverviewResponse contains the full dashboard overview payload.
-// @Description Dashboard overview response
+//
+//	@Description	Dashboard overview response
 type DashboardOverviewResponse struct {
 	Projects   []DashboardProjectResponse `json:"projects"`
 	RecentRuns []DashboardRunResponse     `json:"recent_runs"`
 }
 
 // DashboardProjectResponse represents a project with inline stats in the dashboard overview.
-// @Description Dashboard project with inline stats
+//
+//	@Description	Dashboard project with inline stats
 type DashboardProjectResponse struct {
 	ID            uuid.UUID                        `json:"id"`
 	Name          string                           `json:"name"`
@@ -427,7 +453,8 @@ type DashboardProjectResponse struct {
 }
 
 // DashboardRunResponse represents a run in the dashboard overview.
-// @Description Dashboard run entry
+//
+//	@Description	Dashboard run entry
 type DashboardRunResponse struct {
 	ID               uuid.UUID     `json:"id"`
 	ProjectID        uuid.UUID     `json:"project_id"`
@@ -442,10 +469,9 @@ type DashboardRunResponse struct {
 	CreatedAt        time.Time     `json:"created_at"`
 }
 
-// --- Artifact types ---
-
 // ArtifactResponse represents a stored artifact.
-// @Description Artifact metadata
+//
+//	@Description	Artifact metadata
 type ArtifactResponse struct {
 	ID           uuid.UUID       `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	ProjectID    uuid.UUID       `json:"project_id" example:"550e8400-e29b-41d4-a716-446655440000"`
@@ -462,10 +488,9 @@ type ArtifactResponse struct {
 	Metadata     json.RawMessage `json:"metadata,omitempty"`
 }
 
-// --- Run Status Update Types ---
-
 // UpdateRunStatusRequest represents a request to update run status.
-// @Description Update run status request
+//
+//	@Description	Update run status request
 type UpdateRunStatusRequest struct {
 	Status       string  `json:"status" example:"running"`
 	TotalTasks   *int    `json:"total_tasks,omitempty" example:"5"`
@@ -473,7 +498,8 @@ type UpdateRunStatusRequest struct {
 }
 
 // UpdateTaskStatusRequest represents a request to update task status.
-// @Description Update task status request
+//
+//	@Description	Update task status request
 type UpdateTaskStatusRequest struct {
 	Status     string     `json:"status" example:"running"`
 	ExitCode   *int       `json:"exit_code,omitempty" example:"0"`
@@ -487,13 +513,15 @@ type UpdateTaskStatusRequest struct {
 }
 
 // CreateTaskRequest represents a request to create a task result.
-// @Description Create task request
+//
+//	@Description	Create task request
 type CreateTaskRequest struct {
 	TaskName string `json:"task_name" example:"build"`
 }
 
 // AppendLogRequest represents a request to append a log line.
-// @Description Append log request
+//
+//	@Description	Append log request
 type AppendLogRequest struct {
 	TaskName string `json:"task_name,omitempty" example:"build"`
 	Stream   string `json:"stream" example:"stdout"`
@@ -502,13 +530,15 @@ type AppendLogRequest struct {
 }
 
 // BatchLogRequest represents a request to append multiple log lines.
-// @Description Batch log request
+//
+//	@Description	Batch log request
 type BatchLogRequest struct {
 	Logs []AppendLogRequest `json:"logs"`
 }
 
 // HeartbeatResponse represents the response from a heartbeat request.
-// @Description Heartbeat response
+//
+//	@Description	Heartbeat response
 type HeartbeatResponse struct {
 	RunID           uuid.UUID `json:"run_id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Status          string    `json:"status" example:"running"`
@@ -516,7 +546,8 @@ type HeartbeatResponse struct {
 }
 
 // LogResponse represents a single log entry.
-// @Description Log entry response
+//
+//	@Description	Log entry response
 type LogResponse struct {
 	ID        int64     `json:"id" example:"1"`
 	TaskName  string    `json:"task_name" example:"build"`
@@ -526,10 +557,9 @@ type LogResponse struct {
 	CreatedAt time.Time `json:"created_at" example:"2024-01-15T10:30:00Z"`
 }
 
-// --- Workflow types ---
-
 // SyncWorkflowRequest represents a request to sync workflow from CLI.
-// @Description Sync workflow request
+//
+//	@Description	Sync workflow request
 type SyncWorkflowRequest struct {
 	Name       string                 `json:"name" binding:"required" example:"default"`
 	IsDefault  bool                   `json:"is_default" example:"true"`
@@ -539,13 +569,15 @@ type SyncWorkflowRequest struct {
 }
 
 // SyncWorkflowFromTomlRequest represents a request to sync workflow from a TOML snippet.
-// @Description Sync workflow request from raw TOML
+//
+//	@Description	Sync workflow request from raw TOML
 type SyncWorkflowFromTomlRequest struct {
 	RawConfig string `json:"raw_config" binding:"required"`
 }
 
 // SyncWorkflowTaskData represents task data in a sync request.
-// @Description Workflow task data
+//
+//	@Description	Workflow task data
 type SyncWorkflowTaskData struct {
 	Name           string            `json:"name" binding:"required" example:"build"`
 	Command        string            `json:"command" binding:"required" example:"go build ./..."`
@@ -561,7 +593,8 @@ type SyncWorkflowTaskData struct {
 }
 
 // WorkflowCacheConfig represents cache configuration in workflow responses.
-// @Description Workflow cache configuration
+//
+//	@Description	Workflow cache configuration
 type WorkflowCacheConfig struct {
 	Enabled       bool   `json:"enabled"`
 	Dir           string `json:"dir,omitempty"`
@@ -570,7 +603,8 @@ type WorkflowCacheConfig struct {
 }
 
 // WorkflowAIConfig represents AI configuration in workflow responses.
-// @Description Workflow AI configuration
+//
+//	@Description	Workflow AI configuration
 type WorkflowAIConfig struct {
 	Enabled     bool   `json:"enabled"`
 	Mode        string `json:"mode,omitempty"`
@@ -580,7 +614,8 @@ type WorkflowAIConfig struct {
 }
 
 // WorkflowContainerConfig represents container configuration in workflow responses.
-// @Description Workflow container configuration
+//
+//	@Description	Workflow container configuration
 type WorkflowContainerConfig struct {
 	Enabled     bool   `json:"enabled"`
 	Image       string `json:"image,omitempty"`
@@ -590,7 +625,8 @@ type WorkflowContainerConfig struct {
 }
 
 // WorkflowResponse represents a workflow in API responses.
-// @Description Workflow information
+//
+//	@Description	Workflow information
 type WorkflowResponse struct {
 	ID        uuid.UUID                `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Name      string                   `json:"name" example:"default"`
@@ -605,27 +641,31 @@ type WorkflowResponse struct {
 }
 
 // WorkflowTriggerResponse represents trigger configuration in API responses.
-// @Description Workflow trigger information
+//
+//	@Description	Workflow trigger information
 type WorkflowTriggerResponse struct {
 	Push        *PushTriggerResponse        `json:"push,omitempty"`
 	PullRequest *PullRequestTriggerResponse `json:"pull_request,omitempty"`
 }
 
 // PushTriggerResponse represents push trigger config.
-// @Description Push trigger information
+//
+//	@Description	Push trigger information
 type PushTriggerResponse struct {
 	Branches []string `json:"branches"`
 }
 
 // PullRequestTriggerResponse represents pull request trigger config.
-// @Description Pull request trigger information
+//
+//	@Description	Pull request trigger information
 type PullRequestTriggerResponse struct {
 	Branches []string `json:"branches,omitempty"`
 	Types    []string `json:"types,omitempty"`
 }
 
 // WorkflowTaskResponse represents a task in a workflow.
-// @Description Workflow task information
+//
+//	@Description	Workflow task information
 type WorkflowTaskResponse struct {
 	Name           string            `json:"name" example:"build"`
 	Command        string            `json:"command" example:"go build ./..."`
@@ -641,7 +681,8 @@ type WorkflowTaskResponse struct {
 }
 
 // SyncWorkflowResponse represents the response after syncing a workflow.
-// @Description Sync workflow response
+//
+//	@Description	Sync workflow response
 type SyncWorkflowResponse struct {
 	WorkflowID uuid.UUID `json:"workflow_id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Name       string    `json:"name" example:"default"`
@@ -649,8 +690,6 @@ type SyncWorkflowResponse struct {
 	Changed    bool      `json:"changed" example:"true"`
 	Message    string    `json:"message" example:"Workflow synced successfully"`
 }
-
-// --- Helper functions ---
 
 // ParseJSON parses a JSON request body.
 func ParseJSON(r *http.Request, v any) error {

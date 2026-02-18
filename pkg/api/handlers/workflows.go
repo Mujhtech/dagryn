@@ -12,18 +12,19 @@ import (
 )
 
 // ListProjectWorkflows lists all workflows for a project.
-// @Summary List project workflows
-// @Description Get all workflows synced to a project
-// @Tags workflows
-// @Accept json
-// @Produce json
-// @Param projectId path string true "Project ID"
-// @Success 200 {array} WorkflowResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Security BearerAuth
-// @Router /projects/{projectId}/workflows [get]
+//
+//	@Summary		List project workflows
+//	@Description	Get all workflows synced to a project
+//	@Tags			workflows
+//	@Accept			json
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"
+//	@Success		200			{array}		WorkflowResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/projects/{projectId}/workflows [get]
 func (h *Handler) ListProjectWorkflows(w http.ResponseWriter, r *http.Request) {
 	projectID, err := getProjectIDFromPath(r)
 	if err != nil {
@@ -48,19 +49,20 @@ func (h *Handler) ListProjectWorkflows(w http.ResponseWriter, r *http.Request) {
 }
 
 // SyncProjectWorkflow syncs a workflow from the CLI.
-// @Summary Sync workflow
-// @Description Sync workflow configuration from CLI to server
-// @Tags workflows
-// @Accept json
-// @Produce json
-// @Param projectId path string true "Project ID"
-// @Param request body SyncWorkflowRequest true "Workflow to sync"
-// @Success 200 {object} SyncWorkflowResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Security BearerAuth
-// @Router /projects/{projectId}/workflows/sync [post]
+//
+//	@Summary		Sync workflow
+//	@Description	Sync workflow configuration from CLI to server
+//	@Tags			workflows
+//	@Accept			json
+//	@Produce		json
+//	@Param			projectId	path		string				true	"Project ID"
+//	@Param			request		body		SyncWorkflowRequest	true	"Workflow to sync"
+//	@Success		200			{object}	SyncWorkflowResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/projects/{projectId}/workflows/sync [post]
 func (h *Handler) SyncProjectWorkflow(w http.ResponseWriter, r *http.Request) {
 	projectID, err := getProjectIDFromPath(r)
 	if err != nil {
@@ -79,19 +81,20 @@ func (h *Handler) SyncProjectWorkflow(w http.ResponseWriter, r *http.Request) {
 }
 
 // SyncProjectWorkflowFromToml syncs a workflow from raw TOML.
-// @Summary Sync workflow from TOML
-// @Description Sync workflow configuration from raw TOML to server
-// @Tags workflows
-// @Accept json
-// @Produce json
-// @Param projectId path string true "Project ID"
-// @Param request body SyncWorkflowFromTomlRequest true "Workflow TOML"
-// @Success 200 {object} SyncWorkflowResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Security BearerAuth
-// @Router /projects/{projectId}/workflows/sync-from-toml [post]
+//
+//	@Summary		Sync workflow from TOML
+//	@Description	Sync workflow configuration from raw TOML to server
+//	@Tags			workflows
+//	@Accept			json
+//	@Produce		json
+//	@Param			projectId	path		string						true	"Project ID"
+//	@Param			request		body		SyncWorkflowFromTomlRequest	true	"Workflow TOML"
+//	@Success		200			{object}	SyncWorkflowResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/projects/{projectId}/workflows/sync-from-toml [post]
 func (h *Handler) SyncProjectWorkflowFromToml(w http.ResponseWriter, r *http.Request) {
 	projectID, err := getProjectIDFromPath(r)
 	if err != nil {
@@ -226,17 +229,18 @@ func (h *Handler) syncWorkflowWithRequest(w http.ResponseWriter, r *http.Request
 }
 
 // GetRunWorkflow gets the workflow snapshot for a specific run.
-// @Summary Get run workflow
-// @Description Get the workflow snapshot used for a specific run
-// @Tags workflows
-// @Produce json
-// @Param projectId path string true "Project ID"
-// @Param runID path string true "Run ID"
-// @Success 200 {object} WorkflowResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Security BearerAuth
-// @Router /projects/{projectId}/runs/{runID}/workflow [get]
+//
+//	@Summary		Get run workflow
+//	@Description	Get the workflow snapshot used for a specific run
+//	@Tags			workflows
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"
+//	@Param			runID		path		string	true	"Run ID"
+//	@Success		200			{object}	WorkflowResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/projects/{projectId}/runs/{runID}/workflow [get]
 func (h *Handler) GetRunWorkflow(w http.ResponseWriter, r *http.Request) {
 	runID, err := getRunIDFromPath(r)
 	if err != nil {

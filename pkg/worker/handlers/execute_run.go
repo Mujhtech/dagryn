@@ -21,10 +21,6 @@ import (
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
-	"github.com/mujhtech/dagryn/pkg/githubapp"
-	"github.com/mujhtech/dagryn/pkg/notification"
-	"github.com/mujhtech/dagryn/pkg/server/sse"
-	"github.com/mujhtech/dagryn/pkg/service"
 	"github.com/mujhtech/dagryn/pkg/dagryn/cache"
 	"github.com/mujhtech/dagryn/pkg/dagryn/cache/cloud"
 	"github.com/mujhtech/dagryn/pkg/dagryn/condition"
@@ -37,6 +33,10 @@ import (
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
+	"github.com/mujhtech/dagryn/pkg/githubapp"
+	"github.com/mujhtech/dagryn/pkg/notification"
+	"github.com/mujhtech/dagryn/pkg/server/sse"
+	"github.com/mujhtech/dagryn/pkg/service"
 )
 
 // githubAppClientAdapter adapts githubapp.Client to GitHubAppClient interface.
@@ -92,7 +92,6 @@ type ExecuteRunHandler struct {
 	cancelManager       CancelManager
 	containerDefaults   *ContainerDefaults
 	eventPublisher      sse.EventPublisher
-	quotaService        *service.QuotaService
 	jobEnqueuer         JobEnqueuer
 	baseURL             string
 }
@@ -137,7 +136,6 @@ func NewExecuteRunHandler(
 	cancelManager CancelManager,
 	containerDefaults *ContainerDefaults,
 	eventPublisher sse.EventPublisher,
-	quotaService *service.QuotaService,
 	jobEnqueuer JobEnqueuer,
 	baseURL string,
 ) *ExecuteRunHandler {
@@ -158,7 +156,6 @@ func NewExecuteRunHandler(
 		cancelManager:       cancelManager,
 		containerDefaults:   containerDefaults,
 		eventPublisher:      eventPublisher,
-		quotaService:        quotaService,
 		jobEnqueuer:         jobEnqueuer,
 		baseURL:             baseURL,
 	}
@@ -601,17 +598,6 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	// Build container config: merge server defaults with project config.
 	// Project config takes precedence over server defaults.
 	containerCfg := h.buildContainerConfig(cfg)
-	if containerCfg != nil && h.quotaService != nil {
-		accountID, _ := h.quotaService.GetAccountForProject(ctx, projectID)
-		if accountID != uuid.Nil {
-			if err := h.quotaService.CheckContainerExecution(ctx, accountID); err != nil {
-				// Plan doesn't allow containers — fall back to host execution
-				containerCfg = nil
-				slog.Info("container execution not allowed by plan, falling back to host",
-					"project_id", projectID, "error", err)
-			}
-		}
-	}
 	if containerCfg != nil {
 		opts.ContainerConfig = containerCfg
 	}

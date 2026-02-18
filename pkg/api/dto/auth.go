@@ -1,7 +1,8 @@
 package dto
 
 // AuthProvider represents an OAuth provider.
-// @Description OAuth provider information
+//
+//	@Description	OAuth provider information
 type AuthProvider struct {
 	ID      string `json:"id" example:"github"`
 	Name    string `json:"name" example:"GitHub"`

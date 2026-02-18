@@ -2,13 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { queryKeys } from "../../lib/query-client";
 
-export function useLicenseStatus() {
+export function useCapabilities() {
   return useQuery({
-    queryKey: queryKeys.licenseStatus,
+    queryKey: queryKeys.capabilities,
     queryFn: async () => {
-      const { data } = await api.getLicenseStatus();
+      const { data } = await api.getCapabilities();
       return data;
     },
-    staleTime: 60_000, // rarely changes
+    staleTime: 60_000,
   });
 }

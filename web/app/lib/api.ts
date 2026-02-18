@@ -610,103 +610,6 @@ export interface DashboardRun {
   created_at: string;
 }
 
-// Billing types
-export interface BillingPlan {
-  id: string;
-  slug: string;
-  name: string;
-  display_name: string;
-  description: string;
-  price_cents: number;
-  billing_period: string;
-  is_per_seat: boolean;
-  max_projects?: number;
-  max_team_members?: number;
-  max_cache_bytes?: number;
-  max_storage_bytes?: number;
-  max_bandwidth_bytes?: number;
-  max_concurrent_runs?: number;
-  cache_ttl_days?: number;
-  artifact_retention_days?: number;
-  log_retention_days?: number;
-  container_execution: boolean;
-  priority_queue: boolean;
-  sso_enabled: boolean;
-  audit_logs: boolean;
-  max_ai_analyses_per_month?: number;
-  ai_enabled: boolean;
-  ai_suggestions_enabled: boolean;
-  stripe_price_id: string;
-  sort_order: number;
-}
-
-export interface BillingAccount {
-  id: string;
-  user_id?: string;
-  team_id?: string;
-  stripe_customer_id?: string;
-  email: string;
-  name?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Subscription {
-  id: string;
-  billing_account_id: string;
-  plan_id: string;
-  stripe_subscription_id?: string;
-  status: SubscriptionStatus;
-  seat_count: number;
-  current_period_start?: string;
-  current_period_end?: string;
-  cancel_at_period_end: boolean;
-  canceled_at?: string;
-  trial_end?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export type SubscriptionStatus =
-  | "active"
-  | "trialing"
-  | "past_due"
-  | "canceled"
-  | "incomplete";
-
-export interface ResourceUsage {
-  cache_bytes_used: number;
-  artifact_bytes_used: number;
-  total_storage_bytes_used: number;
-  bandwidth_bytes_used: number;
-  projects_used: number;
-  team_members_used: number;
-  concurrent_runs: number;
-  ai_analyses_used: number;
-}
-
-export interface BillingOverview {
-  account: BillingAccount;
-  subscription?: Subscription;
-  plan?: BillingPlan;
-  usage?: Record<string, number>;
-  resource_usage?: ResourceUsage;
-}
-
-export interface Invoice {
-  id: string;
-  billing_account_id: string;
-  stripe_invoice_id: string;
-  amount_cents: number;
-  currency: string;
-  status: string;
-  period_start?: string;
-  period_end?: string;
-  pdf_url?: string;
-  hosted_invoice_url?: string;
-  created_at: string;
-}
-
 // License types
 export interface LicenseStatus {
   mode: "cloud" | "self_hosted";
@@ -724,6 +627,20 @@ export interface LicenseStatus {
   days_remaining?: number;
   grace_period: boolean;
   expiring: boolean;
+}
+
+// Capabilities types
+export interface CapabilitiesNavItem {
+  key: string;
+  label: string;
+  enabled: boolean;
+}
+
+export interface CapabilitiesResponse {
+  mode: "cloud" | "self_hosted";
+  edition: "community" | "pro" | "enterprise" | "cloud";
+  features: Record<string, boolean>;
+  nav: CapabilitiesNavItem[];
 }
 
 // API Error
@@ -1514,53 +1431,21 @@ class ApiClient {
     return this.fetch<DashboardOverview>("/dashboard/overview");
   }
 
-  // Billing
-  async listBillingPlans() {
-    return this.fetch<BillingPlan[]>("/billing/plans");
-  }
-
-  async getBillingPlan(slug: string) {
-    return this.fetch<BillingPlan>(`/billing/plans/${slug}`);
-  }
-
-  async getBillingOverview() {
-    return this.fetch<BillingOverview>("/billing/overview");
-  }
-
-  async createCheckoutSession(data: {
-    plan_slug: string;
-    success_url: string;
-    cancel_url: string;
-  }) {
-    return this.fetch<{ url: string }>("/billing/checkout", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  }
-
-  async createPortalSession(returnUrl: string) {
-    return this.fetch<{ url: string }>("/billing/portal", {
-      method: "POST",
-      body: JSON.stringify({ return_url: returnUrl }),
-    });
-  }
-
-  async cancelSubscription(atPeriodEnd = true) {
-    return this.fetch("/billing/cancel", {
-      method: "POST",
-      body: JSON.stringify({ at_period_end: atPeriodEnd }),
-    });
-  }
-
-  async listInvoices(limit = 20, offset = 0) {
-    return this.fetch<Invoice[]>(
-      `/billing/invoices?limit=${limit}&offset=${offset}`,
-    );
+  // Capabilities
+  async getCapabilities() {
+    return this.fetch<CapabilitiesResponse>("/capabilities");
   }
 
   // License
   async getLicenseStatus() {
     return this.fetch<LicenseStatus>("/license");
+  }
+
+  // Public wrapper around the private fetch method.
+  // Used by the cloud overlay to make authenticated API calls
+  // (e.g. billing) without duplicating auth/refresh logic.
+  async request<T>(path: string, options: RequestInit = {}): Promise<{ data: T; message?: string }> {
+    return this.fetch<T>(path, options);
   }
 }
 

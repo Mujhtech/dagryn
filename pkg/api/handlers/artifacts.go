@@ -12,34 +12,44 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/mujhtech/dagryn/pkg/service"
 	apiCtx "github.com/mujhtech/dagryn/pkg/api/context"
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
+	"github.com/mujhtech/dagryn/pkg/entitlement"
 	"github.com/mujhtech/dagryn/pkg/http/response"
 )
 
-const maxArtifactUploadSize = 200 << 20 // 200MB
+const (
+	// defaultMaxArtifactUploadSize is the community-edition per-file limit (200 MB).
+	// Applied when no entitlements checker is configured.
+	defaultMaxArtifactUploadSize = 200 << 20
+
+	// maxArtifactUploadHardCap is an absolute ceiling for http.MaxBytesReader
+	// to prevent DoS regardless of plan. Plan-specific limits are enforced
+	// after form parsing.
+	maxArtifactUploadHardCap = 2 << 30 // 2 GB
+)
 
 // ListRunArtifacts godoc
-// @Summary List run artifacts
-// @Description Lists artifacts for a workflow run (optionally filtered by task name)
-// @Tags artifacts
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce json
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param runID path string true "Run ID" format(uuid)
-// @Param task query string false "Task name"
-// @Param limit query int false "Max items (<=1000)"
-// @Param offset query int false "Offset for pagination"
-// @Success 200 {array} ArtifactResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 503 {object} ErrorResponse
-// @Router /api/v1/projects/{projectId}/runs/{runID}/artifacts [get]
+//
+//	@Summary		List run artifacts
+//	@Description	Lists artifacts for a workflow run (optionally filtered by task name)
+//	@Tags			artifacts
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			runID		path		string	true	"Run ID"		format(uuid)
+//	@Param			task		query		string	false	"Task name"
+//	@Param			limit		query		int		false	"Max items (<=1000)"
+//	@Param			offset		query		int		false	"Offset for pagination"
+//	@Success		200			{array}		ArtifactResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runID}/artifacts [get]
 func (h *Handler) ListRunArtifacts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -110,28 +120,29 @@ func (h *Handler) ListRunArtifacts(w http.ResponseWriter, r *http.Request) {
 }
 
 // UploadArtifact godoc
-// @Summary Upload an artifact
-// @Description Uploads an artifact file for a workflow run
-// @Tags artifacts
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Accept multipart/form-data
-// @Produce json
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param runID path string true "Run ID" format(uuid)
-// @Param file formData file true "Artifact file"
-// @Param name formData string false "Artifact display name (defaults to filename)"
-// @Param task_name formData string false "Task name"
-// @Param ttl_seconds formData int false "TTL in seconds"
-// @Success 201 {object} ArtifactResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 413 {object} ErrorResponse
-// @Failure 415 {object} ErrorResponse
-// @Failure 503 {object} ErrorResponse
-// @Router /api/v1/projects/{projectId}/runs/{runID}/artifacts [post]
+//
+//	@Summary		Upload an artifact
+//	@Description	Uploads an artifact file for a workflow run
+//	@Tags			artifacts
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Accept			multipart/form-data
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			runID		path		string	true	"Run ID"		format(uuid)
+//	@Param			file		formData	file	true	"Artifact file"
+//	@Param			name		formData	string	false	"Artifact display name (defaults to filename)"
+//	@Param			task_name	formData	string	false	"Task name"
+//	@Param			ttl_seconds	formData	int		false	"TTL in seconds"
+//	@Success		201			{object}	ArtifactResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		413			{object}	ErrorResponse
+//	@Failure		415			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runID}/artifacts [post]
 func (h *Handler) UploadArtifact(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -184,12 +195,13 @@ func (h *Handler) UploadArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Allow extra room for multipart boundaries, headers, and form fields.
-	r.Body = http.MaxBytesReader(w, r.Body, maxArtifactUploadSize+1<<20)
+	// Hard cap prevents unbounded reads regardless of plan.
+	// Plan-specific upload size limits are enforced after form parsing.
+	r.Body = http.MaxBytesReader(w, r.Body, maxArtifactUploadHardCap+1<<20)
 	if err := r.ParseMultipartForm(32 << 20); err != nil { // 32MB in-memory; larger files spill to temp
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) {
-			_ = response.RequestEntityTooLarge(w, r, fmt.Errorf("file exceeds maximum upload size of %d MB", maxArtifactUploadSize>>20))
+			_ = response.RequestEntityTooLarge(w, r, fmt.Errorf("file exceeds maximum upload size"))
 			return
 		}
 		_ = response.BadRequest(w, r, fmt.Errorf("invalid multipart form: %w", err))
@@ -202,6 +214,19 @@ func (h *Handler) UploadArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = file.Close() }()
+
+	// Enforce plan-specific upload size limit.
+	if h.entitlements != nil {
+		if err := h.entitlements.CheckQuota(ctx, "max_artifact_upload_size", projectID, fileHeader.Size); err != nil {
+			if entitlement.IsQuotaError(err) {
+				_ = response.RequestEntityTooLarge(w, r, err)
+				return
+			}
+		}
+	} else if fileHeader.Size >= defaultMaxArtifactUploadSize {
+		_ = response.RequestEntityTooLarge(w, r, fmt.Errorf("file exceeds maximum upload size of %d MB", defaultMaxArtifactUploadSize>>20))
+		return
+	}
 
 	taskName := r.FormValue("task_name")
 	name := r.FormValue("name")
@@ -234,7 +259,7 @@ func (h *Handler) UploadArtifact(w http.ResponseWriter, r *http.Request) {
 
 	artifact, err := h.artifactService.Upload(ctx, projectID, runID, taskName, name, filepath.Base(fileHeader.Filename), file, fileHeader.Size, ttl, contentType, extraMetadata)
 	if err != nil {
-		if service.IsQuotaExceeded(err) {
+		if entitlement.IsQuotaError(err) {
 			_ = response.PaymentRequired(w, r, err)
 			return
 		}
@@ -246,22 +271,23 @@ func (h *Handler) UploadArtifact(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetArtifact godoc
-// @Summary Get artifact metadata
-// @Description Returns artifact metadata for a run
-// @Tags artifacts
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce json
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param runID path string true "Run ID" format(uuid)
-// @Param artifactID path string true "Artifact ID" format(uuid)
-// @Success 200 {object} ArtifactResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 503 {object} ErrorResponse
-// @Router /api/v1/projects/{projectId}/runs/{runID}/artifacts/{artifactID} [get]
+//
+//	@Summary		Get artifact metadata
+//	@Description	Returns artifact metadata for a run
+//	@Tags			artifacts
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			runID		path		string	true	"Run ID"		format(uuid)
+//	@Param			artifactID	path		string	true	"Artifact ID"	format(uuid)
+//	@Success		200			{object}	ArtifactResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runID}/artifacts/{artifactID} [get]
 func (h *Handler) GetArtifact(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -333,22 +359,23 @@ func (h *Handler) GetArtifact(w http.ResponseWriter, r *http.Request) {
 }
 
 // DownloadArtifact godoc
-// @Summary Download artifact content
-// @Description Downloads the artifact file content
-// @Tags artifacts
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce application/octet-stream
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param runID path string true "Run ID" format(uuid)
-// @Param artifactID path string true "Artifact ID" format(uuid)
-// @Success 200 {string} string "Artifact content"
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 503 {object} ErrorResponse
-// @Router /api/v1/projects/{projectId}/runs/{runID}/artifacts/{artifactID}/download [get]
+//
+//	@Summary		Download artifact content
+//	@Description	Downloads the artifact file content
+//	@Tags			artifacts
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		application/octet-stream
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			runID		path		string	true	"Run ID"		format(uuid)
+//	@Param			artifactID	path		string	true	"Artifact ID"	format(uuid)
+//	@Success		200			{string}	string	"Artifact content"
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runID}/artifacts/{artifactID}/download [get]
 func (h *Handler) DownloadArtifact(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -418,7 +445,7 @@ func (h *Handler) DownloadArtifact(w http.ResponseWriter, r *http.Request) {
 
 	rc, err := h.artifactService.Download(ctx, artifactID)
 	if err != nil {
-		if service.IsQuotaExceeded(err) {
+		if entitlement.IsQuotaError(err) {
 			_ = response.PaymentRequired(w, r, err)
 			return
 		}
@@ -438,22 +465,23 @@ func (h *Handler) DownloadArtifact(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteArtifact godoc
-// @Summary Delete an artifact
-// @Description Deletes an artifact and its stored content
-// @Tags artifacts
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce json
-// @Param projectId path string true "Project ID" format(uuid)
-// @Param runID path string true "Run ID" format(uuid)
-// @Param artifactID path string true "Artifact ID" format(uuid)
-// @Success 204 {object} SuccessResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 503 {object} ErrorResponse
-// @Router /api/v1/projects/{projectId}/runs/{runID}/artifacts/{artifactID} [delete]
+//
+//	@Summary		Delete an artifact
+//	@Description	Deletes an artifact and its stored content
+//	@Tags			artifacts
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"	format(uuid)
+//	@Param			runID		path		string	true	"Run ID"		format(uuid)
+//	@Param			artifactID	path		string	true	"Artifact ID"	format(uuid)
+//	@Success		204			{object}	SuccessResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		403			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/projects/{projectId}/runs/{runID}/artifacts/{artifactID} [delete]
 func (h *Handler) DeleteArtifact(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)

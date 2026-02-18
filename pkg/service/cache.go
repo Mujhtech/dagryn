@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
+	"github.com/mujhtech/dagryn/pkg/entitlement"
 	"github.com/mujhtech/dagryn/pkg/storage"
 	"github.com/rs/zerolog"
 )
@@ -61,10 +62,10 @@ type GCResult struct {
 
 // CacheService coordinates cache storage and database operations.
 type CacheService struct {
-	repo   *repo.CacheRepo
-	bucket storage.Bucket
-	logger zerolog.Logger
-	quota  *QuotaService
+	repo         *repo.CacheRepo
+	bucket       storage.Bucket
+	logger       zerolog.Logger
+	entitlements entitlement.Checker
 }
 
 // NewCacheService creates a new cache service.
@@ -76,9 +77,9 @@ func NewCacheService(cacheRepo *repo.CacheRepo, bucket storage.Bucket, logger ze
 	}
 }
 
-// SetQuotaService sets the optional quota enforcement service.
-func (s *CacheService) SetQuotaService(quota *QuotaService) {
-	s.quota = quota
+// SetEntitlements sets the entitlement checker for quota enforcement.
+func (s *CacheService) SetEntitlements(c entitlement.Checker) {
+	s.entitlements = c
 }
 
 // Check returns true if a cache entry exists for the given project/task/key.
@@ -112,18 +113,13 @@ func (s *CacheService) Check(ctx context.Context, projectID uuid.UUID, taskName,
 
 // Upload stores cache content and creates/updates the entry + blob records.
 func (s *CacheService) Upload(ctx context.Context, projectID uuid.UUID, taskName, cacheKey string, r io.Reader, size int64) error {
-	// Plan-driven quota checks (billing)
-	if s.quota != nil {
-		accountID, _ := s.quota.GetAccountForProject(ctx, projectID)
-		if accountID != uuid.Nil {
-			// Unified storage check (cache + artifacts across all projects)
-			if err := s.quota.CheckStorageUpload(ctx, accountID, size); err != nil {
-				return err // QuotaExceededError
-			}
-			// Per-resource cache storage check
-			if err := s.quota.CheckCacheUpload(ctx, accountID, size); err != nil {
-				return err // QuotaExceededError
-			}
+	// Entitlement-based quota checks (unified path for OSS + cloud).
+	if s.entitlements != nil {
+		if err := s.entitlements.CheckQuota(ctx, "storage", projectID, size); err != nil {
+			return err
+		}
+		if err := s.entitlements.CheckQuota(ctx, "cache_storage", projectID, size); err != nil {
+			return err
 		}
 	}
 
@@ -245,13 +241,10 @@ func (s *CacheService) Download(ctx context.Context, projectID uuid.UUID, taskNa
 		return nil, err
 	}
 
-	// Plan-driven bandwidth quota check
-	if s.quota != nil {
-		accountID, _ := s.quota.GetAccountForProject(ctx, projectID)
-		if accountID != uuid.Nil {
-			if err := s.quota.CheckCacheDownload(ctx, accountID, entry.SizeBytes); err != nil {
-				return nil, err // QuotaExceededError
-			}
+	// Bandwidth quota check.
+	if s.entitlements != nil {
+		if err := s.entitlements.CheckQuota(ctx, "bandwidth", projectID, entry.SizeBytes); err != nil {
+			return nil, err
 		}
 	}
 
@@ -269,6 +262,9 @@ func (s *CacheService) Download(ctx context.Context, projectID uuid.UUID, taskNa
 		}
 		_ = s.repo.IncrementUsage(bgCtx, projectID, 0, entry.SizeBytes, 0, 0)
 		_ = s.repo.IncrementBandwidthUsage(bgCtx, projectID, entry.SizeBytes)
+		if s.entitlements != nil {
+			s.entitlements.RecordUsage(bgCtx, "bandwidth", projectID, entry.SizeBytes)
+		}
 	}()
 
 	return rc, nil

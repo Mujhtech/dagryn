@@ -7,12 +7,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/mujhtech/dagryn/pkg/githubapp"
-	"github.com/mujhtech/dagryn/pkg/server/dashboard"
-	"github.com/mujhtech/dagryn/pkg/server/sse"
-	"github.com/mujhtech/dagryn/pkg/service"
-	dagrynstripe "github.com/mujhtech/dagryn/pkg/stripe"
-	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/mujhtech/dagryn/pkg/api/handlers"
 	"github.com/mujhtech/dagryn/pkg/api/middleware"
 	"github.com/mujhtech/dagryn/pkg/authn"
@@ -21,7 +15,14 @@ import (
 	"github.com/mujhtech/dagryn/pkg/database"
 	"github.com/mujhtech/dagryn/pkg/database/store"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
+	"github.com/mujhtech/dagryn/pkg/entitlement"
+	"github.com/mujhtech/dagryn/pkg/githubapp"
 	"github.com/mujhtech/dagryn/pkg/http/response"
+	"github.com/mujhtech/dagryn/pkg/licensing"
+	"github.com/mujhtech/dagryn/pkg/server/dashboard"
+	"github.com/mujhtech/dagryn/pkg/server/sse"
+	"github.com/mujhtech/dagryn/pkg/service"
+	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/mujhtech/dagryn/pkg/worker"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
@@ -38,6 +39,10 @@ type API struct {
 	deviceCodeService *authz.DeviceCodeService
 	oauthProviders    map[string]authn.Provider
 	providerEnc       encrypt.Encrypt
+	entitlements      entitlement.Checker
+	featureGate       *licensing.FeatureGate // Used for detailed license info in /license endpoint.
+	extraRoutes       func(chi.Router)       // Injected by cloud binary via RegisterExtraRoutes.
+	dashboardHandler  http.Handler           // Overrides default embedded dashboard (set by cloud binary).
 }
 
 func New(
@@ -59,9 +64,6 @@ func New(
 	artifactService *service.ArtifactService,
 	cancelManager *worker.CancelManager,
 	registryService *service.PluginRegistryService,
-	billingService *service.BillingService,
-	stripeClient *dagrynstripe.Client,
-	quotaService *service.QuotaService,
 ) (*API, error) {
 
 	h, err := handlers.New(
@@ -78,9 +80,6 @@ func New(
 		artifactService,
 		cancelManager,
 		registryService,
-		billingService,
-		stripeClient,
-		quotaService,
 		cfg.Server.BaseURL,
 	)
 	if err != nil {
@@ -100,6 +99,33 @@ func New(
 		deviceCodeService: deviceCodeService,
 		oauthProviders:    oauthProviders,
 	}, nil
+}
+
+// SetEntitlementChecker sets the unified entitlement checker for both
+// middleware and handlers. In the OSS binary this is a LicenseChecker;
+// the cloud binary overrides it with a BillingChecker.
+func (a *API) SetEntitlementChecker(c entitlement.Checker) {
+	a.entitlements = c
+	a.h.SetEntitlementChecker(c)
+}
+
+// RegisterExtraRoutes allows an external binary (e.g. dagryn-cloud) to
+// inject additional routes (e.g. /billing/*) into the protected API group.
+// Must be called before BuildRouter.
+func (a *API) RegisterExtraRoutes(fn func(chi.Router)) {
+	a.extraRoutes = fn
+}
+
+// SetDashboardHandler allows an external binary to override the default
+// embedded dashboard handler.
+func (a *API) SetDashboardHandler(h http.Handler) {
+	a.dashboardHandler = h
+}
+
+// SetFeatureGate delegates to the handler for detailed license info.
+func (a *API) SetFeatureGate(gate *licensing.FeatureGate) {
+	a.featureGate = gate
+	a.h.SetFeatureGate(gate)
 }
 
 func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
@@ -179,13 +205,16 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 
 	// API v1 routes
 	router.Route("/api/v1", func(r chi.Router) {
+		// Public capabilities endpoint — used by the dashboard to
+		// discover mode, features, and visible nav items before auth.
+		r.Get("/capabilities", a.h.GetCapabilities)
+
 		// Public workflow tooling endpoints.
 		r.Post("/workflows/translate", a.h.TranslateGitHubWorkflowYAML)
 
-		// Provider webhooks (public, no auth) - GitHub, GitLab, Bitbucket, Stripe.
+		// Provider webhooks (public, no auth) - GitHub, GitLab, Bitbucket.
 		r.Route("/webhooks", func(r chi.Router) {
 			r.Post("/github", a.h.GitHubWebhook)
-			r.Post("/stripe", a.h.StripeWebhook)
 		})
 
 		// Auth routes (mixed public and protected)
@@ -318,16 +347,20 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 								})
 							})
 
-							// AI analysis endpoints
-							r.Get("/ai-analysis", a.h.GetAIAnalysis)
-							r.Post("/ai-analysis/retry", a.h.RetryAIAnalysis)
-							r.Get("/ai-suggestions", a.h.GetAISuggestions)
-							r.Post("/ai-suggestions/post", a.h.PostAISuggestions)
+							// AI analysis endpoints (gated by ai_analysis feature)
+							r.Group(func(r chi.Router) {
+								r.Use(middleware.RequireFeature(a.entitlements, string(licensing.FeatureAIAnalysis)))
+								r.Get("/ai-analysis", a.h.GetAIAnalysis)
+								r.Post("/ai-analysis/retry", a.h.RetryAIAnalysis)
+								r.Get("/ai-suggestions", a.h.GetAISuggestions)
+								r.Post("/ai-suggestions/post", a.h.PostAISuggestions)
+							})
 						})
 					})
 
-					// Project cache
+					// Project cache (gated by cloud_cache feature)
 					r.Route("/cache", func(r chi.Router) {
+						r.Use(middleware.RequireFeature(a.entitlements, string(licensing.FeatureCloudCache)))
 						r.Get("/stats", a.h.GetCacheStats)
 						r.Get("/analytics", a.h.GetCacheAnalytics)
 						r.Post("/gc", a.h.TriggerCacheGC)
@@ -353,8 +386,11 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 						r.Post("/sync-from-toml", a.h.SyncProjectWorkflowFromToml)
 					})
 
-					// Project AI analyses
-					r.Get("/ai-analyses", a.h.ListAIAnalyses)
+					// Project AI analyses (gated by ai_analysis feature)
+					r.Group(func(r chi.Router) {
+						r.Use(middleware.RequireFeature(a.entitlements, string(licensing.FeatureAIAnalysis)))
+						r.Get("/ai-analyses", a.h.ListAIAnalyses)
+					})
 
 					// Project plugins
 					r.Route("/plugins", func(r chi.Router) {
@@ -409,21 +445,6 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 
 			})
 
-			// Billing routes
-			r.Route("/billing", func(r chi.Router) {
-
-				r.Route("/plans", func(r chi.Router) {
-					r.Get("/", a.h.ListBillingPlans)
-					r.Get(fmt.Sprintf("/{%s}", handlers.SlugParam), a.h.GetBillingPlan)
-				})
-
-				r.Get("/overview", a.h.GetBillingOverview)
-				r.Post("/checkout", a.h.CreateCheckoutSession)
-				r.Post("/portal", a.h.CreatePortalSession)
-				r.Post("/cancel", a.h.CancelSubscription)
-				r.Get("/invoices", a.h.ListInvoices)
-			})
-
 			// License status
 			r.Route("/license", func(r chi.Router) {
 				r.Get("/", a.h.GetLicenseStatus)
@@ -435,11 +456,22 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 				r.Post("/{token}/accept", a.h.AcceptInvitation)
 				r.Post("/{token}/decline", a.h.DeclineInvitation)
 			})
+
+			// Extra routes injected by the cloud binary (e.g. billing
+			// routes from dagryn-cloud via RegisterExtraRoutes).
+			if a.extraRoutes != nil {
+				a.extraRoutes(r)
+			}
 		})
 	})
 
 	// Dashboard - serve SPA for non-API routes
-	dashboardHandler := dashboard.Handler()
+	var dh http.Handler
+	if a.dashboardHandler != nil {
+		dh = a.dashboardHandler
+	} else {
+		dh = dashboard.Handler()
+	}
 	router.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 		// Don't serve dashboard for API routes or special paths
 		if strings.HasPrefix(r.URL.Path, "/api/") ||
@@ -451,7 +483,7 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 			_ = response.NotFound(w, r, errors.New("the requested resource was not found"))
 			return
 		}
-		dashboardHandler.ServeHTTP(w, r)
+		dh.ServeHTTP(w, r)
 	})
 
 	// 404 handler for API routes

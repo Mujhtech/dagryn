@@ -3,15 +3,15 @@ package handlers
 import (
 	"context"
 
-	"github.com/mujhtech/dagryn/pkg/githubapp"
-	"github.com/mujhtech/dagryn/pkg/server/sse"
-	"github.com/mujhtech/dagryn/pkg/service"
-	dagrynstripe "github.com/mujhtech/dagryn/pkg/stripe"
 	"github.com/mujhtech/dagryn/pkg/database"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
 	"github.com/mujhtech/dagryn/pkg/database/store"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
+	"github.com/mujhtech/dagryn/pkg/entitlement"
+	"github.com/mujhtech/dagryn/pkg/githubapp"
 	"github.com/mujhtech/dagryn/pkg/licensing"
+	"github.com/mujhtech/dagryn/pkg/server/sse"
+	"github.com/mujhtech/dagryn/pkg/service"
 	"github.com/mujhtech/dagryn/pkg/worker"
 )
 
@@ -50,21 +50,12 @@ type Handler struct {
 	// Plugin registry service (optional; nil when DB is not configured for registry)
 	registryService *service.PluginRegistryService
 
-	// Billing service (optional; nil when Stripe is not configured)
-	billingService *service.BillingService
+	// Unified entitlement checker (license-backed for OSS, billing-backed for cloud).
+	entitlements entitlement.Checker
 
-	// Stripe client (optional; nil when Stripe is not configured)
-	stripeClient *dagrynstripe.Client
-
-	// Quota service (optional; nil when billing is not configured)
-	quotaService *service.QuotaService
-
-	// License feature gate (optional; nil = Community edition or cloud mode)
+	// License feature gate (optional; nil = Community edition).
+	// Used by the /license endpoint for detailed claims info.
 	featureGate *licensing.FeatureGate
-
-	// cloudMode is true for the managed cloud deployment.
-	// When true, the license system is bypassed and billing handles everything.
-	cloudMode bool
 
 	// baseURL is the public-facing dashboard URL for links in GitHub check runs.
 	baseURL string
@@ -88,9 +79,6 @@ func New(
 	artifactService *service.ArtifactService,
 	cancelManager *worker.CancelManager,
 	registryService *service.PluginRegistryService,
-	billingService *service.BillingService,
-	stripeClient *dagrynstripe.Client,
-	quotaService *service.QuotaService,
 	baseURL string,
 ) (*Handler, error) {
 	return &Handler{
@@ -107,14 +95,23 @@ func New(
 		artifactService:    artifactService,
 		cancelManager:      cancelManager,
 		registryService:    registryService,
-		billingService:     billingService,
-		stripeClient:       stripeClient,
-		quotaService:       quotaService,
 		baseURL:            baseURL,
 	}, nil
 }
 
-// SetFeatureGate sets the license feature gate for edition/feature checks.
+// SetEntitlementChecker sets the unified entitlement checker.
+// In the OSS binary this is a LicenseChecker; in the cloud binary
+// it will be a BillingChecker from the private repo.
+func (h *Handler) SetEntitlementChecker(c entitlement.Checker) {
+	h.entitlements = c
+}
+
+// Entitlements returns the entitlement checker (may be nil during startup).
+func (h *Handler) Entitlements() entitlement.Checker {
+	return h.entitlements
+}
+
+// SetFeatureGate sets the license feature gate for detailed license info.
 func (h *Handler) SetFeatureGate(gate *licensing.FeatureGate) {
 	h.featureGate = gate
 }
@@ -122,15 +119,4 @@ func (h *Handler) SetFeatureGate(gate *licensing.FeatureGate) {
 // FeatureGate returns the license feature gate (may be nil).
 func (h *Handler) FeatureGate() *licensing.FeatureGate {
 	return h.featureGate
-}
-
-// SetCloudMode marks this handler as running in cloud (managed SaaS) mode.
-func (h *Handler) SetCloudMode(enabled bool) {
-	h.cloudMode = enabled
-}
-
-// IsCloudMode returns true when the server is running as the managed cloud deployment.
-// In cloud mode, the license system is not used — quota enforcement is handled by the billing system.
-func (h *Handler) IsCloudMode() bool {
-	return h.cloudMode
 }

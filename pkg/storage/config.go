@@ -1,6 +1,6 @@
 package storage
 
-import "os"
+import "github.com/kelseyhightower/envconfig"
 
 // ProviderType identifies a storage backend.
 type ProviderType string
@@ -31,15 +31,7 @@ type Config struct {
 
 // ConfigFromEnv reads storage configuration from environment variables.
 func ConfigFromEnv() Config {
-	return Config{
-		Provider:        ProviderType(os.Getenv("DAGRYN_STORAGE_PROVIDER")),
-		Bucket:          os.Getenv("DAGRYN_STORAGE_BUCKET"),
-		Region:          os.Getenv("DAGRYN_STORAGE_REGION"),
-		Endpoint:        os.Getenv("DAGRYN_STORAGE_ENDPOINT"),
-		AccessKeyID:     os.Getenv("DAGRYN_STORAGE_ACCESS_KEY_ID"),
-		SecretAccessKey: os.Getenv("DAGRYN_STORAGE_SECRET_ACCESS_KEY"),
-		Prefix:          os.Getenv("DAGRYN_STORAGE_PREFIX"),
-		BasePath:        os.Getenv("DAGRYN_STORAGE_BASE_PATH"),
-		CredentialsFile: os.Getenv("DAGRYN_STORAGE_CREDENTIALS_FILE"),
-	}
+	var cfg Config
+	_ = envconfig.Process("DAGRYN_STORAGE", &cfg)
+	return cfg
 }

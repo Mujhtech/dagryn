@@ -134,15 +134,16 @@ type GitHubRepo struct {
 }
 
 // ListGitHubRepos godoc
-// @Summary List GitHub repositories
-// @Description Lists repositories the current user has access to (requires GitHub login with repo scope)
-// @Tags providers
-// @Security BearerAuth
-// @Produce json
-// @Success 200 {array} GitHubRepo
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse "GitHub token not linked; log in with GitHub to import repos"
-// @Router /api/v1/providers/github/repos [get]
+//
+//	@Summary		List GitHub repositories
+//	@Description	Lists repositories the current user has access to (requires GitHub login with repo scope)
+//	@Tags			providers
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Success		200	{array}		GitHubRepo
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		403	{object}	ErrorResponse	"GitHub token not linked; log in with GitHub to import repos"
+//	@Router			/api/v1/providers/github/repos [get]
 func (h *Handler) ListGitHubRepos(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -225,14 +226,15 @@ type GitHubAppInstallation struct {
 }
 
 // ListGitHubAppInstallations godoc
-// @Summary List GitHub App installations
-// @Description Lists all GitHub App installations accessible to the current user
-// @Tags providers
-// @Security BearerAuth
-// @Produce json
-// @Success 200 {array} GitHubAppInstallation
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/providers/github/app/installations [get]
+//
+//	@Summary		List GitHub App installations
+//	@Description	Lists all GitHub App installations accessible to the current user
+//	@Tags			providers
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Success		200	{array}		GitHubAppInstallation
+//	@Failure		401	{object}	ErrorResponse
+//	@Router			/api/v1/providers/github/app/installations [get]
 func (h *Handler) ListGitHubAppInstallations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -263,16 +265,17 @@ func (h *Handler) ListGitHubAppInstallations(w http.ResponseWriter, r *http.Requ
 }
 
 // ListGitHubAppRepos godoc
-// @Summary List repositories for a GitHub App installation
-// @Description Lists repositories accessible via a GitHub App installation
-// @Tags providers
-// @Security BearerAuth
-// @Produce json
-// @Param installationId path string true "Installation ID (UUID)" format(uuid)
-// @Success 200 {array} GitHubRepo
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/providers/github/app/installations/{installationId}/repos [get]
+//
+//	@Summary		List repositories for a GitHub App installation
+//	@Description	Lists repositories accessible via a GitHub App installation
+//	@Tags			providers
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			installationId	path		string	true	"Installation ID (UUID)"	format(uuid)
+//	@Success		200				{array}		GitHubRepo
+//	@Failure		401				{object}	ErrorResponse
+//	@Failure		404				{object}	ErrorResponse
+//	@Router			/api/v1/providers/github/app/installations/{installationId}/repos [get]
 func (h *Handler) ListGitHubAppRepos(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)

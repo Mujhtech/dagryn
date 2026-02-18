@@ -19,7 +19,6 @@ type Store struct {
 	GitHubInstallations *repo.GitHubInstallationRepo
 	Workflows           *repo.WorkflowRepo
 	PluginRegistry      *repo.PluginRegistryRepo
-	Billing             *repo.BillingRepo
 	AI                  *repo.AIRepo
 	Cache               *repo.CacheRepo
 }
@@ -41,7 +40,6 @@ func New(
 		GitHubInstallations: repo.NewGitHubInstallationRepo(db.Pool()),
 		Workflows:           repo.NewWorkflowRepo(db.Pool()),
 		PluginRegistry:      repo.NewPluginRegistryRepo(db.Pool()),
-		Billing:             repo.NewBillingRepo(db.Pool()),
 		AI:                  repo.NewAIRepo(db.Pool()),
 		Cache:               repo.NewCacheRepo(db.Pool()),
 	}

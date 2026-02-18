@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/hibiken/asynq"
-	"github.com/mujhtech/dagryn/pkg/service"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
+	"github.com/mujhtech/dagryn/pkg/service"
 	"github.com/rs/zerolog/log"
 )
 

@@ -3,12 +3,15 @@ package config
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/mujhtech/dagryn/pkg/telemetry"
+	"github.com/joho/godotenv"
+	"github.com/kelseyhightower/envconfig"
 	"github.com/mujhtech/dagryn/pkg/database"
 	"github.com/mujhtech/dagryn/pkg/redis"
+	"github.com/mujhtech/dagryn/pkg/telemetry"
 )
 
 type CacheProvider string
@@ -49,10 +52,10 @@ type StripeConfig struct {
 
 // LicenseConfig holds self-hosted license key configuration.
 type LicenseConfig struct {
-	Key             string `toml:"key"`              // The full license key string
-	ServerURL       string `toml:"server_url"`       // External License Server URL
-	CheckRevocation *bool  `toml:"check_revocation"` // nil => default true
-	InstanceName    string `toml:"instance_name"`    // Human-readable instance name
+	Key             string `toml:"key"`                            // The full license key string
+	ServerURL       string `toml:"server_url"`                     // External License Server URL
+	CheckRevocation *bool  `toml:"check_revocation" envconfig:"-"` // nil => default true; handled manually
+	InstanceName    string `toml:"instance_name"`                  // Human-readable instance name
 }
 
 // IsRevocationCheckEnabled returns whether periodic license revocation checks are enabled.
@@ -98,14 +101,7 @@ type Config struct {
 	Stripe          StripeConfig          `toml:"stripe"`
 	License         LicenseConfig         `toml:"license"`
 	Cache           CacheConfig           `toml:"cache"`
-
-	// CloudMode when true indicates this is the managed cloud deployment.
-	// In cloud mode, the license system is completely disabled and all feature/quota
-	// gating is handled by the billing system. Self-hosted users with their own Stripe
-	// key should leave this false.
-	// Set via DAGRYN_CLOUD_MODE=true or [cloud_mode] in config.
-	CloudMode bool           `toml:"cloud_mode"`
-	AI        AIServerConfig `toml:"ai"`
+	AI              AIServerConfig        `toml:"ai"`
 }
 
 // StorageConfig holds cache storage backend configuration.
@@ -137,11 +133,11 @@ const DefaultBaseURL = "https://dagryn.dev"
 type ServerConfig struct {
 	Host            string        `toml:"host"`
 	Port            int           `toml:"port"`
-	BaseURL         string        `toml:"base_url"` // Public-facing URL (default: https://dagryn.dev)
-	ReadTimeout     time.Duration `toml:"read_timeout"`
-	WriteTimeout    time.Duration `toml:"write_timeout"`
-	ShutdownTimeout time.Duration `toml:"shutdown_timeout"`
-	Swagger         SwaggerConfig `toml:"swagger"`
+	BaseURL         string        `toml:"base_url" envconfig:"BASE_URL"` // Public-facing URL (default: https://dagryn.dev)
+	ReadTimeout     time.Duration `toml:"read_timeout" envconfig:"-"`
+	WriteTimeout    time.Duration `toml:"write_timeout" envconfig:"-"`
+	ShutdownTimeout time.Duration `toml:"shutdown_timeout" envconfig:"-"`
+	Swagger         SwaggerConfig `toml:"swagger" envconfig:"-"`
 }
 
 // SwaggerConfig holds Swagger UI configuration.
@@ -153,8 +149,8 @@ type SwaggerConfig struct {
 // AuthConfig holds authentication configuration.
 type AuthConfig struct {
 	JWTSecret        string        `toml:"jwt_secret"`
-	JWTAccessExpiry  time.Duration `toml:"jwt_access_expiry"`
-	JWTRefreshExpiry time.Duration `toml:"jwt_refresh_expiry"`
+	JWTAccessExpiry  time.Duration `toml:"jwt_access_expiry" envconfig:"-"`
+	JWTRefreshExpiry time.Duration `toml:"jwt_refresh_expiry" envconfig:"-"`
 }
 
 // OAuthConfig holds OAuth provider configuration.
@@ -166,7 +162,7 @@ type OAuthConfig struct {
 // GitHubAppConfig holds configuration for the GitHub App integration.
 type GitHubAppConfig struct {
 	// AppID is the numeric GitHub App ID.
-	AppID int64 `toml:"app_id"`
+	AppID int64 `toml:"app_id" envconfig:"ID"`
 	// ClientID is the OAuth client ID for the GitHub App (used for connect/install flows).
 	ClientID string `toml:"client_id"`
 	// PrivateKey is the PEM-encoded private key for the GitHub App.
@@ -264,6 +260,9 @@ func LoadConfig(opts ConfigOpts) (*Config, error) {
 	// Start with defaults
 	cfg := DefaultConfig()
 
+	// Load .env file + backward-compat aliases
+	LoadDotEnv()
+
 	// Load from config file if specified
 	if opts.ConfigFile != "" {
 		if err := loadConfigFile(opts.ConfigFile, &cfg); err != nil {
@@ -271,8 +270,8 @@ func LoadConfig(opts ConfigOpts) (*Config, error) {
 		}
 	}
 
-	// Override with environment variables
-	applyEnvVars(&cfg)
+	// Override with environment variables (envconfig-based)
+	ProcessEnvVars(&cfg)
 
 	// Override with CLI flags (highest priority)
 	applyCLIFlags(&cfg, opts)
@@ -297,66 +296,86 @@ func loadConfigFile(path string, cfg *Config) error {
 	return toml.Unmarshal(data, cfg)
 }
 
-// applyEnvVars applies environment variable overrides.
-func applyEnvVars(cfg *Config) {
-	// Server
-	if v := getEnvAny("DAGRYN_BASE_URL"); v != "" {
-		cfg.Server.BaseURL = v
+// dotenvOnce ensures .env loading and env normalization happen only once.
+var dotenvOnce sync.Once
+
+// LoadDotEnv loads a .env file (if present) and normalizes backward-compat
+// env var aliases. Safe to call multiple times; work is done only once.
+func LoadDotEnv() {
+	dotenvOnce.Do(func() {
+		_ = godotenv.Load() // silent if .env not found
+		normalizeEnv()
+	})
+}
+
+// normalizeEnv copies unprefixed env vars to their DAGRYN-prefixed equivalents
+// so that envconfig.Process (which reads only DAGRYN-prefixed vars) picks them up.
+// The DAGRYN-prefixed var is only set if it is not already present.
+// Aliases are listed in priority order: higher-priority aliases come first.
+func normalizeEnv() {
+	aliases := []struct{ from, to string }{
+		// Database
+		{"DATABASE_URL", "DAGRYN_DATABASE_URL"},
+		{"POSTGRES_URL", "DAGRYN_DATABASE_URL"},
+		// Auth
+		{"JWT_SECRET", "DAGRYN_JWT_SECRET"},
+		// Redis
+		{"REDIS_HOST", "DAGRYN_REDIS_HOST"},
+		{"REDIS_PORT", "DAGRYN_REDIS_PORT"},
+		{"REDIS_PASSWORD", "DAGRYN_REDIS_PASSWORD"},
+		// GitHub OAuth
+		{"GITHUB_CLIENT_ID", "DAGRYN_GITHUB_CLIENT_ID"},
+		{"GITHUB_CLIENT_SECRET", "DAGRYN_GITHUB_CLIENT_SECRET"},
+		// GitHub App
+		{"GITHUB_APP_ID", "DAGRYN_GITHUB_APP_ID"},
+		{"GITHUB_APP_CLIENT_ID", "DAGRYN_GITHUB_APP_CLIENT_ID"},
+		{"GITHUB_APP_PRIVATE_KEY", "DAGRYN_GITHUB_APP_PRIVATE_KEY"},
+		{"GITHUB_APP_WEBHOOK_SECRET", "DAGRYN_GITHUB_APP_WEBHOOK_SECRET"},
+		// Google OAuth
+		{"GOOGLE_CLIENT_ID", "DAGRYN_GOOGLE_CLIENT_ID"},
+		{"GOOGLE_CLIENT_SECRET", "DAGRYN_GOOGLE_CLIENT_SECRET"},
+		// Job
+		{"JOB_ENCRYPTION_KEY", "DAGRYN_JOB_ENCRYPTION_KEY"},
+		{"JOB_CONCURRENCY", "DAGRYN_JOB_CONCURRENCY"},
+		// Stripe
+		{"STRIPE_SECRET_KEY", "DAGRYN_STRIPE_SECRET_KEY"},
+		{"STRIPE_WEBHOOK_SECRET", "DAGRYN_STRIPE_WEBHOOK_SECRET"},
+		{"STRIPE_PUBLISHABLE_KEY", "DAGRYN_STRIPE_PUBLISHABLE_KEY"},
 	}
-	if v := os.Getenv("DAGRYN_HOST"); v != "" {
-		cfg.Server.Host = v
-	}
-	if v := os.Getenv("DAGRYN_PORT"); v != "" {
-		var port int
-		if _, err := fmt.Sscanf(v, "%d", &port); err == nil && port > 0 {
-			cfg.Server.Port = port
+	for _, a := range aliases {
+		if os.Getenv(a.to) == "" {
+			if v := os.Getenv(a.from); v != "" {
+				os.Setenv(a.to, v)
+			}
 		}
 	}
+}
 
-	// Database - check multiple env var names
-	if v := getEnvAny("DATABASE_URL", "DAGRYN_DATABASE_URL", "POSTGRES_URL"); v != "" {
-		cfg.Database.URL = v
-	}
+// ProcessEnvVars reads DAGRYN-prefixed environment variables into cfg using
+// envconfig. Each config section is processed with its own prefix so that
+// the flat env var naming (DAGRYN_HOST, not DAGRYN_SERVER_HOST) is preserved.
+// Errors are silently ignored to match the previous fail-open behavior.
+func ProcessEnvVars(cfg *Config) {
+	// Per-section envconfig processing.
+	// envconfig only overwrites fields where the env var is actually set;
+	// defaults and config-file values are preserved for unset vars.
+	_ = envconfig.Process("DAGRYN", &cfg.Server)
+	_ = envconfig.Process("DAGRYN_DATABASE", &cfg.Database)
+	_ = envconfig.Process("DAGRYN", &cfg.Auth)
+	_ = envconfig.Process("DAGRYN_REDIS", &cfg.Redis)
+	_ = envconfig.Process("DAGRYN_GITHUB", &cfg.OAuth.GitHub)
+	_ = envconfig.Process("DAGRYN_GOOGLE", &cfg.OAuth.Google)
+	_ = envconfig.Process("DAGRYN_GITHUB_APP", &cfg.GitHubApp)
+	_ = envconfig.Process("DAGRYN_JOB", &cfg.Job)
+	_ = envconfig.Process("DAGRYN_CACHE_STORAGE", &cfg.CacheStorage)
+	_ = envconfig.Process("DAGRYN_ARTIFACT_STORAGE", &cfg.ArtifactStorage)
+	_ = envconfig.Process("DAGRYN_CONTAINER", &cfg.Container)
+	_ = envconfig.Process("DAGRYN_LICENSE", &cfg.License)
+	_ = envconfig.Process("DAGRYN", &cfg.Health)
+	_ = envconfig.Process("DAGRYN_STRIPE", &cfg.Stripe)
+	_ = envconfig.Process("DAGRYN_AI", &cfg.AI)
 
-	// Auth
-	if v := getEnvAny("JWT_SECRET", "DAGRYN_JWT_SECRET"); v != "" {
-		cfg.Auth.JWTSecret = v
-	}
-
-	// GitHub OAuth
-	if v := getEnvAny("GITHUB_CLIENT_ID", "DAGRYN_GITHUB_CLIENT_ID"); v != "" {
-		cfg.OAuth.GitHub.ClientID = v
-	}
-	if v := getEnvAny("GITHUB_CLIENT_SECRET", "DAGRYN_GITHUB_CLIENT_SECRET"); v != "" {
-		cfg.OAuth.GitHub.ClientSecret = v
-	}
-
-	// GitHub App
-	if v := getEnvAny("GITHUB_APP_ID", "DAGRYN_GITHUB_APP_ID"); v != "" {
-		var id int64
-		if _, err := fmt.Sscanf(v, "%d", &id); err == nil && id > 0 {
-			cfg.GitHubApp.AppID = id
-		}
-	}
-	if v := getEnvAny("GITHUB_APP_CLIENT_ID", "DAGRYN_GITHUB_APP_CLIENT_ID"); v != "" {
-		cfg.GitHubApp.ClientID = v
-	}
-	if v := getEnvAny("GITHUB_APP_PRIVATE_KEY", "DAGRYN_GITHUB_APP_PRIVATE_KEY"); v != "" {
-		cfg.GitHubApp.PrivateKey = v
-	}
-	if v := getEnvAny("GITHUB_APP_WEBHOOK_SECRET", "DAGRYN_GITHUB_APP_WEBHOOK_SECRET"); v != "" {
-		cfg.GitHubApp.WebhookSecret = v
-	}
-
-	// Google OAuth
-	if v := getEnvAny("GOOGLE_CLIENT_ID", "DAGRYN_GOOGLE_CLIENT_ID"); v != "" {
-		cfg.OAuth.Google.ClientID = v
-	}
-	if v := getEnvAny("GOOGLE_CLIENT_SECRET", "DAGRYN_GOOGLE_CLIENT_SECRET"); v != "" {
-		cfg.OAuth.Google.ClientSecret = v
-	}
-
-	// Telemetry
+	// OTEL vars use standard naming (not DAGRYN-prefixed).
 	if v := os.Getenv("OTEL_SERVICE_NAME"); v != "" {
 		cfg.Telemetry.ServiceName = v
 	}
@@ -365,204 +384,11 @@ func applyEnvVars(cfg *Config) {
 		cfg.Telemetry.Metrics.Endpoint = v
 	}
 
-	// Redis
-	if v := getEnvAny("REDIS_HOST", "DAGRYN_REDIS_HOST"); v != "" {
-		cfg.Redis.Host = v
-	}
-	if v := getEnvAny("REDIS_PORT", "DAGRYN_REDIS_PORT"); v != "" {
-		var port int
-		if _, err := fmt.Sscanf(v, "%d", &port); err == nil && port > 0 {
-			cfg.Redis.Port = port
-		}
-	}
-	if v := getEnvAny("REDIS_PASSWORD", "DAGRYN_REDIS_PASSWORD"); v != "" {
-		cfg.Redis.Password = v
-	}
-
-	// Job
-	if v := getEnvAny("JOB_ENCRYPTION_KEY", "DAGRYN_JOB_ENCRYPTION_KEY"); v != "" {
-		cfg.Job.EncryptionKey = v
-	}
-	if v := os.Getenv("DAGRYN_JOB_ENABLED"); v == "true" || v == "1" {
-		cfg.Job.Enabled = true
-	}
-
-	// Cache Storage
-	if v := getEnvAny("DAGRYN_CACHE_STORAGE_PROVIDER"); v != "" {
-		cfg.CacheStorage.Provider = v
-	}
-	if v := getEnvAny("DAGRYN_CACHE_STORAGE_BUCKET"); v != "" {
-		cfg.CacheStorage.Bucket = v
-	}
-	if v := getEnvAny("DAGRYN_CACHE_STORAGE_REGION"); v != "" {
-		cfg.CacheStorage.Region = v
-	}
-	if v := getEnvAny("DAGRYN_CACHE_STORAGE_ENDPOINT"); v != "" {
-		cfg.CacheStorage.Endpoint = v
-	}
-	if v := getEnvAny("DAGRYN_CACHE_STORAGE_ACCESS_KEY_ID"); v != "" {
-		cfg.CacheStorage.AccessKeyID = v
-	}
-	if v := getEnvAny("DAGRYN_CACHE_STORAGE_SECRET_ACCESS_KEY"); v != "" {
-		cfg.CacheStorage.SecretAccessKey = v
-	}
-	if v := getEnvAny("DAGRYN_CACHE_STORAGE_BASE_PATH"); v != "" {
-		cfg.CacheStorage.BasePath = v
-	}
-	if v := getEnvAny("DAGRYN_CACHE_STORAGE_PREFIX"); v != "" {
-		cfg.CacheStorage.Prefix = v
-	}
-	if v := getEnvAny("DAGRYN_CACHE_STORAGE_CREDENTIALS_FILE"); v != "" {
-		cfg.CacheStorage.CredentialsFile = v
-	}
-	if v := os.Getenv("DAGRYN_CACHE_STORAGE_USE_PATH_STYLE"); v == "true" || v == "1" {
-		cfg.CacheStorage.UsePathStyle = true
-	}
-
-	// Artifact Storage
-	if v := getEnvAny("DAGRYN_ARTIFACT_STORAGE_PROVIDER"); v != "" {
-		cfg.ArtifactStorage.Provider = v
-	}
-	if v := getEnvAny("DAGRYN_ARTIFACT_STORAGE_BUCKET"); v != "" {
-		cfg.ArtifactStorage.Bucket = v
-	}
-	if v := getEnvAny("DAGRYN_ARTIFACT_STORAGE_REGION"); v != "" {
-		cfg.ArtifactStorage.Region = v
-	}
-	if v := getEnvAny("DAGRYN_ARTIFACT_STORAGE_ENDPOINT"); v != "" {
-		cfg.ArtifactStorage.Endpoint = v
-	}
-	if v := getEnvAny("DAGRYN_ARTIFACT_STORAGE_ACCESS_KEY_ID"); v != "" {
-		cfg.ArtifactStorage.AccessKeyID = v
-	}
-	if v := getEnvAny("DAGRYN_ARTIFACT_STORAGE_SECRET_ACCESS_KEY"); v != "" {
-		cfg.ArtifactStorage.SecretAccessKey = v
-	}
-	if v := getEnvAny("DAGRYN_ARTIFACT_STORAGE_BASE_PATH"); v != "" {
-		cfg.ArtifactStorage.BasePath = v
-	}
-	if v := getEnvAny("DAGRYN_ARTIFACT_STORAGE_PREFIX"); v != "" {
-		cfg.ArtifactStorage.Prefix = v
-	}
-	if v := getEnvAny("DAGRYN_ARTIFACT_STORAGE_CREDENTIALS_FILE"); v != "" {
-		cfg.ArtifactStorage.CredentialsFile = v
-	}
-	if v := os.Getenv("DAGRYN_ARTIFACT_STORAGE_USE_PATH_STYLE"); v == "true" || v == "1" {
-		cfg.ArtifactStorage.UsePathStyle = true
-	}
-
-	// Container
-	if v := os.Getenv("DAGRYN_CONTAINER_ENABLED"); v == "true" || v == "1" {
-		cfg.Container.Enabled = true
-	}
-	if v := getEnvAny("DAGRYN_CONTAINER_DEFAULT_IMAGE"); v != "" {
-		cfg.Container.DefaultImage = v
-	}
-	if v := getEnvAny("DAGRYN_CONTAINER_MEMORY_LIMIT"); v != "" {
-		cfg.Container.MemoryLimit = v
-	}
-	if v := getEnvAny("DAGRYN_CONTAINER_CPU_LIMIT"); v != "" {
-		cfg.Container.CPULimit = v
-	}
-	if v := getEnvAny("DAGRYN_CONTAINER_NETWORK"); v != "" {
-		cfg.Container.Network = v
-	}
-
-	// License
-	if v := getEnvAny("DAGRYN_LICENSE_KEY"); v != "" {
-		cfg.License.Key = v
-	}
-	if v := getEnvAny("DAGRYN_LICENSE_SERVER_URL"); v != "" {
-		cfg.License.ServerURL = v
-	}
+	// LicenseConfig.CheckRevocation is *bool — envconfig can't reliably
+	// handle pointer-to-bool with our "nil means default true" semantics.
 	if v := os.Getenv("DAGRYN_LICENSE_CHECK_REVOCATION"); v == "false" || v == "0" {
 		f := false
 		cfg.License.CheckRevocation = &f
-	}
-	if v := getEnvAny("DAGRYN_LICENSE_INSTANCE_NAME"); v != "" {
-		cfg.License.InstanceName = v
-	}
-
-	// Health
-	if v := os.Getenv("DAGRYN_READY_CHECK_DATABASE"); v == "false" || v == "0" {
-		cfg.Health.ReadyCheckDatabase = false
-	}
-	if v := os.Getenv("DAGRYN_READY_CHECK_REDIS"); v == "true" || v == "1" {
-		cfg.Health.ReadyCheckRedis = true
-	}
-
-	// Cloud mode
-	if v := os.Getenv("DAGRYN_CLOUD_MODE"); v == "true" || v == "1" {
-		cfg.CloudMode = true
-	}
-	// AI
-	if v := os.Getenv("DAGRYN_AI_ENABLED"); v == "true" || v == "1" {
-		cfg.AI.Enabled = true
-	}
-	if v := getEnvAny("DAGRYN_AI_PROVIDER"); v != "" {
-		cfg.AI.Provider = v
-	}
-	if v := getEnvAny("DAGRYN_AI_API_KEY"); v != "" {
-		cfg.AI.APIKey = v
-	}
-	if v := os.Getenv("DAGRYN_AI_TIMEOUT_SECONDS"); v != "" {
-		var secs int
-		if _, err := fmt.Sscanf(v, "%d", &secs); err == nil && secs > 0 {
-			cfg.AI.TimeoutSeconds = secs
-		}
-	}
-	if v := os.Getenv("DAGRYN_AI_MAX_TOKENS"); v != "" {
-		var tokens int
-		if _, err := fmt.Sscanf(v, "%d", &tokens); err == nil && tokens > 0 {
-			cfg.AI.MaxTokens = tokens
-		}
-	}
-	if v := getEnvAny("DAGRYN_AI_BACKEND_MODE"); v != "" {
-		cfg.AI.BackendMode = v
-	}
-	if v := getEnvAny("DAGRYN_AI_AGENT_ENDPOINT"); v != "" {
-		cfg.AI.AgentEndpoint = v
-	}
-	if v := getEnvAny("DAGRYN_AI_AGENT_TOKEN"); v != "" {
-		cfg.AI.AgentToken = v
-	}
-	if v := os.Getenv("DAGRYN_AI_MAX_ANALYSES_PER_HOUR"); v != "" {
-		var n int
-		if _, err := fmt.Sscanf(v, "%d", &n); err == nil && n > 0 {
-			cfg.AI.MaxAnalysesPerHour = n
-		}
-	}
-	if v := os.Getenv("DAGRYN_AI_COOLDOWN_SECONDS"); v != "" {
-		var n int
-		if _, err := fmt.Sscanf(v, "%d", &n); err == nil && n > 0 {
-			cfg.AI.CooldownSeconds = n
-		}
-	}
-	if v := os.Getenv("DAGRYN_AI_MAX_CONCURRENT_ANALYSES"); v != "" {
-		var n int
-		if _, err := fmt.Sscanf(v, "%d", &n); err == nil && n > 0 {
-			cfg.AI.MaxConcurrentAnalyses = n
-		}
-	}
-	if v := os.Getenv("DAGRYN_AI_RAW_RESPONSE_TTL_HOURS"); v != "" {
-		var n int
-		if _, err := fmt.Sscanf(v, "%d", &n); err == nil && n > 0 {
-			cfg.AI.RawResponseTTLHours = n
-		}
-	}
-	if v := getEnvAny("DAGRYN_AI_RAW_RESPONSE_STORAGE"); v != "" {
-		cfg.AI.RawResponseStorage = v
-	}
-
-	// Stripe
-	if v := getEnvAny("STRIPE_SECRET_KEY", "DAGRYN_STRIPE_SECRET_KEY"); v != "" {
-		cfg.Stripe.SecretKey = v
-	}
-	if v := getEnvAny("STRIPE_WEBHOOK_SECRET", "DAGRYN_STRIPE_WEBHOOK_SECRET"); v != "" {
-		cfg.Stripe.WebhookSecret = v
-	}
-	if v := getEnvAny("STRIPE_PUBLISHABLE_KEY", "DAGRYN_STRIPE_PUBLISHABLE_KEY"); v != "" {
-		cfg.Stripe.PublishableKey = v
 	}
 }
 
@@ -610,6 +436,21 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	// Redis is required for job queues, caching, and pub/sub
+	if c.Redis.Host == "" {
+		return &ConfigError{
+			Field:   "redis.host",
+			Message: "Redis host is required. Set via DAGRYN_REDIS_HOST env var or config file.",
+		}
+	}
+
+	if c.Redis.Port <= 0 {
+		return &ConfigError{
+			Field:   "redis.port",
+			Message: "Redis port must be a positive integer. Set via DAGRYN_REDIS_PORT env var or config file.",
+		}
+	}
+
 	// At least one OAuth provider must be configured
 	hasOAuth := (c.OAuth.GitHub.ClientID != "" && c.OAuth.GitHub.ClientSecret != "") ||
 		(c.OAuth.Google.ClientID != "" && c.OAuth.Google.ClientSecret != "")
@@ -636,14 +477,4 @@ type ConfigError struct {
 
 func (e *ConfigError) Error() string {
 	return fmt.Sprintf("config error: %s: %s", e.Field, e.Message)
-}
-
-// getEnvAny returns the value of the first non-empty environment variable.
-func getEnvAny(keys ...string) string {
-	for _, key := range keys {
-		if v := os.Getenv(key); v != "" {
-			return v
-		}
-	}
-	return ""
 }

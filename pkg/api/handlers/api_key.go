@@ -12,14 +12,15 @@ import (
 )
 
 // ListUserAPIKeys godoc
-// @Summary List user API keys
-// @Description Returns all API keys for the current user (user-scoped keys)
-// @Tags api-keys
-// @Security BearerAuth
-// @Produce json
-// @Success 200 {object} []APIKeyResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/api-keys [get]
+//
+//	@Summary		List user API keys
+//	@Description	Returns all API keys for the current user (user-scoped keys)
+//	@Tags			api-keys
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Success		200	{object}	[]APIKeyResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Router			/api/v1/api-keys [get]
 func (h *Handler) ListUserAPIKeys(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -43,17 +44,18 @@ func (h *Handler) ListUserAPIKeys(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateUserAPIKey godoc
-// @Summary Create user API key
-// @Description Creates a new user-scoped API key (access to all user's projects)
-// @Tags api-keys
-// @Security BearerAuth
-// @Accept json
-// @Produce json
-// @Param body body CreateAPIKeyRequest true "Create API key request"
-// @Success 201 {object} APIKeyCreatedResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/api-keys [post]
+//
+//	@Summary		Create user API key
+//	@Description	Creates a new user-scoped API key (access to all user's projects)
+//	@Tags			api-keys
+//	@Security		BearerAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		CreateAPIKeyRequest	true	"Create API key request"
+//	@Success		201		{object}	APIKeyCreatedResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Router			/api/v1/api-keys [post]
 func (h *Handler) CreateUserAPIKey(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -107,15 +109,16 @@ func (h *Handler) CreateUserAPIKey(w http.ResponseWriter, r *http.Request) {
 }
 
 // RevokeUserAPIKey godoc
-// @Summary Revoke user API key
-// @Description Revokes a user-scoped API key
-// @Tags api-keys
-// @Security BearerAuth
-// @Param keyId path string true "API Key ID" format(uuid)
-// @Success 204 "No Content"
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/api-keys/{keyId} [delete]
+//
+//	@Summary		Revoke user API key
+//	@Description	Revokes a user-scoped API key
+//	@Tags			api-keys
+//	@Security		BearerAuth
+//	@Param			keyId	path	string	true	"API Key ID"	format(uuid)
+//	@Success		204		"No Content"
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Router			/api/v1/api-keys/{keyId} [delete]
 func (h *Handler) RevokeUserAPIKey(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)

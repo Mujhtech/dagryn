@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
+	"github.com/mujhtech/dagryn/pkg/config"
 	"github.com/mujhtech/dagryn/pkg/database"
 )
 
@@ -99,13 +100,8 @@ func getDatabaseURL(override string) string {
 	if override != "" {
 		return override
 	}
-	if url := os.Getenv("DATABASE_URL"); url != "" {
-		return url
-	}
+	config.LoadDotEnv()
 	if url := os.Getenv("DAGRYN_DATABASE_URL"); url != "" {
-		return url
-	}
-	if url := os.Getenv("POSTGRES_URL"); url != "" {
 		return url
 	}
 	return database.DefaultConfig().URL

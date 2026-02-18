@@ -18,6 +18,25 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
+// extraMigrationSources holds additional filesystems registered by external
+// packages (e.g. the private billing repo). Each FS must contain migration
+// files under a "migrations/" directory. Accepts fs.FS so both embed.FS and
+// testing/fstest.MapFS work.
+var extraMigrationSources []fs.FS
+
+// RegisterMigrations adds an additional filesystem of migration files.
+// Call before DB.Migrate(). The FS must contain files at "migrations/" prefix.
+// This is the extension point for the cloud binary to register billing migrations.
+func RegisterMigrations(fsys fs.FS) {
+	extraMigrationSources = append(extraMigrationSources, fsys)
+}
+
+// ResetExtraMigrations clears all registered extra migration sources.
+// This is intended for use in tests only.
+func ResetExtraMigrations() {
+	extraMigrationSources = nil
+}
+
 // Config holds database configuration.
 type Config struct {
 	URL             string        `toml:"url"`
@@ -293,45 +312,59 @@ type MigrationInfo struct {
 	AppliedAt *time.Time
 }
 
-// loadMigrations loads all migration files from the embedded filesystem.
+// loadMigrations loads all migration files from the embedded filesystem and
+// any additional sources registered via RegisterMigrations. Migrations from
+// all sources are merged and sorted by version number. Duplicate version
+// numbers across sources are detected and cause an error.
 func loadMigrations() ([]Migration, error) {
-	entries, err := fs.ReadDir(migrationsFS, "migrations")
-	if err != nil {
-		return nil, err
-	}
-
+	sources := append([]fs.FS{migrationsFS}, extraMigrationSources...)
 	var migrations []Migration
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		// Only process .up.sql files or files without .down.sql suffix
-		if strings.HasSuffix(name, ".down.sql") {
-			continue
-		}
+	seen := make(map[int]string) // version → name (for conflict detection)
 
-		// Parse version from filename (e.g., "001_users.sql" -> 1)
-		var version int
-		var migrationName string
-		if _, err := fmt.Sscanf(name, "%d_%s", &version, &migrationName); err != nil {
-			continue // Skip files that don't match the pattern
-		}
-
-		// Remove .sql or .up.sql suffix
-		migrationName = strings.TrimSuffix(migrationName, ".up.sql")
-		migrationName = strings.TrimSuffix(migrationName, ".sql")
-
-		content, err := fs.ReadFile(migrationsFS, "migrations/"+name)
+	for _, source := range sources {
+		entries, err := fs.ReadDir(source, "migrations")
 		if err != nil {
-			return nil, fmt.Errorf("failed to read migration %s: %w", name, err)
+			continue // extra source may not have a migrations/ dir
 		}
 
-		migrations = append(migrations, Migration{
-			Version: version,
-			Name:    migrationName,
-			SQL:     string(content),
-		})
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			name := entry.Name()
+			// Only process .up.sql files or files without .down.sql suffix
+			if strings.HasSuffix(name, ".down.sql") {
+				continue
+			}
+
+			// Parse version from filename (e.g., "001_users.sql" -> 1)
+			var version int
+			var migrationName string
+			if _, err := fmt.Sscanf(name, "%d_%s", &version, &migrationName); err != nil {
+				continue // Skip files that don't match the pattern
+			}
+
+			// Remove .sql or .up.sql suffix
+			migrationName = strings.TrimSuffix(migrationName, ".up.sql")
+			migrationName = strings.TrimSuffix(migrationName, ".sql")
+
+			// Conflict detection
+			if prev, ok := seen[version]; ok {
+				return nil, fmt.Errorf("migration version %d conflict: %q and %q", version, prev, migrationName)
+			}
+			seen[version] = migrationName
+
+			content, err := fs.ReadFile(source, "migrations/"+name)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read migration %s: %w", name, err)
+			}
+
+			migrations = append(migrations, Migration{
+				Version: version,
+				Name:    migrationName,
+				SQL:     string(content),
+			})
+		}
 	}
 
 	// Sort by version
@@ -342,22 +375,27 @@ func loadMigrations() ([]Migration, error) {
 	return migrations, nil
 }
 
-// loadDownMigration loads a down migration file.
+// loadDownMigration loads a down migration file, searching the core
+// embedded filesystem first and then any registered extra sources.
 func loadDownMigration(version int) (string, error) {
-	entries, err := fs.ReadDir(migrationsFS, "migrations")
-	if err != nil {
-		return "", err
-	}
-
+	sources := append([]fs.FS{migrationsFS}, extraMigrationSources...)
 	prefix := fmt.Sprintf("%03d_", version)
-	for _, entry := range entries {
-		name := entry.Name()
-		if strings.HasPrefix(name, prefix) && strings.HasSuffix(name, ".down.sql") {
-			content, err := fs.ReadFile(migrationsFS, "migrations/"+name)
-			if err != nil {
-				return "", err
+
+	for _, source := range sources {
+		entries, err := fs.ReadDir(source, "migrations")
+		if err != nil {
+			continue
+		}
+
+		for _, entry := range entries {
+			name := entry.Name()
+			if strings.HasPrefix(name, prefix) && strings.HasSuffix(name, ".down.sql") {
+				content, err := fs.ReadFile(source, "migrations/"+name)
+				if err != nil {
+					return "", err
+				}
+				return string(content), nil
 			}
-			return string(content), nil
 		}
 	}
 

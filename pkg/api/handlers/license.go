@@ -36,11 +36,19 @@ type UsageEntry struct {
 	Limit   *int64 `json:"limit"` // null = unlimited
 }
 
-// GetLicenseStatus returns the current license status.
-// GET /api/v1/license
+// GetLicenseStatus godoc
+//
+//	@Summary		Get license status
+//	@Description	Returns the current license status including features and limits
+//	@Tags			license
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Success		200	{object}	LicenseStatusResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Router			/api/v1/license [get]
 func (h *Handler) GetLicenseStatus(w http.ResponseWriter, r *http.Request) {
-	// In cloud mode, license is not applicable — billing handles everything.
-	if h.IsCloudMode() {
+	if h.entitlements != nil && h.entitlements.Mode() == "cloud" {
 		_ = response.Ok(w, r, "License status retrieved", LicenseStatusResponse{
 			Mode:     "cloud",
 			Edition:  "cloud",
@@ -98,6 +106,13 @@ func buildFeatureMap(gate *licensing.FeatureGate) map[string]bool {
 		licensing.FeatureMultiCluster,
 		licensing.FeatureDashboardFull,
 		licensing.FeatureCloudCache,
+		licensing.FeatureLogRetention,
+		licensing.FeatureArtifactRetention,
+		licensing.FeatureStorage,
+		licensing.FeatureAIAnalysis,
+		licensing.FeatureAISuggestions,
+		licensing.FeatureCacheTTL,
+		licensing.FeatureSaml,
 	}
 
 	m := make(map[string]bool, len(features))

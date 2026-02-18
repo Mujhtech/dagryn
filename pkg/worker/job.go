@@ -4,13 +4,12 @@ import (
 	"context"
 
 	"github.com/hibiken/asynq"
-	"github.com/mujhtech/dagryn/pkg/server/sse"
-	"github.com/mujhtech/dagryn/pkg/service"
-	dagrynstripe "github.com/mujhtech/dagryn/pkg/stripe"
-	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/mujhtech/dagryn/pkg/database/store"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
 	"github.com/mujhtech/dagryn/pkg/redis"
+	"github.com/mujhtech/dagryn/pkg/server/sse"
+	"github.com/mujhtech/dagryn/pkg/service"
+	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/mujhtech/dagryn/pkg/worker/handlers"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
@@ -34,8 +33,6 @@ type Job struct {
 	artifactService   *service.ArtifactService
 	containerDefaults *handlers.ContainerDefaults
 	eventPublisher    sse.EventPublisher
-	stripeClient      *dagrynstripe.Client
-	quotaService      *service.QuotaService
 	aiConfig          *handlers.AIAnalysisConfig
 	metrics           *telemetry.Metrics
 	baseURL           string
@@ -66,10 +63,6 @@ type Config struct {
 	// EventPublisher publishes SSE events to Redis for real-time browser updates (optional).
 	EventPublisher sse.EventPublisher
 
-	// StripeClient is the Stripe client for reporting usage (optional).
-	StripeClient *dagrynstripe.Client
-	// QuotaService is the quota enforcement service (optional).
-	QuotaService *service.QuotaService
 	// AIConfig holds AI analysis job configuration (optional).
 	AIConfig *handlers.AIAnalysisConfig
 	// Metrics holds OTel metric instruments (optional).
@@ -123,8 +116,6 @@ func New(cfg Config, appCtx context.Context, rds *redis.Redis) (*Job, error) {
 		artifactService:   cfg.ArtifactService,
 		containerDefaults: cfg.ContainerDefaults,
 		eventPublisher:    eventPub,
-		stripeClient:      cfg.StripeClient,
-		quotaService:      cfg.QuotaService,
 		aiConfig:          cfg.AIConfig,
 		metrics:           cfg.Metrics,
 		baseURL:           cfg.BaseURL,
@@ -156,7 +147,6 @@ func (j *Job) RegisterAndStart() error {
 		j.CancelManager,
 		j.containerDefaults,
 		j.eventPublisher,
-		j.quotaService,
 		j.Client,
 		j.baseURL,
 	)
@@ -179,29 +169,6 @@ func (j *Job) RegisterAndStart() error {
 		j.Scheduler.RegisterTask("0 2 * * *", ScheduleQueueName, ArtifactCleanupTaskName) // daily at 02:00
 	}
 
-	// Register billing usage rollup handler if billing repo is available
-
-	usageRollupHandler := handlers.NewUsageRollupHandler(j.store.Billing, j.stripeClient)
-	j.Executor.RegisterJobHandler(UsageRollupTaskName, asynq.HandlerFunc(usageRollupHandler.Handle))
-	j.Scheduler.RegisterTask("0 */6 * * *", ScheduleQueueName, UsageRollupTaskName) // every 6 hours
-
-	bandwidthResetHandler := handlers.NewBandwidthResetHandler(j.store.Billing)
-	j.Executor.RegisterJobHandler(BandwidthResetTaskName, asynq.HandlerFunc(bandwidthResetHandler.Handle))
-	j.Scheduler.RegisterTask("0 0 * * *", ScheduleQueueName, BandwidthResetTaskName) // daily at midnight
-
-	// Register retention cleanup handler if billing and quota services are available
-	if j.quotaService != nil {
-		retentionHandler := handlers.NewRetentionCleanupHandler(
-			j.store.Billing,
-			j.store.Artifacts,
-			j.store.Runs,
-			j.store.Cache,
-			j.quotaService,
-		)
-		j.Executor.RegisterJobHandler(RetentionCleanupTaskName, asynq.HandlerFunc(retentionHandler.Handle))
-		j.Scheduler.RegisterTask("0 3 * * *", ScheduleQueueName, RetentionCleanupTaskName) // daily at 03:00
-	}
-
 	// Register AI handlers when AI repo is available.
 	// The project's dagryn.toml controls whether AI is enabled per-run;
 	// handlers are always registered so jobs enqueued by any project can be processed.
@@ -214,8 +181,6 @@ func (j *Job) RegisterAndStart() error {
 		j.aiConfig,
 		j.Client,
 		log.Logger,
-		j.quotaService,
-		j.store.Billing,
 		j.metrics,
 	)
 	j.Executor.RegisterJobHandler(AIAnalysisTaskName, asynq.HandlerFunc(aiHandler.Handle))

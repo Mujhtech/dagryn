@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
-	"github.com/mujhtech/dagryn/pkg/notification"
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
+	"github.com/mujhtech/dagryn/pkg/notification"
 	"github.com/rs/zerolog"
 )
 

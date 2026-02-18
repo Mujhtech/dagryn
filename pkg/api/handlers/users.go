@@ -11,18 +11,17 @@ import (
 	"github.com/mujhtech/dagryn/pkg/http/response"
 )
 
-// --- User Handlers ---
-
 // GetCurrentUser godoc
-// @Summary Get current user
-// @Description Returns the currently authenticated user's profile
-// @Tags users
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Produce json
-// @Success 200 {object} UserResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/users/me [get]
+//
+//	@Summary		Get current user
+//	@Description	Returns the currently authenticated user's profile
+//	@Tags			users
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Success		200	{object}	UserResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Router			/api/v1/users/me [get]
 func (h *Handler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	user := apiCtx.GetUser(r.Context())
 	if user == nil {
@@ -34,18 +33,19 @@ func (h *Handler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateCurrentUser godoc
-// @Summary Update current user
-// @Description Updates the currently authenticated user's profile
-// @Tags users
-// @Security BearerAuth
-// @Security APIKeyAuth
-// @Accept json
-// @Produce json
-// @Param body body UpdateUserRequest true "Update user request"
-// @Success 200 {object} UserResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/users/me [patch]
+//
+//	@Summary		Update current user
+//	@Description	Updates the currently authenticated user's profile
+//	@Tags			users
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		UpdateUserRequest	true	"Update user request"
+//	@Success		200		{object}	UserResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Router			/api/v1/users/me [patch]
 func (h *Handler) UpdateCurrentUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -75,8 +75,6 @@ func (h *Handler) UpdateCurrentUser(w http.ResponseWriter, r *http.Request) {
 
 	_ = response.Ok(w, r, "User updated successfully", userModelToResponse(user))
 }
-
-// --- Helper functions ---
 
 func userModelToResponse(user *models.User) UserResponse {
 	resp := UserResponse{

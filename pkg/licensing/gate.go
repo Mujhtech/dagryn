@@ -155,6 +155,8 @@ func checkCommunityLimit(resource string, current int64) error {
 		limit = int64(communityLimits.maxConcurrentRuns)
 	case "max_artifact_bytes":
 		limit = communityLimits.maxArtifactBytes
+	case "max_artifact_upload_size":
+		limit = communityLimits.maxArtifactUploadSize
 	default:
 		return nil // unknown resource, no limit
 	}
@@ -186,6 +188,8 @@ func checkClaimsLimit(limits *Limits, resource string, current int64) error {
 		}
 	case "max_artifact_bytes":
 		limitPtr = limits.MaxArtifactBytes
+	case "max_artifact_upload_size":
+		limitPtr = limits.MaxArtifactUploadSize
 	default:
 		return nil // unknown resource, no limit
 	}

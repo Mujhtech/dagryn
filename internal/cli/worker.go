@@ -5,25 +5,23 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
-	"github.com/mujhtech/dagryn/pkg/githubapp"
-	"github.com/mujhtech/dagryn/pkg/server/sse"
-	"github.com/mujhtech/dagryn/pkg/service"
-	dagrynstripe "github.com/mujhtech/dagryn/pkg/stripe"
-	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/mujhtech/dagryn/pkg/cache"
 	"github.com/mujhtech/dagryn/pkg/config"
 	"github.com/mujhtech/dagryn/pkg/database"
 	"github.com/mujhtech/dagryn/pkg/database/store"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
+	"github.com/mujhtech/dagryn/pkg/githubapp"
 	"github.com/mujhtech/dagryn/pkg/licensing"
 	"github.com/mujhtech/dagryn/pkg/redis"
+	"github.com/mujhtech/dagryn/pkg/server/sse"
+	"github.com/mujhtech/dagryn/pkg/service"
 	"github.com/mujhtech/dagryn/pkg/storage"
+	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/mujhtech/dagryn/pkg/worker"
 	jobhandlers "github.com/mujhtech/dagryn/pkg/worker/handlers"
 )
@@ -97,10 +95,11 @@ func runWorker(opts WorkerConfigOpts) error {
 	cfg, err := config.LoadConfig(serverOpts)
 	if err != nil {
 		// Worker doesn't need OAuth, so we can proceed even if validation fails
-		// for OAuth-related fields. Load defaults and apply env vars manually.
+		// for OAuth-related fields. Load defaults and apply env vars.
 		cfg = &config.Config{}
 		*cfg = config.DefaultConfig()
-		applyWorkerEnvVars(cfg)
+		config.LoadDotEnv()
+		config.ProcessEnvVars(cfg)
 	}
 
 	// Apply CLI flag overrides
@@ -213,13 +212,9 @@ func runWorker(opts WorkerConfigOpts) error {
 		}
 	}
 
-	// Validate license key (self-hosted only).
-	// In cloud mode, the billing system handles quota/features;
-	// license gating is skipped entirely.
+	// Validate license key.
 	var featureGate *licensing.FeatureGate
-	if cfg.CloudMode {
-		log.Info().Msg("Cloud mode enabled -- license system disabled")
-	} else if cfg.License.Key != "" {
+	if cfg.License.Key != "" {
 		keys, err := licensing.ParsePublicKeys()
 		if err != nil || len(keys) == 0 {
 			log.Warn().Err(err).Msg("License keyring unavailable -- running as Community edition")
@@ -245,19 +240,10 @@ func runWorker(opts WorkerConfigOpts) error {
 
 	// Create job configuration
 	// Build container defaults from server config.
-	// In cloud mode, containers are always allowed (billing handles limits).
-	// In self-hosted mode, container execution requires a Pro or Enterprise license.
+	// Container execution requires a Pro or Enterprise license.
 	var containerDefaults *jobhandlers.ContainerDefaults
 	if cfg.Container.Enabled {
-		if cfg.CloudMode {
-			containerDefaults = &jobhandlers.ContainerDefaults{
-				Enabled:      cfg.Container.Enabled,
-				DefaultImage: cfg.Container.DefaultImage,
-				MemoryLimit:  cfg.Container.MemoryLimit,
-				CPULimit:     cfg.Container.CPULimit,
-				Network:      cfg.Container.Network,
-			}
-		} else if featureGate == nil || !featureGate.HasFeature(licensing.FeatureContainerExecution) {
+		if featureGate == nil || !featureGate.HasFeature(licensing.FeatureContainerExecution) {
 			log.Warn().Msg("Container execution requires a Pro or Enterprise license -- disabled")
 		} else {
 			containerDefaults = &jobhandlers.ContainerDefaults{
@@ -293,26 +279,6 @@ func runWorker(opts WorkerConfigOpts) error {
 		log.Debug().Msg("AI analysis repo and config initialized for worker")
 	}
 
-	// Initialize billing repo and related repos for usage rollup, bandwidth reset, and retention jobs
-	var stripeClient *dagrynstripe.Client
-
-	if cfg.Stripe.SecretKey != "" {
-		stripeClient = dagrynstripe.New(dagrynstripe.Config{
-			SecretKey:      cfg.Stripe.SecretKey,
-			WebhookSecret:  cfg.Stripe.WebhookSecret,
-			PublishableKey: cfg.Stripe.PublishableKey,
-		})
-		log.Debug().Msg("Stripe client initialized for worker")
-	}
-
-	// Initialize quota service for plan enforcement in job handlers
-
-	quotaService := service.NewQuotaService(store.Billing, store.Projects, log.Logger)
-	if cacheService != nil {
-		cacheService.SetQuotaService(quotaService)
-	}
-	log.Debug().Msg("Quota enforcement service initialized for worker")
-
 	// Initialize telemetry metrics for job handlers
 	var metrics *telemetry.Metrics
 	if cfg.Telemetry.Enabled {
@@ -341,8 +307,6 @@ func runWorker(opts WorkerConfigOpts) error {
 		ArtifactService:      artifactService,
 		ContainerDefaults:    containerDefaults,
 		EventPublisher:       eventPublisher,
-		StripeClient:         stripeClient,
-		QuotaService:         quotaService,
 		AIConfig:             aiConfig,
 		Metrics:              metrics,
 		BaseURL:              cfg.Server.BaseURL,
@@ -381,36 +345,6 @@ func runWorker(opts WorkerConfigOpts) error {
 	return nil
 }
 
-// applyWorkerEnvVars applies environment variables for worker configuration.
-func applyWorkerEnvVars(cfg *config.Config) {
-	// Database
-	if v := getWorkerEnvAny("DATABASE_URL", "DAGRYN_DATABASE_URL", "POSTGRES_URL"); v != "" {
-		cfg.Database.URL = v
-	}
-	// Redis
-	if v := getWorkerEnvAny("REDIS_HOST", "DAGRYN_REDIS_HOST"); v != "" {
-		cfg.Redis.Host = v
-	}
-	if v := getWorkerEnvAny("REDIS_PORT", "DAGRYN_REDIS_PORT"); v != "" {
-		if port, err := strconv.Atoi(v); err == nil && port > 0 {
-			cfg.Redis.Port = port
-		}
-	}
-	if v := getWorkerEnvAny("REDIS_PASSWORD", "DAGRYN_REDIS_PASSWORD"); v != "" {
-		cfg.Redis.Password = v
-	}
-
-	// Job
-	if v := getWorkerEnvAny("JOB_ENCRYPTION_KEY", "DAGRYN_JOB_ENCRYPTION_KEY"); v != "" {
-		cfg.Job.EncryptionKey = v
-	}
-	if v := getWorkerEnvAny("JOB_CONCURRENCY", "DAGRYN_JOB_CONCURRENCY"); v != "" {
-		if concurrency, err := strconv.Atoi(v); err == nil && concurrency > 0 {
-			cfg.Job.Concurrency = concurrency
-		}
-	}
-}
-
 // applyWorkerCLIFlags applies CLI flag overrides for worker configuration.
 func applyWorkerCLIFlags(cfg *config.Config, opts WorkerConfigOpts) {
 	if opts.RedisHost != "" {
@@ -428,14 +362,4 @@ func applyWorkerCLIFlags(cfg *config.Config, opts WorkerConfigOpts) {
 	if opts.EncryptionKey != "" {
 		cfg.Job.EncryptionKey = opts.EncryptionKey
 	}
-}
-
-// getWorkerEnvAny returns the value of the first non-empty environment variable.
-func getWorkerEnvAny(keys ...string) string {
-	for _, key := range keys {
-		if v := os.Getenv(key); v != "" {
-			return v
-		}
-	}
-	return ""
 }

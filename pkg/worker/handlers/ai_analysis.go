@@ -14,11 +14,10 @@ import (
 	"github.com/mujhtech/dagryn/pkg/ai"
 	"github.com/mujhtech/dagryn/pkg/ai/evidence"
 	"github.com/mujhtech/dagryn/pkg/ai/provider"
-	"github.com/mujhtech/dagryn/pkg/service"
-	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/mujhtech/dagryn/pkg/dagryn/config"
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
+	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -81,18 +80,6 @@ type aiRepoForHandler interface {
 	GetMostRecentAnalysisByKey(ctx context.Context, projectID uuid.UUID, branch, commit string) (*models.AIAnalysis, error)
 }
 
-// quotaChecker defines the quota service operations needed by the handler.
-type quotaChecker interface {
-	GetAccountForProject(ctx context.Context, projectID uuid.UUID) (uuid.UUID, error)
-	CheckAIAnalysis(ctx context.Context, accountID uuid.UUID) error
-	GetAIAnalysisQuota(ctx context.Context, accountID uuid.UUID) service.AIAnalysisQuota
-}
-
-// billingRecorder defines the billing repo operations needed by the handler.
-type billingRecorder interface {
-	RecordUsageEvent(ctx context.Context, event *models.UsageEvent) error
-}
-
 // AIAnalysisHandler processes ai_analysis:run jobs.
 type AIAnalysisHandler struct {
 	runs        evidence.RunDataSource
@@ -102,8 +89,6 @@ type AIAnalysisHandler struct {
 	aiConfig    *AIAnalysisConfig
 	jobEnqueuer JobEnqueuer
 	logger      zerolog.Logger
-	quota       quotaChecker
-	billing     billingRecorder
 	metrics     *telemetry.Metrics
 }
 
@@ -116,8 +101,6 @@ func NewAIAnalysisHandler(
 	aiConfig *AIAnalysisConfig,
 	jobEnqueuer JobEnqueuer,
 	logger zerolog.Logger,
-	quota quotaChecker,
-	billing billingRecorder,
 	metrics *telemetry.Metrics,
 ) *AIAnalysisHandler {
 	return &AIAnalysisHandler{
@@ -128,8 +111,6 @@ func NewAIAnalysisHandler(
 		aiConfig:    aiConfig,
 		jobEnqueuer: jobEnqueuer,
 		logger:      logger.With().Str("handler", "ai_analysis").Logger(),
-		quota:       quota,
-		billing:     billing,
 		metrics:     metrics,
 	}
 }
@@ -341,38 +322,6 @@ func (h *AIAnalysisHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	// Build provider config from project config, falling back to server config for managed mode.
 	providerCfg := h.buildProviderConfig(payload.AIConfig)
 
-	// Billing quota check: managed backend only.
-	var accountID uuid.UUID
-	if providerCfg.BackendMode == "managed" && h.quota != nil {
-		accountID, err = h.quota.GetAccountForProject(ctx, projectID)
-		if err != nil {
-			h.logger.Warn().Err(err).Msg("failed to resolve billing account for AI quota check")
-			// fail open
-		} else if accountID != uuid.Nil {
-			if qErr := h.quota.CheckAIAnalysis(ctx, accountID); qErr != nil {
-				if service.IsQuotaExceeded(qErr) {
-					h.logger.Warn().
-						Str("project_id", payload.ProjectID).
-						Str("account_id", accountID.String()).
-						Msg("AI analysis quota exceeded")
-					// Create a record with quota_exceeded status.
-					quotaAnalysis := &models.AIAnalysis{
-						RunID:     runID,
-						ProjectID: projectID,
-						Status:    models.AIAnalysisStatusQuotaExceeded,
-						DedupKey:  &dedupKey,
-					}
-					_ = h.aiRepo.CreateAnalysis(ctx, quotaAnalysis)
-					if h.metrics != nil {
-						h.metrics.AIQuotaExceededTotal.Add(ctx, 1)
-					}
-					return nil
-				}
-				h.logger.Warn().Err(qErr).Msg("AI quota check failed, proceeding anyway")
-			}
-		}
-	}
-
 	analysisStart := time.Now()
 
 	aiProvider, err := provider.NewProvider(providerCfg, h.logger)
@@ -463,28 +412,6 @@ func (h *AIAnalysisHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	if analysis != nil {
 		analysis.DedupKey = &dedupKey
 		_ = h.aiRepo.UpdateAnalysisDedupKey(ctx, analysis.ID, dedupKey)
-	}
-
-	// Record metered billing usage event only when this analysis exceeds the plan's
-	// included quota (overage). Regular usage within the plan limit is not metered.
-	if providerCfg.BackendMode == "managed" && h.billing != nil && h.quota != nil && accountID != uuid.Nil && analysis != nil {
-		quota := h.quota.GetAIAnalysisQuota(ctx, accountID)
-		if quota.IsOverage() {
-			usageEvent := &models.UsageEvent{
-				BillingAccountID: accountID,
-				ProjectID:        &projectID,
-				EventType:        models.UsageEventAIAnalysis,
-				Quantity:         1,
-			}
-			if err := h.billing.RecordUsageEvent(ctx, usageEvent); err != nil {
-				h.logger.Warn().Err(err).Msg("failed to record AI analysis overage usage event")
-			}
-			h.logger.Info().
-				Int("count", quota.Count).
-				Int("limit", quota.Limit).
-				Str("project_id", payload.ProjectID).
-				Msg("AI analysis overage recorded")
-		}
 	}
 
 	// Enqueue publish job to post results to GitHub.

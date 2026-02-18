@@ -9,8 +9,8 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
-	"github.com/mujhtech/dagryn/pkg/server"
 	"github.com/mujhtech/dagryn/pkg/config"
+	"github.com/mujhtech/dagryn/pkg/server"
 )
 
 func init() {

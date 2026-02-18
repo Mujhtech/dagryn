@@ -75,9 +75,6 @@ export const queryKeys = {
   aiSuggestions: (projectId: string, runId: string) =>
     ["aiSuggestions", projectId, runId] as const,
   dashboardOverview: ["dashboardOverview"] as const,
-  billingPlans: ["billingPlans"] as const,
-  billingPlan: (slug: string) => ["billingPlan", slug] as const,
-  billingOverview: ["billingOverview"] as const,
-  billingInvoices: (limit: number, offset: number) =>
-    ["billingInvoices", limit, offset] as const,
+  capabilities: ["capabilities"] as const,
+  licenseStatus: ["licenseStatus"] as const,
 };

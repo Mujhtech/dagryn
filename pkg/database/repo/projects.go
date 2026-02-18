@@ -59,10 +59,10 @@ func (r *ProjectRepo) Create(ctx context.Context, project *models.Project, owner
 func (r *ProjectRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Project, error) {
 	var project models.Project
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, team_id, name, slug, path_hash, repo_url, repo_linked_by_user_id, github_installation_id, github_repo_id, description, visibility, config_path, created_at, updated_at, last_run_at
+		SELECT id, team_id, name, slug, path_hash, repo_url, repo_linked_by_user_id, github_installation_id, github_repo_id, billing_account_id, description, visibility, config_path, created_at, updated_at, last_run_at
 		FROM projects WHERE id = $1
 	`, id).Scan(&project.ID, &project.TeamID, &project.Name, &project.Slug, &project.PathHash, &project.RepoURL, &project.RepoLinkedByUserID, &project.GitHubInstallationID, &project.GitHubRepoID,
-		&project.Description, &project.Visibility, &project.ConfigPath, &project.CreatedAt, &project.UpdatedAt, &project.LastRunAt)
+		&project.BillingAccountID, &project.Description, &project.Visibility, &project.ConfigPath, &project.CreatedAt, &project.UpdatedAt, &project.LastRunAt)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -77,10 +77,10 @@ func (r *ProjectRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Projec
 func (r *ProjectRepo) GetByRepoURL(ctx context.Context, repoURL string) (*models.Project, error) {
 	var project models.Project
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, team_id, name, slug, path_hash, repo_url, repo_linked_by_user_id, github_installation_id, github_repo_id, description, visibility, config_path, created_at, updated_at, last_run_at
+		SELECT id, team_id, name, slug, path_hash, repo_url, repo_linked_by_user_id, github_installation_id, github_repo_id, billing_account_id, description, visibility, config_path, created_at, updated_at, last_run_at
 		FROM projects WHERE repo_url = $1
 	`, repoURL).Scan(&project.ID, &project.TeamID, &project.Name, &project.Slug, &project.PathHash, &project.RepoURL, &project.RepoLinkedByUserID, &project.GitHubInstallationID, &project.GitHubRepoID,
-		&project.Description, &project.Visibility, &project.ConfigPath, &project.CreatedAt, &project.UpdatedAt, &project.LastRunAt)
+		&project.BillingAccountID, &project.Description, &project.Visibility, &project.ConfigPath, &project.CreatedAt, &project.UpdatedAt, &project.LastRunAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
@@ -94,10 +94,10 @@ func (r *ProjectRepo) GetByRepoURL(ctx context.Context, repoURL string) (*models
 func (r *ProjectRepo) GetByGitHubRepoID(ctx context.Context, installationID uuid.UUID, repoID int64) (*models.Project, error) {
 	var project models.Project
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, team_id, name, slug, path_hash, repo_url, repo_linked_by_user_id, github_installation_id, github_repo_id, description, visibility, config_path, created_at, updated_at, last_run_at
+		SELECT id, team_id, name, slug, path_hash, repo_url, repo_linked_by_user_id, github_installation_id, github_repo_id, billing_account_id, description, visibility, config_path, created_at, updated_at, last_run_at
 		FROM projects WHERE github_installation_id = $1 AND github_repo_id = $2
 	`, installationID, repoID).Scan(&project.ID, &project.TeamID, &project.Name, &project.Slug, &project.PathHash, &project.RepoURL, &project.RepoLinkedByUserID, &project.GitHubInstallationID, &project.GitHubRepoID,
-		&project.Description, &project.Visibility, &project.ConfigPath, &project.CreatedAt, &project.UpdatedAt, &project.LastRunAt)
+		&project.BillingAccountID, &project.Description, &project.Visibility, &project.ConfigPath, &project.CreatedAt, &project.UpdatedAt, &project.LastRunAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
@@ -114,16 +114,16 @@ func (r *ProjectRepo) GetBySlug(ctx context.Context, teamID *uuid.UUID, slug str
 
 	if teamID != nil {
 		err = r.pool.QueryRow(ctx, `
-			SELECT id, team_id, name, slug, path_hash, repo_url, repo_linked_by_user_id, github_installation_id, github_repo_id, description, visibility, config_path, created_at, updated_at, last_run_at
+			SELECT id, team_id, name, slug, path_hash, repo_url, repo_linked_by_user_id, github_installation_id, github_repo_id, billing_account_id, description, visibility, config_path, created_at, updated_at, last_run_at
 			FROM projects WHERE team_id = $1 AND slug = $2
 		`, teamID, slug).Scan(&project.ID, &project.TeamID, &project.Name, &project.Slug, &project.PathHash, &project.RepoURL, &project.RepoLinkedByUserID, &project.GitHubInstallationID, &project.GitHubRepoID,
-			&project.Description, &project.Visibility, &project.ConfigPath, &project.CreatedAt, &project.UpdatedAt, &project.LastRunAt)
+			&project.BillingAccountID, &project.Description, &project.Visibility, &project.ConfigPath, &project.CreatedAt, &project.UpdatedAt, &project.LastRunAt)
 	} else {
 		err = r.pool.QueryRow(ctx, `
-			SELECT id, team_id, name, slug, path_hash, repo_url, repo_linked_by_user_id, github_installation_id, github_repo_id, description, visibility, config_path, created_at, updated_at, last_run_at
+			SELECT id, team_id, name, slug, path_hash, repo_url, repo_linked_by_user_id, github_installation_id, github_repo_id, billing_account_id, description, visibility, config_path, created_at, updated_at, last_run_at
 			FROM projects WHERE team_id IS NULL AND slug = $1
 		`, slug).Scan(&project.ID, &project.TeamID, &project.Name, &project.Slug, &project.PathHash, &project.RepoURL, &project.RepoLinkedByUserID, &project.GitHubInstallationID, &project.GitHubRepoID,
-			&project.Description, &project.Visibility, &project.ConfigPath, &project.CreatedAt, &project.UpdatedAt, &project.LastRunAt)
+			&project.BillingAccountID, &project.Description, &project.Visibility, &project.ConfigPath, &project.CreatedAt, &project.UpdatedAt, &project.LastRunAt)
 	}
 
 	if err != nil {
@@ -139,12 +139,12 @@ func (r *ProjectRepo) GetBySlug(ctx context.Context, teamID *uuid.UUID, slug str
 func (r *ProjectRepo) GetByPathHash(ctx context.Context, userID uuid.UUID, pathHash string) (*models.Project, error) {
 	var project models.Project
 	err := r.pool.QueryRow(ctx, `
-		SELECT p.id, p.team_id, p.name, p.slug, p.path_hash, p.repo_url, p.repo_linked_by_user_id, p.github_installation_id, p.github_repo_id, p.description, p.visibility, p.config_path, p.created_at, p.updated_at, p.last_run_at
+		SELECT p.id, p.team_id, p.name, p.slug, p.path_hash, p.repo_url, p.repo_linked_by_user_id, p.github_installation_id, p.github_repo_id, p.billing_account_id, p.description, p.visibility, p.config_path, p.created_at, p.updated_at, p.last_run_at
 		FROM projects p
 		JOIN project_members pm ON p.id = pm.project_id
 		WHERE pm.user_id = $1 AND p.path_hash = $2
 	`, userID, pathHash).Scan(&project.ID, &project.TeamID, &project.Name, &project.Slug, &project.PathHash, &project.RepoURL, &project.RepoLinkedByUserID, &project.GitHubInstallationID, &project.GitHubRepoID,
-		&project.Description, &project.Visibility, &project.ConfigPath, &project.CreatedAt, &project.UpdatedAt, &project.LastRunAt)
+		&project.BillingAccountID, &project.Description, &project.Visibility, &project.ConfigPath, &project.CreatedAt, &project.UpdatedAt, &project.LastRunAt)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -179,6 +179,20 @@ func (r *ProjectRepo) UpdateLastRunAt(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+// UpdateBillingAccountID sets the billing account for a project.
+func (r *ProjectRepo) UpdateBillingAccountID(ctx context.Context, projectID, billingAccountID uuid.UUID) error {
+	result, err := r.pool.Exec(ctx,
+		`UPDATE projects SET billing_account_id = $1, updated_at = NOW() WHERE id = $2`,
+		billingAccountID, projectID)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // Delete deletes a project.
 func (r *ProjectRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	result, err := r.pool.Exec(ctx, "DELETE FROM projects WHERE id = $1", id)
@@ -194,7 +208,7 @@ func (r *ProjectRepo) Delete(ctx context.Context, id uuid.UUID) error {
 // ListByUser returns all projects a user has access to.
 func (r *ProjectRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]models.ProjectWithMember, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT p.id, p.team_id, p.name, p.slug, p.path_hash, p.repo_url, p.repo_linked_by_user_id, p.github_installation_id, p.github_repo_id, p.description, p.visibility, p.config_path,
+		SELECT p.id, p.team_id, p.name, p.slug, p.path_hash, p.repo_url, p.repo_linked_by_user_id, p.github_installation_id, p.github_repo_id, p.billing_account_id, p.description, p.visibility, p.config_path,
 		       p.created_at, p.updated_at, p.last_run_at, pm.role, pm.joined_at
 		FROM projects p
 		JOIN project_members pm ON p.id = pm.project_id
@@ -209,7 +223,7 @@ func (r *ProjectRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]model
 	var projects []models.ProjectWithMember
 	for rows.Next() {
 		var p models.ProjectWithMember
-		if err := rows.Scan(&p.ID, &p.TeamID, &p.Name, &p.Slug, &p.PathHash, &p.RepoURL, &p.RepoLinkedByUserID, &p.GitHubInstallationID, &p.GitHubRepoID, &p.Description, &p.Visibility,
+		if err := rows.Scan(&p.ID, &p.TeamID, &p.Name, &p.Slug, &p.PathHash, &p.RepoURL, &p.RepoLinkedByUserID, &p.GitHubInstallationID, &p.GitHubRepoID, &p.BillingAccountID, &p.Description, &p.Visibility,
 			&p.ConfigPath, &p.CreatedAt, &p.UpdatedAt, &p.LastRunAt, &p.Role, &p.JoinedAt); err != nil {
 			return nil, err
 		}
@@ -221,7 +235,7 @@ func (r *ProjectRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]model
 // ListByTeam returns all projects in a team.
 func (r *ProjectRepo) ListByTeam(ctx context.Context, teamID uuid.UUID) ([]models.Project, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, team_id, name, slug, path_hash, repo_url, repo_linked_by_user_id, github_installation_id, github_repo_id, description, visibility, config_path, created_at, updated_at, last_run_at
+		SELECT id, team_id, name, slug, path_hash, repo_url, repo_linked_by_user_id, github_installation_id, github_repo_id, billing_account_id, description, visibility, config_path, created_at, updated_at, last_run_at
 		FROM projects WHERE team_id = $1
 		ORDER BY name
 	`, teamID)
@@ -233,7 +247,7 @@ func (r *ProjectRepo) ListByTeam(ctx context.Context, teamID uuid.UUID) ([]model
 	var projects []models.Project
 	for rows.Next() {
 		var p models.Project
-		if err := rows.Scan(&p.ID, &p.TeamID, &p.Name, &p.Slug, &p.PathHash, &p.RepoURL, &p.RepoLinkedByUserID, &p.GitHubInstallationID, &p.GitHubRepoID, &p.Description, &p.Visibility,
+		if err := rows.Scan(&p.ID, &p.TeamID, &p.Name, &p.Slug, &p.PathHash, &p.RepoURL, &p.RepoLinkedByUserID, &p.GitHubInstallationID, &p.GitHubRepoID, &p.BillingAccountID, &p.Description, &p.Visibility,
 			&p.ConfigPath, &p.CreatedAt, &p.UpdatedAt, &p.LastRunAt); err != nil {
 			return nil, err
 		}

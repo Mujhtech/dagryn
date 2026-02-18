@@ -23,15 +23,24 @@ const (
 	FeatureMultiCluster       Feature = "multi_cluster"
 	FeatureDashboardFull      Feature = "dashboard_full"
 	FeatureCloudCache         Feature = "cloud_cache"
+	FeatureArtifactRetention  Feature = "artifact_retention"
+	FeatureLogRetention       Feature = "log_retention"
+	FeatureStorage            Feature = "storage"
+	FeatureCacheTTL           Feature = "cache_ttl"
+	FeatureSaml               Feature = "saml"
+	FeatureAIAnalysis         Feature = "ai_analysis"
+	FeatureAISuggestions      Feature = "ai_suggestions"
 )
 
 // Limits holds numeric resource limits. Nil means unlimited.
 type Limits struct {
-	MaxProjects       *int   `json:"max_projects"`
-	MaxTeamMembers    *int   `json:"max_team_members"`
-	MaxConcurrentRuns *int   `json:"max_concurrent_runs"`
-	MaxArtifactBytes  *int64 `json:"max_artifact_bytes"`
-	LogRetentionDays  *int   `json:"log_retention_days"`
+	MaxProjects            *int   `json:"max_projects"`
+	MaxTeamMembers         *int   `json:"max_team_members"`
+	MaxConcurrentRuns      *int   `json:"max_concurrent_runs"`
+	MaxArtifactBytes       *int64 `json:"max_artifact_bytes"`
+	MaxArtifactUploadSize  *int64 `json:"max_artifact_upload_size"`
+	LogRetentionDays       *int   `json:"log_retention_days"`
+	ArtifactRetentionDays  *int   `json:"artifact_retention_days"`
 }
 
 // Claims is the signed payload inside a license key.

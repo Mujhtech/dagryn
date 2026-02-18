@@ -12,9 +12,20 @@ import (
 	"github.com/mujhtech/dagryn/pkg/http/response"
 )
 
-// --- Public Registry Endpoints ---
-
-// SearchRegistryPlugins searches the plugin registry.
+// SearchRegistryPlugins godoc
+//
+//	@Summary		Search registry plugins
+//	@Description	Searches the plugin registry with optional filtering and pagination
+//	@Tags			registry
+//	@Produce		json
+//	@Param			q			query		string	false	"Search query"
+//	@Param			type		query		string	false	"Filter by plugin type"
+//	@Param			sort		query		string	false	"Sort order"
+//	@Param			page		query		int		false	"Page number"
+//	@Param			per_page	query		int		false	"Items per page"
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/registry/plugins [get]
 func (h *Handler) SearchRegistryPlugins(w http.ResponseWriter, r *http.Request) {
 	if h.registryService == nil {
 		_ = response.ServiceUnavailable(w, r, errors.New("plugin registry not configured"))
@@ -36,7 +47,18 @@ func (h *Handler) SearchRegistryPlugins(w http.ResponseWriter, r *http.Request) 
 	_ = response.Ok(w, r, "success", result)
 }
 
-// GetRegistryPlugin returns detailed plugin information.
+// GetRegistryPlugin godoc
+//
+//	@Summary		Get registry plugin details
+//	@Description	Returns detailed information about a plugin in the registry
+//	@Tags			registry
+//	@Produce		json
+//	@Param			publisher	path		string	true	"Publisher name"
+//	@Param			name		path		string	true	"Plugin name"
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/registry/plugins/{publisher}/{name} [get]
 func (h *Handler) GetRegistryPlugin(w http.ResponseWriter, r *http.Request) {
 	if h.registryService == nil {
 		_ = response.ServiceUnavailable(w, r, errors.New("plugin registry not configured"))
@@ -55,7 +77,18 @@ func (h *Handler) GetRegistryPlugin(w http.ResponseWriter, r *http.Request) {
 	_ = response.Ok(w, r, "success", result)
 }
 
-// GetRegistryPluginVersions returns version list for a plugin.
+// GetRegistryPluginVersions godoc
+//
+//	@Summary		List plugin versions
+//	@Description	Returns the version list for a registry plugin
+//	@Tags			registry
+//	@Produce		json
+//	@Param			publisher	path		string	true	"Publisher name"
+//	@Param			name		path		string	true	"Plugin name"
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/registry/plugins/{publisher}/{name}/versions [get]
 func (h *Handler) GetRegistryPluginVersions(w http.ResponseWriter, r *http.Request) {
 	if h.registryService == nil {
 		_ = response.ServiceUnavailable(w, r, errors.New("plugin registry not configured"))
@@ -74,7 +107,19 @@ func (h *Handler) GetRegistryPluginVersions(w http.ResponseWriter, r *http.Reque
 	_ = response.Ok(w, r, "success", versions)
 }
 
-// GetRegistryPluginAnalytics returns download analytics for a plugin.
+// GetRegistryPluginAnalytics godoc
+//
+//	@Summary		Get plugin download analytics
+//	@Description	Returns download analytics for a registry plugin
+//	@Tags			registry
+//	@Produce		json
+//	@Param			publisher	path		string	true	"Publisher name"
+//	@Param			name		path		string	true	"Plugin name"
+//	@Param			days		query		int		false	"Number of days"	default(30)
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/registry/plugins/{publisher}/{name}/analytics [get]
 func (h *Handler) GetRegistryPluginAnalytics(w http.ResponseWriter, r *http.Request) {
 	if h.registryService == nil {
 		_ = response.ServiceUnavailable(w, r, errors.New("plugin registry not configured"))
@@ -97,7 +142,16 @@ func (h *Handler) GetRegistryPluginAnalytics(w http.ResponseWriter, r *http.Requ
 	_ = response.Ok(w, r, "success", analytics)
 }
 
-// ListFeaturedPlugins returns featured plugins.
+// ListFeaturedPlugins godoc
+//
+//	@Summary		List featured plugins
+//	@Description	Returns a list of featured plugins from the registry
+//	@Tags			registry
+//	@Produce		json
+//	@Param			limit	query		int	false	"Number of plugins to return"	default(10)
+//	@Success		200		{object}	SuccessResponse
+//	@Failure		503		{object}	ErrorResponse
+//	@Router			/api/v1/registry/featured [get]
 func (h *Handler) ListFeaturedPlugins(w http.ResponseWriter, r *http.Request) {
 	if h.registryService == nil {
 		_ = response.ServiceUnavailable(w, r, errors.New("plugin registry not configured"))
@@ -118,7 +172,16 @@ func (h *Handler) ListFeaturedPlugins(w http.ResponseWriter, r *http.Request) {
 	_ = response.Ok(w, r, "success", plugins)
 }
 
-// ListTrendingPlugins returns trending plugins.
+// ListTrendingPlugins godoc
+//
+//	@Summary		List trending plugins
+//	@Description	Returns a list of trending plugins from the registry
+//	@Tags			registry
+//	@Produce		json
+//	@Param			limit	query		int	false	"Number of plugins to return"	default(10)
+//	@Success		200		{object}	SuccessResponse
+//	@Failure		503		{object}	ErrorResponse
+//	@Router			/api/v1/registry/trending [get]
 func (h *Handler) ListTrendingPlugins(w http.ResponseWriter, r *http.Request) {
 	if h.registryService == nil {
 		_ = response.ServiceUnavailable(w, r, errors.New("plugin registry not configured"))
@@ -139,7 +202,19 @@ func (h *Handler) ListTrendingPlugins(w http.ResponseWriter, r *http.Request) {
 	_ = response.Ok(w, r, "success", plugins)
 }
 
-// TrackPluginDownload records a download event.
+// TrackPluginDownload godoc
+//
+//	@Summary		Track plugin download
+//	@Description	Records a download event for a registry plugin
+//	@Tags			registry
+//	@Accept			json
+//	@Produce		json
+//	@Param			publisher	path		string	true	"Publisher name"
+//	@Param			name		path		string	true	"Plugin name"
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/registry/plugins/{publisher}/{name}/download [post]
 func (h *Handler) TrackPluginDownload(w http.ResponseWriter, r *http.Request) {
 	if h.registryService == nil {
 		_ = response.ServiceUnavailable(w, r, errors.New("plugin registry not configured"))
@@ -169,7 +244,20 @@ func (h *Handler) TrackPluginDownload(w http.ResponseWriter, r *http.Request) {
 	_ = response.Ok(w, r, "download recorded", nil)
 }
 
-// CreatePublisher creates a new plugin publisher.
+// CreatePublisher godoc
+//
+//	@Summary		Create a plugin publisher
+//	@Description	Creates a new plugin publisher in the registry
+//	@Tags			registry
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Accept			json
+//	@Produce		json
+//	@Success		201	{object}	SuccessResponse
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		503	{object}	ErrorResponse
+//	@Router			/api/v1/registry/publishers [post]
 func (h *Handler) CreatePublisher(w http.ResponseWriter, r *http.Request) {
 	if h.registryService == nil {
 		_ = response.ServiceUnavailable(w, r, errors.New("plugin registry not configured"))
@@ -214,7 +302,19 @@ func (h *Handler) CreatePublisher(w http.ResponseWriter, r *http.Request) {
 	_ = response.Created(w, r, "publisher created", created)
 }
 
-// GetPublisher returns publisher profile.
+// GetPublisher godoc
+//
+//	@Summary		Get publisher profile
+//	@Description	Returns the profile of a plugin publisher
+//	@Tags			registry
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			publisher	path		string	true	"Publisher name"
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/registry/publishers/{publisher} [get]
 func (h *Handler) GetPublisher(w http.ResponseWriter, r *http.Request) {
 	if h.registryService == nil {
 		_ = response.ServiceUnavailable(w, r, errors.New("plugin registry not configured"))
@@ -232,7 +332,22 @@ func (h *Handler) GetPublisher(w http.ResponseWriter, r *http.Request) {
 	_ = response.Ok(w, r, "success", pub)
 }
 
-// PublishPluginVersion publishes a new version of a plugin.
+// PublishPluginVersion godoc
+//
+//	@Summary		Publish a plugin version
+//	@Description	Publishes a new version of a plugin to the registry
+//	@Tags			registry
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			publisher	path		string	true	"Publisher name"
+//	@Param			name		path		string	true	"Plugin name"
+//	@Success		201			{object}	SuccessResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/registry/plugins/{publisher}/{name}/versions [post]
 func (h *Handler) PublishPluginVersion(w http.ResponseWriter, r *http.Request) {
 	if h.registryService == nil {
 		_ = response.ServiceUnavailable(w, r, errors.New("plugin registry not configured"))
@@ -270,7 +385,21 @@ func (h *Handler) PublishPluginVersion(w http.ResponseWriter, r *http.Request) {
 	_ = response.Created(w, r, "version published", nil)
 }
 
-// YankPluginVersion marks a version as yanked.
+// YankPluginVersion godoc
+//
+//	@Summary		Yank a plugin version
+//	@Description	Marks a plugin version as yanked in the registry
+//	@Tags			registry
+//	@Security		BearerAuth
+//	@Security		APIKeyAuth
+//	@Produce		json
+//	@Param			publisher	path		string	true	"Publisher name"
+//	@Param			name		path		string	true	"Plugin name"
+//	@Param			version		path		string	true	"Version string"
+//	@Success		200			{object}	SuccessResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		503			{object}	ErrorResponse
+//	@Router			/api/v1/registry/plugins/{publisher}/{name}/versions/{version} [delete]
 func (h *Handler) YankPluginVersion(w http.ResponseWriter, r *http.Request) {
 	if h.registryService == nil {
 		_ = response.ServiceUnavailable(w, r, errors.New("plugin registry not configured"))

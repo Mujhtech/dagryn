@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mujhtech/dagryn/pkg/dagryn/config"
+	"github.com/mujhtech/dagryn/pkg/entitlement"
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
 	"github.com/mujhtech/dagryn/pkg/worker"
@@ -103,8 +104,18 @@ type GitHubRepoInfo struct {
 	FullName string `json:"full_name"`
 }
 
-// GitHubWebhook handles incoming GitHub webhooks and triggers runs for linked projects.
-// Requests are authenticated via the GitHub App webhook secret when configured.
+// GitHubWebhook godoc
+//
+//	@Summary		Handle GitHub webhook
+//	@Description	Handles incoming GitHub webhooks (push, pull_request, installation events) and triggers runs for linked projects
+//	@Tags			webhooks
+//	@Accept			json
+//	@Produce		json
+//	@Param			X-GitHub-Event	header		string	true	"GitHub event type"
+//	@Success		202				{string}	string	"Accepted"
+//	@Failure		400				{string}	string	"Bad request"
+//	@Failure		503				{string}	string	"Service unavailable"
+//	@Router			/api/v1/webhooks/github [post]
 func (h *Handler) GitHubWebhook(w http.ResponseWriter, r *http.Request) {
 	if h.jobClient == nil {
 		http.Error(w, "job system not configured", http.StatusServiceUnavailable)
@@ -230,6 +241,17 @@ func (h *Handler) handleGitHubPush(ctx context.Context, payload *GitHubPushEvent
 		return nil
 	}
 
+	// Check concurrent runs quota — skip run if exceeded (don't fail the webhook)
+	if h.entitlements != nil {
+		if err := h.entitlements.CheckQuota(ctx, "concurrent_runs", project.ID, 0); err != nil {
+			if entitlement.IsQuotaError(err) {
+				slog.Warn("github_webhook: concurrent runs quota exceeded, skipping",
+					"project_id", project.ID.String(), "error", err)
+				return nil
+			}
+		}
+	}
+
 	run := &models.Run{
 		ID:          uuid.New(),
 		ProjectID:   project.ID,
@@ -337,6 +359,17 @@ func (h *Handler) handleGitHubPullRequest(ctx context.Context, payload *GitHubPu
 		slog.Info("github_webhook: pull_request trigger not matched, skipping",
 			"base_branch", baseBranch, "action", payload.Action)
 		return nil
+	}
+
+	// Check concurrent runs quota — skip run if exceeded (don't fail the webhook)
+	if h.entitlements != nil {
+		if err := h.entitlements.CheckQuota(ctx, "concurrent_runs", project.ID, 0); err != nil {
+			if entitlement.IsQuotaError(err) {
+				slog.Warn("github_webhook: concurrent runs quota exceeded, skipping",
+					"project_id", project.ID.String(), "error", err)
+				return nil
+			}
+		}
 	}
 
 	run := &models.Run{
