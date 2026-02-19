@@ -9,14 +9,7 @@ export default defineConfig({
     tanstackRouter({
       routesDirectory: "./app/routes",
       generatedRouteTree: "./app/routeTree.gen.ts",
-      // prerender: {
-      //   enabled: true,
-      //   crawlLinks: true, // Discovers all linkable pages
-      // },
-      // sitemap: {
-      //   enabled: true,
-      //   host: 'https://myapp.com',
-      // },
+      autoCodeSplitting: true,
     }),
     react(),
     tailwindcss(),
@@ -25,6 +18,36 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom"],
+          "vendor-router": [
+            "@tanstack/react-router",
+            "@tanstack/react-query",
+          ],
+          "vendor-monaco": ["monaco-editor", "@monaco-editor/react"],
+          "vendor-recharts": ["recharts"],
+          "vendor-radix": [
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-tabs",
+            "@radix-ui/react-tooltip",
+            "@radix-ui/react-avatar",
+            "@radix-ui/react-collapsible",
+            "@radix-ui/react-label",
+            "@radix-ui/react-progress",
+            "@radix-ui/react-scroll-area",
+            "@radix-ui/react-separator",
+            "@radix-ui/react-slot",
+          ],
+          "vendor-icons": [
+            "@phosphor-icons/react",
+            "lucide-react",
+          ],
+        },
+      },
+    },
   },
   server: {
     proxy: {

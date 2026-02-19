@@ -72,7 +72,7 @@ func WithDiskCache(cache *DiskCache) GitHubResolverOption {
 func NewGitHubResolver(opts ...GitHubResolverOption) *GitHubResolver {
 	r := &GitHubResolver{
 		client: &http.Client{
-			Timeout: 5 * time.Minute, // Long timeout for large downloads
+			Timeout: 30 * time.Second, // Short timeout for API calls; downloads use a dedicated client
 		},
 		apiBase:   "https://api.github.com",
 		platform:  CurrentPlatform(),
@@ -543,7 +543,10 @@ func (r *GitHubResolver) downloadAsset(ctx context.Context, asset *GitHubAsset) 
 		return "", err
 	}
 
-	resp, err := r.doRequest(ctx, req)
+	// Use a dedicated client with a longer timeout for large file downloads.
+	downloadClient := &http.Client{Timeout: 5 * time.Minute}
+	r.setHeaders(req)
+	resp, err := downloadClient.Do(req)
 	if err != nil {
 		return "", err
 	}

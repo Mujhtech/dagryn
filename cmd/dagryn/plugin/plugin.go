@@ -34,9 +34,9 @@ func NewCmd(_ *cli.Flags) *cobra.Command {
 
 func newPluginListCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
-		Short: "List installed plugins",
-		Long:  `Lists all plugins currently installed in the project's .dagryn/plugins directory.`,
+		Use:     "list",
+		Short:   "List installed plugins",
+		Long:    `Lists all plugins currently installed in the project's .dagryn/plugins directory.`,
 		Example: `  dagryn plugin list`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectRoot, err := os.Getwd()

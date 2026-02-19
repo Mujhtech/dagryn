@@ -265,7 +265,7 @@ func (s *Server) Initialize(ctx context.Context) error {
 	}
 
 	// Create handlers
-	api, err := api.New(
+	apiHandler, err := api.New(
 		s.config,
 		jobClient,
 		s.telemetry,
@@ -285,8 +285,11 @@ func (s *Server) Initialize(ctx context.Context) error {
 		cancelManager,
 		registryService,
 	)
+	if err != nil {
+		return fmt.Errorf("create API handlers: %w", err)
+	}
 
-	api.SetFeatureGate(featureGate)
+	apiHandler.SetFeatureGate(featureGate)
 
 	// Wire the unified entitlement checker.
 	// If the cloud binary has already injected one via SetEntitlementChecker,
@@ -297,11 +300,11 @@ func (s *Server) Initialize(ctx context.Context) error {
 	} else {
 		checker = entitlement.NewLicenseChecker(featureGate)
 	}
-	api.SetEntitlementChecker(checker)
+	apiHandler.SetEntitlementChecker(checker)
 
 	// Wire dashboard override from the cloud binary.
 	if s.dashboardHandler != nil {
-		api.SetDashboardHandler(s.dashboardHandler)
+		apiHandler.SetDashboardHandler(s.dashboardHandler)
 	}
 
 	// Wire entitlements to services for quota enforcement.
@@ -314,11 +317,11 @@ func (s *Server) Initialize(ctx context.Context) error {
 
 	// Wire extra routes from the cloud binary (e.g. billing routes).
 	if s.extraRoutes != nil {
-		api.RegisterExtraRoutes(s.extraRoutes)
+		apiHandler.RegisterExtraRoutes(s.extraRoutes)
 	}
 
 	// Setup routes
-	api.BuildRouter(s.router)
+	apiHandler.BuildRouter(s.router)
 
 	log.Info().
 		Str("addr", s.config.Server.Address()).

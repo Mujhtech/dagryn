@@ -95,7 +95,7 @@ func (c *ServerClient) Activate(ctx context.Context, req ActivationRequest) (*Ac
 	if err != nil {
 		return nil, fmt.Errorf("license server unreachable: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result ActivationResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -121,7 +121,7 @@ func (c *ServerClient) Check(ctx context.Context, req CheckRequest) (*CheckRespo
 	if err != nil {
 		return nil, fmt.Errorf("license server unreachable: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result CheckResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -147,7 +147,7 @@ func (c *ServerClient) Deactivate(ctx context.Context, req DeactivateRequest) er
 	if err != nil {
 		return fmt.Errorf("license server unreachable: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("deactivation failed with status %d", resp.StatusCode)

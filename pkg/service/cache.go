@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -140,40 +141,33 @@ func (s *CacheService) Upload(ctx context.Context, projectID uuid.UUID, taskName
 		}
 	}
 
-	// Hash the content while writing to storage
-	hasher := sha256.New()
-	tee := io.TeeReader(r, hasher)
-
-	// Store in a temporary key first, then rename after hashing
-	tempKey := fmt.Sprintf("_tmp/%s/%s", projectID.String(), uuid.New().String())
-	putOpts := &storage.PutOptions{ContentLength: size}
-	if err := s.bucket.Put(ctx, tempKey, tee, putOpts); err != nil {
-		return fmt.Errorf("cache: upload blob: %w", err)
+	// Buffer the stream so the body is seekable for S3 retries, and
+	// compute the SHA256 digest in one pass without a temp key.
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return fmt.Errorf("cache: read upload data: %w", err)
+	}
+	if size <= 0 {
+		size = int64(len(data))
 	}
 
+	hasher := sha256.New()
+	hasher.Write(data)
 	digestHash := hex.EncodeToString(hasher.Sum(nil))
 	blobKey := blobStorageKey(digestHash)
 
 	// Check if blob already exists (content dedup)
 	exists, err := s.bucket.Exists(ctx, blobKey)
 	if err != nil {
-		_ = s.bucket.Delete(ctx, tempKey)
 		return fmt.Errorf("cache: check existing blob: %w", err)
 	}
 
 	if !exists {
-		// Move temp to final CAS location by copying
-		rc, err := s.bucket.Get(ctx, tempKey)
-		if err != nil {
-			return fmt.Errorf("cache: read temp blob: %w", err)
-		}
-		if err := s.bucket.Put(ctx, blobKey, rc, putOpts); err != nil {
-			_ = rc.Close()
+		putOpts := &storage.PutOptions{ContentLength: size}
+		if err := s.bucket.Put(ctx, blobKey, bytes.NewReader(data), putOpts); err != nil {
 			return fmt.Errorf("cache: store cas blob: %w", err)
 		}
-		_ = rc.Close()
 	}
-	_ = s.bucket.Delete(ctx, tempKey)
 
 	// Check if we're replacing an existing entry (for quota delta)
 	existingEntry, _ := s.repo.FindEntry(ctx, projectID, taskName, cacheKey)

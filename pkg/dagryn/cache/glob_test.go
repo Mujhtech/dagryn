@@ -145,3 +145,48 @@ func TestResolveFilePatterns_EmptyPatterns(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, files)
 }
+
+func TestResolveFilePatterns_BroadPatternSkipsDirs(t *testing.T) {
+	root := t.TempDir()
+
+	// Create source files and files inside skip dirs
+	for _, rel := range []string{
+		"src/main.go",
+		"src/lib/util.go",
+		".dagryn/cache/old.go",
+		".git/objects/pack.go",
+		"node_modules/pkg/index.go",
+		"vendor/lib/dep.go",
+	} {
+		abs := filepath.Join(root, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(abs), 0755))
+		require.NoError(t, os.WriteFile(abs, []byte("x"), 0644))
+	}
+
+	// Broad pattern "**/*.go" should skip .dagryn, .git, node_modules, vendor
+	files, err := ResolveFilePatterns(root, []string{"**/*.go"})
+	require.NoError(t, err)
+
+	assert.Len(t, files, 2, "only src/ .go files should match")
+	assert.Contains(t, files, filepath.Join(root, "src/main.go"))
+	assert.Contains(t, files, filepath.Join(root, "src/lib/util.go"))
+}
+
+func TestResolveFilePatterns_ExplicitNodeModulesNotSkipped(t *testing.T) {
+	root := t.TempDir()
+
+	for _, rel := range []string{
+		"node_modules/pkg-a/index.js",
+		"node_modules/pkg-b/index.js",
+	} {
+		abs := filepath.Join(root, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(abs), 0755))
+		require.NoError(t, os.WriteFile(abs, []byte("x"), 0644))
+	}
+
+	// Targeted pattern explicitly naming node_modules should NOT skip it
+	files, err := ResolveFilePatterns(root, []string{"node_modules/**"})
+	require.NoError(t, err)
+
+	assert.Len(t, files, 2, "node_modules files should be included when explicitly targeted")
+}

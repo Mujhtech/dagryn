@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-//go:embed dist/*
+//go:embed all:dist
 var distFS embed.FS
 
 // Handler returns an HTTP handler that serves the dashboard static files.

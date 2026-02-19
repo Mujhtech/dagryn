@@ -24,7 +24,7 @@ func TestIsNewer(t *testing.T) {
 		{"v1.0.0", "v1.0.0", false},
 		{"1.2.0", "1.1.0", true},          // no v prefix
 		{"v1.2.0-rc1", "v1.1.0", true},    // pre-release stripped
-		{"v0.0.1-dirty", "v0.0.1", false},  // same after strip
+		{"v0.0.1-dirty", "v0.0.1", false}, // same after strip
 	}
 	for _, tt := range tests {
 		assert.Equal(t, tt.want, isNewer(tt.latest, tt.current),

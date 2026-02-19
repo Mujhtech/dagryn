@@ -15,7 +15,7 @@ var communityLimits = struct {
 	maxTeamMembers:        3,
 	maxConcurrentRuns:     3,
 	maxArtifactBytes:      1 * 1024 * 1024 * 1024, // 1 GB
-	maxArtifactUploadSize: 200 * 1024 * 1024,       // 200 MB per file
+	maxArtifactUploadSize: 200 * 1024 * 1024,      // 200 MB per file
 	logRetentionDays:      7,
 }
 

@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	apiCtx "github.com/mujhtech/dagryn/pkg/api/context"
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
@@ -215,9 +213,9 @@ func (h *Handler) RemoveProjectMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetUserID, err := uuid.Parse(chi.URLParam(r, "userID"))
+	targetUserID, err := getUserIDFromPath(r)
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("invalid user ID"))
+		_ = response.BadRequest(w, r, err)
 		return
 	}
 
@@ -294,9 +292,9 @@ func (h *Handler) UpdateProjectMemberRole(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	targetUserID, err := uuid.Parse(chi.URLParam(r, "userID"))
+	targetUserID, err := getUserIDFromPath(r)
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("invalid user ID"))
+		_ = response.BadRequest(w, r, err)
 		return
 	}
 

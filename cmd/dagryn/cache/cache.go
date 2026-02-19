@@ -32,8 +32,8 @@ func NewCmd(flags *cli.Flags) *cobra.Command {
 
 func newCacheStatusCmd(flags *cli.Flags) *cobra.Command {
 	return &cobra.Command{
-		Use:   "status",
-		Short: "Show cache status and remote connectivity",
+		Use:     "status",
+		Short:   "Show cache status and remote connectivity",
 		Example: `  dagryn cache status`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			log := logger.New(flags.Verbose)

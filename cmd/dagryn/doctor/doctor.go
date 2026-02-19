@@ -38,9 +38,9 @@ func runDoctor(cmd *cobra.Command, args []string, flags *cli.Flags) error {
 	warned := 0
 	failed := 0
 
-	fmt.Fprintln(cmd.OutOrStdout(), "Dagryn Doctor")
-	fmt.Fprintln(cmd.OutOrStdout(), strings.Repeat("─", 40))
-	fmt.Fprintln(cmd.OutOrStdout())
+	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Dagryn Doctor")
+	_, _ = fmt.Fprintln(cmd.OutOrStdout(), strings.Repeat("─", 40))
+	_, _ = fmt.Fprintln(cmd.OutOrStdout())
 
 	// Check 1: Config file
 	cfg, err := config.Parse(flags.CfgFile)
@@ -139,8 +139,8 @@ func runDoctor(cmd *cobra.Command, args []string, flags *cli.Flags) error {
 	}
 
 	// Summary
-	fmt.Fprintln(cmd.OutOrStdout())
-	fmt.Fprintln(cmd.OutOrStdout(), strings.Repeat("─", 40))
+	_, _ = fmt.Fprintln(cmd.OutOrStdout())
+	_, _ = fmt.Fprintln(cmd.OutOrStdout(), strings.Repeat("─", 40))
 	log.Infof("Results: %d passed, %d warnings, %d failed", passed, warned, failed)
 
 	if failed > 0 {

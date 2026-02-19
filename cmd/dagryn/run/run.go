@@ -10,6 +10,7 @@ import (
 
 	"github.com/mujhtech/dagryn/internal/cli"
 	"github.com/mujhtech/dagryn/pkg/client"
+	"github.com/mujhtech/dagryn/pkg/cliui"
 	"github.com/mujhtech/dagryn/pkg/dagryn/cache"
 	"github.com/mujhtech/dagryn/pkg/dagryn/cache/cloud"
 	grpccache "github.com/mujhtech/dagryn/pkg/dagryn/cache/grpc"
@@ -236,7 +237,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 
 	if err != nil {
 		// Wait for cache saves before cancelling the context.
-		sched.WaitCacheSaves()
+		waitCacheSaves(sched)
 		if remoteSync != nil {
 			remoteSync.Stop()
 		}
@@ -247,7 +248,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 	log.Summary(summary.Results, summary.Total, summary.CacheHits)
 
 	// Wait for background cache saves to complete (context must stay alive).
-	sched.WaitCacheSaves()
+	waitCacheSaves(sched)
 
 	// Collect artifacts after status reporting. Stays synchronous so workDir
 	// and remote sync resources are still available.
@@ -268,6 +269,47 @@ func runRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// waitCacheSaves shows a progress bar while background cache saves complete.
+func waitCacheSaves(sched *scheduler.Scheduler) {
+	done := make(chan struct{})
+	go func() {
+		sched.WaitCacheSaves()
+		close(done)
+	}()
+
+	// If saves finish quickly (< 150ms), skip the progress bar entirely.
+	select {
+	case <-done:
+		return
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	total, completed := sched.CacheSaveProgress()
+	if total == 0 {
+		<-done
+		return
+	}
+
+	w := cliui.NewWriter()
+	bar := cliui.NewProgressBar(os.Stderr, "Saving cache", total)
+	bar.Set(completed)
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-done:
+			bar.Complete("")
+			w.Successf("cache saved (%d tasks)", total)
+			return
+		case <-ticker.C:
+			_, completed = sched.CacheSaveProgress()
+			bar.Set(completed)
+		}
+	}
+}
+
 // buildCacheBackend creates a cache.Backend from the configuration.
 // Returns nil to use the default local backend.
 func buildCacheBackend(cfg config.CacheConfig, projectRoot string, log *logger.Logger) cache.Backend {
@@ -278,7 +320,7 @@ func buildCacheBackend(cfg config.CacheConfig, projectRoot string, log *logger.L
 
 	local := cache.NewLocalBackend(cacheRoot)
 
-	if !cfg.Remote.Enabled || flags.NoRemoteCache {
+	if !cfg.Remote.Enabled || flags.NoRemoteCache || !syncRemote {
 		return local
 	}
 

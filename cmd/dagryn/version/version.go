@@ -34,11 +34,11 @@ func NewCmd(_ *cli.Flags) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				fmt.Fprintln(cmd.OutOrStdout(), string(data))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
 				return nil
 			}
 
-			fmt.Fprintln(cmd.OutOrStdout(), pkgversion.Info())
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), pkgversion.Info())
 			return nil
 		},
 	}

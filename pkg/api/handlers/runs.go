@@ -2242,7 +2242,7 @@ func (h *Handler) GetLogs(w http.ResponseWriter, r *http.Request) {
 	page, perPage := GetPageParams(r)
 	// Allow larger per_page for logs
 	if pp := r.URL.Query().Get("per_page"); pp != "" {
-		if n, err := strconv.Atoi(pp); err == nil && n > 0 && n <= 2000 {
+		if n, err := strconv.Atoi(pp); err == nil && n > 0 && n <= 3000 {
 			perPage = n
 		}
 	}

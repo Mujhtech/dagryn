@@ -55,7 +55,7 @@ function RunDetailPage() {
     data: historicalLogs,
     isLoading: logsLoading,
     refetch: refetchLogs,
-  } = useRunLogs(projectId, runId, { perPage: 2000, enabled: !!run });
+  } = useRunLogs(projectId, runId, { perPage: 3000, enabled: !!run });
 
   const {
     data: artifacts,

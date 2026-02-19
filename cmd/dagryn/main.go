@@ -9,6 +9,7 @@ import (
 	"github.com/mujhtech/dagryn/cmd/dagryn/artifact"
 	"github.com/mujhtech/dagryn/cmd/dagryn/auth"
 	"github.com/mujhtech/dagryn/cmd/dagryn/cache"
+	"github.com/mujhtech/dagryn/cmd/dagryn/clean"
 	"github.com/mujhtech/dagryn/cmd/dagryn/completion"
 	"github.com/mujhtech/dagryn/cmd/dagryn/config"
 	"github.com/mujhtech/dagryn/cmd/dagryn/doctor"
@@ -45,6 +46,7 @@ func main() {
 
 	// Tool commands
 	addCmd(root, "tools", plugin.NewCmd(flags))
+	addCmd(root, "tools", clean.NewCmd(flags))
 	addCmd(root, "tools", doctor.NewCmd(flags))
 	addCmd(root, "tools", completion.NewCmd(flags, root))
 	addCmd(root, "tools", version.NewCmd(flags))

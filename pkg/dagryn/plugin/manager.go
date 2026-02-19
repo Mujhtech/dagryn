@@ -532,6 +532,14 @@ func (m *Manager) loadLockFile() {
 			InstallPath:     installPath,
 			Raw:             entry.Spec,
 		}
+		// Restore manifest from disk so binary plugins don't need to
+		// re-resolve from the network on subsequent runs.
+		manifestPath := filepath.Join(installPath, "plugin.toml")
+		if data, err := os.ReadFile(manifestPath); err == nil {
+			if manifest, err := ParseManifest(data); err == nil {
+				p.Manifest = manifest
+			}
+		}
 		m.installed[entry.Spec] = p
 	}
 }

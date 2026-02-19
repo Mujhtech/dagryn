@@ -345,7 +345,7 @@ func normalizeEnv() {
 	for _, a := range aliases {
 		if os.Getenv(a.to) == "" {
 			if v := os.Getenv(a.from); v != "" {
-				os.Setenv(a.to, v)
+				_ = os.Setenv(a.to, v)
 			}
 		}
 	}

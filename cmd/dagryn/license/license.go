@@ -35,8 +35,8 @@ func NewCmd(_ *cli.Flags) *cobra.Command {
 
 func newLicenseStatusCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "status",
-		Short: "Show current license status",
+		Use:     "status",
+		Short:   "Show current license status",
 		Example: `  dagryn license status`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runLicenseStatus()
@@ -51,7 +51,7 @@ func newLicenseActivateCmd() *cobra.Command {
 		Short: "Activate a license key",
 		Example: `  dagryn license activate LK-xxxxx-xxxxx
   dagryn license activate LK-xxxxx-xxxxx --name "CI Server"`,
-		Args:  cobra.ExactArgs(1),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runLicenseActivate(args[0], instanceName)
 		},
@@ -62,8 +62,8 @@ func newLicenseActivateCmd() *cobra.Command {
 
 func newLicenseDeactivateCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "deactivate",
-		Short: "Deactivate the license on this instance",
+		Use:     "deactivate",
+		Short:   "Deactivate the license on this instance",
 		Example: `  dagryn license deactivate`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runLicenseDeactivate()
