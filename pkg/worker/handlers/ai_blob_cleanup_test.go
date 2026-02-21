@@ -12,8 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- Mock blob cleanup repo ---
-
 type mockAIBlobCleanupRepo struct {
 	deletedCutoff time.Time
 	deletedCount  int64
@@ -31,8 +29,6 @@ func (m *mockAIBlobCleanupRepo) DeleteExpiredBlobKeys(_ context.Context, olderTh
 	}
 	return m.deletedCount, nil
 }
-
-// --- Tests ---
 
 func TestAIBlobCleanup_HappyPath(t *testing.T) {
 	mockRepo := newMockAIBlobCleanupRepo()

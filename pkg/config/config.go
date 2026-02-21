@@ -24,38 +24,38 @@ const (
 
 // CacheConfig holds cache configuration.
 type CacheConfig struct {
-	Provider CacheProvider `toml:"provider"`
+	Provider CacheProvider `toml:"provider" envconfig:"PROVIDER"`
 }
 
 // WorkerConfig holds background worker configuration.
 type WorkerConfig struct {
-	Enabled     bool   `toml:"enabled"`
-	Concurrency int    `toml:"concurrency"`
-	RoutePrefix string `toml:"route_prefix"`
+	Enabled     bool   `toml:"enabled" envconfig:"ENABLED"`
+	Concurrency int    `toml:"concurrency" envconfig:"CONCURRENCY"`
+	RoutePrefix string `toml:"route_prefix" envconfig:"ROUTE_PREFIX"`
 }
 
 // ContainerServerConfig holds server-level container isolation defaults.
 type ContainerServerConfig struct {
-	Enabled      bool   `toml:"enabled"`
-	DefaultImage string `toml:"default_image"`
-	MemoryLimit  string `toml:"memory_limit"`
-	CPULimit     string `toml:"cpu_limit"`
-	Network      string `toml:"network"`
+	Enabled      bool   `toml:"enabled" envconfig:"ENABLED"`
+	DefaultImage string `toml:"default_image" envconfig:"DEFAULT_IMAGE"`
+	MemoryLimit  string `toml:"memory_limit" envconfig:"MEMORY_LIMIT"`
+	CPULimit     string `toml:"cpu_limit" envconfig:"CPU_LIMIT"`
+	Network      string `toml:"network" envconfig:"NETWORK"`
 }
 
 // StripeConfig holds Stripe API configuration.
 type StripeConfig struct {
-	SecretKey      string `toml:"secret_key"`
-	WebhookSecret  string `toml:"webhook_secret"`
-	PublishableKey string `toml:"publishable_key"`
+	SecretKey      string `toml:"secret_key" envconfig:"SECRET_KEY"`
+	WebhookSecret  string `toml:"webhook_secret" envconfig:"WEBHOOK_SECRET"`
+	PublishableKey string `toml:"publishable_key" envconfig:"PUBLISHABLE_KEY"`
 }
 
 // LicenseConfig holds self-hosted license key configuration.
 type LicenseConfig struct {
-	Key             string `toml:"key"`                            // The full license key string
-	ServerURL       string `toml:"server_url"`                     // External License Server URL
-	CheckRevocation *bool  `toml:"check_revocation" envconfig:"-"` // nil => default true; handled manually
-	InstanceName    string `toml:"instance_name"`                  // Human-readable instance name
+	Key             string `toml:"key" envconfig:"KEY"`                     // The full license key string
+	ServerURL       string `toml:"server_url" envconfig:"SERVER_URL"`       // External License Server URL
+	CheckRevocation *bool  `toml:"check_revocation" envconfig:"-"`          // nil => default true; handled manually
+	InstanceName    string `toml:"instance_name" envconfig:"INSTANCE_NAME"` // Human-readable instance name
 }
 
 // IsRevocationCheckEnabled returns whether periodic license revocation checks are enabled.
@@ -68,19 +68,19 @@ func (c *LicenseConfig) IsRevocationCheckEnabled() bool {
 
 // AIServerConfig holds server-level AI analysis configuration.
 type AIServerConfig struct {
-	Enabled               bool   `toml:"enabled"`
-	Provider              string `toml:"provider"` // "openai", "google", "gemini"
-	APIKey                string `toml:"api_key"`
-	TimeoutSeconds        int    `toml:"timeout_seconds"`
-	MaxTokens             int    `toml:"max_tokens"`
-	BackendMode           string `toml:"backend_mode"`
-	AgentEndpoint         string `toml:"agent_endpoint"`
-	AgentToken            string `toml:"agent_token"`
-	MaxAnalysesPerHour    int    `toml:"max_analyses_per_hour"`
-	CooldownSeconds       int    `toml:"cooldown_seconds"`
-	MaxConcurrentAnalyses int    `toml:"max_concurrent_analyses"`
-	RawResponseTTLHours   int    `toml:"raw_response_ttl_hours"`
-	RawResponseStorage    string `toml:"raw_response_storage"`
+	Enabled               bool   `toml:"enabled" envconfig:"ENABLED"`
+	Provider              string `toml:"provider" envconfig:"PROVIDER"` // "openai", "google", "gemini"
+	APIKey                string `toml:"api_key" envconfig:"API_KEY"`
+	TimeoutSeconds        int    `toml:"timeout_seconds" envconfig:"TIMEOUT_SECONDS"`
+	MaxTokens             int    `toml:"max_tokens" envconfig:"MAX_TOKENS"`
+	BackendMode           string `toml:"backend_mode" envconfig:"BACKEND_MODE"`
+	AgentEndpoint         string `toml:"agent_endpoint" envconfig:"AGENT_ENDPOINT"`
+	AgentToken            string `toml:"agent_token" envconfig:"AGENT_TOKEN"`
+	MaxAnalysesPerHour    int    `toml:"max_analyses_per_hour" envconfig:"MAX_ANALYSES_PER_HOUR"`
+	CooldownSeconds       int    `toml:"cooldown_seconds" envconfig:"COOLDOWN_SECONDS"`
+	MaxConcurrentAnalyses int    `toml:"max_concurrent_analyses" envconfig:"MAX_CONCURRENT_ANALYSES"`
+	RawResponseTTLHours   int    `toml:"raw_response_ttl_hours" envconfig:"RAW_RESPONSE_TTL_HOURS"`
+	RawResponseStorage    string `toml:"raw_response_storage" envconfig:"RAW_RESPONSE_STORAGE"`
 }
 
 // Config holds all server configuration.
@@ -106,24 +106,24 @@ type Config struct {
 
 // StorageConfig holds cache storage backend configuration.
 type StorageConfig struct {
-	Provider        string `toml:"provider"`
-	Bucket          string `toml:"bucket"`
-	Region          string `toml:"region"`
-	Endpoint        string `toml:"endpoint"`
-	AccessKeyID     string `toml:"access_key_id"`
-	SecretAccessKey string `toml:"secret_access_key"`
-	UsePathStyle    bool   `toml:"use_path_style"`
-	BasePath        string `toml:"base_path"`
-	Prefix          string `toml:"prefix"`
-	CredentialsFile string `toml:"credentials_file"`
+	Provider        string `toml:"provider" envconfig:"PROVIDER"`
+	Bucket          string `toml:"bucket" envconfig:"BUCKET"`
+	Region          string `toml:"region" envconfig:"REGION"`
+	Endpoint        string `toml:"endpoint" envconfig:"ENDPOINT"`
+	AccessKeyID     string `toml:"access_key_id" envconfig:"ACCESS_KEY_ID"`
+	SecretAccessKey string `toml:"secret_access_key" envconfig:"SECRET_ACCESS_KEY"`
+	UsePathStyle    bool   `toml:"use_path_style" envconfig:"USE_PATH_STYLE"`
+	BasePath        string `toml:"base_path" envconfig:"BASE_PATH"`
+	Prefix          string `toml:"prefix" envconfig:"PREFIX"`
+	CredentialsFile string `toml:"credentials_file" envconfig:"CREDENTIALS_FILE"`
 }
 
 // HealthConfig holds health/readiness check configuration.
 type HealthConfig struct {
 	// ReadyCheckDatabase runs a DB ping in /ready when true (default true).
-	ReadyCheckDatabase bool `toml:"ready_check_database"`
+	ReadyCheckDatabase bool `toml:"ready_check_database" envconfig:"READY_CHECK_DATABASE"`
 	// ReadyCheckRedis runs a Redis ping in /ready when true (default false).
-	ReadyCheckRedis bool `toml:"ready_check_redis"`
+	ReadyCheckRedis bool `toml:"ready_check_redis" envconfig:"READY_CHECK_REDIS"`
 }
 
 // DefaultBaseURL is the public-facing URL used in GitHub check runs, AI comments, etc.
@@ -131,13 +131,15 @@ const DefaultBaseURL = "https://dagryn.dev"
 
 // ServerConfig holds HTTP server configuration.
 type ServerConfig struct {
-	Host            string        `toml:"host"`
-	Port            int           `toml:"port"`
-	BaseURL         string        `toml:"base_url" envconfig:"BASE_URL"` // Public-facing URL (default: https://dagryn.dev)
-	ReadTimeout     time.Duration `toml:"read_timeout" envconfig:"-"`
-	WriteTimeout    time.Duration `toml:"write_timeout" envconfig:"-"`
-	ShutdownTimeout time.Duration `toml:"shutdown_timeout" envconfig:"-"`
-	Swagger         SwaggerConfig `toml:"swagger" envconfig:"-"`
+	Host              string        `toml:"host" envconfig:"HOST"`
+	Port              int           `toml:"port" envconfig:"PORT"`
+	BaseURL           string        `toml:"base_url" envconfig:"BASE_URL"` // Public-facing URL (default: https://dagryn.dev)
+	ReadTimeout       time.Duration `toml:"read_timeout" envconfig:"-"`
+	ReadHeaderTimeout time.Duration `toml:"read_header_timeout" envconfig:"-"`
+	WriteTimeout      time.Duration `toml:"write_timeout" envconfig:"-"`
+	UploadTimeout     time.Duration `toml:"upload_timeout" envconfig:"-"`
+	ShutdownTimeout   time.Duration `toml:"shutdown_timeout" envconfig:"-"`
+	Swagger           SwaggerConfig `toml:"swagger" envconfig:"-"`
 }
 
 // SwaggerConfig holds Swagger UI configuration.
@@ -148,7 +150,7 @@ type SwaggerConfig struct {
 
 // AuthConfig holds authentication configuration.
 type AuthConfig struct {
-	JWTSecret        string        `toml:"jwt_secret"`
+	JWTSecret        string        `toml:"jwt_secret" envconfig:"JWT_SECRET"`
 	JWTAccessExpiry  time.Duration `toml:"jwt_access_expiry" envconfig:"-"`
 	JWTRefreshExpiry time.Duration `toml:"jwt_refresh_expiry" envconfig:"-"`
 }
@@ -164,34 +166,34 @@ type GitHubAppConfig struct {
 	// AppID is the numeric GitHub App ID.
 	AppID int64 `toml:"app_id" envconfig:"ID"`
 	// ClientID is the OAuth client ID for the GitHub App (used for connect/install flows).
-	ClientID string `toml:"client_id"`
+	ClientID string `toml:"client_id" envconfig:"CLIENT_ID"`
 	// PrivateKey is the PEM-encoded private key for the GitHub App.
 	// It can be provided inline via config or via environment variable.
-	PrivateKey string `toml:"private_key"`
+	PrivateKey string `toml:"private_key" envconfig:"PRIVATE_KEY"`
 	// WebhookSecret is the shared secret used to verify GitHub webhook signatures.
-	WebhookSecret string `toml:"webhook_secret"`
+	WebhookSecret string `toml:"webhook_secret" envconfig:"WEBHOOK_SECRET"`
 }
 
 // GitHubOAuthConfig holds GitHub OAuth configuration.
 type GitHubOAuthConfig struct {
-	ClientID     string `toml:"client_id"`
-	ClientSecret string `toml:"client_secret"`
+	ClientID     string `toml:"client_id" envconfig:"CLIENT_ID"`
+	ClientSecret string `toml:"client_secret" envconfig:"CLIENT_SECRET"`
 }
 
 // GoogleOAuthConfig holds Google OAuth configuration.
 type GoogleOAuthConfig struct {
-	ClientID     string `toml:"client_id"`
-	ClientSecret string `toml:"client_secret"`
+	ClientID     string `toml:"client_id" envconfig:"CLIENT_ID"`
+	ClientSecret string `toml:"client_secret" envconfig:"CLIENT_SECRET"`
 }
 
 // JobConfig holds background job worker configuration.
 type JobConfig struct {
 	// Enabled determines if the job worker should be started with the server.
-	Enabled bool `toml:"enabled"`
+	Enabled bool `toml:"enabled" envconfig:"ENABLED"`
 	// Concurrency is the number of concurrent job workers.
-	Concurrency int `toml:"concurrency"`
+	Concurrency int `toml:"concurrency" envconfig:"CONCURRENCY"`
 	// EncryptionKey is the key used to encrypt job payloads (must be 32 bytes for AES-256).
-	EncryptionKey string `toml:"encryption_key"`
+	EncryptionKey string `toml:"encryption_key" envconfig:"ENCRYPTION_KEY"`
 }
 
 // DefaultJobConfig returns sensible defaults for job configuration.
@@ -206,12 +208,13 @@ func DefaultJobConfig() JobConfig {
 func DefaultConfig() Config {
 	return Config{
 		Server: ServerConfig{
-			Host:            "localhost",
-			Port:            9000,
-			BaseURL:         DefaultBaseURL,
-			ReadTimeout:     30 * time.Second,
-			WriteTimeout:    30 * time.Second,
-			ShutdownTimeout: 10 * time.Second,
+			Host:              "localhost",
+			Port:              9000,
+			BaseURL:           DefaultBaseURL,
+			ReadHeaderTimeout: 10 * time.Second,
+			WriteTimeout:      5 * time.Minute,
+			UploadTimeout:     10 * time.Minute,
+			ShutdownTimeout:   10 * time.Second,
 			Swagger: SwaggerConfig{
 				Enabled: true,
 				Path:    "/swagger",
@@ -367,6 +370,8 @@ func ProcessEnvVars(cfg *Config) {
 	_ = envconfig.Process("DAGRYN_GOOGLE", &cfg.OAuth.Google)
 	_ = envconfig.Process("DAGRYN_GITHUB_APP", &cfg.GitHubApp)
 	_ = envconfig.Process("DAGRYN_JOB", &cfg.Job)
+	_ = envconfig.Process("DAGRYN_WORKER", &cfg.Worker)
+	_ = envconfig.Process("DAGRYN_CACHE", &cfg.Cache)
 	_ = envconfig.Process("DAGRYN_CACHE_STORAGE", &cfg.CacheStorage)
 	_ = envconfig.Process("DAGRYN_ARTIFACT_STORAGE", &cfg.ArtifactStorage)
 	_ = envconfig.Process("DAGRYN_CONTAINER", &cfg.Container)

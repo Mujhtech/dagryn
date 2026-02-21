@@ -13,11 +13,15 @@ import { Icons } from "~/components/icons";
 import { api } from "~/lib/api";
 import { queryKeys } from "~/lib/query-client";
 import type { RegistryPluginSummary } from "~/lib/api";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute(
   "/_dashboard_layout/plugins/publishers/$publisher",
 )({
   component: PublisherProfilePage,
+  head: () => {
+    return generateMetadata({ title: "Publisher" });
+  },
 });
 
 function formatNumber(n: number): string {

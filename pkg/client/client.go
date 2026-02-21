@@ -50,20 +50,19 @@ func New(cfg Config) *Client {
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "http://localhost:9000"
 	}
-	if cfg.Timeout == 0 {
-		cfg.Timeout = 30 * time.Second
-	}
-
 	transport := &http.Transport{
 		DialContext: (&net.Dialer{
-			Timeout:   cfg.Timeout,      // Dial timeout (connect phase only)
+			Timeout:   30 * time.Second, // Dial timeout (connect phase only)
 			KeepAlive: 30 * time.Second, // TCP keep-alive probes
 		}).DialContext,
-		IdleConnTimeout:       60 * time.Second, // Close idle connections before server does
-		TLSHandshakeTimeout:   10 * time.Second,
-		ResponseHeaderTimeout: cfg.Timeout, // Time to wait for response headers
-		MaxIdleConns:          100,
-		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:     60 * time.Second, // Close idle connections before server does
+		TLSHandshakeTimeout: 10 * time.Second,
+		// No ResponseHeaderTimeout — per-request context deadlines control
+		// timeouts for each call site. A global header timeout would race with
+		// large uploads where the server needs extended time to read the body,
+		// hash content, and upload to object storage before responding.
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
 	}
 
 	return &Client{
@@ -85,8 +84,6 @@ func (c *Client) SetCredentials(creds *Credentials) {
 func (c *Client) SetCredentialsStore(store *CredentialsStore) {
 	c.credStore = store
 }
-
-// --- Request/Response Types ---
 
 type BaseResponse struct {
 	Message string `json:"message"`
@@ -196,8 +193,6 @@ type ProjectResponse struct {
 	MemberCount int       `json:"member_count"`
 	CreatedAt   time.Time `json:"created_at"`
 }
-
-// --- API Methods ---
 
 // RequestDeviceCode initiates the device code flow.
 func (c *Client) RequestDeviceCode(ctx context.Context) (*DeviceCodeResponse, error) {
@@ -386,8 +381,6 @@ func (c *Client) CancelRun(ctx context.Context, projectID, runID uuid.UUID) erro
 	return nil
 }
 
-// --- Heartbeat ---
-
 // HeartbeatResponse represents the response from a heartbeat request.
 type HeartbeatResponse struct {
 	RunID           uuid.UUID `json:"run_id"`
@@ -417,8 +410,6 @@ func (c *Client) Heartbeat(ctx context.Context, projectID, runID uuid.UUID) (*He
 
 	return &result.Data, nil
 }
-
-// --- Run Status Update Methods ---
 
 // UpdateRunStatusRequest represents a request to update run status.
 type UpdateRunStatusRequest struct {
@@ -538,8 +529,6 @@ func (c *Client) AppendLogs(ctx context.Context, projectID, runID uuid.UUID, log
 	return nil
 }
 
-// --- Team Types ---
-
 // TeamResponse represents a team.
 type TeamResponse struct {
 	ID          uuid.UUID `json:"id"`
@@ -550,8 +539,6 @@ type TeamResponse struct {
 	Role        string    `json:"role,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 }
-
-// --- Project Creation Types ---
 
 // CreateProjectRequest represents a request to create a project.
 type CreateProjectRequest struct {
@@ -568,8 +555,6 @@ type CreateProjectResponse struct {
 	BaseResponse
 	Data ProjectResponse `json:"data"`
 }
-
-// --- Team API Methods ---
 
 // ListTeams returns all teams the user belongs to.
 func (c *Client) ListTeams(ctx context.Context) ([]TeamResponse, error) {
@@ -594,8 +579,6 @@ func (c *Client) ListTeams(ctx context.Context) ([]TeamResponse, error) {
 
 	return result.Data.Data, nil
 }
-
-// --- Project API Methods ---
 
 // GetProject returns a project by ID.
 func (c *Client) GetProject(ctx context.Context, projectID uuid.UUID) (*ProjectResponse, error) {
@@ -639,8 +622,6 @@ func (c *Client) CreateProject(ctx context.Context, req CreateProjectRequest) (*
 
 	return &result.Data, nil
 }
-
-// --- Workflow Sync Types ---
 
 // SyncWorkflowRequest represents a request to sync a workflow.
 type SyncWorkflowRequest struct {
@@ -698,8 +679,6 @@ func (c *Client) SyncWorkflow(ctx context.Context, projectID uuid.UUID, req Sync
 
 	return &result, nil
 }
-
-// --- Cache API Methods ---
 
 // CheckCache checks if a cache entry exists for the given task/key.
 // Returns true on 200, false on 404.
@@ -861,8 +840,6 @@ func (c *Client) UploadArtifact(ctx context.Context, projectID, runID uuid.UUID,
 	return nil
 }
 
-// --- Artifact Types and Methods ---
-
 // ArtifactResponse represents an artifact in a run.
 type ArtifactResponse struct {
 	ID        uuid.UUID `json:"id"`
@@ -912,8 +889,6 @@ func (c *Client) DownloadArtifact(ctx context.Context, projectID, runID, artifac
 
 	return resp.Body, nil
 }
-
-// --- Billing ---
 
 // BillingPlanResponse represents a billing plan.
 type BillingPlanResponse struct {
@@ -1049,8 +1024,6 @@ func (c *Client) CreateCheckoutSession(ctx context.Context, planSlug, successURL
 	}
 	return result.Data.URL, nil
 }
-
-// --- Internal Methods ---
 
 // doRequest wraps doRequestInternal with automatic token refresh.
 // It proactively refreshes expired tokens before the request and retries once on 401.

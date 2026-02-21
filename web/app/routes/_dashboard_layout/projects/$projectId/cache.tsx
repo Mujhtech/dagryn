@@ -34,11 +34,15 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Icons } from "~/components/icons";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute(
   "/_dashboard_layout/projects/$projectId/cache",
 )({
   component: CacheAnalyticsPage,
+  head: () => {
+    return generateMetadata({ title: "Cache Analytics" });
+  },
 });
 
 function formatBytes(bytes: number): string {

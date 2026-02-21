@@ -32,7 +32,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <Logo className="h-5 w-5" />
+            <Logo className="h-8 w-8" />
             {/* <SidebarMenuButton
               asChild
               className="data-[slot=sidebar-menu-button]:p-1.5! h-fit! [&>svg]:size-5"

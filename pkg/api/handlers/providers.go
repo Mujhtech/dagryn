@@ -131,6 +131,7 @@ type GitHubRepo struct {
 	CloneURL      string `json:"clone_url"`
 	DefaultBranch string `json:"default_branch"`
 	Private       bool   `json:"private"`
+	Language      string `json:"language"`
 }
 
 // ListGitHubRepos godoc
@@ -152,12 +153,12 @@ func (h *Handler) ListGitHubRepos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.providerTokens == nil || h.providerEncrypt == nil {
+	if h.providerEncrypt == nil {
 		_ = response.Forbidden(w, r, errors.New("gitHub integration is not configured"))
 		return
 	}
 
-	tok, err := h.providerTokens.GetByUserAndProvider(ctx, user.ID, "github")
+	tok, err := h.store.ProviderTokens.GetByUserAndProvider(ctx, user.ID, "github")
 	if err != nil || tok == nil {
 		_ = response.Forbidden(w, r, errors.New("no GitHub account linked. Log in with GitHub to import repositories"))
 		return
@@ -197,6 +198,7 @@ func (h *Handler) ListGitHubRepos(w http.ResponseWriter, r *http.Request) {
 		CloneURL      string `json:"clone_url"`
 		DefaultBranch string `json:"default_branch"`
 		Private       bool   `json:"private"`
+		Language      string `json:"language"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
 		_ = response.InternalServerError(w, r, err)
@@ -211,6 +213,7 @@ func (h *Handler) ListGitHubRepos(w http.ResponseWriter, r *http.Request) {
 			CloneURL:      r.CloneURL,
 			DefaultBranch: r.DefaultBranch,
 			Private:       r.Private,
+			Language:      r.Language,
 		})
 	}
 
@@ -342,6 +345,7 @@ func (h *Handler) ListGitHubAppRepos(w http.ResponseWriter, r *http.Request) {
 			CloneURL      string `json:"clone_url"`
 			DefaultBranch string `json:"default_branch"`
 			Private       bool   `json:"private"`
+			Language      string `json:"language"`
 		} `json:"repositories"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
@@ -357,6 +361,7 @@ func (h *Handler) ListGitHubAppRepos(w http.ResponseWriter, r *http.Request) {
 			CloneURL:      r.CloneURL,
 			DefaultBranch: r.DefaultBranch,
 			Private:       r.Private,
+			Language:      r.Language,
 		})
 	}
 

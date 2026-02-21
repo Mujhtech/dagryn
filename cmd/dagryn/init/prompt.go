@@ -196,8 +196,6 @@ func PrintTemplateList() {
 	fmt.Println("Usage: dagryn init --template <name>")
 }
 
-// --- Project Selection Types ---
-
 // SelectableProject represents a project that can be selected in the list
 type SelectableProject struct {
 	ID   string

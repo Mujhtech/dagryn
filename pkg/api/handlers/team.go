@@ -311,8 +311,6 @@ func (h *Handler) DeleteTeam(w http.ResponseWriter, r *http.Request) {
 	_ = response.NoContent(w, r)
 }
 
-// --- Team Member Handlers ---
-
 // ListTeamMembers godoc
 //
 //	@Summary		List team members
@@ -636,8 +634,6 @@ func (h *Handler) UpdateTeamMemberRole(w http.ResponseWriter, r *http.Request) {
 		JoinedAt: targetMember.JoinedAt,
 	})
 }
-
-// --- Team Invitation Handlers ---
 
 // ListTeamInvitations godoc
 //

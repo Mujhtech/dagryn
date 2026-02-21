@@ -665,7 +665,7 @@ func (s *RemoteSync) CollectArtifacts(workflow *task.Workflow, summary *schedule
 				continue
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			err = s.client.UploadArtifact(ctx, s.projectID, s.RunID, tsk.Name, relPath, fileName, f)
 			cancel()
 			_ = f.Close()
@@ -693,7 +693,7 @@ func (s *RemoteSync) CollectArtifacts(workflow *task.Workflow, summary *schedule
 		archiveFileName := tsk.Name + "-outputs.tar.gz"
 		metaJSON := fmt.Sprintf(`{"archive":true,"file_count":%d}`, len(filtered))
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		err = s.client.UploadArtifact(ctx, s.projectID, s.RunID, tsk.Name, artifactName, archiveFileName, archive,
 			client.WithArtifactContentType("application/gzip"),
 			client.WithArtifactMetadata(metaJSON),

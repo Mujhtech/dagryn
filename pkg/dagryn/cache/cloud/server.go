@@ -1,10 +1,8 @@
 package cloud
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/google/uuid"
@@ -66,14 +64,9 @@ func (b *ServerBackend) Save(ctx context.Context, taskName, key string, outputPa
 		return fmt.Errorf("server cache stat archive: %w", err)
 	}
 
-	// Read into memory so the service can tee-read for hashing.
-	// The archive is already a temp file, so we just pass it as io.Reader.
-	data, err := io.ReadAll(archive)
-	if err != nil {
-		return fmt.Errorf("server cache read archive: %w", err)
-	}
-
-	if err := b.svc.Upload(ctx, b.projectID, taskName, key, bytes.NewReader(data), info.Size()); err != nil {
+	// Pass the archive file directly — CacheService.Upload() already buffers
+	// the reader internally for hashing + S3 upload. No need to double-buffer.
+	if err := b.svc.Upload(ctx, b.projectID, taskName, key, archive, info.Size()); err != nil {
 		return fmt.Errorf("server cache upload: %w", err)
 	}
 	return nil

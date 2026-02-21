@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useLicenseStatus } from "~/hooks/queries/use-license-status";
+import { useActivateLicense } from "~/hooks/mutations/use-activate-license";
 import {
   Card,
   CardContent,
@@ -8,10 +10,17 @@ import {
   CardTitle,
 } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
 import { Icons } from "~/components/icons";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute("/_dashboard_layout/license")({
   component: LicensePage,
+  head: () => {
+    return generateMetadata({ title: "License" });
+  },
 });
 
 function LicensePage() {
@@ -136,7 +145,7 @@ function LicensePage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {Object.entries(license.features).map(([feature, enabled]) => (
+            {license.features.map(({ feature, label, enabled }) => (
               <div key={feature} className="flex items-center gap-2 text-sm">
                 {enabled ? (
                   <Icons.Check className="h-4 w-4 text-green-500" />
@@ -144,7 +153,7 @@ function LicensePage() {
                   <Icons.Close className="h-4 w-4 text-muted-foreground" />
                 )}
                 <span className={enabled ? "" : "text-muted-foreground"}>
-                  {formatFeatureName(feature)}
+                  {label}
                 </span>
               </div>
             ))}
@@ -181,29 +190,169 @@ function LicensePage() {
         </CardContent>
       </Card>
 
-      {!license.licensed && (
-        <Card>
-          <CardContent className="pt-0">
-            <p className="text-sm text-muted-foreground">
-              Want to unlock more features?{" "}
-              <a
-                href="https://dagryn.dev/pricing"
-                className="text-primary underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                View pricing
-              </a>{" "}
-              or run{" "}
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                dagryn license activate &lt;key&gt;
-              </code>{" "}
-              to activate a license.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {/* Activate License */}
+      {!license.licensed && <ActivateLicenseCard />}
+
+      {/* Change License (when already licensed) */}
+      {license.licensed && <ChangeLicenseCard />}
     </div>
+  );
+}
+
+function ActivateLicenseCard() {
+  const [licenseKey, setLicenseKey] = useState("");
+  const activateMutation = useActivateLicense();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!licenseKey.trim()) return;
+    activateMutation.mutate(licenseKey.trim(), {
+      onSuccess: () => setLicenseKey(""),
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Activate License</CardTitle>
+        <CardDescription>
+          Enter your license key to unlock Pro or Enterprise features.{" "}
+          <a
+            href="https://dagryn.dev/pricing"
+            className="text-primary underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            View pricing
+          </a>
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="license-key">License Key</Label>
+            <Input
+              id="license-key"
+              type="text"
+              placeholder="dagryn-license-v1.xxxxx.xxxxx"
+              value={licenseKey}
+              onChange={(e) => setLicenseKey(e.target.value)}
+              disabled={activateMutation.isPending}
+            />
+          </div>
+          {activateMutation.isError && (
+            <p className="text-destructive text-sm">
+              {activateMutation.error?.message || "Failed to activate license"}
+            </p>
+          )}
+          {activateMutation.isSuccess && (
+            <p className="text-green-600 dark:text-green-400 text-sm">
+              License activated successfully.
+            </p>
+          )}
+          <Button
+            type="submit"
+            disabled={activateMutation.isPending || !licenseKey.trim()}
+          >
+            {activateMutation.isPending ? (
+              <>
+                <Icons.Loader className="h-4 w-4 animate-spin mr-2" />
+                Activating...
+              </>
+            ) : (
+              "Activate License"
+            )}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ChangeLicenseCard() {
+  const [showForm, setShowForm] = useState(false);
+  const [licenseKey, setLicenseKey] = useState("");
+  const activateMutation = useActivateLicense();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!licenseKey.trim()) return;
+    activateMutation.mutate(licenseKey.trim(), {
+      onSuccess: () => {
+        setLicenseKey("");
+        setShowForm(false);
+      },
+    });
+  };
+
+  if (!showForm) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <Button variant="outline" size="sm" onClick={() => setShowForm(true)}>
+            Change License Key
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Change License</CardTitle>
+        <CardDescription>
+          Enter a new license key to replace the current one.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="new-license-key">New License Key</Label>
+            <Input
+              id="new-license-key"
+              type="text"
+              placeholder="dagryn-license-v1.xxxxx.xxxxx"
+              value={licenseKey}
+              onChange={(e) => setLicenseKey(e.target.value)}
+              disabled={activateMutation.isPending}
+            />
+          </div>
+          {activateMutation.isError && (
+            <p className="text-destructive text-sm">
+              {activateMutation.error?.message || "Failed to activate license"}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Button
+              type="submit"
+              disabled={activateMutation.isPending || !licenseKey.trim()}
+            >
+              {activateMutation.isPending ? (
+                <>
+                  <Icons.Loader className="h-4 w-4 animate-spin mr-2" />
+                  Activating...
+                </>
+              ) : (
+                "Activate License"
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setShowForm(false);
+                setLicenseKey("");
+                activateMutation.reset();
+              }}
+              disabled={activateMutation.isPending}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -245,9 +394,3 @@ function LimitRow({
   );
 }
 
-function formatFeatureName(feature: string): string {
-  return feature
-    .split("_")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}

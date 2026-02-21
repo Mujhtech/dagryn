@@ -15,10 +15,14 @@ import { Icons } from "~/components/icons";
 import { ProjectBasicView } from "~/components/projects/project-basic-view";
 import { getEventType } from "~/components/projects/run-card";
 import { WorkflowDashboard } from "~/components/projects/workflow-dashboard";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute("/_dashboard_layout/projects/$projectId/")(
   {
     component: ProjectDetailPage,
+    head: () => {
+      return generateMetadata({ title: "Project" });
+    },
   },
 );
 

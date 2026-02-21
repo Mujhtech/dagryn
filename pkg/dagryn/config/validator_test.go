@@ -248,8 +248,6 @@ func TestValidationErrors_Error(t *testing.T) {
 	assert.Contains(t, errors.Error(), "2 validation errors")
 }
 
-// --- Group validation tests ---
-
 func TestValidate_GroupNameCollision(t *testing.T) {
 	cfg := &Config{
 		Workflow: WorkflowConfig{Name: "ci"},
@@ -308,8 +306,6 @@ func TestValidate_ValidGroupName(t *testing.T) {
 		assert.NotContains(t, e.Message, "group")
 	}
 }
-
-// --- Trigger validation tests ---
 
 func TestValidate_ValidTriggers(t *testing.T) {
 	cfg := &Config{
@@ -378,8 +374,6 @@ func TestValidate_NilTrigger(t *testing.T) {
 		assert.NotContains(t, e.Message, "trigger")
 	}
 }
-
-// --- AI validation tests ---
 
 func boolPtr(b bool) *bool { return &b }
 
@@ -618,8 +612,6 @@ func TestValidate_AIValidConfig(t *testing.T) {
 		assert.NotContains(t, e.Message, "ai.")
 	}
 }
-
-// --- AI model validation tests ---
 
 func TestValidate_AIManagedModeUnsupportedModel(t *testing.T) {
 	cfg := &Config{

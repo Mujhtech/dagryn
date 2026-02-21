@@ -12,6 +12,7 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/mujhtech/dagryn/pkg/ai/aitypes"
 	"github.com/mujhtech/dagryn/pkg/database/models"
+	"github.com/mujhtech/dagryn/pkg/database/store"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
 	"github.com/mujhtech/dagryn/pkg/notification"
 	"github.com/mujhtech/dagryn/pkg/telemetry"
@@ -19,14 +20,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
-
-// aiPublishRepo defines AI repo operations needed by the publish handler.
-type aiPublishRepo interface {
-	GetAnalysisByID(ctx context.Context, id uuid.UUID) (*models.AIAnalysis, error)
-	CreatePublication(ctx context.Context, p *models.AIPublication) error
-	GetPublicationByRunAndDestination(ctx context.Context, runID uuid.UUID, dest models.AIPublicationDestination) (*models.AIPublication, error)
-	UpdatePublication(ctx context.Context, id uuid.UUID, status models.AIPublicationStatus, externalID *string, errorMessage *string) error
-}
 
 // runRepo defines run repo ops needed by the publish handler.
 type runRepo interface {
@@ -57,28 +50,20 @@ type aiPublishPayload struct {
 
 // AIPublishHandler processes ai_publish:github jobs.
 type AIPublishHandler struct {
-	aiRepo              aiPublishRepo
-	runs                runRepo
-	projects            projectRepo
-	providerTokens      providerTokenStore
-	providerEncrypt     encrypt.Encrypt
-	githubApp           GitHubAppClient
-	githubInstallations githubInstallationStore
-	encrypter           encrypt.Encrypt
-	baseURL             string
-	logger              zerolog.Logger
-	metrics             *telemetry.Metrics
+	store           store.Store
+	providerEncrypt encrypt.Encrypt
+	githubApp       GitHubAppClient
+	encrypter       encrypt.Encrypt
+	baseURL         string
+	logger          zerolog.Logger
+	metrics         *telemetry.Metrics
 }
 
 // NewAIPublishHandler creates a new AI publish job handler.
 func NewAIPublishHandler(
-	aiRepo aiPublishRepo,
-	runs runRepo,
-	projects projectRepo,
-	providerTokens providerTokenStore,
+	store store.Store,
 	providerEncrypt encrypt.Encrypt,
 	githubApp GitHubAppClient,
-	githubInstallations githubInstallationStore,
 	encrypter encrypt.Encrypt,
 	baseURL string,
 	logger zerolog.Logger,
@@ -89,17 +74,13 @@ func NewAIPublishHandler(
 		m = metrics[0]
 	}
 	return &AIPublishHandler{
-		aiRepo:              aiRepo,
-		runs:                runs,
-		projects:            projects,
-		providerTokens:      providerTokens,
-		providerEncrypt:     providerEncrypt,
-		githubApp:           githubApp,
-		githubInstallations: githubInstallations,
-		encrypter:           encrypter,
-		baseURL:             baseURL,
-		logger:              logger.With().Str("handler", "ai_publish").Logger(),
-		metrics:             m,
+		store:           store,
+		providerEncrypt: providerEncrypt,
+		githubApp:       githubApp,
+		encrypter:       encrypter,
+		baseURL:         baseURL,
+		logger:          logger.With().Str("handler", "ai_publish").Logger(),
+		metrics:         m,
 	}
 }
 
@@ -139,7 +120,7 @@ func (h *AIPublishHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	// Fetch analysis — skip if not found or not successful.
-	analysis, err := h.aiRepo.GetAnalysisByID(ctx, analysisID)
+	analysis, err := h.store.AI.GetAnalysisByID(ctx, analysisID)
 	if err != nil {
 		h.logger.Warn().Err(err).Str("analysis_id", payload.AnalysisID).Msg("analysis not found, skipping publish")
 		return nil
@@ -153,14 +134,14 @@ func (h *AIPublishHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	// Fetch run.
-	run, err := h.runs.GetByID(ctx, runID)
+	run, err := h.store.Runs.GetByID(ctx, runID)
 	if err != nil {
 		h.logger.Warn().Err(err).Str("run_id", payload.RunID).Msg("run not found, skipping publish")
 		return nil
 	}
 
 	// Fetch project.
-	project, err := h.projects.GetByID(ctx, projectID)
+	project, err := h.store.Projects.GetByID(ctx, projectID)
 	if err != nil {
 		h.logger.Warn().Err(err).Str("project_id", payload.ProjectID).Msg("project not found, skipping publish")
 		return nil
@@ -223,8 +204,8 @@ func (h *AIPublishHandler) Handle(ctx context.Context, t *asynq.Task) error {
 // getGitHubToken obtains a GitHub access token — prefers GitHub App, falls back to OAuth.
 func (h *AIPublishHandler) getGitHubToken(ctx context.Context, project *models.Project) (string, error) {
 	// Prefer GitHub App installation token.
-	if project.GitHubInstallationID != nil && h.githubApp != nil && h.githubInstallations != nil {
-		inst, err := h.githubInstallations.GetByID(ctx, *project.GitHubInstallationID)
+	if project.GitHubInstallationID != nil && h.githubApp != nil {
+		inst, err := h.store.GitHubInstallations.GetByID(ctx, *project.GitHubInstallationID)
 		if err == nil && inst != nil {
 			token, err := h.githubApp.FetchInstallationToken(ctx, inst.InstallationID)
 			if err == nil && token != nil {
@@ -234,8 +215,8 @@ func (h *AIPublishHandler) getGitHubToken(ctx context.Context, project *models.P
 	}
 
 	// Fallback to OAuth token.
-	if h.providerTokens != nil && h.providerEncrypt != nil && project.RepoLinkedByUserID != nil {
-		tok, err := h.providerTokens.GetByUserAndProvider(ctx, *project.RepoLinkedByUserID, "github")
+	if h.providerEncrypt != nil && project.RepoLinkedByUserID != nil {
+		tok, err := h.store.ProviderTokens.GetByUserAndProvider(ctx, *project.RepoLinkedByUserID, "github")
 		if err == nil && tok != nil {
 			decrypted, err := h.providerEncrypt.Decrypt(tok.AccessTokenEncrypted)
 			if err == nil {
@@ -256,7 +237,7 @@ func (h *AIPublishHandler) publishPRComment(ctx context.Context, analysis *model
 	}
 
 	// Check idempotency.
-	existing, err := h.aiRepo.GetPublicationByRunAndDestination(ctx, run.ID, models.AIPublicationDestGitHubPRComment)
+	existing, err := h.store.AI.GetPublicationByRunAndDestination(ctx, run.ID, models.AIPublicationDestGitHubPRComment)
 	if err == nil && existing != nil {
 		if existing.Status == models.AIPublicationStatusSent && existing.ExternalID != nil {
 			// Update existing comment.
@@ -267,10 +248,10 @@ func (h *AIPublishHandler) publishPRComment(ctx context.Context, analysis *model
 			if err := notification.SendGitHubJSON(ctx, accessToken, http.MethodPatch, commentURL, commentBody, nil); err != nil {
 				h.logger.Warn().Err(err).Msg("failed to update PR comment")
 				errMsg := err.Error()
-				_ = h.aiRepo.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusFailed, nil, &errMsg)
+				_ = h.store.AI.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusFailed, nil, &errMsg)
 				return err
 			}
-			_ = h.aiRepo.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusUpdated, existing.ExternalID, nil)
+			_ = h.store.AI.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusUpdated, existing.ExternalID, nil)
 			return nil
 		}
 		// Previous attempt failed — retry by posting a new comment, then update the existing record.
@@ -284,11 +265,11 @@ func (h *AIPublishHandler) publishPRComment(ctx context.Context, analysis *model
 		if err := notification.SendGitHubJSON(ctx, accessToken, http.MethodPost, commentURL, commentBody, &respBody); err != nil {
 			h.logger.Warn().Err(err).Msg("failed to create PR comment")
 			errMsg := err.Error()
-			_ = h.aiRepo.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusFailed, nil, &errMsg)
+			_ = h.store.AI.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusFailed, nil, &errMsg)
 			return err
 		}
 		externalID := fmt.Sprintf("%d", respBody.ID)
-		_ = h.aiRepo.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusSent, &externalID, nil)
+		_ = h.store.AI.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusSent, &externalID, nil)
 		return nil
 	}
 
@@ -310,7 +291,7 @@ func (h *AIPublishHandler) publishPRComment(ctx context.Context, analysis *model
 			Status:       models.AIPublicationStatusFailed,
 			ErrorMessage: strPtr(err.Error()),
 		}
-		_ = h.aiRepo.CreatePublication(ctx, pub)
+		_ = h.store.AI.CreatePublication(ctx, pub)
 		return err
 	}
 
@@ -323,7 +304,7 @@ func (h *AIPublishHandler) publishPRComment(ctx context.Context, analysis *model
 		ExternalID:  &externalID,
 		Status:      models.AIPublicationStatusSent,
 	}
-	if err := h.aiRepo.CreatePublication(ctx, pub); err != nil {
+	if err := h.store.AI.CreatePublication(ctx, pub); err != nil {
 		h.logger.Warn().Err(err).Msg("failed to persist PR comment publication")
 	}
 
@@ -335,7 +316,7 @@ func (h *AIPublishHandler) publishCheckRun(ctx context.Context, analysis *models
 	sha := *run.GitCommit
 
 	// Check idempotency.
-	existing, err := h.aiRepo.GetPublicationByRunAndDestination(ctx, run.ID, models.AIPublicationDestGitHubCheck)
+	existing, err := h.store.AI.GetPublicationByRunAndDestination(ctx, run.ID, models.AIPublicationDestGitHubCheck)
 	if err == nil && existing != nil {
 		if existing.Status == models.AIPublicationStatusSent && existing.ExternalID != nil {
 			// Update existing check run.
@@ -353,10 +334,10 @@ func (h *AIPublishHandler) publishCheckRun(ctx context.Context, analysis *models
 				if err := notification.UpdateCheckRun(ctx, accessToken, owner, repoName, checkRunID, req); err != nil {
 					h.logger.Warn().Err(err).Msg("failed to update check run")
 					errMsg := err.Error()
-					_ = h.aiRepo.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusFailed, nil, &errMsg)
+					_ = h.store.AI.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusFailed, nil, &errMsg)
 					return err
 				}
-				_ = h.aiRepo.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusUpdated, existing.ExternalID, nil)
+				_ = h.store.AI.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusUpdated, existing.ExternalID, nil)
 			}
 			return nil
 		}
@@ -376,11 +357,11 @@ func (h *AIPublishHandler) publishCheckRun(ctx context.Context, analysis *models
 		if err != nil {
 			h.logger.Warn().Err(err).Msg("failed to create check run")
 			errMsg := err.Error()
-			_ = h.aiRepo.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusFailed, nil, &errMsg)
+			_ = h.store.AI.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusFailed, nil, &errMsg)
 			return err
 		}
 		externalID := fmt.Sprintf("%d", newCheckRunID)
-		_ = h.aiRepo.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusSent, &externalID, nil)
+		_ = h.store.AI.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusSent, &externalID, nil)
 		return nil
 	}
 
@@ -407,7 +388,7 @@ func (h *AIPublishHandler) publishCheckRun(ctx context.Context, analysis *models
 			Status:       models.AIPublicationStatusFailed,
 			ErrorMessage: strPtr(err.Error()),
 		}
-		_ = h.aiRepo.CreatePublication(ctx, pub)
+		_ = h.store.AI.CreatePublication(ctx, pub)
 		return err
 	}
 
@@ -420,7 +401,7 @@ func (h *AIPublishHandler) publishCheckRun(ctx context.Context, analysis *models
 		ExternalID:  &externalID,
 		Status:      models.AIPublicationStatusSent,
 	}
-	if err := h.aiRepo.CreatePublication(ctx, pub); err != nil {
+	if err := h.store.AI.CreatePublication(ctx, pub); err != nil {
 		h.logger.Warn().Err(err).Msg("failed to persist check run publication")
 	}
 

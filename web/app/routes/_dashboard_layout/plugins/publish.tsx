@@ -13,9 +13,13 @@ import { Textarea } from "~/components/ui/textarea";
 import { Label } from "~/components/ui/label";
 import { Icons } from "~/components/icons";
 import { usePublishPlugin } from "~/hooks/mutations";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute("/_dashboard_layout/plugins/publish")({
   component: PublishPluginPage,
+  head: () => {
+    return generateMetadata({ title: "Publish Plugin" });
+  },
 });
 
 function PublishPluginPage() {

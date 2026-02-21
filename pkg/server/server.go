@@ -105,10 +105,13 @@ func New(cfg *config.Config) *Server {
 		config: cfg,
 		router: router,
 		server: &http.Server{
-			Addr:         cfg.Server.Address(),
-			Handler:      router,
-			ReadTimeout:  cfg.Server.ReadTimeout,
-			WriteTimeout: cfg.Server.WriteTimeout,
+			Addr:              cfg.Server.Address(),
+			Handler:           router,
+			ReadHeaderTimeout: cfg.Server.ReadHeaderTimeout,
+			// No WriteTimeout — the AdaptiveTimeout middleware provides per-route
+			// context deadlines with graceful 503 responses. Setting WriteTimeout
+			// here would race with the middleware and cause EOF on large uploads
+			// (server kills the TCP connection instead of sending a response).
 		},
 	}
 }

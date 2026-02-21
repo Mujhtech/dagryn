@@ -17,7 +17,7 @@ type ProjectRepo struct {
 }
 
 // NewProjectRepo creates a new project repository.
-func NewProjectRepo(pool *pgxpool.Pool) *ProjectRepo {
+func NewProjectRepo(pool *pgxpool.Pool) ProjectStore {
 	return &ProjectRepo{pool: pool}
 }
 

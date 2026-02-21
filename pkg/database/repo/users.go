@@ -24,7 +24,7 @@ type UserRepo struct {
 }
 
 // NewUserRepo creates a new user repository.
-func NewUserRepo(pool *pgxpool.Pool) *UserRepo {
+func NewUserRepo(pool *pgxpool.Pool) UserStore {
 	return &UserRepo{pool: pool}
 }
 

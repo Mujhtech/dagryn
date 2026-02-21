@@ -11,15 +11,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/mujhtech/dagryn/pkg/database/models"
+	"github.com/mujhtech/dagryn/pkg/database/repo"
+	"github.com/mujhtech/dagryn/pkg/database/store"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// --- Mock implementations ---
-
 type mockAIRepoForHandler struct {
+	repo.AIStore       // embed for interface satisfaction
 	analyses           map[uuid.UUID]*models.AIAnalysis
 	pendingByDedup     map[string]*models.AIAnalysis
 	recentCount        int
@@ -104,9 +105,10 @@ func (m *mockAIRepoForHandler) GetMostRecentAnalysisByKey(_ context.Context, _ u
 }
 
 type mockRunDS struct {
-	run         *models.Run
-	taskResults []models.TaskResult
-	logs        []models.RunLog
+	repo.RunStore // embed for interface satisfaction
+	run           *models.Run
+	taskResults   []models.TaskResult
+	logs          []models.RunLog
 }
 
 func (m *mockRunDS) GetByID(_ context.Context, _ uuid.UUID) (*models.Run, error) {
@@ -141,7 +143,9 @@ func (m *mockAnalysisJobEnqueuer) EnqueueRaw(queue, taskName string, data []byte
 	return nil
 }
 
-type mockWorkflowDS struct{}
+type mockWorkflowDS struct {
+	repo.WorkflowStore // embed for interface satisfaction
+}
 
 func (m *mockWorkflowDS) GetByID(_ context.Context, _ uuid.UUID) (*models.WorkflowWithTasks, error) {
 	return nil, fmt.Errorf("not found")
@@ -154,8 +158,6 @@ func encodePayload(t *testing.T, v any) []byte {
 	require.NoError(t, err)
 	return []byte(base64.StdEncoding.EncodeToString(data))
 }
-
-// --- Tests ---
 
 func TestBuildDedupKey(t *testing.T) {
 	pid := uuid.MustParse("11111111-1111-1111-1111-111111111111")
@@ -202,9 +204,11 @@ func TestAIAnalysis_Dedup_SkipExisting(t *testing.T) {
 	}
 
 	handler := NewAIAnalysisHandler(
-		&mockRunDS{},
-		&mockWorkflowDS{},
-		mockAI,
+		store.Store{
+			AI:        mockAI,
+			Runs:      &mockRunDS{},
+			Workflows: &mockWorkflowDS{},
+		},
 		encrypt.NewNoOpEncrypt(),
 		&AIAnalysisConfig{
 			Enabled:            true,
@@ -241,9 +245,11 @@ func TestAIAnalysis_RateLimit_Exceeded(t *testing.T) {
 	mockAI.recentCount = 10 // At limit
 
 	handler := NewAIAnalysisHandler(
-		&mockRunDS{},
-		&mockWorkflowDS{},
-		mockAI,
+		store.Store{
+			AI:        mockAI,
+			Runs:      &mockRunDS{},
+			Workflows: &mockWorkflowDS{},
+		},
 		encrypt.NewNoOpEncrypt(),
 		&AIAnalysisConfig{
 			Enabled:            true,
@@ -308,9 +314,11 @@ func TestAIAnalysis_Supersede_OldCommit(t *testing.T) {
 	// Use an invalid provider so the pipeline fails after supersede is called.
 	// This tests that supersede is invoked with correct args.
 	handler := NewAIAnalysisHandler(
-		mockRuns,
-		&mockWorkflowDS{},
-		mockAI,
+		store.Store{
+			AI:        mockAI,
+			Runs:      mockRuns,
+			Workflows: &mockWorkflowDS{},
+		},
 		encrypt.NewNoOpEncrypt(),
 		&AIAnalysisConfig{
 			Enabled:            true,
@@ -350,9 +358,11 @@ func TestAIAnalysis_ProviderError_NoRetry(t *testing.T) {
 
 	// Use an invalid backend mode to trigger provider creation failure.
 	handler := NewAIAnalysisHandler(
-		&mockRunDS{},
-		&mockWorkflowDS{},
-		mockAI,
+		store.Store{
+			AI:        mockAI,
+			Runs:      &mockRunDS{},
+			Workflows: &mockWorkflowDS{},
+		},
 		encrypt.NewNoOpEncrypt(),
 		&AIAnalysisConfig{
 			Enabled:            true,
@@ -423,9 +433,11 @@ func TestAIAnalysis_HappyPath(t *testing.T) {
 	}
 
 	handler := NewAIAnalysisHandler(
-		mockRuns,
-		&mockWorkflowDS{},
-		mockAI,
+		store.Store{
+			AI:        mockAI,
+			Runs:      mockRuns,
+			Workflows: &mockWorkflowDS{},
+		},
 		encrypt.NewNoOpEncrypt(),
 		&AIAnalysisConfig{
 			Enabled:            true,
@@ -540,9 +552,11 @@ func TestAIAnalysis_CooldownEnforced(t *testing.T) {
 	}
 
 	handler := NewAIAnalysisHandler(
-		&mockRunDS{},
-		&mockWorkflowDS{},
-		mockAI,
+		store.Store{
+			AI:        mockAI,
+			Runs:      &mockRunDS{},
+			Workflows: &mockWorkflowDS{},
+		},
 		encrypt.NewNoOpEncrypt(),
 		&AIAnalysisConfig{
 			Enabled:            true,
@@ -579,9 +593,11 @@ func TestAIAnalysis_ConcurrentLimitExceeded(t *testing.T) {
 	mockAI.inProgressCount = 3 // At limit
 
 	handler := NewAIAnalysisHandler(
-		&mockRunDS{},
-		&mockWorkflowDS{},
-		mockAI,
+		store.Store{
+			AI:        mockAI,
+			Runs:      &mockRunDS{},
+			Workflows: &mockWorkflowDS{},
+		},
 		encrypt.NewNoOpEncrypt(),
 		&AIAnalysisConfig{
 			Enabled:               true,

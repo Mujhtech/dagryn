@@ -15,9 +15,13 @@ import type { PluginInfo } from "~/lib/api";
 import { usePlugin } from "~/hooks/queries";
 import { Icons } from "~/components/icons";
 import { MarkdownRenderer } from "~/components/markdown-renderer";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute("/_dashboard_layout/plugins/$pluginName")({
   component: PluginDetailPage,
+  head: () => {
+    return generateMetadata({ title: "Plugin Details" });
+  },
 });
 
 function PluginDetailPage() {

@@ -449,8 +449,6 @@ func TestGRPCBackend_InstanceName(t *testing.T) {
 	assert.True(t, hit)
 }
 
-// --- helpers ---
-
 func writeTestFile(t *testing.T, root, relPath, content string, perm os.FileMode) {
 	t.Helper()
 	p := filepath.Join(root, relPath)

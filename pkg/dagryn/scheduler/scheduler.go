@@ -499,7 +499,6 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 	taskCE := s.compositeExecutor.WithOutput(stdoutWriter, stderrWriter)
 	compositeEnv, compositeCleanupTasks := s.runCompositeSetup(ctx, t, taskCE)
 
-
 	// Choose executor: container (if available and configured) or host
 	var taskExec executor.TaskExecutor
 	if s.containerRuntime != nil && s.containerConfig != nil {
@@ -553,7 +552,7 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 		go func() {
 			defer s.cacheSaveWg.Done()
 			defer s.cacheSaveDone.Add(1)
-			saveCtx, saveCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			saveCtx, saveCancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer saveCancel()
 			if err := s.cache.Save(saveCtx, t, cacheKey, result.Duration); err != nil {
 				slog.Warn("cache save failed", "task", taskName, "key", cacheKey, "error", err)
@@ -682,7 +681,7 @@ func (s *Scheduler) executeCompositeTask(ctx context.Context, t *task.Task, cach
 			go func() {
 				defer s.cacheSaveWg.Done()
 				defer s.cacheSaveDone.Add(1)
-				saveCtx, saveCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+				saveCtx, saveCancel := context.WithTimeout(context.Background(), 10*time.Minute)
 				defer saveCancel()
 				if err := s.cache.Save(saveCtx, t, cacheKey, duration); err != nil {
 					slog.Warn("cache save failed", "task", t.Name, "key", cacheKey, "error", err)

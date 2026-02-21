@@ -20,7 +20,7 @@ type APIKeyRepo struct {
 }
 
 // NewAPIKeyRepo creates a new API key repository.
-func NewAPIKeyRepo(pool *pgxpool.Pool) *APIKeyRepo {
+func NewAPIKeyRepo(pool *pgxpool.Pool) APIKeyStore {
 	return &APIKeyRepo{pool: pool}
 }
 

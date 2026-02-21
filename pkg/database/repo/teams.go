@@ -17,7 +17,7 @@ type TeamRepo struct {
 }
 
 // NewTeamRepo creates a new team repository.
-func NewTeamRepo(pool *pgxpool.Pool) *TeamRepo {
+func NewTeamRepo(pool *pgxpool.Pool) TeamStore {
 	return &TeamRepo{pool: pool}
 }
 

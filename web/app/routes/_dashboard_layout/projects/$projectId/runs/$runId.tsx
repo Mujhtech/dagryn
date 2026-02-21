@@ -34,11 +34,15 @@ import {
   type LogLine,
 } from "~/components/projects/run-detail/run-detail-tabs";
 import { useFavicon } from "~/hooks/use-favicon";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute(
   "/_dashboard_layout/projects/$projectId/runs/$runId",
 )({
   component: RunDetailPage,
+  head: () => {
+    return generateMetadata({ title: "Run Detail" });
+  },
 });
 
 function RunDetailPage() {

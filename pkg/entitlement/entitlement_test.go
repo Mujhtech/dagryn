@@ -11,12 +11,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// --- Interface compliance ---
-
 var _ entitlement.Checker = (*entitlement.LicenseChecker)(nil)
 var _ entitlement.Checker = (*entitlement.NoopChecker)(nil)
-
-// --- LicenseChecker tests ---
 
 func TestLicenseChecker_Mode(t *testing.T) {
 	gate := licensing.NewFeatureGate(nil, zerolog.Nop())
@@ -31,12 +27,20 @@ func TestLicenseChecker_HasFeature_Community(t *testing.T) {
 	checker := entitlement.NewLicenseChecker(gate)
 	ctx := context.Background()
 
-	// Community edition has no features
-	if checker.HasFeature(ctx, "container_execution") {
-		t.Error("expected community edition to not have container_execution")
+	// Community edition includes a subset of features (defined in communityLimits)
+	if !checker.HasFeature(ctx, "container_execution") {
+		t.Error("expected community edition to have container_execution")
 	}
+	if !checker.HasFeature(ctx, "dashboard_full") {
+		t.Error("expected community edition to have dashboard_full")
+	}
+
+	// Enterprise-only features are not available in community
 	if checker.HasFeature(ctx, "sso") {
 		t.Error("expected community edition to not have sso")
+	}
+	if checker.HasFeature(ctx, "custom_rbac") {
+		t.Error("expected community edition to not have custom_rbac")
 	}
 }
 
@@ -181,8 +185,6 @@ func TestLicenseChecker_Gate(t *testing.T) {
 	}
 }
 
-// --- NoopChecker tests ---
-
 func TestNoopChecker_AllowsEverything(t *testing.T) {
 	checker := entitlement.NewNoopChecker()
 	ctx := context.Background()
@@ -214,8 +216,6 @@ func TestNoopChecker_RecordUsage_NoOp(t *testing.T) {
 	// Should not panic
 	checker.RecordUsage(context.Background(), "bandwidth", uuid.New(), 1024)
 }
-
-// --- QuotaError tests ---
 
 func TestQuotaError_Message(t *testing.T) {
 	err := &entitlement.QuotaError{

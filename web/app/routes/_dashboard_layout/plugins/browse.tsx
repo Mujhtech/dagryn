@@ -24,9 +24,13 @@ import {
   useTrendingPlugins,
 } from "~/hooks/queries";
 import { Icons } from "~/components/icons";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute("/_dashboard_layout/plugins/browse")({
   component: BrowsePluginsPage,
+  head: () => {
+    return generateMetadata({ title: "Browse Plugins" });
+  },
 });
 
 function formatNumber(n: number): string {

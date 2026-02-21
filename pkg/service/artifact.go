@@ -22,7 +22,7 @@ import (
 
 // ArtifactService coordinates artifact storage and database operations.
 type ArtifactService struct {
-	repo         *repo.ArtifactRepo
+	repo         repo.ArtifactStore
 	bucket       storage.Bucket
 	signer       storage.SignedURLer
 	logger       zerolog.Logger
@@ -35,7 +35,7 @@ func (s *ArtifactService) SetEntitlements(c entitlement.Checker) {
 }
 
 // NewArtifactService creates a new artifact service.
-func NewArtifactService(artifactRepo *repo.ArtifactRepo, bucket storage.Bucket, logger zerolog.Logger) *ArtifactService {
+func NewArtifactService(artifactRepo repo.ArtifactStore, bucket storage.Bucket, logger zerolog.Logger) *ArtifactService {
 	var signer storage.SignedURLer
 	if s, ok := bucket.(storage.SignedURLer); ok {
 		signer = s

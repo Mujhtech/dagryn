@@ -34,12 +34,12 @@ type PluginAnalytics struct {
 
 // PluginRegistryService coordinates plugin registry operations.
 type PluginRegistryService struct {
-	repo   *repo.PluginRegistryRepo
+	repo   repo.PluginRegistryStore
 	logger zerolog.Logger
 }
 
 // NewPluginRegistryService creates a new plugin registry service.
-func NewPluginRegistryService(registryRepo *repo.PluginRegistryRepo, logger zerolog.Logger) *PluginRegistryService {
+func NewPluginRegistryService(registryRepo repo.PluginRegistryStore, logger zerolog.Logger) *PluginRegistryService {
 	return &PluginRegistryService{
 		repo:   registryRepo,
 		logger: logger.With().Str("service", "plugin_registry").Logger(),

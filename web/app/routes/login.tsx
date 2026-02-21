@@ -5,6 +5,7 @@ import { useAuthProviders } from "~/hooks/queries";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import { Logo } from "~/components/logo";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -12,23 +13,10 @@ export const Route = createFileRoute("/login")({
   //   const post = await fetchPost(params.postId)
   //   return { post }
   // },
-  head: ({}) => {
-    return {
-      meta: [
-        { title: "Login" },
-        { name: "description", content: "Login to your Dagryn account" },
-        // Open Graph
-        // { property: "og:title", content: loaderData.post.title },
-        // { property: "og:description", content: loaderData.post.excerpt },
-        // { property: "og:image", content: loaderData.post.coverImage },
-        // { property: "og:type", content: "article" },
-        // // Twitter Card
-        // { name: "twitter:card", content: "summary_large_image" },
-        // { name: "twitter:title", content: loaderData.post.title },
-        // { name: "twitter:description", content: loaderData.post.excerpt },
-        // { name: "twitter:image", content: loaderData.post.coverImage },
-      ],
-    };
+  head: async ({}) => {
+    return generateMetadata({
+      title: "Login",
+    });
   },
 });
 

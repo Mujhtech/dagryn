@@ -17,7 +17,7 @@ type ProviderTokenRepo struct {
 }
 
 // NewProviderTokenRepo creates a new provider token repository.
-func NewProviderTokenRepo(pool *pgxpool.Pool) *ProviderTokenRepo {
+func NewProviderTokenRepo(pool *pgxpool.Pool) ProviderTokenStore {
 	return &ProviderTokenRepo{pool: pool}
 }
 

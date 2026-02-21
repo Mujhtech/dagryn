@@ -2,6 +2,7 @@ package licensing
 
 // communityLimits defines limits for the free Community edition.
 var communityLimits = struct {
+	features              []Feature
 	seats                 int
 	maxProjects           int
 	maxTeamMembers        int
@@ -10,6 +11,16 @@ var communityLimits = struct {
 	maxArtifactUploadSize int64
 	logRetentionDays      int
 }{
+	features: []Feature{
+		FeatureContainerExecution,
+		FeatureDashboardFull,
+		FeatureAIAnalysis,
+		FeatureAISuggestions,
+		FeatureCloudCache,
+		FeatureStorage,
+		FeatureArtifactRetention,
+		FeatureCacheTTL,
+	},
 	seats:                 3,
 	maxProjects:           5,
 	maxTeamMembers:        3,

@@ -12,9 +12,13 @@ import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Icons } from "~/components/icons";
 import type { Invitation } from "~/lib/api";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute("/_dashboard_layout/invitations/")({
   component: InvitationsPage,
+  head: () => {
+    return generateMetadata({ title: "Invitations" });
+  },
 });
 
 function InvitationsPage() {

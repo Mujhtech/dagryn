@@ -19,7 +19,7 @@ type InvitationRepo struct {
 }
 
 // NewInvitationRepo creates a new invitation repository.
-func NewInvitationRepo(pool *pgxpool.Pool) *InvitationRepo {
+func NewInvitationRepo(pool *pgxpool.Pool) InvitationStore {
 	return &InvitationRepo{pool: pool}
 }
 

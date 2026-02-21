@@ -17,11 +17,9 @@ type AIRepo struct {
 }
 
 // NewAIRepo creates a new AI repository.
-func NewAIRepo(pool *pgxpool.Pool) *AIRepo {
+func NewAIRepo(pool *pgxpool.Pool) AIStore {
 	return &AIRepo{pool: pool}
 }
-
-// --- Analysis CRUD ---
 
 // CreateAnalysis inserts a new AI analysis record.
 func (r *AIRepo) CreateAnalysis(ctx context.Context, a *models.AIAnalysis) error {
@@ -189,8 +187,6 @@ func (r *AIRepo) CountRecentAnalyses(ctx context.Context, projectID uuid.UUID, s
 	return count, err
 }
 
-// --- Publication CRUD ---
-
 // CreatePublication inserts a new publication record.
 func (r *AIRepo) CreatePublication(ctx context.Context, p *models.AIPublication) error {
 	if p.ID == uuid.Nil {
@@ -257,8 +253,6 @@ func (r *AIRepo) ListPublicationsByAnalysis(ctx context.Context, analysisID uuid
 	}
 	return pubs, rows.Err()
 }
-
-// --- Suggestion CRUD ---
 
 // CreateSuggestion inserts a new AI suggestion record.
 func (r *AIRepo) CreateSuggestion(ctx context.Context, s *models.AISuggestion) error {
@@ -411,8 +405,6 @@ func (r *AIRepo) DeleteExpiredBlobKeys(ctx context.Context, olderThan time.Time)
 	}
 	return result.RowsAffected(), nil
 }
-
-// --- Scan helpers ---
 
 func (r *AIRepo) scanAnalysis(ctx context.Context, query string, args ...any) (*models.AIAnalysis, error) {
 	row := r.pool.QueryRow(ctx, query, args...)

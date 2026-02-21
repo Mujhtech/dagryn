@@ -3,54 +3,43 @@ package initcmd
 import (
 	"os"
 	"path/filepath"
+
+	"github.com/mujhtech/dagryn/pkg/templates"
 )
 
-// ProjectType represents the detected project type
-type ProjectType string
+// Type aliases so existing code in this package and other callers continues to work.
+type ProjectType = templates.ProjectType
+type PackageManager = templates.PackageManager
 
+// Re-export project type constants.
 const (
-	ProjectGo      ProjectType = "go"
-	ProjectRust    ProjectType = "rust"
-	ProjectPython  ProjectType = "python"
-	ProjectNode    ProjectType = "node"
-	ProjectJava    ProjectType = "java"
-	ProjectRuby    ProjectType = "ruby"
-	ProjectPHP     ProjectType = "php"
-	ProjectElixir  ProjectType = "elixir"
-	ProjectSwift   ProjectType = "swift"
-	ProjectCpp     ProjectType = "cpp"
-	ProjectGeneric ProjectType = "generic"
+	ProjectGo      = templates.ProjectGo
+	ProjectRust    = templates.ProjectRust
+	ProjectPython  = templates.ProjectPython
+	ProjectNode    = templates.ProjectNode
+	ProjectJava    = templates.ProjectJava
+	ProjectRuby    = templates.ProjectRuby
+	ProjectPHP     = templates.ProjectPHP
+	ProjectElixir  = templates.ProjectElixir
+	ProjectSwift   = templates.ProjectSwift
+	ProjectCpp     = templates.ProjectCpp
+	ProjectGeneric = templates.ProjectGeneric
 )
 
-// PackageManager represents the detected package manager
-type PackageManager string
-
-// Node.js package managers
+// Re-export package manager constants.
 const (
-	PMNpm  PackageManager = "npm"
-	PMYarn PackageManager = "yarn"
-	PMPnpm PackageManager = "pnpm"
-)
-
-// Python package managers
-const (
-	PMPip    PackageManager = "pip"
-	PMPoetry PackageManager = "poetry"
-	PMPipenv PackageManager = "pipenv"
-	PMUv     PackageManager = "uv"
-)
-
-// Java build tools
-const (
-	PMMaven  PackageManager = "maven"
-	PMGradle PackageManager = "gradle"
-)
-
-// C/C++ build systems
-const (
-	PMCMake PackageManager = "cmake"
-	PMMeson PackageManager = "meson"
-	PMMake  PackageManager = "make"
+	PMNpm    = templates.PMNpm
+	PMYarn   = templates.PMYarn
+	PMPnpm   = templates.PMPnpm
+	PMPip    = templates.PMPip
+	PMPoetry = templates.PMPoetry
+	PMPipenv = templates.PMPipenv
+	PMUv     = templates.PMUv
+	PMMaven  = templates.PMMaven
+	PMGradle = templates.PMGradle
+	PMCMake  = templates.PMCMake
+	PMMeson  = templates.PMMeson
+	PMMake   = templates.PMMake
 )
 
 // DetectionResult holds the result of project detection
@@ -212,114 +201,12 @@ func fileExists(path string) bool {
 	return !info.IsDir()
 }
 
-// AllProjectTypes returns all available project types
+// AllProjectTypes delegates to the shared package.
 func AllProjectTypes() []ProjectType {
-	return []ProjectType{
-		ProjectGo,
-		ProjectRust,
-		ProjectPython,
-		ProjectNode,
-		ProjectJava,
-		ProjectRuby,
-		ProjectPHP,
-		ProjectElixir,
-		ProjectSwift,
-		ProjectCpp,
-		ProjectGeneric,
-	}
+	return templates.AllProjectTypes()
 }
 
-// ProjectTypeFromString converts a string to ProjectType
+// ProjectTypeFromString delegates to the shared package.
 func ProjectTypeFromString(s string) ProjectType {
-	switch s {
-	case "go":
-		return ProjectGo
-	case "rust":
-		return ProjectRust
-	case "python":
-		return ProjectPython
-	case "node", "nodejs", "js", "javascript":
-		return ProjectNode
-	case "java":
-		return ProjectJava
-	case "ruby":
-		return ProjectRuby
-	case "php":
-		return ProjectPHP
-	case "elixir":
-		return ProjectElixir
-	case "swift":
-		return ProjectSwift
-	case "cpp", "c++", "c":
-		return ProjectCpp
-	case "generic":
-		return ProjectGeneric
-	default:
-		return ""
-	}
-}
-
-// String returns the string representation of ProjectType
-func (p ProjectType) String() string {
-	return string(p)
-}
-
-// DisplayName returns a human-friendly name for the project type
-func (p ProjectType) DisplayName() string {
-	switch p {
-	case ProjectGo:
-		return "Go"
-	case ProjectRust:
-		return "Rust"
-	case ProjectPython:
-		return "Python"
-	case ProjectNode:
-		return "Node.js"
-	case ProjectJava:
-		return "Java"
-	case ProjectRuby:
-		return "Ruby"
-	case ProjectPHP:
-		return "PHP"
-	case ProjectElixir:
-		return "Elixir"
-	case ProjectSwift:
-		return "Swift"
-	case ProjectCpp:
-		return "C/C++"
-	case ProjectGeneric:
-		return "Generic"
-	default:
-		return string(p)
-	}
-}
-
-// Description returns a brief description of the project type
-func (p ProjectType) Description() string {
-	switch p {
-	case ProjectGo:
-		return "Go projects with go build, go test, golangci-lint"
-	case ProjectRust:
-		return "Rust projects with Cargo"
-	case ProjectPython:
-		return "Python projects with pip/poetry/pipenv/uv"
-	case ProjectNode:
-		return "Node.js projects with npm/yarn/pnpm"
-	case ProjectJava:
-		return "Java projects with Maven or Gradle"
-	case ProjectRuby:
-		return "Ruby projects with Bundler"
-	case ProjectPHP:
-		return "PHP projects with Composer"
-	case ProjectElixir:
-		return "Elixir projects with Mix"
-	case ProjectSwift:
-		return "Swift projects with Swift Package Manager"
-	case ProjectCpp:
-		return "C/C++ projects with CMake or Meson"
-	case ProjectGeneric:
-		return "Generic template with placeholder tasks"
-	default:
-		return ""
-	}
+	return templates.ProjectTypeFromString(s)
 }

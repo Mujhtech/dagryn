@@ -77,6 +77,7 @@ export interface GitHubRepo {
   clone_url: string;
   default_branch: string;
   private: boolean;
+  language: string;
 }
 
 export interface GitHubAppInstallation {
@@ -610,6 +611,13 @@ export interface DashboardRun {
   created_at: string;
 }
 
+// Feature entry returned by the API
+export interface FeatureEntry {
+  feature: string;
+  label: string;
+  enabled: boolean;
+}
+
 // License types
 export interface LicenseStatus {
   mode: "cloud" | "self_hosted";
@@ -617,7 +625,7 @@ export interface LicenseStatus {
   licensed: boolean;
   customer?: string;
   seats: number;
-  features: Record<string, boolean>;
+  features: FeatureEntry[];
   limits: {
     projects: { current: number; limit: number | null };
     team_members: { current: number; limit: number | null };
@@ -639,7 +647,7 @@ export interface CapabilitiesNavItem {
 export interface CapabilitiesResponse {
   mode: "cloud" | "self_hosted";
   edition: "community" | "pro" | "enterprise" | "cloud";
-  features: Record<string, boolean>;
+  features: FeatureEntry[];
   nav: CapabilitiesNavItem[];
 }
 
@@ -1032,6 +1040,7 @@ class ApiClient {
   async translateGitHubWorkflows(data: {
     repo_full_name: string;
     github_installation_id?: string;
+    ref?: string;
   }) {
     return this.fetch<GitHubWorkflowTranslateResponse>(
       "/providers/github/workflows/translate",
@@ -1050,6 +1059,12 @@ class ApiClient {
       method: "POST",
       body: JSON.stringify(data),
     });
+  }
+
+  async getSampleTemplate(language: string) {
+    return this.fetch<{ language: string; project_type: string; template: string }>(
+      `/templates/sample?language=${encodeURIComponent(language)}`,
+    );
   }
 
   async createProject(data: {
@@ -1439,6 +1454,13 @@ class ApiClient {
   // License
   async getLicenseStatus() {
     return this.fetch<LicenseStatus>("/license");
+  }
+
+  async activateLicense(licenseKey: string) {
+    return this.fetch<LicenseStatus>("/license/activate", {
+      method: "POST",
+      body: JSON.stringify({ license_key: licenseKey }),
+    });
   }
 
   // Public wrapper around the private fetch method.

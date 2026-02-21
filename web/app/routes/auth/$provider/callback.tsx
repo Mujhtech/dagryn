@@ -33,7 +33,7 @@ function AuthCallbackPage() {
       try {
         await api.oauthCallback(provider, code, state || undefined);
         await refreshUser();
-        navigate({ to: "/" });
+        navigate({ to: "/dashboard" });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Authentication failed");
       }

@@ -32,6 +32,54 @@ const (
 	FeatureAISuggestions      Feature = "ai_suggestions"
 )
 
+// featureLabels maps each feature key to its human-readable display name.
+var featureLabels = map[Feature]string{
+	FeatureContainerExecution: "Container Execution",
+	FeaturePriorityQueue:      "Priority Queue",
+	FeatureSSO:                "SSO",
+	FeatureAuditLogs:          "Audit Logs",
+	FeatureCustomRBAC:         "Custom RBAC",
+	FeatureMultiCluster:       "Multi-Cluster",
+	FeatureDashboardFull:      "Full Dashboard",
+	FeatureCloudCache:         "Cloud Cache",
+	FeatureLogRetention:       "Log Retention",
+	FeatureArtifactRetention:  "Artifact Retention",
+	FeatureStorage:            "Storage",
+	FeatureCacheTTL:           "Cache TTL",
+	FeatureSaml:               "SAML",
+	FeatureAIAnalysis:         "AI Analysis",
+	FeatureAISuggestions:      "AI Suggestions",
+}
+
+// DisplayName returns the human-readable label for a feature.
+// Falls back to the raw feature key if no label is defined.
+func (f Feature) DisplayName() string {
+	if label, ok := featureLabels[f]; ok {
+		return label
+	}
+	return string(f)
+}
+
+// AllFeatures is the canonical list of all feature flags. Used by handlers
+// that need to enumerate features (license status, capabilities, etc.).
+var AllFeatures = []Feature{
+	FeatureContainerExecution,
+	FeaturePriorityQueue,
+	FeatureSSO,
+	FeatureAuditLogs,
+	FeatureCustomRBAC,
+	FeatureMultiCluster,
+	FeatureDashboardFull,
+	FeatureCloudCache,
+	FeatureLogRetention,
+	FeatureArtifactRetention,
+	FeatureStorage,
+	FeatureAIAnalysis,
+	FeatureAISuggestions,
+	FeatureCacheTTL,
+	FeatureSaml,
+}
+
 // Limits holds numeric resource limits. Nil means unlimited.
 type Limits struct {
 	MaxProjects           *int   `json:"max_projects"`

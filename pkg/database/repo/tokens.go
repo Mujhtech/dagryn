@@ -17,7 +17,7 @@ type TokenRepo struct {
 }
 
 // NewTokenRepo creates a new token repository.
-func NewTokenRepo(pool *pgxpool.Pool) *TokenRepo {
+func NewTokenRepo(pool *pgxpool.Pool) TokenStore {
 	return &TokenRepo{pool: pool}
 }
 

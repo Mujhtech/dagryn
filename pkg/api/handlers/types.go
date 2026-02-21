@@ -198,6 +198,7 @@ type ConnectGitHubRequest struct {
 type GitHubWorkflowTranslateRequest struct {
 	RepoFullName         string     `json:"repo_full_name" binding:"required" example:"owner/repo"`
 	GitHubInstallationID *uuid.UUID `json:"github_installation_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Ref                  string     `json:"ref,omitempty" example:"main"`
 }
 
 // GitHubWorkflowYAMLTranslateRequest represents a request to translate pasted GitHub workflow YAML.

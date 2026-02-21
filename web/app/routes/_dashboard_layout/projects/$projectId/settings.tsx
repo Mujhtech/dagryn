@@ -16,11 +16,15 @@ import { GeneralSettingsCard } from "~/components/projects/settings/general-sett
 import { APITokensCard } from "~/components/projects/settings/api-tokens-card";
 import { GitHubIntegrationCard } from "~/components/projects/settings/github-integration-card";
 import { DangerZoneCard } from "~/components/projects/settings/danger-zone-card";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute(
   "/_dashboard_layout/projects/$projectId/settings",
 )({
   component: ProjectSettingsPage,
+  head: () => {
+    return generateMetadata({ title: "Project Settings" });
+  },
 });
 
 function ProjectSettingsPage() {

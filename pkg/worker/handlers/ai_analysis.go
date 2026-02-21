@@ -16,6 +16,7 @@ import (
 	"github.com/mujhtech/dagryn/pkg/ai/provider"
 	"github.com/mujhtech/dagryn/pkg/dagryn/config"
 	"github.com/mujhtech/dagryn/pkg/database/models"
+	"github.com/mujhtech/dagryn/pkg/database/store"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
 	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/rs/zerolog"
@@ -69,22 +70,9 @@ type aiAnalysisPayload struct {
 	AIConfig     *aiProjectConfig `json:"ai_config,omitempty"`
 }
 
-// aiRepoForHandler defines the AI repo operations needed by the handler.
-type aiRepoForHandler interface {
-	ai.AIDataStore
-	FindPendingByDedupKey(ctx context.Context, dedupKey string) (*models.AIAnalysis, error)
-	SupersedeByBranch(ctx context.Context, projectID uuid.UUID, branch string, excludeCommit string) error
-	CountRecentAnalyses(ctx context.Context, projectID uuid.UUID, since time.Time) (int, error)
-	UpdateAnalysisDedupKey(ctx context.Context, id uuid.UUID, dedupKey string) error
-	CountInProgressAnalyses(ctx context.Context, projectID uuid.UUID) (int, error)
-	GetMostRecentAnalysisByKey(ctx context.Context, projectID uuid.UUID, branch, commit string) (*models.AIAnalysis, error)
-}
-
 // AIAnalysisHandler processes ai_analysis:run jobs.
 type AIAnalysisHandler struct {
-	runs        evidence.RunDataSource
-	workflows   evidence.WorkflowDataSource
-	aiRepo      aiRepoForHandler
+	store       store.Store
 	encrypter   encrypt.Encrypt
 	aiConfig    *AIAnalysisConfig
 	jobEnqueuer JobEnqueuer
@@ -94,9 +82,7 @@ type AIAnalysisHandler struct {
 
 // NewAIAnalysisHandler creates a new AI analysis job handler.
 func NewAIAnalysisHandler(
-	runs evidence.RunDataSource,
-	workflows evidence.WorkflowDataSource,
-	aiRepo aiRepoForHandler,
+	store store.Store,
 	encrypter encrypt.Encrypt,
 	aiConfig *AIAnalysisConfig,
 	jobEnqueuer JobEnqueuer,
@@ -104,9 +90,7 @@ func NewAIAnalysisHandler(
 	metrics *telemetry.Metrics,
 ) *AIAnalysisHandler {
 	return &AIAnalysisHandler{
-		runs:        runs,
-		workflows:   workflows,
-		aiRepo:      aiRepo,
+		store:       store,
 		encrypter:   encrypter,
 		aiConfig:    aiConfig,
 		jobEnqueuer: jobEnqueuer,
@@ -252,7 +236,7 @@ func (h *AIAnalysisHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	dedupKey := buildDedupKey(projectID, payload.GitBranch, payload.GitCommit, payload.WorkflowName, payload.Targets)
 
 	// Dedup check: skip if a pending analysis already exists for this key.
-	existing, err := h.aiRepo.FindPendingByDedupKey(ctx, dedupKey)
+	existing, err := h.store.AI.FindPendingByDedupKey(ctx, dedupKey)
 	if err == nil && existing != nil {
 		h.logger.Info().
 			Str("run_id", payload.RunID).
@@ -263,7 +247,7 @@ func (h *AIAnalysisHandler) Handle(ctx context.Context, t *asynq.Task) error {
 
 	// Force-push supersede: mark old pending analyses on same branch as superseded.
 	if payload.GitBranch != "" && payload.GitCommit != "" {
-		if err := h.aiRepo.SupersedeByBranch(ctx, projectID, payload.GitBranch, payload.GitCommit); err != nil {
+		if err := h.store.AI.SupersedeByBranch(ctx, projectID, payload.GitBranch, payload.GitCommit); err != nil {
 			h.logger.Warn().Err(err).Msg("supersede by branch failed")
 		}
 	}
@@ -275,7 +259,7 @@ func (h *AIAnalysisHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	// Rate limit: count recent analyses for this project.
-	count, err := h.aiRepo.CountRecentAnalyses(ctx, projectID, time.Now().Add(-1*time.Hour))
+	count, err := h.store.AI.CountRecentAnalyses(ctx, projectID, time.Now().Add(-1*time.Hour))
 	if err != nil {
 		h.logger.Warn().Err(err).Msg("count recent analyses failed")
 		// Don't block on rate limit check failure; continue.
@@ -290,7 +274,7 @@ func (h *AIAnalysisHandler) Handle(ctx context.Context, t *asynq.Task) error {
 
 	// Cooldown check: skip if a recent analysis exists for the same project+branch+commit.
 	if cooldownSec > 0 && payload.GitBranch != "" && payload.GitCommit != "" {
-		recent, err := h.aiRepo.GetMostRecentAnalysisByKey(ctx, projectID, payload.GitBranch, payload.GitCommit)
+		recent, err := h.store.AI.GetMostRecentAnalysisByKey(ctx, projectID, payload.GitBranch, payload.GitCommit)
 		if err == nil && recent != nil {
 			if time.Since(recent.CreatedAt) < time.Duration(cooldownSec)*time.Second {
 				h.logger.Info().
@@ -306,7 +290,7 @@ func (h *AIAnalysisHandler) Handle(ctx context.Context, t *asynq.Task) error {
 
 	// Concurrent analysis check: skip if too many are already in progress.
 	if maxConcurrent > 0 {
-		inProgress, err := h.aiRepo.CountInProgressAnalyses(ctx, projectID)
+		inProgress, err := h.store.AI.CountInProgressAnalyses(ctx, projectID)
 		if err != nil {
 			h.logger.Warn().Err(err).Msg("count in-progress analyses failed")
 		} else if inProgress >= maxConcurrent {
@@ -338,7 +322,7 @@ func (h *AIAnalysisHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	// Build evidence builder.
-	evidenceBuilder := evidence.NewEvidenceBuilder(h.runs, h.workflows, h.logger)
+	evidenceBuilder := evidence.NewEvidenceBuilder(h.store.Runs, h.store.Workflows, h.logger)
 
 	// Build policy checker from project guardrails when available.
 	guardrails := config.AIGuardrailConfig{}
@@ -359,7 +343,7 @@ func (h *AIAnalysisHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	policyChecker := ai.NewPolicyChecker(guardrails, rateLimits, h.logger)
 
 	// Create orchestrator and run analysis.
-	orchestrator := ai.NewOrchestrator(evidenceBuilder, aiProvider, policyChecker, h.aiRepo, h.logger)
+	orchestrator := ai.NewOrchestrator(evidenceBuilder, aiProvider, policyChecker, h.store.AI, h.logger)
 
 	// Resolve the model name so it's recorded in the analysis record.
 	model := providerCfg.Model
@@ -411,7 +395,7 @@ func (h *AIAnalysisHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	// Set dedup key on the analysis record (best-effort).
 	if analysis != nil {
 		analysis.DedupKey = &dedupKey
-		_ = h.aiRepo.UpdateAnalysisDedupKey(ctx, analysis.ID, dedupKey)
+		_ = h.store.AI.UpdateAnalysisDedupKey(ctx, analysis.ID, dedupKey)
 	}
 
 	// Enqueue publish job to post results to GitHub.

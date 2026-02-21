@@ -2,10 +2,8 @@ package license
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -76,7 +74,7 @@ func runLicenseStatus() error {
 	key := os.Getenv("DAGRYN_LICENSE_KEY")
 	if key == "" {
 		// Try to read from stored license
-		stored, err := loadStoredLicense()
+		stored, err := licensing.LoadStoredLicense()
 		if err == nil && stored.Key != "" {
 			key = stored.Key
 		}
@@ -117,7 +115,7 @@ func runLicenseStatus() error {
 	fmt.Printf("Seats:       %d\n", claims.Seats)
 
 	// Instance info
-	stored, err := loadStoredLicense()
+	stored, err := licensing.LoadStoredLicense()
 	if err == nil && stored.InstanceID != "" {
 		fmt.Printf("Instance:    %s (%s)\n", stored.InstanceName, stored.InstanceID)
 	}
@@ -189,7 +187,7 @@ func runLicenseActivate(key string, instanceName string) error {
 	fmt.Printf("License valid: %s edition for %s\n", claims.Edition, claims.Subject)
 
 	// 2. Load or create instance ID
-	stored, _ := loadStoredLicense()
+	stored, _ := licensing.LoadStoredLicense()
 	if stored.InstanceID == "" {
 		stored.InstanceID = "inst_" + uuid.New().String()[:8]
 	}
@@ -233,7 +231,7 @@ func runLicenseActivate(key string, instanceName string) error {
 	stored.Key = key
 	stored.LicenseID = claims.LicenseID
 	stored.ActivatedAt = time.Now()
-	if err := saveStoredLicense(stored); err != nil {
+	if err := licensing.SaveStoredLicense(stored); err != nil {
 		return fmt.Errorf("failed to save license: %w", err)
 	}
 
@@ -243,7 +241,7 @@ func runLicenseActivate(key string, instanceName string) error {
 
 func runLicenseDeactivate() error {
 	config.LoadDotEnv()
-	stored, err := loadStoredLicense()
+	stored, err := licensing.LoadStoredLicense()
 	if err != nil || stored.Key == "" {
 		fmt.Println("No license is currently activated.")
 		return nil
@@ -276,68 +274,11 @@ func runLicenseDeactivate() error {
 	}
 
 	// Remove local license
-	if err := removeStoredLicense(); err != nil {
+	if err := licensing.RemoveStoredLicense(); err != nil {
 		return fmt.Errorf("failed to remove stored license: %w", err)
 	}
 
 	fmt.Println("License deactivated. This instance is now running as Community edition.")
 	fmt.Println("Restart the server to apply.")
-	return nil
-}
-
-// storedLicense holds local license data persisted in ~/.dagryn/license.json.
-type storedLicense struct {
-	Key          string    `json:"key,omitempty"`
-	LicenseID    string    `json:"license_id,omitempty"`
-	InstanceID   string    `json:"instance_id,omitempty"`
-	InstanceName string    `json:"instance_name,omitempty"`
-	ActivatedAt  time.Time `json:"activated_at,omitempty"`
-}
-
-func licensePath() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(homeDir, ".dagryn", "license.json"), nil
-}
-
-func loadStoredLicense() (storedLicense, error) {
-	var stored storedLicense
-	path, err := licensePath()
-	if err != nil {
-		return stored, err
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return stored, err
-	}
-	err = json.Unmarshal(data, &stored)
-	return stored, err
-}
-
-func saveStoredLicense(stored storedLicense) error {
-	path, err := licensePath()
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return err
-	}
-	data, err := json.MarshalIndent(stored, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0600)
-}
-
-func removeStoredLicense() error {
-	path, err := licensePath()
-	if err != nil {
-		return err
-	}
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		return err
-	}
 	return nil
 }

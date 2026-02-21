@@ -12,13 +12,17 @@ import {
 } from "~/components/ui/card";
 import { Separator } from "~/components/ui/separator";
 import { Icons } from "~/components/icons";
+import { generateMetadata } from "~/lib/metadata";
 
-const WorkflowConverter = lazy(
-  () => import("~/components/workflow-converter"),
-);
+const WorkflowConverter = lazy(() => import("~/components/workflow-converter"));
 
 export const Route = createFileRoute("/")({
   component: IndexPage,
+  head: ({}) => {
+    return generateMetadata({
+      title: "Local-first workflow runtime",
+    });
+  },
 });
 
 function IndexPage() {

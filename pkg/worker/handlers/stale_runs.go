@@ -14,11 +14,11 @@ const StaleRunTimeout = 5 * time.Minute
 
 // StaleRunsHandler checks for and marks stale runs.
 type StaleRunsHandler struct {
-	runs *repo.RunRepo
+	runs repo.RunStore
 }
 
 // NewStaleRunsHandler creates a new stale runs handler.
-func NewStaleRunsHandler(runs *repo.RunRepo) *StaleRunsHandler {
+func NewStaleRunsHandler(runs repo.RunStore) *StaleRunsHandler {
 	return &StaleRunsHandler{runs: runs}
 }
 

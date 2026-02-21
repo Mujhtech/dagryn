@@ -11,10 +11,10 @@ import (
 // CapabilitiesResponse describes the server's mode, available features, and
 // visible navigation sections. The dashboard uses this to show/hide UI.
 type CapabilitiesResponse struct {
-	Mode     string                     `json:"mode"`
-	Edition  string                     `json:"edition"`
-	Features map[licensing.Feature]bool `json:"features"`
-	Nav      []NavItem                  `json:"nav"`
+	Mode     string         `json:"mode"`
+	Edition  string         `json:"edition"`
+	Features []FeatureEntry `json:"features"`
+	Nav      []NavItem      `json:"nav"`
 }
 
 // NavItem represents a top-level navigation entry in the dashboard.
@@ -33,18 +33,9 @@ type NavItem struct {
 //	@Success		200	{object}	CapabilitiesResponse
 //	@Router			/api/v1/capabilities [get]
 func (h *Handler) GetCapabilities(w http.ResponseWriter, r *http.Request) {
-	mode := "self_hosted"
-	edition := "community"
-
-	if h.entitlements != nil {
-		mode = h.entitlements.Mode()
-		edition = h.entitlements.Edition()
-	}
-
-	ctx := r.Context()
-
-	features := buildCapabilityFeatures(ctx, h)
-	nav := buildNav(h, features)
+	mode, edition := h.modeAndEdition()
+	features := h.buildEntitlementFeatures(r.Context())
+	nav := buildNav(mode, features)
 
 	_ = response.Ok(w, r, "Capabilities retrieved", CapabilitiesResponse{
 		Mode:     mode,
@@ -54,45 +45,56 @@ func (h *Handler) GetCapabilities(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func buildCapabilityFeatures(ctx context.Context, h *Handler) map[licensing.Feature]bool {
-	allFeatures := []licensing.Feature{
-		licensing.FeatureContainerExecution,
-		licensing.FeaturePriorityQueue,
-		licensing.FeatureSSO,
-		licensing.FeatureAuditLogs,
-		licensing.FeatureCustomRBAC,
-		licensing.FeatureMultiCluster,
-		licensing.FeatureDashboardFull,
-		licensing.FeatureCloudCache,
-		licensing.FeatureLogRetention,
-		licensing.FeatureArtifactRetention,
-		licensing.FeatureStorage,
-		licensing.FeatureAIAnalysis,
-		licensing.FeatureAISuggestions,
-		licensing.FeatureCacheTTL,
-		licensing.FeatureSaml,
+// modeAndEdition returns the deployment mode and edition from the
+// entitlement checker. Used by both capabilities and license endpoints.
+func (h *Handler) modeAndEdition() (mode, edition string) {
+	mode = "self_hosted"
+	edition = "community"
+	if h.entitlements != nil {
+		mode = h.entitlements.Mode()
+		edition = h.entitlements.Edition()
 	}
-
-	m := make(map[licensing.Feature]bool, len(allFeatures))
-	for _, f := range allFeatures {
-		if h.entitlements != nil {
-			m[f] = h.entitlements.HasFeature(ctx, string(f))
-		} else {
-			m[f] = false
-		}
-	}
-	return m
+	return
 }
 
-func buildNav(h *Handler, features map[licensing.Feature]bool) []NavItem {
-	isCloud := h.entitlements != nil && h.entitlements.Mode() == "cloud"
-	nav := []NavItem{
+// buildEntitlementFeatures builds a feature list using the entitlement checker.
+// This goes through the full entitlement path (LicenseChecker for OSS,
+// BillingChecker for cloud) and is used by GetCapabilities.
+func (h *Handler) buildEntitlementFeatures(ctx context.Context) []FeatureEntry {
+	entries := make([]FeatureEntry, 0, len(licensing.AllFeatures))
+	for _, f := range licensing.AllFeatures {
+		enabled := false
+		if h.entitlements != nil {
+			enabled = h.entitlements.HasFeature(ctx, string(f))
+		}
+		entries = append(entries, FeatureEntry{
+			Feature: string(f),
+			Label:   f.DisplayName(),
+			Enabled: enabled,
+		})
+	}
+	return entries
+}
+
+func buildNav(mode string, features []FeatureEntry) []NavItem {
+	isCloud := mode == "cloud"
+
+	// Look up a specific feature's enabled state from the list.
+	hasFeature := func(name string) bool {
+		for _, f := range features {
+			if f.Feature == name {
+				return f.Enabled
+			}
+		}
+		return false
+	}
+
+	return []NavItem{
 		{Key: "projects", Label: "Projects", Enabled: true},
 		{Key: "runs", Label: "Runs", Enabled: true},
 		{Key: "plugins", Label: "Plugins", Enabled: true},
-		{Key: "cache", Label: "Cache", Enabled: features[licensing.FeatureCloudCache]},
+		{Key: "cache", Label: "Cache", Enabled: hasFeature(string(licensing.FeatureCloudCache))},
 		{Key: "billing", Label: "Billing", Enabled: isCloud},
 		{Key: "license", Label: "License", Enabled: !isCloud},
 	}
-	return nav
 }

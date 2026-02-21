@@ -17,8 +17,8 @@ import (
 // AuthConfig holds configuration for the auth middleware.
 type AuthConfig struct {
 	JWTService *authz.JWTService
-	UserRepo   *repo.UserRepo
-	APIKeyRepo *repo.APIKeyRepo
+	UserRepo   repo.UserStore
+	APIKeyRepo repo.APIKeyStore
 }
 
 // Auth returns a middleware that authenticates requests using JWT or API key.
@@ -147,7 +147,7 @@ func handleAuthError(w http.ResponseWriter, err error) {
 
 // RequireAuth is a convenience wrapper that ensures authentication.
 // Use Auth middleware instead for most cases.
-func RequireAuth(jwtService *authz.JWTService, userRepo *repo.UserRepo, apiKeyRepo *repo.APIKeyRepo) func(http.Handler) http.Handler {
+func RequireAuth(jwtService *authz.JWTService, userRepo repo.UserStore, apiKeyRepo repo.APIKeyStore) func(http.Handler) http.Handler {
 	return Auth(AuthConfig{
 		JWTService: jwtService,
 		UserRepo:   userRepo,
@@ -193,7 +193,7 @@ func OptionalAuth(config AuthConfig) func(http.Handler) http.Handler {
 
 // RequireProjectAccess returns a middleware that checks if the authenticated user
 // has access to the specified project (via API key scope or project membership).
-func RequireProjectAccess(projectRepo *repo.ProjectRepo) func(http.Handler) http.Handler {
+func RequireProjectAccess(projectRepo repo.ProjectStore) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()

@@ -23,9 +23,13 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog";
 import { Icons } from "~/components/icons";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute("/_dashboard_layout/projects/")({
   component: ProjectsPage,
+  head: () => {
+    return generateMetadata({ title: "Projects" });
+  },
 });
 
 function slugify(text: string): string {

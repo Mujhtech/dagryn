@@ -14,8 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- Mock suggest publish repo ---
-
 type mockAISuggestPublishRepo struct {
 	analyses     map[uuid.UUID]*models.AIAnalysis
 	suggestions  map[uuid.UUID][]models.AISuggestion
@@ -76,8 +74,6 @@ func (m *mockAISuggestPublishRepo) CreatePublication(_ context.Context, p *model
 func (m *mockAISuggestPublishRepo) UpdatePublication(_ context.Context, id uuid.UUID, status models.AIPublicationStatus, externalID *string, errorMessage *string) error {
 	return nil
 }
-
-// --- Tests ---
 
 func TestAISuggestPublish_NoSuggestions_Skips(t *testing.T) {
 	analysisID := uuid.New()

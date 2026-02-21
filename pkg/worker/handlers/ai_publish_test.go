@@ -13,15 +13,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/mujhtech/dagryn/pkg/database/models"
+	"github.com/mujhtech/dagryn/pkg/database/repo"
+	"github.com/mujhtech/dagryn/pkg/database/store"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// --- Mock implementations for AI publish ---
-
 type mockAIPublishRepo struct {
+	repo.AIStore // embed for interface satisfaction
 	analyses     map[uuid.UUID]*models.AIAnalysis
 	publications map[string]*models.AIPublication // key: "runID:destination"
 	created      []*models.AIPublication
@@ -85,7 +86,8 @@ func (m *mockAIPublishRepo) UpdatePublication(_ context.Context, id uuid.UUID, s
 }
 
 type mockRunRepo struct {
-	runs map[uuid.UUID]*models.Run
+	repo.RunStore // embed for interface satisfaction
+	runs          map[uuid.UUID]*models.Run
 }
 
 func (m *mockRunRepo) GetByID(_ context.Context, id uuid.UUID) (*models.Run, error) {
@@ -96,7 +98,8 @@ func (m *mockRunRepo) GetByID(_ context.Context, id uuid.UUID) (*models.Run, err
 }
 
 type mockProjectRepo struct {
-	projects map[uuid.UUID]*models.Project
+	repo.ProjectStore // embed for interface satisfaction
+	projects          map[uuid.UUID]*models.Project
 }
 
 func (m *mockProjectRepo) GetByID(_ context.Context, id uuid.UUID) (*models.Project, error) {
@@ -105,8 +108,6 @@ func (m *mockProjectRepo) GetByID(_ context.Context, id uuid.UUID) (*models.Proj
 	}
 	return nil, fmt.Errorf("not found")
 }
-
-// --- Helper ---
 
 func newPublishTestFixtures() (analysisID, runID, projectID uuid.UUID, analysis *models.AIAnalysis, run *models.Run, project *models.Project) {
 	analysisID = uuid.New()
@@ -162,8 +163,6 @@ func makePublishPayload(t *testing.T, analysisID, runID, projectID uuid.UUID) []
 	return encodePayload(t, payload)
 }
 
-// --- Tests ---
-
 func TestAIPublish_HappyPath_PRComment(t *testing.T) {
 	analysisID, runID, projectID, analysis, run, project := newPublishTestFixtures()
 
@@ -211,8 +210,13 @@ func TestAIPublish_HappyPath_PRComment(t *testing.T) {
 	// we verify the handler decodes and attempts to publish.
 	// The handler will fail on the HTTP call (expected).
 	handler := NewAIPublishHandler(
-		mockAI, mockRuns, mockProjects,
-		nil, nil, nil, nil,
+		store.Store{
+			AI:       mockAI,
+			Runs:     mockRuns,
+			Projects: mockProjects,
+		},
+		nil, // providerEncrypt
+		nil, // githubApp
 		encrypt.NewNoOpEncrypt(),
 		"https://dagryn.dev",
 		zerolog.Nop(),
@@ -266,8 +270,13 @@ func TestAIPublish_Idempotent_Update(t *testing.T) {
 	mockProjects := &mockProjectRepo{projects: map[uuid.UUID]*models.Project{projectID: project}}
 
 	handler := NewAIPublishHandler(
-		mockAI, mockRuns, mockProjects,
-		nil, nil, nil, nil,
+		store.Store{
+			AI:       mockAI,
+			Runs:     mockRuns,
+			Projects: mockProjects,
+		},
+		nil, // providerEncrypt
+		nil, // githubApp
 		encrypt.NewNoOpEncrypt(),
 		"https://dagryn.dev",
 		zerolog.Nop(),
@@ -290,8 +299,13 @@ func TestAIPublish_NoPRNumber_SkipsComment(t *testing.T) {
 	mockProjects := &mockProjectRepo{projects: map[uuid.UUID]*models.Project{projectID: project}}
 
 	handler := NewAIPublishHandler(
-		mockAI, mockRuns, mockProjects,
-		nil, nil, nil, nil,
+		store.Store{
+			AI:       mockAI,
+			Runs:     mockRuns,
+			Projects: mockProjects,
+		},
+		nil, // providerEncrypt
+		nil, // githubApp
 		encrypt.NewNoOpEncrypt(),
 		"https://dagryn.dev",
 		zerolog.Nop(),
@@ -317,8 +331,13 @@ func TestAIPublish_NoToken_Skips(t *testing.T) {
 	mockProjects := &mockProjectRepo{projects: map[uuid.UUID]*models.Project{projectID: project}}
 
 	handler := NewAIPublishHandler(
-		mockAI, mockRuns, mockProjects,
-		nil, nil, nil, nil, // No token sources
+		store.Store{
+			AI:       mockAI,
+			Runs:     mockRuns,
+			Projects: mockProjects,
+		},
+		nil, // providerEncrypt
+		nil, // githubApp
 		encrypt.NewNoOpEncrypt(),
 		"https://dagryn.dev",
 		zerolog.Nop(),
@@ -343,8 +362,13 @@ func TestAIPublish_AnalysisNotSuccess(t *testing.T) {
 	mockProjects := &mockProjectRepo{projects: map[uuid.UUID]*models.Project{projectID: project}}
 
 	handler := NewAIPublishHandler(
-		mockAI, mockRuns, mockProjects,
-		nil, nil, nil, nil,
+		store.Store{
+			AI:       mockAI,
+			Runs:     mockRuns,
+			Projects: mockProjects,
+		},
+		nil, // providerEncrypt
+		nil, // githubApp
 		encrypt.NewNoOpEncrypt(),
 		"https://dagryn.dev",
 		zerolog.Nop(),
@@ -367,8 +391,13 @@ func TestAIPublish_NoRepoURL_Skips(t *testing.T) {
 	mockProjects := &mockProjectRepo{projects: map[uuid.UUID]*models.Project{projectID: project}}
 
 	handler := NewAIPublishHandler(
-		mockAI, mockRuns, mockProjects,
-		nil, nil, nil, nil,
+		store.Store{
+			AI:       mockAI,
+			Runs:     mockRuns,
+			Projects: mockProjects,
+		},
+		nil, // providerEncrypt
+		nil, // githubApp
 		encrypt.NewNoOpEncrypt(),
 		"https://dagryn.dev",
 		zerolog.Nop(),
@@ -391,8 +420,13 @@ func TestAIPublish_NoGitCommit_Skips(t *testing.T) {
 	mockProjects := &mockProjectRepo{projects: map[uuid.UUID]*models.Project{projectID: project}}
 
 	handler := NewAIPublishHandler(
-		mockAI, mockRuns, mockProjects,
-		nil, nil, nil, nil,
+		store.Store{
+			AI:       mockAI,
+			Runs:     mockRuns,
+			Projects: mockProjects,
+		},
+		nil, // providerEncrypt
+		nil, // githubApp
 		encrypt.NewNoOpEncrypt(),
 		"https://dagryn.dev",
 		zerolog.Nop(),
@@ -525,8 +559,14 @@ func TestAIPublish_GitHubAPIError_Retries(t *testing.T) {
 	}
 
 	handler := NewAIPublishHandler(
-		mockAI, mockRuns, mockProjects,
-		nil, nil, mockGH, mockInstallations,
+		store.Store{
+			AI:                  mockAI,
+			Runs:                mockRuns,
+			Projects:            mockProjects,
+			GitHubInstallations: mockInstallations,
+		},
+		nil,    // providerEncrypt
+		mockGH, // githubApp
 		encrypt.NewNoOpEncrypt(),
 		"https://dagryn.dev",
 		zerolog.Nop(),
@@ -545,8 +585,6 @@ func TestAIPublish_GitHubAPIError_Retries(t *testing.T) {
 	// If somehow the connection succeeds (unlikely with fake token), that's also fine.
 }
 
-// --- Mock GitHub App and Installation repo for publish tests ---
-
 type mockGitHubAppForPublish struct {
 	token string
 	err   error
@@ -563,7 +601,8 @@ func (m *mockGitHubAppForPublish) FetchInstallationToken(_ context.Context, _ in
 }
 
 type mockGHInstallationRepo struct {
-	installations map[uuid.UUID]*models.GitHubInstallation
+	repo.GitHubInstallationStore // embed for interface satisfaction
+	installations                map[uuid.UUID]*models.GitHubInstallation
 }
 
 func (m *mockGHInstallationRepo) GetByID(_ context.Context, id uuid.UUID) (*models.GitHubInstallation, error) {

@@ -70,8 +70,6 @@ func (l *Logger) render(style cliui.Style, s string) string {
 	return cliui.Render(style, s, l.noColor)
 }
 
-// --- Colored output methods ---
-
 // Warn prints a warning message in yellow.
 func (l *Logger) Warn(msg string) {
 	_, _ = fmt.Fprintf(l.writer, "%s %s\n", l.render(cliui.StyleWarn, "!"), msg)

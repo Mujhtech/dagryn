@@ -63,14 +63,14 @@ type GCResult struct {
 
 // CacheService coordinates cache storage and database operations.
 type CacheService struct {
-	repo         *repo.CacheRepo
+	repo         repo.CacheStore
 	bucket       storage.Bucket
 	logger       zerolog.Logger
 	entitlements entitlement.Checker
 }
 
 // NewCacheService creates a new cache service.
-func NewCacheService(cacheRepo *repo.CacheRepo, bucket storage.Bucket, logger zerolog.Logger) *CacheService {
+func NewCacheService(cacheRepo repo.CacheStore, bucket storage.Bucket, logger zerolog.Logger) *CacheService {
 	return &CacheService{
 		repo:   cacheRepo,
 		bucket: bucket,
