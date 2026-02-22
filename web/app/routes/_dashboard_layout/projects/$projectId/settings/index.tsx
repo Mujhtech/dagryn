@@ -4,11 +4,13 @@ import { useProject } from "~/hooks/queries";
 import { useUpdateProject, useDeleteProject } from "~/hooks/mutations";
 import { GeneralSettingsCard } from "~/components/projects/settings/general-settings-card";
 import { DangerZoneCard } from "~/components/projects/settings/danger-zone-card";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute(
   "/_dashboard_layout/projects/$projectId/settings/",
 )({
   component: GeneralSettingsPage,
+  head: () => generateMetadata({ title: "General Settings" }),
 });
 
 function GeneralSettingsPage() {

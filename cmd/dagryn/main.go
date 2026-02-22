@@ -14,7 +14,7 @@ import (
 	"github.com/mujhtech/dagryn/cmd/dagryn/config"
 	"github.com/mujhtech/dagryn/cmd/dagryn/doctor"
 	"github.com/mujhtech/dagryn/cmd/dagryn/graph"
-	"github.com/mujhtech/dagryn/cmd/dagryn/init"
+	initcmd "github.com/mujhtech/dagryn/cmd/dagryn/init"
 	"github.com/mujhtech/dagryn/cmd/dagryn/license"
 	"github.com/mujhtech/dagryn/cmd/dagryn/migrate"
 	"github.com/mujhtech/dagryn/cmd/dagryn/plugin"

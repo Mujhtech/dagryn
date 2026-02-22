@@ -184,11 +184,12 @@ func (r *PluginRegistryRepo) UpdatePlugin(ctx context.Context, p *models.Registr
 
 // PluginSearchParams holds search parameters.
 type PluginSearchParams struct {
-	Query  string
-	Type   string
-	Sort   string // "name", "downloads", "updated"
-	Limit  int
-	Offset int
+	Query     string
+	Type      string
+	Publisher string // Exact match on publisher name
+	Sort      string // "name", "downloads", "updated"
+	Limit     int
+	Offset    int
 }
 
 // PluginSearchResult holds paginated search results.
@@ -216,6 +217,11 @@ func (r *PluginRegistryRepo) SearchPlugins(ctx context.Context, params PluginSea
 	if params.Type != "" {
 		where += ` AND rp.type = $` + itoa(argIdx)
 		args = append(args, params.Type)
+		argIdx++
+	}
+	if params.Publisher != "" {
+		where += ` AND pp.name = $` + itoa(argIdx)
+		args = append(args, params.Publisher)
 		argIdx++
 	}
 

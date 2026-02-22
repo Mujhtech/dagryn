@@ -1368,6 +1368,7 @@ class ApiClient {
   async searchRegistryPlugins(params?: {
     q?: string;
     type?: string;
+    publisher?: string;
     sort?: string;
     page?: number;
     per_page?: number;
@@ -1375,6 +1376,7 @@ class ApiClient {
     const query = new URLSearchParams();
     if (params?.q) query.set("q", params.q);
     if (params?.type) query.set("type", params.type);
+    if (params?.publisher) query.set("publisher", params.publisher);
     if (params?.sort) query.set("sort", params.sort);
     if (params?.page) query.set("page", String(params.page));
     if (params?.per_page) query.set("per_page", String(params.per_page));

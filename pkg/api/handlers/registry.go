@@ -34,11 +34,12 @@ func (h *Handler) SearchRegistryPlugins(w http.ResponseWriter, r *http.Request) 
 
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	pluginType := strings.TrimSpace(r.URL.Query().Get("type"))
+	publisher := strings.TrimSpace(r.URL.Query().Get("publisher"))
 	sort := strings.TrimSpace(r.URL.Query().Get("sort"))
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	perPage, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
 
-	result, err := h.registryService.SearchPlugins(r.Context(), q, pluginType, sort, page, perPage)
+	result, err := h.registryService.SearchPlugins(r.Context(), q, pluginType, publisher, sort, page, perPage)
 	if err != nil {
 		_ = response.InternalServerError(w, r, err)
 		return

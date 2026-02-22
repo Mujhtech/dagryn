@@ -3,11 +3,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useProjectAPIKeys } from "~/hooks/queries";
 import { useCreateProjectAPIKey, useRevokeProjectAPIKey } from "~/hooks/mutations";
 import { APITokensCard } from "~/components/projects/settings/api-tokens-card";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute(
   "/_dashboard_layout/projects/$projectId/settings/api-keys",
 )({
   component: APIKeysSettingsPage,
+  head: () => generateMetadata({ title: "API Keys" }),
 });
 
 function APIKeysSettingsPage() {

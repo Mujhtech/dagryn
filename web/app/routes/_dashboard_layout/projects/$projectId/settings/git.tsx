@@ -23,11 +23,13 @@ import {
   CardTitle,
 } from "~/components/ui/card";
 import { Icons } from "~/components/icons";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute(
   "/_dashboard_layout/projects/$projectId/settings/git",
 )({
   component: GitSettingsPage,
+  head: () => generateMetadata({ title: "Git Settings" }),
 });
 
 function GitSettingsPage() {
