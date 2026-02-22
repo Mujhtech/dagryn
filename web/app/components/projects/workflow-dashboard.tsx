@@ -486,6 +486,7 @@ export function WorkflowDashboard({
                 onTriggerRun={onTriggerRun}
                 isPending={triggerRunPending}
                 errorMessage={triggerRunErrorMessage}
+                defaultBranch={project.default_branch}
               />
             </div>
           </div>

@@ -145,18 +145,21 @@ type UpdateMemberRoleRequest struct {
 //
 //	@Description	Project information
 type ProjectResponse struct {
-	ID          uuid.UUID  `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	TeamID      uuid.UUID  `json:"team_id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	Name        string     `json:"name" example:"api-service"`
-	Slug        string     `json:"slug" example:"api-service"`
-	Description string     `json:"description,omitempty" example:"Main API service"`
-	RepoURL     string     `json:"repo_url,omitempty" example:"https://github.com/org/repo"`
-	LastRunAt   *time.Time `json:"last_run_at,omitempty" example:"2024-01-15T10:30:00Z"`
-	ConfigPath  string     `json:"config_path" example:"dagryn.toml"`
-	Visibility  string     `json:"visibility" example:"private"`
-	MemberCount int        `json:"member_count" example:"3"`
-	CreatedAt   time.Time  `json:"created_at" example:"2024-01-15T10:30:00Z"`
-	UpdatedAt   time.Time  `json:"updated_at" example:"2024-01-15T10:30:00Z"`
+	ID                   uuid.UUID  `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	TeamID               uuid.UUID  `json:"team_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Name                 string     `json:"name" example:"api-service"`
+	Slug                 string     `json:"slug" example:"api-service"`
+	Description          string     `json:"description,omitempty" example:"Main API service"`
+	RepoURL              string     `json:"repo_url,omitempty" example:"https://github.com/org/repo"`
+	LastRunAt            *time.Time `json:"last_run_at,omitempty" example:"2024-01-15T10:30:00Z"`
+	ConfigPath           string     `json:"config_path" example:"dagryn.toml"`
+	Visibility           string     `json:"visibility" example:"private"`
+	MemberCount          int        `json:"member_count" example:"3"`
+	GithubRepoID         *int64     `json:"github_repo_id,omitempty" example:"123456789"`
+	GitHubInstallationID *uuid.UUID `json:"github_installation_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
+	DefaultBranch        string     `json:"default_branch,omitempty" example:"main"`
+	CreatedAt            time.Time  `json:"created_at" example:"2024-01-15T10:30:00Z"`
+	UpdatedAt            time.Time  `json:"updated_at" example:"2024-01-15T10:30:00Z"`
 }
 
 // CreateProjectRequest represents a request to create a project.
@@ -170,6 +173,7 @@ type CreateProjectRequest struct {
 	RepoURL              string     `json:"repo_url,omitempty" example:"https://github.com/org/repo"`
 	GitHubInstallationID *uuid.UUID `json:"github_installation_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
 	GitHubRepoID         *int64     `json:"github_repo_id,omitempty" example:"123456789"`
+	DefaultBranch        string     `json:"default_branch,omitempty" example:"main"`
 	Visibility           string     `json:"visibility,omitempty" example:"private"`
 }
 
@@ -190,6 +194,7 @@ type ConnectGitHubRequest struct {
 	GitHubInstallationID uuid.UUID `json:"github_installation_id" binding:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
 	GitHubRepoID         int64     `json:"github_repo_id" binding:"required" example:"123456789"`
 	RepoURL              string    `json:"repo_url" binding:"required" example:"https://github.com/org/repo"`
+	DefaultBranch        string    `json:"default_branch,omitempty" example:"main"`
 }
 
 // GitHubWorkflowTranslateRequest represents a request to translate GitHub workflows.

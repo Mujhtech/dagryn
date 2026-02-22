@@ -25,6 +25,7 @@ type TriggerRunDialogProps = {
   onTriggerRun: () => void;
   isPending: boolean;
   errorMessage?: string;
+  defaultBranch?: string;
 };
 
 export function TriggerRunDialog({
@@ -39,6 +40,7 @@ export function TriggerRunDialog({
   onTriggerRun,
   isPending,
   errorMessage,
+  defaultBranch,
 }: TriggerRunDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -52,7 +54,7 @@ export function TriggerRunDialog({
         <DialogHeader>
           <DialogTitle>Trigger Workflow Run</DialogTitle>
           <DialogDescription>
-            Start a new workflow run for this project.
+            Start a new server-side workflow run for this project.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
@@ -71,7 +73,7 @@ export function TriggerRunDialog({
               id="branch"
               value={triggerBranch}
               onChange={(e) => setTriggerBranch(e.target.value)}
-              placeholder="main"
+              placeholder={defaultBranch || "main"}
             />
           </div>
           <div className="flex items-center space-x-2">

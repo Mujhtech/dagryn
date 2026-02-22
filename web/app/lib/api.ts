@@ -111,6 +111,7 @@ export interface Project {
   repo_url?: string;
   github_installation_id?: string;
   github_repo_id?: number;
+  default_branch?: string;
   member_count: number;
   created_at: string;
   updated_at: string;
@@ -1076,6 +1077,7 @@ class ApiClient {
     repo_url?: string;
     github_installation_id?: string;
     github_repo_id?: number;
+    default_branch?: string;
   }) {
     const body: Record<string, unknown> = {
       name: data.name,
@@ -1096,6 +1098,9 @@ class ApiClient {
     }
     if (data.github_repo_id != null) {
       body.github_repo_id = data.github_repo_id;
+    }
+    if (data.default_branch != null && data.default_branch !== "") {
+      body.default_branch = data.default_branch;
     }
     return this.fetch<Project>("/projects", {
       method: "POST",
@@ -1231,6 +1236,7 @@ class ApiClient {
       github_installation_id: string;
       github_repo_id: number;
       repo_url: string;
+      default_branch?: string;
     },
   ) {
     return this.fetch<Project>(`/projects/${projectId}/connect-github`, {

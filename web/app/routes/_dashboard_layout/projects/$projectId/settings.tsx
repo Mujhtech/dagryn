@@ -1,189 +1,35 @@
-import { useState, useEffect } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useProject, useProjectAPIKeys } from "~/hooks/queries";
-import {
-  useUpdateProject,
-  useDeleteProject,
-  useCreateProjectAPIKey,
-  useRevokeProjectAPIKey,
-  useConnectProjectToGitHub,
-} from "~/hooks/mutations";
+import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
+import { useProject } from "~/hooks/queries";
 import { Button } from "~/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
-import { api, type GitHubAppInstallation, type GitHubRepo } from "~/lib/api";
 import { Icons } from "~/components/icons";
-import { GeneralSettingsCard } from "~/components/projects/settings/general-settings-card";
-import { APITokensCard } from "~/components/projects/settings/api-tokens-card";
-import { GitHubIntegrationCard } from "~/components/projects/settings/github-integration-card";
-import { DangerZoneCard } from "~/components/projects/settings/danger-zone-card";
+import { cn } from "~/lib/utils";
 import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute(
   "/_dashboard_layout/projects/$projectId/settings",
 )({
-  component: ProjectSettingsPage,
+  component: ProjectSettingsLayout,
   head: () => {
     return generateMetadata({ title: "Project Settings" });
   },
 });
 
-function ProjectSettingsPage() {
+const navItems = [
+  { label: "General", to: ".", icon: Icons.Settings },
+  { label: "Git & Repository", to: "./git", icon: Icons.GitBranch },
+  { label: "API Keys", to: "./api-keys", icon: Icons.Key },
+] as const;
+
+function ProjectSettingsLayout() {
   const { projectId } = Route.useParams();
-  const navigate = useNavigate();
+  const location = useLocation();
 
   const {
     data: project,
     isLoading: projectLoading,
     error: projectError,
   } = useProject(projectId);
-
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [visibility, setVisibility] = useState<"public" | "private">("private");
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
-  const [apiKeyName, setApiKeyName] = useState("");
-  const [apiKeyExpiry, setApiKeyExpiry] = useState<string>("90d");
-  const [createdKey, setCreatedKey] = useState<string | null>(null);
-
-  const [installations, setInstallations] = useState<GitHubAppInstallation[]>([]);
-  const [selectedInstallation, setSelectedInstallation] = useState<string>("");
-  const [repos, setRepos] = useState<GitHubRepo[]>([]);
-  const [selectedRepo, setSelectedRepo] = useState<string>("");
-  const [loadingInstallations, setLoadingInstallations] = useState(false);
-  const [loadingRepos, setLoadingRepos] = useState(false);
-  const [connectSuccess, setConnectSuccess] = useState(false);
-
-  const updateProjectMutation = useUpdateProject(projectId);
-  const deleteProjectMutation = useDeleteProject(projectId);
-  const createAPIKeyMutation = useCreateProjectAPIKey(projectId);
-  const revokeAPIKeyMutation = useRevokeProjectAPIKey(projectId);
-  const connectToGitHubMutation = useConnectProjectToGitHub(projectId);
-
-  const {
-    data: apiKeys,
-    isLoading: apiKeysLoading,
-    error: apiKeysError,
-  } = useProjectAPIKeys(projectId);
-
-  useEffect(() => {
-    if (!project) return;
-
-    setName(project.name || "");
-    setDescription(project.description || "");
-    setVisibility((project.visibility as "public" | "private") || "private");
-  }, [project]);
-
-  useEffect(() => {
-    async function loadInstallations() {
-      setLoadingInstallations(true);
-      try {
-        const response = await api.listGitHubAppInstallations();
-        setInstallations(response.data);
-      } catch {
-        // ignore - user may not have GitHub App installed
-      } finally {
-        setLoadingInstallations(false);
-      }
-    }
-
-    loadInstallations();
-  }, []);
-
-  useEffect(() => {
-    if (!selectedInstallation) {
-      setRepos([]);
-      setSelectedRepo("");
-      return;
-    }
-
-    async function loadRepos() {
-      setLoadingRepos(true);
-      try {
-        const response = await api.listGitHubAppRepos(selectedInstallation);
-        setRepos(response.data);
-      } catch {
-        setRepos([]);
-      } finally {
-        setLoadingRepos(false);
-      }
-    }
-
-    loadRepos();
-  }, [selectedInstallation]);
-
-  const handleSave = () => {
-    if (!name.trim()) return;
-
-    updateProjectMutation.mutate(
-      {
-        name: name.trim(),
-        description: description.trim() || undefined,
-        visibility,
-      },
-      {
-        onSuccess: () => {
-          setSaveSuccess(true);
-          setTimeout(() => setSaveSuccess(false), 3000);
-        },
-      },
-    );
-  };
-
-  const handleDelete = () => {
-    deleteProjectMutation.mutate(undefined, {
-      onSuccess: () => {
-        navigate({ to: "/projects" });
-      },
-    });
-  };
-
-  const handleCreateAPIKey = () => {
-    if (!apiKeyName.trim()) return;
-
-    createAPIKeyMutation.mutate(
-      {
-        name: apiKeyName.trim(),
-        expires_in: apiKeyExpiry === "no" ? undefined : apiKeyExpiry,
-      },
-      {
-        onSuccess: (data) => {
-          setApiKeyName("");
-          setCreatedKey(data.key);
-        },
-      },
-    );
-  };
-
-  const handleCopyKey = async () => {
-    if (!createdKey) return;
-    try {
-      await navigator.clipboard.writeText(createdKey);
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleConnectToGitHub = () => {
-    const repo = repos.find((item) => item.id.toString() === selectedRepo);
-    if (!repo || !selectedInstallation) return;
-
-    connectToGitHubMutation.mutate(
-      {
-        github_installation_id: selectedInstallation,
-        github_repo_id: repo.id,
-        repo_url: repo.clone_url.replace(".git", ""),
-      },
-      {
-        onSuccess: () => {
-          setConnectSuccess(true);
-          setSelectedInstallation("");
-          setSelectedRepo("");
-          setTimeout(() => setConnectSuccess(false), 3000);
-        },
-      },
-    );
-  };
 
   if (projectLoading) {
     return (
@@ -204,11 +50,11 @@ function ProjectSettingsPage() {
     );
   }
 
-  const canDelete = deleteConfirmText === project.slug;
-  const isProjectConnected = !!(project.github_repo_id && project.github_installation_id);
+  const settingsBase = `/projects/${projectId}/settings`;
+  const currentPath = location.pathname.replace(/\/$/, "");
 
   return (
-    <div className="space-y-6 px-6 @container/main py-3 max-w-2xl">
+    <div className="space-y-6 px-6 @container/main py-3">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
           <Link to="/projects/$projectId" params={{ projectId }}>
@@ -221,62 +67,37 @@ function ProjectSettingsPage() {
         </div>
       </div>
 
-      <div className="space-y-6">
-        <GeneralSettingsCard
-          name={name}
-          setName={setName}
-          description={description}
-          setDescription={setDescription}
-          visibility={visibility}
-          setVisibility={setVisibility}
-          onSave={handleSave}
-          isSaving={updateProjectMutation.isPending}
-          saveError={updateProjectMutation.error?.message}
-          saveSuccess={saveSuccess}
-        />
+      <div className="flex flex-col gap-6 md:flex-row">
+        <nav className="flex flex-row gap-1 md:w-48 md:shrink-0 md:flex-col">
+          {navItems.map((item) => {
+            const itemPath = item.to === "."
+              ? settingsBase
+              : `${settingsBase}/${item.to.replace("./", "")}`;
+            const isActive = currentPath === itemPath;
 
-        <APITokensCard
-          apiKeys={apiKeys}
-          apiKeysLoading={apiKeysLoading}
-          apiKeysError={apiKeysError?.message}
-          apiKeyName={apiKeyName}
-          setApiKeyName={setApiKeyName}
-          apiKeyExpiry={apiKeyExpiry}
-          setApiKeyExpiry={setApiKeyExpiry}
-          createdKey={createdKey}
-          onCopyKey={handleCopyKey}
-          onCreateToken={handleCreateAPIKey}
-          createPending={createAPIKeyMutation.isPending}
-          revokePending={revokeAPIKeyMutation.isPending}
-          onRevoke={(id) => revokeAPIKeyMutation.mutate(id)}
-        />
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                from={`/projects/$projectId/settings`}
+                params={{ projectId }}
+                className={cn(
+                  "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                )}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
 
-        <GitHubIntegrationCard
-          project={project}
-          installations={installations}
-          selectedInstallation={selectedInstallation}
-          setSelectedInstallation={setSelectedInstallation}
-          repos={repos}
-          selectedRepo={selectedRepo}
-          setSelectedRepo={setSelectedRepo}
-          loadingInstallations={loadingInstallations}
-          loadingRepos={loadingRepos}
-          isConnected={isProjectConnected}
-          connectError={connectToGitHubMutation.error?.message}
-          connectSuccess={connectSuccess}
-          connectPending={connectToGitHubMutation.isPending}
-          onConnect={handleConnectToGitHub}
-        />
-
-        <DangerZoneCard
-          project={project}
-          deleteConfirmText={deleteConfirmText}
-          setDeleteConfirmText={setDeleteConfirmText}
-          canDelete={canDelete}
-          deletePending={deleteProjectMutation.isPending}
-          deleteError={deleteProjectMutation.error?.message}
-          onDelete={handleDelete}
-        />
+        <div className="flex-1 max-w-2xl">
+          <Outlet />
+        </div>
       </div>
     </div>
   );

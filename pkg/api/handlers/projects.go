@@ -216,6 +216,9 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 			project.GitHubRepoID = req.GitHubRepoID
 		}
 	}
+	if req.DefaultBranch != "" {
+		project.DefaultBranch = &req.DefaultBranch
+	}
 
 	if err := h.store.Projects.Create(ctx, project, user.ID); err != nil {
 		_ = response.InternalServerError(w, r, errors.New("failed to create project"))
@@ -504,6 +507,9 @@ func (h *Handler) ConnectProjectToGitHub(w http.ResponseWriter, r *http.Request)
 	project.GitHubRepoID = &req.GitHubRepoID
 	project.RepoURL = &req.RepoURL
 	project.RepoLinkedByUserID = &user.ID
+	if req.DefaultBranch != "" {
+		project.DefaultBranch = &req.DefaultBranch
+	}
 
 	if err := h.store.Projects.Update(ctx, project); err != nil {
 		_ = response.InternalServerError(w, r, errors.New("failed to update project"))

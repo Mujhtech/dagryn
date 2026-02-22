@@ -10,6 +10,7 @@ export function useConnectProjectToGitHub(projectId: string) {
       github_installation_id: string;
       github_repo_id: number;
       repo_url: string;
+      default_branch?: string;
     }) => {
       return api.connectProjectToGitHub(projectId, data);
     },

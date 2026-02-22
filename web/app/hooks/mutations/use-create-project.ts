@@ -11,6 +11,7 @@ export interface CreateProjectInput {
   repo_url?: string;
   github_installation_id?: string;
   github_repo_id?: number;
+  default_branch?: string;
 }
 
 export function useCreateProject() {

@@ -1182,6 +1182,7 @@ function ImportFromGitHubPage() {
         github_repo_id:
           gitScope?.kind !== "manual_url" ? selectedRepo?.id : undefined,
         visibility: "private",
+        default_branch: effectiveBranch || undefined,
       });
 
       let syncError = "";

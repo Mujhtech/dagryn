@@ -254,17 +254,6 @@ function ProjectDetailPage() {
       projectId={projectId}
       filteredRuns={filteredRuns}
       runsLoading={runsLoading}
-      triggerDialogOpen={triggerDialogOpen}
-      setTriggerDialogOpen={setTriggerDialogOpen}
-      triggerTargets={triggerTargets}
-      setTriggerTargets={setTriggerTargets}
-      triggerBranch={triggerBranch}
-      setTriggerBranch={setTriggerBranch}
-      triggerForce={triggerForce}
-      setTriggerForce={setTriggerForce}
-      onTriggerRun={handleTriggerRun}
-      triggerRunPending={triggerRunMutation.isPending}
-      triggerRunErrorMessage={triggerRunMutation.error?.message}
       page={page}
       setPage={(nextPage) => setPage(nextPage)}
       totalPages={totalPages}
