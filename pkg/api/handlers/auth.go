@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"github.com/mujhtech/dagryn/pkg/database/repo"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
 	"github.com/mujhtech/dagryn/pkg/http/response"
+	"github.com/mujhtech/dagryn/pkg/service"
 )
 
 // AuthHandler handles authentication endpoints.
@@ -26,6 +28,8 @@ type AuthHandler struct {
 	providerTokenEncrypt encrypt.Encrypt
 	providers            map[string]authn.Provider
 	baseURL              string
+	auditService         *service.AuditService
+	teamStore            repo.TeamStore
 }
 
 // NewAuthHandler creates a new auth handler.
@@ -46,6 +50,33 @@ func NewAuthHandler(
 		providerTokenEncrypt: providerTokenEncrypt,
 		providers:            providers,
 		baseURL:              baseURL,
+	}
+}
+
+// SetAuditService sets the audit service for audit logging.
+func (h *AuthHandler) SetAuditService(s *service.AuditService) {
+	h.auditService = s
+}
+
+// SetTeamStore sets the team store for looking up user teams (used for audit logging).
+func (h *AuthHandler) SetTeamStore(s repo.TeamStore) {
+	h.teamStore = s
+}
+
+// logAuthEvent logs an audit entry to all teams the user belongs to.
+// Auth events are team-scoped, so one entry is created per team.
+func (h *AuthHandler) logAuthEvent(ctx context.Context, user *models.User, entry service.AuditEntry) {
+	if h.auditService == nil || h.teamStore == nil {
+		return
+	}
+	teams, err := h.teamStore.ListByUser(ctx, user.ID)
+	if err != nil || len(teams) == 0 {
+		return
+	}
+	for _, t := range teams {
+		e := entry
+		e.TeamID = t.ID
+		h.auditService.LogWithActor(ctx, e, user)
 	}
 }
 
@@ -194,6 +225,16 @@ func (h *AuthHandler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Audit log: user login via OAuth (logged to all teams the user belongs to)
+	h.logAuthEvent(ctx, user, service.AuditEntry{
+		Action:       models.AuditActionAuthLogin,
+		Category:     models.AuditCategoryAuth,
+		ResourceType: "user",
+		ResourceID:   user.ID.String(),
+		Description:  "User logged in via " + providerName,
+		Metadata:     map[string]interface{}{"provider": providerName},
+	})
+
 	_ = response.Ok(w, r, "Authentication successful", TokenResponse{
 		AccessToken:  tokenPair.AccessToken,
 		RefreshToken: tokenPair.RefreshToken,
@@ -295,11 +336,29 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 			_ = response.InternalServerError(w, r, errors.New("failed to revoke tokens"))
 			return
 		}
+		// Audit log: user logout (revoke all)
+		h.logAuthEvent(ctx, user, service.AuditEntry{
+			Action:       models.AuditActionAuthLogout,
+			Category:     models.AuditCategoryAuth,
+			ResourceType: "user",
+			ResourceID:   user.ID.String(),
+			Description:  "User logged out (all tokens revoked)",
+			Metadata:     map[string]interface{}{"revoke_all": true},
+		})
 		_ = response.Ok(w, r, "All tokens revoked successfully", SuccessResponse{
 			Message: "All tokens revoked successfully",
 		})
 		return
 	}
+
+	// Audit log: user logout
+	h.logAuthEvent(ctx, user, service.AuditEntry{
+		Action:       models.AuditActionAuthLogout,
+		Category:     models.AuditCategoryAuth,
+		ResourceType: "user",
+		ResourceID:   user.ID.String(),
+		Description:  "User logged out",
+	})
 
 	// Just acknowledge logout - token validation will handle expiry
 	_ = response.Ok(w, r, "Logged out successfully", SuccessResponse{
@@ -401,6 +460,16 @@ func (h *AuthHandler) PollDeviceCode(w http.ResponseWriter, r *http.Request) {
 		_ = response.InternalServerError(w, r, errors.New("failed to generate tokens"))
 		return
 	}
+
+	// Audit log: user login via device code flow (logged to all teams the user belongs to)
+	h.logAuthEvent(ctx, user, service.AuditEntry{
+		Action:       models.AuditActionAuthLogin,
+		Category:     models.AuditCategoryAuth,
+		ResourceType: "user",
+		ResourceID:   user.ID.String(),
+		Description:  "User logged in via device code flow",
+		Metadata:     map[string]interface{}{"method": "device_code"},
+	})
 
 	_ = response.Ok(w, r, "Device authenticated successfully", TokenResponse{
 		AccessToken:  tokenPair.AccessToken,

@@ -6,9 +6,12 @@ import (
 	"net/http"
 	"strconv"
 
+	apiCtx "github.com/mujhtech/dagryn/pkg/api/context"
+	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
 	"github.com/mujhtech/dagryn/pkg/entitlement"
 	"github.com/mujhtech/dagryn/pkg/http/response"
+	"github.com/mujhtech/dagryn/pkg/service"
 )
 
 // CheckCache godoc
@@ -255,6 +258,27 @@ func (h *Handler) TriggerCacheGC(w http.ResponseWriter, r *http.Request) {
 		_ = response.InternalServerError(w, r, err)
 		return
 	}
+
+	// Audit log: cache cleared
+	if h.auditService != nil {
+		ctx := r.Context()
+		user := apiCtx.GetUser(ctx)
+		if user != nil {
+			project, _ := h.store.Projects.GetByID(ctx, projectID)
+			if project != nil && project.TeamID != nil {
+				h.auditService.Log(ctx, service.AuditEntry{
+					TeamID:       *project.TeamID,
+					ProjectID:    &projectID,
+					Action:       models.AuditActionCacheCleared,
+					Category:     models.AuditCategoryCache,
+					ResourceType: "cache",
+					ResourceID:   projectID.String(),
+					Description:  "Cache garbage collection triggered",
+				})
+			}
+		}
+	}
+
 	_ = response.Ok(w, r, "cache GC completed", result)
 }
 

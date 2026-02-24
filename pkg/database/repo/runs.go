@@ -541,6 +541,12 @@ func (r *RunRepo) ListTaskResults(ctx context.Context, runID uuid.UUID) ([]model
 	return results, rows.Err()
 }
 
+// DeleteTaskResultsByRun removes all task results for a given run.
+func (r *RunRepo) DeleteTaskResultsByRun(ctx context.Context, runID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, "DELETE FROM task_results WHERE run_id = $1", runID)
+	return err
+}
+
 // GetRunWithTasks retrieves a run with all its task results.
 func (r *RunRepo) GetRunWithTasks(ctx context.Context, id uuid.UUID) (*models.RunWithTasks, error) {
 	run, err := r.GetByID(ctx, id)

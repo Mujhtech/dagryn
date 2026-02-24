@@ -77,6 +77,17 @@ export const queryKeys = {
   dashboardOverview: ["dashboardOverview"] as const,
   capabilities: ["capabilities"] as const,
   licenseStatus: ["licenseStatus"] as const,
+  teamAuditLogs: (teamId: string, cursor?: string) =>
+    ["teamAuditLogs", teamId, cursor ?? ""] as const,
+  projectAuditLogs: (projectId: string, cursor?: string) =>
+    ["projectAuditLogs", projectId, cursor ?? ""] as const,
+  teamAuditRetention: (teamId: string) =>
+    ["teamAuditRetention", teamId] as const,
+  teamAuditWebhooks: (teamId: string) =>
+    ["teamAuditWebhooks", teamId] as const,
   sampleTemplate: (language: string) =>
     ["sampleTemplate", language] as const,
+  teamAnalytics: (teamId: string, days: number) =>
+    ["teamAnalytics", teamId, days] as const,
+  userAnalytics: (days: number) => ["userAnalytics", days] as const,
 };

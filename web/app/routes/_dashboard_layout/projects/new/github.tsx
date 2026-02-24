@@ -986,7 +986,6 @@ function ImportFromGitHubPage() {
   const navigate = useNavigate();
   const createProjectMutation = useCreateProject();
 
-  // ── Core state ──────────────────────────────────────────────────────────────
   const [gitScope, setGitScope] = useState<GitScope | null>(null);
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
   const [manualRepoUrl, setManualRepoUrl] = useState("");
@@ -995,12 +994,10 @@ function ImportFromGitHubPage() {
   });
   const [branchOverride, setBranchOverride] = useState("");
 
-  // ── Project form ────────────────────────────────────────────────────────────
   const [importName, setImportName] = useState("");
   const [importSlug, setImportSlug] = useState("");
   const [importSlugEdited, setImportSlugEdited] = useState(false);
 
-  // ── Workflow state ──────────────────────────────────────────────────────────
   const [useDetectedWorkflow, setUseDetectedWorkflow] = useState(true);
   const [workflowDraft, setWorkflowDraft] = useState("");
   const [workflowSyncError, setWorkflowSyncError] = useState("");
@@ -1014,7 +1011,6 @@ function ImportFromGitHubPage() {
       ? branchOverride
       : undefined;
 
-  // ── Queries ─────────────────────────────────────────────────────────────────
   const { data: installations = [], isLoading: installationsLoading } =
     useGitHubAppInstallations();
 
@@ -1065,8 +1061,6 @@ function ImportFromGitHubPage() {
     },
     enabled: needsSampleTemplate,
   });
-
-  // ── Cascading resets ────────────────────────────────────────────────────────
 
   // Changing git scope → reset everything downstream
   const handleScopeChange = (scope: GitScope) => {
@@ -1152,8 +1146,6 @@ function ImportFromGitHubPage() {
     });
   }, [triggerConfig]);
 
-  // ── Create handler ──────────────────────────────────────────────────────────
-
   const canCreate =
     gitScope?.kind === "manual_url"
       ? manualRepoUrl.trim().length > 0 &&
@@ -1183,25 +1175,11 @@ function ImportFromGitHubPage() {
           gitScope?.kind !== "manual_url" ? selectedRepo?.id : undefined,
         visibility: "private",
         default_branch: effectiveBranch || undefined,
+        dagryn_config:
+          useDetectedWorkflow && workflowDraft.trim()
+            ? workflowDraft.trim()
+            : undefined,
       });
-
-      let syncError = "";
-      if (useDetectedWorkflow && workflowDraft.trim()) {
-        try {
-          await api.syncProjectWorkflowFromToml(project.id, workflowDraft);
-        } catch (err) {
-          syncError =
-            err instanceof Error
-              ? err.message
-              : "Failed to sync workflow from detected configuration.";
-        }
-      }
-
-      if (syncError) {
-        setWorkflowSyncError(syncError);
-        setPendingProjectId(project.id);
-        return;
-      }
 
       navigate({
         to: "/projects/$projectId",
@@ -1214,15 +1192,11 @@ function ImportFromGitHubPage() {
     }
   };
 
-  // ── OAuth error state ───────────────────────────────────────────────────────
-
   const needsGitHubLogin =
     gitScope?.kind === "linked_account" &&
     oauthReposError &&
     "status" in oauthReposError &&
     (oauthReposError as { status?: number }).status === 403;
-
-  // ── Render ──────────────────────────────────────────────────────────────────
 
   if (installationsLoading) {
     return (

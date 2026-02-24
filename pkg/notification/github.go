@@ -30,19 +30,27 @@ func CommitStatus(ctx context.Context, token, owner, repoName, sha, state, desc,
 }
 
 func SendGitHubJSON(ctx context.Context, token, method, url string, body interface{}, v any) error {
-	jsonBody, err := json.Marshal(body)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewReader(jsonBody))
-	if err != nil {
-		return err
+	var req *http.Request
+	if body != nil {
+		jsonBody, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		req, err = http.NewRequestWithContext(ctx, method, url, bytes.NewReader(jsonBody))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+	} else {
+		var err error
+		req, err = http.NewRequestWithContext(ctx, method, url, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 
 	resp, err := http.DefaultClient.Do(req)
@@ -52,8 +60,8 @@ func SendGitHubJSON(ctx context.Context, token, method, url string, body interfa
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		_, _ = io.ReadAll(resp.Body)
-		return fmt.Errorf("github request failed with status %d", resp.StatusCode)
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("github request failed with status %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	if v != nil {

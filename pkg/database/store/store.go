@@ -21,6 +21,8 @@ type Store struct {
 	PluginRegistry      repo.PluginRegistryStore
 	AI                  repo.AIStore
 	Cache               repo.CacheStore
+	AuditLogs           repo.AuditLogStore
+	Analytics           repo.AnalyticsStore
 }
 
 func New(
@@ -42,5 +44,7 @@ func New(
 		PluginRegistry:      repo.NewPluginRegistryRepo(db.Pool()),
 		AI:                  repo.NewAIRepo(db.Pool()),
 		Cache:               repo.NewCacheRepo(db.Pool()),
+		AuditLogs:           repo.NewAuditLogRepo(db.Pool()),
+		Analytics:           repo.NewAnalyticsRepo(db.Pool()),
 	}
 }

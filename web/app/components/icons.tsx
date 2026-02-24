@@ -68,6 +68,7 @@ import {
   CaretUpDownIcon,
   ArrowSquareOutIcon,
   LightningIcon,
+  ClipboardTextIcon,
 } from "@phosphor-icons/react";
 
 export const Icons = {
@@ -143,4 +144,5 @@ export const Icons = {
   ChevronsUpDown: CaretUpDownIcon,
   ExternalLink: ArrowSquareOutIcon,
   Zap: LightningIcon,
+  ClipboardList: ClipboardTextIcon,
 };

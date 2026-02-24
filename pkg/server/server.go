@@ -71,6 +71,7 @@ type Server struct {
 	entitlements      entitlement.Checker
 	extraRoutes       func(chi.Router)
 	dashboardHandler  http.Handler
+	auditService      *service.AuditService
 }
 
 // SetEntitlementChecker allows an external binary to override the default
@@ -310,6 +311,25 @@ func (s *Server) Initialize(ctx context.Context) error {
 		apiHandler.SetDashboardHandler(s.dashboardHandler)
 	}
 
+	// Initialize audit service (always available; feature-gated at service level).
+	auditService := service.NewAuditService(s.store.AuditLogs, log.Logger)
+	auditService.SetEntitlements(checker)
+	auditService.SetJobEnqueuer(jobClient)
+	if s.telemetry != nil {
+		if m, err := telemetry.NewMetrics(); err == nil {
+			auditService.SetMetrics(&service.AuditMetrics{
+				LogsTotal:        m.AuditLogsTotal,
+				WriteDuration:    m.AuditLogWriteDuration,
+				RetentionDeleted: m.AuditRetentionDeleted,
+			})
+		}
+	}
+	apiHandler.SetAuditService(auditService)
+	s.auditService = auditService
+
+	// Wire encrypter for webhook secrets.
+	apiHandler.SetEncrypter(enc)
+
 	// Wire entitlements to services for quota enforcement.
 	if cacheService != nil {
 		cacheService.SetEntitlements(checker)
@@ -454,6 +474,11 @@ func (s *Server) DB() *database.DB {
 // Config returns the server configuration.
 func (s *Server) Config() *config.Config {
 	return s.config
+}
+
+// AuditService returns the audit service (may be nil before Initialize).
+func (s *Server) AuditService() *service.AuditService {
+	return s.auditService
 }
 
 // redisReadyChecker adapts *redis.Redis to handlers.ReadyChecker for /ready.

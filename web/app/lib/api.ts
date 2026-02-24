@@ -652,6 +652,144 @@ export interface CapabilitiesResponse {
   nav: CapabilitiesNavItem[];
 }
 
+// Audit log types
+export interface AuditLogEntry {
+  id: string;
+  team_id: string;
+  actor_id?: string;
+  actor_email: string;
+  actor_type: string;
+  action: string;
+  category: string;
+  resource_type: string;
+  resource_id?: string;
+  project_id?: string;
+  description: string;
+  metadata?: Record<string, unknown>;
+  ip_address?: string;
+  user_agent?: string;
+  entry_hash: string;
+  prev_hash?: string;
+  sequence_num: number;
+  created_at: string;
+}
+
+export interface AuditLogListResult {
+  data: AuditLogEntry[];
+  next_cursor?: string;
+  has_next: boolean;
+}
+
+export interface AuditRetentionPolicy {
+  team_id: string;
+  retention_days: number;
+  updated_at?: string;
+}
+
+export interface AuditChainVerifyResult {
+  valid: boolean;
+  total_entries: number;
+  broken_entries?: string[];
+}
+
+export interface AuditWebhook {
+  id: string;
+  team_id: string;
+  url: string;
+  description: string;
+  event_filter: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AuditWebhookCreated extends AuditWebhook {
+  secret: string;
+}
+
+// Analytics types
+export interface AnalyticsOverview {
+  runs: RunAnalyticsOverview;
+  cache: CacheAnalyticsOverview;
+  artifacts: ArtifactAnalyticsOverview;
+  bandwidth: BandwidthAnalyticsOverview;
+  ai: AIAnalyticsOverview;
+  audit_log: AuditLogAnalyticsOverview;
+  projects: ProjectActivitySummary[];
+}
+
+export interface RunAnalyticsOverview {
+  total_runs: number;
+  success_runs: number;
+  failed_runs: number;
+  cancelled_runs: number;
+  success_rate: number;
+  avg_duration_ms: number;
+  chart: {
+    date: string;
+    success: number;
+    failed: number;
+    cancelled: number;
+    avg_duration_ms: number;
+  }[];
+}
+
+export interface CacheAnalyticsOverview {
+  total_entries: number;
+  total_size_bytes: number;
+  total_hits: number;
+  total_misses: number;
+  hit_rate: number;
+  total_bytes_uploaded: number;
+  total_bytes_downloaded: number;
+  chart: {
+    date: string;
+    cache_hits: number;
+    cache_misses: number;
+    bytes_uploaded: number;
+    bytes_downloaded: number;
+  }[];
+}
+
+export interface ArtifactAnalyticsOverview {
+  total_artifacts: number;
+  total_size_bytes: number;
+  chart: { date: string; count: number; size_bytes: number }[];
+}
+
+export interface BandwidthAnalyticsOverview {
+  total_bytes: number;
+  upload_bytes: number;
+  download_bytes: number;
+  chart: { date: string; upload_bytes: number; download_bytes: number }[];
+}
+
+export interface AIAnalyticsOverview {
+  total_analyses: number;
+  success_analyses: number;
+  failed_analyses: number;
+  total_suggestions: number;
+  applied_suggestions: number;
+  chart: { date: string; analyses: number; suggestions: number }[];
+}
+
+export interface AuditLogAnalyticsOverview {
+  total_events: number;
+  top_actions: { action: string; count: number }[];
+  top_actors: { actor_email: string; count: number }[];
+  chart: { date: string; events: number }[];
+}
+
+export interface ProjectActivitySummary {
+  project_id: string;
+  project_name: string;
+  total_runs: number;
+  success_rate: number;
+  cache_size_bytes: number;
+  artifact_size_bytes: number;
+  bandwidth_bytes: number;
+}
+
 // API Error
 export class ApiError extends Error {
   constructor(
@@ -1078,6 +1216,7 @@ class ApiClient {
     github_installation_id?: string;
     github_repo_id?: number;
     default_branch?: string;
+    dagryn_config?: string;
   }) {
     const body: Record<string, unknown> = {
       name: data.name,
@@ -1101,6 +1240,9 @@ class ApiClient {
     }
     if (data.default_branch != null && data.default_branch !== "") {
       body.default_branch = data.default_branch;
+    }
+    if (data.dagryn_config != null && data.dagryn_config !== "") {
+      body.dagryn_config = data.dagryn_config;
     }
     return this.fetch<Project>("/projects", {
       method: "POST",
@@ -1469,6 +1611,161 @@ class ApiClient {
       method: "POST",
       body: JSON.stringify({ license_key: licenseKey }),
     });
+  }
+
+  // Audit Logs
+  async listTeamAuditLogs(
+    teamId: string,
+    params?: {
+      actor_id?: string;
+      actor_email?: string;
+      action?: string;
+      category?: string;
+      since?: string;
+      until?: string;
+      cursor?: string;
+      limit?: number;
+    },
+  ) {
+    const qs = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined) qs.set(k, String(v));
+      });
+    }
+    const q = qs.toString();
+    return this.fetch<AuditLogListResult>(
+      `/teams/${teamId}/audit-logs${q ? `?${q}` : ""}`,
+    );
+  }
+
+  async listProjectAuditLogs(
+    projectId: string,
+    params?: {
+      actor_id?: string;
+      actor_email?: string;
+      action?: string;
+      category?: string;
+      since?: string;
+      until?: string;
+      cursor?: string;
+      limit?: number;
+    },
+  ) {
+    const qs = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined) qs.set(k, String(v));
+      });
+    }
+    const q = qs.toString();
+    return this.fetch<AuditLogListResult>(
+      `/projects/${projectId}/audit-logs${q ? `?${q}` : ""}`,
+    );
+  }
+
+  async exportTeamAuditLogs(
+    teamId: string,
+    format: "csv" | "json" = "json",
+    params?: {
+      actor_email?: string;
+      action?: string;
+      category?: string;
+      since?: string;
+      until?: string;
+    },
+  ) {
+    const qs = new URLSearchParams();
+    qs.set("format", format);
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined) qs.set(k, String(v));
+      });
+    }
+    return this.fetchBlob(`/teams/${teamId}/audit-logs/export?${qs.toString()}`);
+  }
+
+  async getAuditRetentionPolicy(teamId: string) {
+    return this.fetch<AuditRetentionPolicy>(
+      `/teams/${teamId}/audit-logs/retention`,
+    );
+  }
+
+  async updateAuditRetentionPolicy(teamId: string, retentionDays: number) {
+    return this.fetch<AuditRetentionPolicy>(
+      `/teams/${teamId}/audit-logs/retention`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ retention_days: retentionDays }),
+      },
+    );
+  }
+
+  async verifyAuditChain(teamId: string) {
+    return this.fetch<AuditChainVerifyResult>(
+      `/teams/${teamId}/audit-logs/verify`,
+    );
+  }
+
+  // Audit Webhooks
+  async listAuditWebhooks(teamId: string) {
+    return this.fetch<AuditWebhook[]>(
+      `/teams/${teamId}/audit-logs/webhooks`,
+    );
+  }
+
+  async createAuditWebhook(
+    teamId: string,
+    data: { url: string; description?: string; event_filter?: string[] },
+  ) {
+    return this.fetch<AuditWebhookCreated>(
+      `/teams/${teamId}/audit-logs/webhooks`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    );
+  }
+
+  async updateAuditWebhook(
+    teamId: string,
+    webhookId: string,
+    data: Partial<{ url: string; description: string; event_filter: string[]; is_active: boolean }>,
+  ) {
+    return this.fetch<AuditWebhook>(
+      `/teams/${teamId}/audit-logs/webhooks/${webhookId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+      },
+    );
+  }
+
+  async deleteAuditWebhook(teamId: string, webhookId: string) {
+    return this.fetch<void>(
+      `/teams/${teamId}/audit-logs/webhooks/${webhookId}`,
+      {
+        method: "DELETE",
+      },
+    );
+  }
+
+  async testAuditWebhook(teamId: string, webhookId: string) {
+    return this.fetch<{ success: boolean; status_code?: number; error?: string; duration_ms: number }>(
+      `/teams/${teamId}/audit-logs/webhooks/${webhookId}/test`,
+      { method: "POST" },
+    );
+  }
+
+  // Analytics
+  async getTeamAnalytics(teamId: string, days = 30) {
+    return this.fetch<AnalyticsOverview>(
+      `/teams/${teamId}/analytics?days=${days}`,
+    );
+  }
+
+  async getUserAnalytics(days = 30) {
+    return this.fetch<AnalyticsOverview>(`/analytics?days=${days}`);
   }
 
   // Public wrapper around the private fetch method.

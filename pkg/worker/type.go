@@ -23,6 +23,9 @@ const (
 	AISuggestRunTaskName            TaskName = "ai_suggest:run"
 	AISuggestPublishTaskName        TaskName = "ai_suggest:publish"
 	AIBlobCleanupTaskName           TaskName = "ai_blob_cleanup:run"
+	AuditRetentionGCTaskName        TaskName = "audit_retention:gc"
+	AuditWebhookForwardTaskName     TaskName = "audit_webhook:forward"
+	AuditChainVerifyTaskName        TaskName = "audit_chain:verify"
 )
 
 type ClientPayload struct {

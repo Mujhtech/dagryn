@@ -297,6 +297,24 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		return nil
 	}
 
+	// On retry, clean up stale task_results and logs from the previous attempt.
+	if err := h.runs.DeleteTaskResultsByRun(ctx, runID); err != nil {
+		slog.Warn("execute_run: cleanup stale task results failed", "run_id", runID, "error", err)
+	}
+	if err := h.runs.DeleteLogs(ctx, runID); err != nil {
+		slog.Warn("execute_run: cleanup stale logs failed", "run_id", runID, "error", err)
+	}
+	// Reset run counters so they're accurate for this attempt.
+	run.CompletedTasks = 0
+	run.FailedTasks = 0
+	run.CacheHits = 0
+	run.DurationMs = nil
+	run.ErrorMessage = nil
+	run.Status = models.RunStatusPending
+	if err := h.runs.Update(ctx, run); err != nil {
+		slog.Warn("execute_run: reset run counters failed", "run_id", runID, "error", err)
+	}
+
 	repoURL := payload.RepoURL
 	if repoURL == "" && project.RepoURL != nil {
 		repoURL = *project.RepoURL
@@ -352,6 +370,13 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	cloneOpts := &git.CloneOptions{URL: repoURL}
 	if auth := h.cloneAuth(ctx, repoURL, project); auth != nil {
 		cloneOpts.Auth = auth
+	}
+	// When a specific branch is requested, tell go-git to fetch that branch
+	// during clone. Without this, only the default branch is fetched and
+	// the subsequent checkout of a non-default branch fails with "reference not found".
+	if payload.GitBranch != "" {
+		cloneOpts.ReferenceName = plumbing.NewBranchReferenceName(payload.GitBranch)
+		cloneOpts.SingleBranch = true
 	}
 
 	// Clone repository
@@ -418,7 +443,7 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		slog.Warn("execute_run: failed to get HEAD commit", "run_id", runID, "error", err)
 	}
 
-	// Load config
+	// Load config — try from cloned repo first, fall back to stored workflow raw_config
 	configPath := project.ConfigPath
 	if configPath == "" {
 		configPath = config.DefaultConfigFile
@@ -426,9 +451,13 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	configPath = filepath.Join(workDir, configPath)
 	cfg, err := config.Parse(configPath)
 	if err != nil {
-		msg := fmt.Sprintf("load config: %v", err)
-		_ = h.runs.Complete(ctx, runID, models.RunStatusFailed, &msg)
-		return fmt.Errorf("config: %w", err)
+		// Fallback: load from stored workflow raw_config
+		cfg, err = h.loadConfigFromStoredWorkflow(ctx, projectID, configPath)
+		if err != nil {
+			msg := fmt.Sprintf("load config: %v", err)
+			_ = h.runs.Complete(ctx, runID, models.RunStatusFailed, &msg)
+			return fmt.Errorf("config: %w", err)
+		}
 	}
 
 	workflow, err := cfg.ToWorkflow()
@@ -491,16 +520,13 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		targets = run.Targets
 	}
 
-	// For CI-triggered runs (push/PR), if no targets specified, use all tasks from dagryn.toml
-	if len(targets) == 0 && run.TriggeredBy == models.TriggerSourceCI {
+	// When no targets are specified, run all tasks from the workflow.
+	if len(targets) == 0 {
 		targets = workflow.TaskNames()
-		// Save all task names as targets for CI runs
+		// Persist resolved targets so the UI can display them
 		if err := h.runs.UpdateTargets(ctx, runID, targets); err != nil {
 			slog.Warn("execute_run: failed to update targets", "run_id", runID, "error", err)
 		}
-	} else if len(targets) == 0 && workflow.Default {
-		// For non-CI runs, use default workflow if available
-		targets = workflow.TaskNames()
 	}
 
 	if len(targets) == 0 {
@@ -803,6 +829,34 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	return nil
+}
+
+// loadConfigFromStoredWorkflow loads the config from the project's default
+// workflow stored in the DB. If raw_config is available, it writes the content
+// to disk at configPath so task commands that reference dagryn.toml can find it,
+// then parses it.
+func (h *ExecuteRunHandler) loadConfigFromStoredWorkflow(ctx context.Context, projectID uuid.UUID, configPath string) (*config.Config, error) {
+	if h.workflows == nil {
+		return nil, fmt.Errorf("no workflow store available")
+	}
+	wf, err := h.workflows.GetDefaultByProject(ctx, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("get default workflow: %w", err)
+	}
+	if wf == nil || wf.RawConfig == nil || *wf.RawConfig == "" {
+		return nil, fmt.Errorf("no stored config available for project")
+	}
+
+	// Write stored config to disk so downstream code can reference it
+	if err := os.WriteFile(configPath, []byte(*wf.RawConfig), 0644); err != nil {
+		slog.Warn("execute_run: failed to write stored config to disk", "path", configPath, "error", err)
+	}
+
+	cfg, err := config.ParseBytes([]byte(*wf.RawConfig))
+	if err != nil {
+		return nil, fmt.Errorf("parse stored config: %w", err)
+	}
+	return cfg, nil
 }
 
 // buildContainerConfig merges server-level defaults with project-level config.
@@ -1355,11 +1409,11 @@ func (h *ExecuteRunHandler) notifyGitHub(ctx context.Context, run *models.Run, p
 	}
 
 	// 2) PR summary comment (create once, then update same comment)
-	// if run.PRNumber == nil {
-	// 	slog.Debug("github_pr_comment_skipped_no_pr", "run_id", run.ID)
-	// 	slog.Info("github_notification_sent", "run_id", run.ID, "status", status, "sha", sha)
-	// 	return
-	// }
+	if run.PRNumber == nil {
+		slog.Debug("github_pr_comment_skipped_no_pr", "run_id", run.ID)
+		slog.Info("github_notification_sent", "run_id", run.ID, "status", status, "sha", sha)
+		return
+	}
 
 	commentBody := map[string]string{
 		"body": buildGitHubPRComment(run, status, targetURL),

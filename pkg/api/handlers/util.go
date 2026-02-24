@@ -23,6 +23,9 @@ const (
 	NameParam           = "name"
 	VersionParam        = "version"
 	SlugParam           = "slug"
+	TeamIDParam         = "teamId"
+	AuditLogIDParam     = "auditLogId"
+	WebhookIDParam      = "webhookId"
 )
 
 func pathParamOrError(r *http.Request, paramName string) (string, error) {
@@ -106,4 +109,46 @@ func getTaskNameFromPath(r *http.Request) (string, error) {
 	}
 
 	return taskName, nil
+}
+
+func getAuditLogIDFromPath(r *http.Request) (uuid.UUID, error) {
+	auditLogID, err := pathParamOrError(r, AuditLogIDParam)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("audit log ID is required")
+	}
+
+	auditLogUUID, err := uuid.Parse(auditLogID)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid audit log ID")
+	}
+
+	return auditLogUUID, nil
+}
+
+func getTeamIDFromPath(r *http.Request) (uuid.UUID, error) {
+	teamID, err := pathParamOrError(r, TeamIDParam)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("team ID is required")
+	}
+
+	teamUUID, err := uuid.Parse(teamID)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid team ID")
+	}
+
+	return teamUUID, nil
+}
+
+func getInvitationIDFromPath(r *http.Request) (uuid.UUID, error) {
+	invitationID, err := pathParamOrError(r, InvitationIDParam)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invitation ID is required")
+	}
+
+	invitationUUID, err := uuid.Parse(invitationID)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid invitation ID")
+	}
+
+	return invitationUUID, nil
 }

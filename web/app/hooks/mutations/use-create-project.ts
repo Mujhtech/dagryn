@@ -12,6 +12,7 @@ export interface CreateProjectInput {
   github_installation_id?: string;
   github_repo_id?: number;
   default_branch?: string;
+  dagryn_config?: string;
 }
 
 export function useCreateProject() {

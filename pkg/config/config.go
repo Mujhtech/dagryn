@@ -237,7 +237,7 @@ func DefaultConfig() Config {
 		},
 		Worker: WorkerConfig{
 			Enabled:     true,
-			RoutePrefix: "worker",
+			RoutePrefix: "queue",
 		},
 	}
 }

@@ -172,6 +172,14 @@ type Metrics struct {
 	AISuggestionsTotal    metric.Int64Counter
 	AIPublicationsTotal   metric.Int64Counter
 	AIQuotaExceededTotal  metric.Int64Counter
+
+	// Audit metrics
+	AuditLogsTotal        metric.Int64Counter
+	AuditLogWriteDuration metric.Float64Histogram
+	AuditWebhookTotal     metric.Int64Counter
+	AuditWebhookDuration  metric.Float64Histogram
+	AuditRetentionDeleted metric.Int64Counter
+	AuditChainBreaks      metric.Int64Counter
 }
 
 // NewMetrics creates and registers all metric instruments.
@@ -314,6 +322,61 @@ func NewMetrics() (*Metrics, error) {
 		return nil, err
 	}
 
+	// Audit metrics
+	auditLogsTotal, err := meter.Int64Counter(
+		"dagryn_audit_logs_total",
+		metric.WithDescription("Total number of audit log entries created"),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	auditLogWriteDuration, err := meter.Float64Histogram(
+		"dagryn_audit_log_write_duration_seconds",
+		metric.WithDescription("Audit log write duration in seconds"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	auditWebhookTotal, err := meter.Int64Counter(
+		"dagryn_audit_webhook_deliveries_total",
+		metric.WithDescription("Total number of audit webhook deliveries"),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	auditWebhookDuration, err := meter.Float64Histogram(
+		"dagryn_audit_webhook_duration_seconds",
+		metric.WithDescription("Audit webhook delivery duration in seconds"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	auditRetentionDeleted, err := meter.Int64Counter(
+		"dagryn_audit_retention_deleted_total",
+		metric.WithDescription("Total number of audit entries deleted by retention GC"),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	auditChainBreaks, err := meter.Int64Counter(
+		"dagryn_audit_chain_breaks_total",
+		metric.WithDescription("Total number of audit chain integrity breaks detected"),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Metrics{
 		HTTPRequestsTotal:     httpRequestsTotal,
 		HTTPRequestDuration:   httpRequestDuration,
@@ -330,5 +393,11 @@ func NewMetrics() (*Metrics, error) {
 		AISuggestionsTotal:    aiSuggestionsTotal,
 		AIPublicationsTotal:   aiPublicationsTotal,
 		AIQuotaExceededTotal:  aiQuotaExceededTotal,
+		AuditLogsTotal:        auditLogsTotal,
+		AuditLogWriteDuration: auditLogWriteDuration,
+		AuditWebhookTotal:     auditWebhookTotal,
+		AuditWebhookDuration:  auditWebhookDuration,
+		AuditRetentionDeleted: auditRetentionDeleted,
+		AuditChainBreaks:      auditChainBreaks,
 	}, nil
 }

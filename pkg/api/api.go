@@ -26,6 +26,8 @@ import (
 	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/mujhtech/dagryn/pkg/worker"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
+
+	_ "github.com/mujhtech/dagryn/docs" // swagger docs
 )
 
 type API struct {
@@ -44,6 +46,7 @@ type API struct {
 	featureGate       *licensing.FeatureGate // Used for detailed license info in /license endpoint.
 	extraRoutes       func(chi.Router)       // Injected by cloud binary via RegisterExtraRoutes.
 	dashboardHandler  http.Handler           // Overrides default embedded dashboard (set by cloud binary).
+	auditService      *service.AuditService  // Stored for passing to authHandler during BuildRouter.
 }
 
 func New(
@@ -123,6 +126,18 @@ func (a *API) SetDashboardHandler(h http.Handler) {
 	a.dashboardHandler = h
 }
 
+// SetAuditService sets the audit service on both the API handler and auth handler.
+// authHandler is set lazily during BuildRouter, so we store a reference for later.
+func (a *API) SetAuditService(s *service.AuditService) {
+	a.h.SetAuditService(s)
+	a.auditService = s
+}
+
+// SetEncrypter delegates to the handler for webhook secret encryption.
+func (a *API) SetEncrypter(e encrypt.Encrypt) {
+	a.h.SetEncrypter(e)
+}
+
 // SetFeatureGate delegates to the handler for detailed license info.
 func (a *API) SetFeatureGate(gate *licensing.FeatureGate) {
 	a.featureGate = gate
@@ -143,6 +158,10 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 		a.oauthProviders,
 		fmt.Sprintf("http://%s", a.cfg.Server.Address()),
 	)
+	if a.auditService != nil {
+		authHandler.SetAuditService(a.auditService)
+		authHandler.SetTeamStore(a.store.Teams)
+	}
 
 	// Request ID
 	router.Use(middleware.RequestID)
@@ -164,6 +183,9 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 	// CORS
 	router.Use(middleware.CORS())
 
+	// Audit context (extracts IP, user-agent, request-ID for audit logging)
+	router.Use(middleware.AuditContext)
+
 	// Timeout — use a shorter timeout for normal requests and a longer
 	// one for uploads/downloads/SSE so large file transfers aren't killed.
 	uploadTimeout := a.cfg.Server.UploadTimeout
@@ -175,27 +197,8 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 	// For OSS, we need to wrap this in license checker only enterprise edition will have access to this route
 	workerRoutePrefix := a.cfg.Worker.RoutePrefix
 	if workerRoutePrefix == "" {
-		workerRoutePrefix = "worker"
+		workerRoutePrefix = "queue"
 	}
-
-	// Swagger documentation
-	if a.cfg.Server.Swagger.Enabled {
-		swaggerPath := a.cfg.Server.Swagger.Path
-		if swaggerPath == "" {
-			swaggerPath = "/swagger"
-		}
-		router.Get(swaggerPath+"/*", httpSwagger.Handler(
-			httpSwagger.URL(swaggerPath+"/doc.json"),
-			httpSwagger.DeepLinking(true),
-			httpSwagger.DocExpansion("list"),
-			httpSwagger.DomID("swagger-ui"),
-		))
-	}
-
-	// Queue monitoring (asynqmon) - only when job client is configured
-	router.Route(fmt.Sprintf("/%s", workerRoutePrefix), func(r chi.Router) {
-		r.Handle("/monitoring/*", a.jobClient.Monitor())
-	})
 
 	// Metrics endpoint (if prometheus is enabled and on same port)
 	if a.telemetry != nil && a.cfg.Telemetry.Metrics.Enabled {
@@ -263,28 +266,56 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 			// Dashboard overview
 			r.Get("/dashboard/overview", a.h.GetDashboardOverview)
 
+			// User-level analytics (all projects)
+			r.Get("/analytics", a.h.GetUserAnalytics)
+
 			// Team routes
 			r.Route("/teams", func(r chi.Router) {
 				r.Get("/", a.h.ListTeams)
 				r.Post("/", a.h.CreateTeam)
-				r.Route("/{teamID}", func(r chi.Router) {
+				r.Route(fmt.Sprintf("/{%s}", handlers.TeamIDParam), func(r chi.Router) {
 					r.Get("/", a.h.GetTeam)
 					r.Patch("/", a.h.UpdateTeam)
 					r.Delete("/", a.h.DeleteTeam)
+
+					// Team-level analytics
+					r.Get("/analytics", a.h.GetTeamAnalytics)
 
 					// Team members
 					r.Route("/members", func(r chi.Router) {
 						r.Get("/", a.h.ListTeamMembers)
 						r.Post("/", a.h.AddTeamMember)
-						r.Delete("/{userID}", a.h.RemoveTeamMember)
-						r.Patch("/{userID}/role", a.h.UpdateTeamMemberRole)
+						r.Delete(fmt.Sprintf("/{%s}", handlers.UserIDParam), a.h.RemoveTeamMember)
+						r.Patch(fmt.Sprintf("/{%s}/role", handlers.UserIDParam), a.h.UpdateTeamMemberRole)
 					})
 
 					// Team invitations
 					r.Route("/invitations", func(r chi.Router) {
 						r.Get("/", a.h.ListTeamInvitations)
 						r.Post("/", a.h.CreateTeamInvitation)
-						r.Delete("/{invitationID}", a.h.RevokeTeamInvitation)
+						r.Delete(fmt.Sprintf("/{%s}", handlers.InvitationIDParam), a.h.RevokeTeamInvitation)
+					})
+
+					// Team audit logs (gated by audit_logs feature)
+					r.Route("/audit-logs", func(r chi.Router) {
+						r.Use(middleware.RequireFeature(a.entitlements, string(licensing.FeatureAuditLogs)))
+						r.Get("/", a.h.ListTeamAuditLogs)
+						r.Get("/export", a.h.ExportTeamAuditLogs)
+						r.Get("/verify", a.h.VerifyAuditChain)
+						r.Route("/retention", func(r chi.Router) {
+							r.Get("/", a.h.GetAuditRetentionPolicy)
+							r.Put("/", a.h.UpdateAuditRetentionPolicy)
+						})
+						r.Route("/webhooks", func(r chi.Router) {
+							r.Get("/", a.h.ListAuditWebhooks)
+							r.Post("/", a.h.CreateAuditWebhook)
+							r.Route(fmt.Sprintf("/{%s}", handlers.WebhookIDParam), func(r chi.Router) {
+								r.Get("/", a.h.GetAuditWebhook)
+								r.Put("/", a.h.UpdateAuditWebhook)
+								r.Delete("/", a.h.DeleteAuditWebhook)
+								r.Post("/test", a.h.TestAuditWebhook)
+							})
+						})
 					})
 				})
 			})
@@ -401,6 +432,12 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 						r.Get("/ai-analyses", a.h.ListAIAnalyses)
 					})
 
+					// Project audit logs (gated by audit_logs feature)
+					r.Group(func(r chi.Router) {
+						r.Use(middleware.RequireFeature(a.entitlements, string(licensing.FeatureAuditLogs)))
+						r.Get("/audit-logs", a.h.ListProjectAuditLogs)
+					})
+
 					// Project plugins
 					r.Route("/plugins", func(r chi.Router) {
 						r.Get("/", a.h.ListProjectPlugins)
@@ -408,6 +445,12 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 						r.Delete(fmt.Sprintf("/{%s}", handlers.PluginNameParam), a.h.UninstallPlugin)
 					})
 				})
+			})
+
+			// Single audit log entry (gated by audit_logs feature)
+			r.Route("/audit-logs", func(r chi.Router) {
+				r.Use(middleware.RequireFeature(a.entitlements, string(licensing.FeatureAuditLogs)))
+				r.Get(fmt.Sprintf("/{%s}", handlers.AuditLogIDParam), a.h.GetAuditLog)
 			})
 
 			// User API keys (user-scoped, all projects)
@@ -473,6 +516,25 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 				a.extraRoutes(r)
 			}
 		})
+	})
+
+	// Swagger documentation
+	if a.cfg.Server.Swagger.Enabled {
+		swaggerPath := a.cfg.Server.Swagger.Path
+		if swaggerPath == "" {
+			swaggerPath = "/swagger"
+		}
+		router.Get(swaggerPath+"/*", httpSwagger.Handler(
+			httpSwagger.URL(swaggerPath+"/doc.json"),
+			httpSwagger.DeepLinking(true),
+			httpSwagger.DocExpansion("list"),
+			httpSwagger.DomID("swagger-ui"),
+		))
+	}
+
+	// Queue monitoring (asynqmon)
+	router.Route(fmt.Sprintf("/%s", workerRoutePrefix), func(r chi.Router) {
+		r.Handle("/monitoring/*", a.jobClient.Monitor())
 	})
 
 	// Dashboard - serve SPA for non-API routes

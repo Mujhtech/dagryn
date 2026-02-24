@@ -18,7 +18,7 @@ type Project struct {
 	GitHubInstallationID *uuid.UUID `json:"github_installation_id,omitempty" db:"github_installation_id"` // GitHub App installation that owns this repo
 	GitHubRepoID         *int64     `json:"github_repo_id,omitempty" db:"github_repo_id"`                 // Numeric GitHub repository ID
 	BillingAccountID     *uuid.UUID `json:"billing_account_id,omitempty" db:"billing_account_id"`         // Links to billing account for quota enforcement
-	DefaultBranch        *string    `json:"default_branch,omitempty" db:"default_branch"`                // Default git branch (e.g. "main")
+	DefaultBranch        *string    `json:"default_branch,omitempty" db:"default_branch"`                 // Default git branch (e.g. "main")
 	Description          *string    `json:"description,omitempty" db:"description"`
 	Visibility           Visibility `json:"visibility" db:"visibility"`
 	ConfigPath           string     `json:"config_path" db:"config_path"`

@@ -16,6 +16,7 @@ import (
 	"github.com/mujhtech/dagryn/pkg/database"
 	"github.com/mujhtech/dagryn/pkg/database/store"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
+	"github.com/mujhtech/dagryn/pkg/entitlement"
 	"github.com/mujhtech/dagryn/pkg/githubapp"
 	"github.com/mujhtech/dagryn/pkg/licensing"
 	"github.com/mujhtech/dagryn/pkg/redis"
@@ -295,6 +296,15 @@ func runWorker(opts workerConfigOpts) error {
 		}
 	}
 
+	// Initialize audit service for retention GC jobs (if database is available)
+	var auditService *service.AuditService
+	if db != nil {
+		auditService = service.NewAuditService(store.AuditLogs, log.Logger)
+		// Set entitlement checker so audit service respects feature gating.
+		auditService.SetEntitlements(entitlement.NewLicenseChecker(featureGate))
+		log.Debug().Msg("Audit service initialized for worker")
+	}
+
 	jobCfg := worker.Config{
 		Concurrency:          cfg.Job.Concurrency,
 		EncryptionKey:        cfg.Job.EncryptionKey,
@@ -308,6 +318,7 @@ func runWorker(opts workerConfigOpts) error {
 		AIConfig:             aiConfig,
 		Metrics:              metrics,
 		BaseURL:              cfg.Server.BaseURL,
+		AuditService:         auditService,
 	}
 
 	// Create job system

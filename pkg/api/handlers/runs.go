@@ -475,12 +475,6 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate request
-	if len(req.Targets) == 0 {
-		_ = response.BadRequest(w, r, errors.New("at least one target is required"))
-		return
-	}
-
 	// Load project early (needed for git-linked metadata + optional enqueue)
 	project, err := h.store.Projects.GetByID(ctx, projectID)
 	if err != nil {
@@ -722,7 +716,7 @@ func (h *Handler) enrichRunWithGitHubPR(ctx context.Context, run *models.Run, pr
 	if project.RepoURL == nil || *project.RepoURL == "" {
 		return
 	}
-	if run.PRNumber != nil || run.GitCommit == nil || *run.GitCommit == "" {
+	if run.PRNumber != nil {
 		return
 	}
 
@@ -745,11 +739,12 @@ func (h *Handler) enrichRunWithGitHubPR(ctx context.Context, run *models.Run, pr
 }
 
 // enrichRunWithGitHubPRUsingToken populates PR metadata using a provided GitHub access token.
+// It first tries to find a PR by commit SHA, then falls back to searching by branch name.
 func (h *Handler) enrichRunWithGitHubPRUsingToken(ctx context.Context, run *models.Run, project *models.Project, accessToken string) {
 	if project.RepoURL == nil || *project.RepoURL == "" {
 		return
 	}
-	if run.PRNumber != nil || run.GitCommit == nil || *run.GitCommit == "" {
+	if run.PRNumber != nil {
 		return
 	}
 
@@ -758,42 +753,95 @@ func (h *Handler) enrichRunWithGitHubPRUsingToken(ctx context.Context, run *mode
 		return
 	}
 
-	u := fmt.Sprintf("https://api.github.com/repos/%s/%s/commits/%s/pulls", owner, repoName, *run.GitCommit)
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	// Strategy 1: look up PRs by commit SHA.
+	if run.GitCommit != nil && *run.GitCommit != "" {
+		if pr := h.fetchPRByCommit(ctx, client, accessToken, owner, repoName, *run.GitCommit); pr != nil {
+			run.PRNumber = &pr.Number
+			if pr.Title != "" {
+				run.PRTitle = &pr.Title
+			}
+			return
+		}
+	}
+
+	// Strategy 2: look up open PRs by branch name.
+	// Push webhooks may arrive before GitHub indexes the commit→PR association,
+	// but searching by head branch is immediate.
+	if run.GitBranch != nil && *run.GitBranch != "" {
+		if pr := h.fetchPRByBranch(ctx, client, accessToken, owner, repoName, *run.GitBranch); pr != nil {
+			run.PRNumber = &pr.Number
+			if pr.Title != "" {
+				run.PRTitle = &pr.Title
+			}
+			return
+		}
+	}
+}
+
+type ghPRRef struct {
+	Number int
+	Title  string
+}
+
+func (h *Handler) fetchPRByCommit(ctx context.Context, client *http.Client, token, owner, repo, sha string) *ghPRRef {
+	u := fmt.Sprintf("https://api.github.com/repos/%s/%s/commits/%s/pulls", owner, repo, sha)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
-		return
+		return nil
 	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return
+		return nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.ReadAll(resp.Body)
-		return
+		return nil
 	}
 
 	var prs []struct {
 		Number int    `json:"number"`
 		Title  string `json:"title"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&prs); err != nil {
-		return
+	if err := json.NewDecoder(resp.Body).Decode(&prs); err != nil || len(prs) == 0 || prs[0].Number == 0 {
+		return nil
 	}
-	if len(prs) == 0 || prs[0].Number == 0 {
-		return
+	return &ghPRRef{Number: prs[0].Number, Title: prs[0].Title}
+}
+
+func (h *Handler) fetchPRByBranch(ctx context.Context, client *http.Client, token, owner, repo, branch string) *ghPRRef {
+	u := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls?state=open&head=%s:%s&per_page=1",
+		owner, repo, owner, branch)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		_, _ = io.ReadAll(resp.Body)
+		return nil
 	}
 
-	n := prs[0].Number
-	run.PRNumber = &n
-	if prs[0].Title != "" {
-		title := prs[0].Title
-		run.PRTitle = &title
+	var prs []struct {
+		Number int    `json:"number"`
+		Title  string `json:"title"`
 	}
+	if err := json.NewDecoder(resp.Body).Decode(&prs); err != nil || len(prs) == 0 || prs[0].Number == 0 {
+		return nil
+	}
+	return &ghPRRef{Number: prs[0].Number, Title: prs[0].Title}
 }
 
 // enrichRunWithGitHubCommitUsingToken enriches a run with commit metadata using a provided GitHub access token.

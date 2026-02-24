@@ -23,3 +23,4 @@ export { usePublishPlugin } from "./use-publish-plugin";
 export { useUninstallPlugin } from "./use-uninstall-plugin";
 export { useRetryAIAnalysis, usePostAISuggestions } from "./use-ai-analysis";
 export { useActivateLicense } from "./use-activate-license";
+export { useCreateAuditWebhook, useUpdateAuditWebhook, useDeleteAuditWebhook } from "./use-audit-webhooks";

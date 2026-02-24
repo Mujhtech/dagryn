@@ -57,18 +57,21 @@ func (r Role) CanManageAPIKeys() bool {
 type Permission string
 
 const (
-	PermissionProjectView   Permission = "project:view"
-	PermissionProjectEdit   Permission = "project:edit"
-	PermissionProjectDelete Permission = "project:delete"
-	PermissionRunTrigger    Permission = "run:trigger"
-	PermissionRunCancel     Permission = "run:cancel"
-	PermissionRunView       Permission = "run:view"
-	PermissionMembersView   Permission = "members:view"
-	PermissionMembersManage Permission = "members:manage"
-	PermissionAPIKeysView   Permission = "apikeys:view"
-	PermissionAPIKeysManage Permission = "apikeys:manage"
-	PermissionCacheView     Permission = "cache:view"
-	PermissionCacheClear    Permission = "cache:clear"
+	PermissionProjectView     Permission = "project:view"
+	PermissionProjectEdit     Permission = "project:edit"
+	PermissionProjectDelete   Permission = "project:delete"
+	PermissionRunTrigger      Permission = "run:trigger"
+	PermissionRunCancel       Permission = "run:cancel"
+	PermissionRunView         Permission = "run:view"
+	PermissionMembersView     Permission = "members:view"
+	PermissionMembersManage   Permission = "members:manage"
+	PermissionAPIKeysView     Permission = "apikeys:view"
+	PermissionAPIKeysManage   Permission = "apikeys:manage"
+	PermissionCacheView       Permission = "cache:view"
+	PermissionCacheClear      Permission = "cache:clear"
+	PermissionAuditLogsView   Permission = "audit_logs:view"
+	PermissionAuditLogsExport Permission = "audit_logs:export"
+	PermissionAuditLogsManage Permission = "audit_logs:manage"
 )
 
 // RolePermissions maps roles to their permissions.
@@ -79,6 +82,7 @@ var RolePermissions = map[Role][]Permission{
 		PermissionMembersView, PermissionMembersManage,
 		PermissionAPIKeysView, PermissionAPIKeysManage,
 		PermissionCacheView, PermissionCacheClear,
+		PermissionAuditLogsView, PermissionAuditLogsExport, PermissionAuditLogsManage,
 	},
 	RoleAdmin: {
 		PermissionProjectView, PermissionProjectEdit,
@@ -86,6 +90,7 @@ var RolePermissions = map[Role][]Permission{
 		PermissionMembersView, PermissionMembersManage,
 		PermissionAPIKeysView, PermissionAPIKeysManage,
 		PermissionCacheView, PermissionCacheClear,
+		PermissionAuditLogsView, PermissionAuditLogsExport, PermissionAuditLogsManage,
 	},
 	RoleMember: {
 		PermissionProjectView,
