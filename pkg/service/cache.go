@@ -54,6 +54,13 @@ type DailyUsage struct {
 	HitRate         float64 `json:"hit_rate"`
 }
 
+// CacheDownload holds the result of a cache download including integrity metadata.
+type CacheDownload struct {
+	Body       io.ReadCloser
+	DigestHash string
+	SizeBytes  int64
+}
+
 // GCResult holds the results of a garbage collection run.
 type GCResult struct {
 	EntriesRemoved int   `json:"entries_removed"`
@@ -167,6 +174,20 @@ func (s *CacheService) Upload(ctx context.Context, projectID uuid.UUID, taskName
 		if err := s.bucket.Put(ctx, blobKey, bytes.NewReader(data), putOpts); err != nil {
 			return fmt.Errorf("cache: store cas blob: %w", err)
 		}
+
+		// Verify stored blob integrity
+		verifyRC, err := s.bucket.Get(ctx, blobKey)
+		if err != nil {
+			_ = s.bucket.Delete(ctx, blobKey)
+			return fmt.Errorf("cache: verify blob after upload: %w", err)
+		}
+		verifyHasher := sha256.New()
+		n, err := io.Copy(verifyHasher, verifyRC)
+		_ = verifyRC.Close()
+		if err != nil || n != size || hex.EncodeToString(verifyHasher.Sum(nil)) != digestHash {
+			_ = s.bucket.Delete(ctx, blobKey)
+			return fmt.Errorf("cache: blob integrity check failed after upload (expected %s, %d bytes)", digestHash, size)
+		}
 	}
 
 	// Check if we're replacing an existing entry (for quota delta)
@@ -229,7 +250,7 @@ func (s *CacheService) Upload(ctx context.Context, projectID uuid.UUID, taskName
 }
 
 // Download retrieves cache content and increments the hit counter.
-func (s *CacheService) Download(ctx context.Context, projectID uuid.UUID, taskName, cacheKey string) (io.ReadCloser, error) {
+func (s *CacheService) Download(ctx context.Context, projectID uuid.UUID, taskName, cacheKey string) (*CacheDownload, error) {
 	entry, err := s.repo.FindEntry(ctx, projectID, taskName, cacheKey)
 	if err != nil {
 		return nil, err
@@ -261,7 +282,11 @@ func (s *CacheService) Download(ctx context.Context, projectID uuid.UUID, taskNa
 		}
 	}()
 
-	return rc, nil
+	return &CacheDownload{
+		Body:       rc,
+		DigestHash: entry.DigestHash,
+		SizeBytes:  entry.SizeBytes,
+	}, nil
 }
 
 // Delete removes a cache entry, decrements blob ref, and adjusts quota.

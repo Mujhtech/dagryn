@@ -284,19 +284,19 @@ export function AnalyticsDashboard({
                   <Bar
                     dataKey="success"
                     fill="var(--color-success)"
-                    radius={[4, 4, 0, 0]}
+                    radius={[0, 0, 0, 0]}
                     stackId="a"
                   />
                   <Bar
                     dataKey="failed"
                     fill="var(--color-failed)"
-                    radius={[4, 4, 0, 0]}
+                    radius={[0, 0, 0, 0]}
                     stackId="a"
                   />
                   <Bar
                     dataKey="cancelled"
                     fill="var(--color-cancelled)"
-                    radius={[4, 4, 0, 0]}
+                    radius={[0, 0, 0, 0]}
                     stackId="a"
                   />
                 </BarChart>
@@ -328,13 +328,13 @@ export function AnalyticsDashboard({
                   <Bar
                     dataKey="cache_hits"
                     fill="var(--color-cache_hits)"
-                    radius={[4, 4, 0, 0]}
+                    radius={[0, 0, 0, 0]}
                     stackId="a"
                   />
                   <Bar
                     dataKey="cache_misses"
                     fill="var(--color-cache_misses)"
-                    radius={[4, 4, 0, 0]}
+                    radius={[0, 0, 0, 0]}
                     stackId="a"
                   />
                 </BarChart>
@@ -459,12 +459,12 @@ export function AnalyticsDashboard({
                   <Bar
                     dataKey="analyses"
                     fill="var(--color-analyses)"
-                    radius={[4, 4, 0, 0]}
+                    radius={[0, 0, 0, 0]}
                   />
                   <Bar
                     dataKey="suggestions"
                     fill="var(--color-suggestions)"
-                    radius={[4, 4, 0, 0]}
+                    radius={[0, 0, 0, 0]}
                   />
                 </BarChart>
               )}
@@ -633,7 +633,7 @@ function ChartSection<T>({
   }
 
   return (
-    <ChartContainer config={config} className="h-75">
+    <ChartContainer config={config} className="h-75 w-full">
       {renderChart(chart)}
     </ChartContainer>
   );
