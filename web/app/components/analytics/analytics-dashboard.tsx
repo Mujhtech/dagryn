@@ -32,6 +32,7 @@ import {
 } from "recharts";
 import { Icons } from "~/components/icons";
 import type { AnalyticsOverview } from "~/lib/api";
+import { cn } from "~/lib/utils";
 
 interface AnalyticsDashboardProps {
   data: AnalyticsOverview | undefined;
@@ -42,6 +43,7 @@ interface AnalyticsDashboardProps {
   subtitle: string;
   backLink?: { to: string; params?: Record<string, string> };
   badgeLabel?: string;
+  containerClassName?: string;
 }
 
 function formatBytes(bytes: number): string {
@@ -141,6 +143,7 @@ export function AnalyticsDashboard({
   subtitle,
   backLink,
   badgeLabel,
+  containerClassName,
 }: AnalyticsDashboardProps) {
   if (isLoading) {
     return (
@@ -155,7 +158,9 @@ export function AnalyticsDashboard({
     (data?.artifacts.total_size_bytes ?? 0);
 
   return (
-    <div className="space-y-6 px-6 @container/main py-3">
+    <div
+      className={cn("space-y-6 px-6 @container/main py-3", containerClassName)}
+    >
       {/* Header */}
       <div className="flex items-center gap-4">
         {backLink && (
