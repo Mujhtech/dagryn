@@ -31,14 +31,18 @@ func (b *Backend) Check(ctx context.Context, taskName, key string) (bool, error)
 }
 
 func (b *Backend) Restore(ctx context.Context, taskName, key string) error {
-	rc, err := b.client.DownloadCache(ctx, b.projectID, taskName, key)
+	dl, err := b.client.DownloadCache(ctx, b.projectID, taskName, key)
 	if err != nil {
 		return fmt.Errorf("cloud cache download: %w", err)
 	}
-	defer func() { _ = rc.Close() }()
+	defer func() { _ = dl.Body.Close() }()
 
-	if err := ExtractArchive(b.projectRoot, rc); err != nil {
+	vr := newVerifyReader(dl.Body, dl.DigestHash, dl.SizeBytes)
+	if err := ExtractArchive(b.projectRoot, vr); err != nil {
 		return fmt.Errorf("cloud cache extract: %w", err)
+	}
+	if err := vr.Verify(); err != nil {
+		return fmt.Errorf("cloud cache integrity: %w", err)
 	}
 	return nil
 }

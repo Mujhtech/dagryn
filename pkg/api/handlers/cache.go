@@ -135,7 +135,7 @@ func (h *Handler) DownloadCache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rc, err := h.cacheService.Download(r.Context(), projectID, taskName, cacheKey)
+	dl, err := h.cacheService.Download(r.Context(), projectID, taskName, cacheKey)
 	if err != nil {
 		if entitlement.IsQuotaError(err) {
 			_ = response.PaymentRequired(w, r, err)
@@ -148,11 +148,17 @@ func (h *Handler) DownloadCache(w http.ResponseWriter, r *http.Request) {
 		_ = response.InternalServerError(w, r, err)
 		return
 	}
-	defer func() { _ = rc.Close() }()
+	defer func() { _ = dl.Body.Close() }()
 
 	w.Header().Set("Content-Type", "application/octet-stream")
+	if dl.DigestHash != "" {
+		w.Header().Set("X-Checksum-SHA256", dl.DigestHash)
+	}
+	if dl.SizeBytes > 0 {
+		w.Header().Set("Content-Length", strconv.FormatInt(dl.SizeBytes, 10))
+	}
 	w.WriteHeader(http.StatusOK)
-	_, _ = io.Copy(w, rc)
+	_, _ = io.Copy(w, dl.Body)
 }
 
 // DeleteCache godoc
