@@ -108,6 +108,7 @@ type RunStore interface {
 	UpdateTargets(ctx context.Context, id uuid.UUID, targets []string) error
 	Start(ctx context.Context, id uuid.UUID) error
 	StartWithTotal(ctx context.Context, id uuid.UUID, totalTasks int) error
+	SetTotalTasks(ctx context.Context, id uuid.UUID, totalTasks int) error
 	Complete(ctx context.Context, id uuid.UUID, status models.RunStatus, errorMessage *string) error
 	IncrementCompleted(ctx context.Context, id uuid.UUID, cacheHit bool) error
 	IncrementFailed(ctx context.Context, id uuid.UUID) error

@@ -167,6 +167,12 @@ func (r *RunRepo) StartWithTotal(ctx context.Context, id uuid.UUID, totalTasks i
 	return err
 }
 
+// SetTotalTasks updates only the total_tasks column without touching counters.
+func (r *RunRepo) SetTotalTasks(ctx context.Context, id uuid.UUID, totalTasks int) error {
+	_, err := r.pool.Exec(ctx, `UPDATE runs SET total_tasks = $1 WHERE id = $2`, totalTasks, id)
+	return err
+}
+
 // Complete marks a run as completed.
 func (r *RunRepo) Complete(ctx context.Context, id uuid.UUID, status models.RunStatus, errorMessage *string) error {
 	now := time.Now()

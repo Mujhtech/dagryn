@@ -1717,37 +1717,44 @@ func (h *Handler) UpdateRunStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update run based on new status
-	now := time.Now()
-	oldStatus := run.Status // Capture old status before updating for GitHub notification check
-	if newStatus == models.RunStatusRunning && run.Status == models.RunStatusPending {
-		// Starting the run
-		run.Status = newStatus
-		run.StartedAt = &now
-		if req.TotalTasks != nil {
-			run.TotalTasks = *req.TotalTasks
-		}
-	} else if newStatus.IsTerminal() {
-		// Completing the run
-		run.Status = newStatus
-		run.FinishedAt = &now
-		if run.StartedAt != nil {
-			duration := now.Sub(*run.StartedAt).Milliseconds()
-			run.DurationMs = &duration
-		}
-		if req.ErrorMessage != nil {
-			run.ErrorMessage = req.ErrorMessage
-		}
-	} else {
-		run.Status = newStatus
-	}
-
-	// Check if this transition makes the run terminal (used for GitHub callbacks).
+	// Use targeted updates so we never clobber atomically-incremented counters
+	// (completed_tasks, failed_tasks, cache_hits).
+	oldStatus := run.Status
 	becameTerminal := !oldStatus.IsTerminal() && newStatus.IsTerminal()
 
-	if err := h.store.Runs.Update(ctx, run); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("failed to update run"))
-		return
+	if newStatus == models.RunStatusRunning && run.Status == models.RunStatusPending {
+		// Pending → Running: use Start or StartWithTotal.
+		if req.TotalTasks != nil {
+			if err := h.store.Runs.StartWithTotal(ctx, run.ID, *req.TotalTasks); err != nil {
+				_ = response.InternalServerError(w, r, errors.New("failed to update run"))
+				return
+			}
+		} else {
+			if err := h.store.Runs.Start(ctx, run.ID); err != nil {
+				_ = response.InternalServerError(w, r, errors.New("failed to update run"))
+				return
+			}
+		}
+	} else if newStatus.IsTerminal() {
+		// Terminal: use Complete (only sets status, finished_at, duration_ms, error_message).
+		if err := h.store.Runs.Complete(ctx, run.ID, newStatus, req.ErrorMessage); err != nil {
+			_ = response.InternalServerError(w, r, errors.New("failed to update run"))
+			return
+		}
+	} else {
+		// Any other transition (e.g. Running → Running with total_tasks update).
+		run.Status = newStatus
+		if err := h.store.Runs.Update(ctx, run); err != nil {
+			_ = response.InternalServerError(w, r, errors.New("failed to update run"))
+			return
+		}
+	}
+
+	// Update total_tasks if provided and not already handled by StartWithTotal.
+	if req.TotalTasks != nil && (newStatus != models.RunStatusRunning || oldStatus != models.RunStatusPending) {
+		if err := h.store.Runs.SetTotalTasks(ctx, run.ID, *req.TotalTasks); err != nil {
+			slog.Warn("UpdateRunStatus: failed to set total_tasks", "run_id", run.ID, "error", err)
+		}
 	}
 
 	// If this run was triggered from a GitHub PR, update commit status and post a summary comment.

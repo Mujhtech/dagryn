@@ -22,10 +22,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           "vendor-react": ["react", "react-dom"],
-          "vendor-router": [
-            "@tanstack/react-router",
-            "@tanstack/react-query",
-          ],
+          "vendor-router": ["@tanstack/react-router", "@tanstack/react-query"],
           "vendor-monaco": ["monaco-editor", "@monaco-editor/react"],
           "vendor-recharts": ["recharts"],
           "vendor-radix": [
@@ -41,10 +38,7 @@ export default defineConfig({
             "@radix-ui/react-separator",
             "@radix-ui/react-slot",
           ],
-          "vendor-icons": [
-            "@phosphor-icons/react",
-            "lucide-react",
-          ],
+          "vendor-icons": ["@phosphor-icons/react", "lucide-react"],
         },
       },
     },
@@ -63,4 +57,3 @@ export default defineConfig({
     },
   },
 });
-

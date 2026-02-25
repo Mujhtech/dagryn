@@ -216,6 +216,12 @@ func runRun(cmd *cobra.Command, args []string) error {
 	// Notify remote sync that run is starting
 	if remoteSync != nil {
 		remoteSync.OnRunStart()
+
+		// Get execution plan to send total task count to the server
+		plan, planErr := sched.GetExecutionPlan(targets)
+		if planErr == nil {
+			remoteSync.SetTotalTasks(plan.TotalTasks())
+		}
 	}
 
 	// Run tasks — returns as soon as all tasks finish; cache saves may still
