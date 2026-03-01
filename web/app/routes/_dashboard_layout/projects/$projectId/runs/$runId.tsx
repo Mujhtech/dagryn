@@ -314,6 +314,8 @@ function RunDetailPage() {
   const artifactsList = artifacts?.data ?? [];
   const displayStatus =
     isRunning && isClientDisconnected ? "stale" : currentStatus;
+  const displayName =
+    run.data.description || run.data.pr_title || run.data.workflow_name;
 
   return (
     <div className="space-y-6 px-6 @container/main py-3">
@@ -326,9 +328,7 @@ function RunDetailPage() {
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <RunStatusIcon status={displayStatus} className="h-6 w-6" />
-            <h1 className="text-2xl font-bold tracking-tight">
-              {run.data.workflow_name}
-            </h1>
+            <h1 className="text-2xl font-bold tracking-tight">{displayName}</h1>
             <StatusBadge status={displayStatus} />
           </div>
           <p className="text-muted-foreground">

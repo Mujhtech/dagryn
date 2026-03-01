@@ -27,7 +27,7 @@ export function RunCard({
 }: RunCardProps) {
   const triggerInfo = getTriggerInfo(run, currentUser);
   const eventType = getEventType(run);
-  const displayName = run.pr_title || run.workflow_name;
+  const displayName = run.description || run.pr_title || run.workflow_name;
   const description = run.commit_message || run.pr_title || "";
   const branch = run.trigger_ref?.replace("refs/heads/", "") || "";
 
@@ -99,7 +99,9 @@ export function RunCard({
                 {run.host_os ? (
                   <div className="flex items-center gap-1">
                     <Icons.Monitor className="h-4 w-4" />
-                    <span>{run.host_os}/{run.host_arch}</span>
+                    <span>
+                      {run.host_os}/{run.host_arch}
+                    </span>
                   </div>
                 ) : null}
               </div>

@@ -530,6 +530,9 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 	if req.HostName != "" {
 		run.HostName = &req.HostName
 	}
+	if req.Description != "" {
+		run.Description = &req.Description
+	}
 
 	// For git-linked projects (GitHub for now), fetch last commit metadata when triggering from dashboard/API.
 	// This enriches run rows with commit sha/message/author even when user didn't provide git_commit.
@@ -673,6 +676,9 @@ func (h *Handler) enrichRunWithGitHubCommit(ctx context.Context, run *models.Run
 				Email string `json:"email"`
 			} `json:"author"`
 		} `json:"commit"`
+		Author struct {
+			AvatarURL string `json:"avatar_url"`
+		} `json:"author"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&commitResp); err != nil {
 		return
@@ -704,6 +710,12 @@ func (h *Handler) enrichRunWithGitHubCommit(ctx context.Context, run *models.Run
 		if commitResp.Commit.Author.Email != "" {
 			e := commitResp.Commit.Author.Email
 			run.CommitAuthorEmail = &e
+		}
+	}
+	if run.CommitAuthorAvatarURL == nil || *run.CommitAuthorAvatarURL == "" {
+		if commitResp.Author.AvatarURL != "" {
+			a := commitResp.Author.AvatarURL
+			run.CommitAuthorAvatarURL = &a
 		}
 	}
 }
@@ -919,6 +931,9 @@ func (h *Handler) enrichRunWithGitHubCommitUsingToken(ctx context.Context, run *
 				Email string `json:"email"`
 			} `json:"author"`
 		} `json:"commit"`
+		Author struct {
+			AvatarURL string `json:"avatar_url"`
+		} `json:"author"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&commitResp); err != nil {
 		return
@@ -950,6 +965,12 @@ func (h *Handler) enrichRunWithGitHubCommitUsingToken(ctx context.Context, run *
 		if commitResp.Commit.Author.Email != "" {
 			e := commitResp.Commit.Author.Email
 			run.CommitAuthorEmail = &e
+		}
+	}
+	if run.CommitAuthorAvatarURL == nil || *run.CommitAuthorAvatarURL == "" {
+		if commitResp.Author.AvatarURL != "" {
+			a := commitResp.Author.AvatarURL
+			run.CommitAuthorAvatarURL = &a
 		}
 	}
 }
@@ -1519,9 +1540,12 @@ func runModelToResponse(run *models.Run) RunResponse {
 		CreatedAt:     run.CreatedAt,
 	}
 
-	// Use first target as workflow name (simplified)
-	if len(run.Targets) > 0 {
-		resp.WorkflowName = run.Targets[0]
+	if run.WorkflowName != nil {
+		resp.WorkflowName = *run.WorkflowName
+	}
+
+	if run.Description != nil {
+		resp.Description = *run.Description
 	}
 
 	if run.GitBranch != nil {
@@ -1544,6 +1568,9 @@ func runModelToResponse(run *models.Run) RunResponse {
 	}
 	if run.CommitAuthorEmail != nil {
 		resp.CommitAuthorEmail = *run.CommitAuthorEmail
+	}
+	if run.CommitAuthorAvatarURL != nil {
+		resp.CommitAuthorAvatarURL = *run.CommitAuthorAvatarURL
 	}
 	if run.HostOS != nil {
 		resp.HostOS = *run.HostOS

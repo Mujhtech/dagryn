@@ -143,6 +143,7 @@ export interface Run {
   trigger_ref?: string;
   commit_sha?: string;
   pr_title?: string;
+  description?: string;
   pr_number?: number;
   commit_message?: string;
   commit_author_name?: string;
@@ -244,6 +245,7 @@ export interface TriggerRunRequest {
   git_branch?: string;
   git_commit?: string;
   force?: boolean;
+  description?: string;
 }
 
 export interface TriggerRunResponse {
@@ -979,8 +981,7 @@ class ApiClient {
 
   private hasRefreshToken(): boolean {
     return (
-      typeof window !== "undefined" &&
-      !!localStorage.getItem("refresh_token")
+      typeof window !== "undefined" && !!localStorage.getItem("refresh_token")
     );
   }
 
@@ -1201,9 +1202,11 @@ class ApiClient {
   }
 
   async getSampleTemplate(language: string) {
-    return this.fetch<{ language: string; project_type: string; template: string }>(
-      `/templates/sample?language=${encodeURIComponent(language)}`,
-    );
+    return this.fetch<{
+      language: string;
+      project_type: string;
+      template: string;
+    }>(`/templates/sample?language=${encodeURIComponent(language)}`);
   }
 
   async createProject(data: {
@@ -1682,7 +1685,9 @@ class ApiClient {
         if (v !== undefined) qs.set(k, String(v));
       });
     }
-    return this.fetchBlob(`/teams/${teamId}/audit-logs/export?${qs.toString()}`);
+    return this.fetchBlob(
+      `/teams/${teamId}/audit-logs/export?${qs.toString()}`,
+    );
   }
 
   async getAuditRetentionPolicy(teamId: string) {
@@ -1709,9 +1714,7 @@ class ApiClient {
 
   // Audit Webhooks
   async listAuditWebhooks(teamId: string) {
-    return this.fetch<AuditWebhook[]>(
-      `/teams/${teamId}/audit-logs/webhooks`,
-    );
+    return this.fetch<AuditWebhook[]>(`/teams/${teamId}/audit-logs/webhooks`);
   }
 
   async createAuditWebhook(
@@ -1730,7 +1733,12 @@ class ApiClient {
   async updateAuditWebhook(
     teamId: string,
     webhookId: string,
-    data: Partial<{ url: string; description: string; event_filter: string[]; is_active: boolean }>,
+    data: Partial<{
+      url: string;
+      description: string;
+      event_filter: string[];
+      is_active: boolean;
+    }>,
   ) {
     return this.fetch<AuditWebhook>(
       `/teams/${teamId}/audit-logs/webhooks/${webhookId}`,
@@ -1751,10 +1759,14 @@ class ApiClient {
   }
 
   async testAuditWebhook(teamId: string, webhookId: string) {
-    return this.fetch<{ success: boolean; status_code?: number; error?: string; duration_ms: number }>(
-      `/teams/${teamId}/audit-logs/webhooks/${webhookId}/test`,
-      { method: "POST" },
-    );
+    return this.fetch<{
+      success: boolean;
+      status_code?: number;
+      error?: string;
+      duration_ms: number;
+    }>(`/teams/${teamId}/audit-logs/webhooks/${webhookId}/test`, {
+      method: "POST",
+    });
   }
 
   // Analytics
@@ -1771,7 +1783,10 @@ class ApiClient {
   // Public wrapper around the private fetch method.
   // Used by the cloud overlay to make authenticated API calls
   // (e.g. billing) without duplicating auth/refresh logic.
-  async request<T>(path: string, options: RequestInit = {}): Promise<{ data: T; message?: string }> {
+  async request<T>(
+    path: string,
+    options: RequestInit = {},
+  ): Promise<{ data: T; message?: string }> {
     return this.fetch<T>(path, options);
   }
 }

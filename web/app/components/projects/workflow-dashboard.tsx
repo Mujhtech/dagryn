@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { useProjectWorkflows, useRunDetail } from "~/hooks/queries";
-import type { Project, Run, RunStatus, TaskStatus, Workflow } from "~/lib/api";
+import type { Project, Run, RunStatus, TaskStatus, TriggerRunRequest, Workflow } from "~/lib/api";
 import { WorkflowDag, type TaskStatusInfo } from "~/components/workflow-dag";
 import { RunStreamClient, type TaskEventData } from "~/lib/sse";
 import { queryClient, queryKeys } from "~/lib/query-client";
@@ -101,13 +101,7 @@ type WorkflowDashboardProps = {
   toggleBranch: (branch: string) => void;
   triggerDialogOpen: boolean;
   setTriggerDialogOpen: (open: boolean) => void;
-  triggerTargets: string;
-  setTriggerTargets: (targets: string) => void;
-  triggerBranch: string;
-  setTriggerBranch: (branch: string) => void;
-  triggerForce: boolean;
-  setTriggerForce: (force: boolean) => void;
-  onTriggerRun: () => void;
+  onTriggerRun: (request: TriggerRunRequest) => void;
   triggerRunPending: boolean;
   triggerRunErrorMessage?: string;
   currentUser: CurrentUser;
@@ -149,12 +143,6 @@ export function WorkflowDashboard({
   toggleBranch,
   triggerDialogOpen,
   setTriggerDialogOpen,
-  triggerTargets,
-  setTriggerTargets,
-  triggerBranch,
-  setTriggerBranch,
-  triggerForce,
-  setTriggerForce,
   onTriggerRun,
   triggerRunPending,
   triggerRunErrorMessage,
@@ -485,13 +473,7 @@ export function WorkflowDashboard({
               <TriggerRunDialog
                 open={triggerDialogOpen}
                 onOpenChange={setTriggerDialogOpen}
-                triggerTargets={triggerTargets}
-                setTriggerTargets={setTriggerTargets}
-                triggerBranch={triggerBranch}
-                setTriggerBranch={setTriggerBranch}
-                triggerForce={triggerForce}
-                setTriggerForce={setTriggerForce}
-                onTriggerRun={onTriggerRun}
+                onSubmit={onTriggerRun}
                 isPending={triggerRunPending}
                 errorMessage={triggerRunErrorMessage}
                 defaultBranch={project.default_branch}

@@ -312,27 +312,29 @@ type CreateInvitationRequest struct {
 //
 //	@Description	Workflow run information
 type RunResponse struct {
-	ID                uuid.UUID     `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	ProjectID         uuid.UUID     `json:"project_id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	WorkflowName      string        `json:"workflow_name" example:"build"`
-	Status            string        `json:"status" example:"success"`
-	TriggerSource     string        `json:"trigger_source" example:"cli"`
-	TriggerRef        string        `json:"trigger_ref,omitempty" example:"refs/heads/main"`
-	CommitSHA         string        `json:"commit_sha,omitempty" example:"abc123def456"`
-	PRTitle           string        `json:"pr_title,omitempty" example:"Fix bug in authentication"`
-	PRNumber          *int          `json:"pr_number,omitempty" example:"123"`
-	CommitMessage     string        `json:"commit_message,omitempty" example:"fix: resolve authentication issue"`
-	CommitAuthorName  string        `json:"commit_author_name,omitempty" example:"John Doe"`
-	CommitAuthorEmail string        `json:"commit_author_email,omitempty" example:"john@example.com"`
-	HostOS            string        `json:"host_os,omitempty" example:"darwin"`
-	HostArch          string        `json:"host_arch,omitempty" example:"arm64"`
-	HostName          string        `json:"host_name,omitempty" example:"macbook-pro.local"`
-	TriggeredByUser   *UserResponse `json:"triggered_by_user,omitempty"` // User who triggered (for local/API runs)
-	StartedAt         *time.Time    `json:"started_at,omitempty" example:"2024-01-15T10:30:00Z"`
-	FinishedAt        *time.Time    `json:"finished_at,omitempty" example:"2024-01-15T10:35:00Z"`
-	Duration          *int64        `json:"duration_ms,omitempty" example:"300000"`
-	TaskCount         int           `json:"task_count" example:"5"`
-	CreatedAt         time.Time     `json:"created_at" example:"2024-01-15T10:30:00Z"`
+	ID                    uuid.UUID     `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ProjectID             uuid.UUID     `json:"project_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	WorkflowName          string        `json:"workflow_name" example:"build"`
+	Description           string        `json:"description,omitempty" example:"Build and test the application"`
+	Status                string        `json:"status" example:"success"`
+	TriggerSource         string        `json:"trigger_source" example:"cli"`
+	TriggerRef            string        `json:"trigger_ref,omitempty" example:"refs/heads/main"`
+	CommitSHA             string        `json:"commit_sha,omitempty" example:"abc123def456"`
+	PRTitle               string        `json:"pr_title,omitempty" example:"Fix bug in authentication"`
+	PRNumber              *int          `json:"pr_number,omitempty" example:"123"`
+	CommitMessage         string        `json:"commit_message,omitempty" example:"fix: resolve authentication issue"`
+	CommitAuthorName      string        `json:"commit_author_name,omitempty" example:"John Doe"`
+	CommitAuthorEmail     string        `json:"commit_author_email,omitempty" example:"john@example.com"`
+	CommitAuthorAvatarURL string        `json:"commit_author_avatar_url,omitempty" example:"https://avatars.githubusercontent.com/u/1234567"`
+	HostOS                string        `json:"host_os,omitempty" example:"darwin"`
+	HostArch              string        `json:"host_arch,omitempty" example:"arm64"`
+	HostName              string        `json:"host_name,omitempty" example:"macbook-pro.local"`
+	TriggeredByUser       *UserResponse `json:"triggered_by_user,omitempty"` // User who triggered (for local/API runs)
+	StartedAt             *time.Time    `json:"started_at,omitempty" example:"2024-01-15T10:30:00Z"`
+	FinishedAt            *time.Time    `json:"finished_at,omitempty" example:"2024-01-15T10:35:00Z"`
+	Duration              *int64        `json:"duration_ms,omitempty" example:"300000"`
+	TaskCount             int           `json:"task_count" example:"5"`
+	CreatedAt             time.Time     `json:"created_at" example:"2024-01-15T10:30:00Z"`
 }
 
 // TaskResultResponse represents a task execution result in API responses.
@@ -355,10 +357,11 @@ type TaskResultResponse struct {
 //
 //	@Description	Trigger run request
 type TriggerRunRequest struct {
-	Targets   []string `json:"targets,omitempty" example:"[\"build\",\"test\"]"`
-	GitBranch string   `json:"git_branch,omitempty" example:"main"`
-	GitCommit string   `json:"git_commit,omitempty" example:"abc123def456"`
-	Force     bool     `json:"force,omitempty" example:"false"`
+	Targets     []string `json:"targets,omitempty" example:"[\"build\",\"test\"]"`
+	GitBranch   string   `json:"git_branch,omitempty" example:"main"`
+	GitCommit   string   `json:"git_commit,omitempty" example:"abc123def456"`
+	Force       bool     `json:"force,omitempty" example:"false"`
+	Description string   `json:"description,omitempty" example:"Retrying after infra fix"`
 	// SyncOnly when true creates a run record for status tracking without triggering remote execution.
 	// Use this when the CLI is executing locally and only needs to sync status to the server.
 	SyncOnly bool   `json:"sync_only,omitempty" example:"false"`

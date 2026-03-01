@@ -8,37 +8,39 @@ import (
 
 // Run represents a workflow execution.
 type Run struct {
-	ID                 uuid.UUID     `json:"id" db:"id"`
-	ProjectID          uuid.UUID     `json:"project_id" db:"project_id"`
-	WorkflowID         *uuid.UUID    `json:"workflow_id,omitempty" db:"workflow_id"`
-	WorkflowName       *string       `json:"workflow_name,omitempty" db:"workflow_name"`
-	Targets            []string      `json:"targets,omitempty" db:"targets"`
-	Status             RunStatus     `json:"status" db:"status"`
-	TotalTasks         int           `json:"total_tasks" db:"total_tasks"`
-	CompletedTasks     int           `json:"completed_tasks" db:"completed_tasks"`
-	FailedTasks        int           `json:"failed_tasks" db:"failed_tasks"`
-	CacheHits          int           `json:"cache_hits" db:"cache_hits"`
-	DurationMs         *int64        `json:"duration_ms,omitempty" db:"duration_ms"`
-	ErrorMessage       *string       `json:"error_message,omitempty" db:"error_message"`
-	TriggeredBy        TriggerSource `json:"triggered_by" db:"triggered_by"`
-	TriggeredByUserID  *uuid.UUID    `json:"triggered_by_user_id,omitempty" db:"triggered_by_user_id"`
-	GitBranch          *string       `json:"git_branch,omitempty" db:"git_branch"`
-	GitCommit          *string       `json:"git_commit,omitempty" db:"git_commit"`
-	PRTitle            *string       `json:"pr_title,omitempty" db:"pr_title"`             // For PR-triggered runs
-	PRNumber           *int          `json:"pr_number,omitempty" db:"pr_number"`           // For PR-triggered runs
-	CommitMessage      *string       `json:"commit_message,omitempty" db:"commit_message"` // Commit message
-	CommitAuthorName   *string       `json:"commit_author_name,omitempty" db:"commit_author_name"`
-	CommitAuthorEmail  *string       `json:"commit_author_email,omitempty" db:"commit_author_email"`
-	GitHubPRCommentID  *int64        `json:"github_pr_comment_id,omitempty" db:"github_pr_comment_id"`
-	GitHubCheckRunID   *int64        `json:"github_check_run_id,omitempty" db:"github_check_run_id"`
-	HostOS             *string       `json:"host_os,omitempty" db:"host_os"`
-	HostArch           *string       `json:"host_arch,omitempty" db:"host_arch"`
-	HostName           *string       `json:"host_name,omitempty" db:"host_name"`
-	StartedAt          *time.Time    `json:"started_at,omitempty" db:"started_at"`
-	FinishedAt         *time.Time    `json:"finished_at,omitempty" db:"finished_at"`
-	LastHeartbeatAt    *time.Time    `json:"last_heartbeat_at,omitempty" db:"last_heartbeat_at"`
-	ClientDisconnected bool          `json:"client_disconnected" db:"client_disconnected"`
-	CreatedAt          time.Time     `json:"created_at" db:"created_at"`
+	ID                    uuid.UUID     `json:"id" db:"id"`
+	ProjectID             uuid.UUID     `json:"project_id" db:"project_id"`
+	WorkflowID            *uuid.UUID    `json:"workflow_id,omitempty" db:"workflow_id"`
+	WorkflowName          *string       `json:"workflow_name,omitempty" db:"workflow_name"`
+	Targets               []string      `json:"targets,omitempty" db:"targets"`
+	Status                RunStatus     `json:"status" db:"status"`
+	TotalTasks            int           `json:"total_tasks" db:"total_tasks"`
+	CompletedTasks        int           `json:"completed_tasks" db:"completed_tasks"`
+	FailedTasks           int           `json:"failed_tasks" db:"failed_tasks"`
+	CacheHits             int           `json:"cache_hits" db:"cache_hits"`
+	DurationMs            *int64        `json:"duration_ms,omitempty" db:"duration_ms"`
+	ErrorMessage          *string       `json:"error_message,omitempty" db:"error_message"`
+	TriggeredBy           TriggerSource `json:"triggered_by" db:"triggered_by"`
+	TriggeredByUserID     *uuid.UUID    `json:"triggered_by_user_id,omitempty" db:"triggered_by_user_id"`
+	GitBranch             *string       `json:"git_branch,omitempty" db:"git_branch"`
+	GitCommit             *string       `json:"git_commit,omitempty" db:"git_commit"`
+	PRTitle               *string       `json:"pr_title,omitempty" db:"pr_title"`             // For PR-triggered runs
+	PRNumber              *int          `json:"pr_number,omitempty" db:"pr_number"`           // For PR-triggered runs
+	CommitMessage         *string       `json:"commit_message,omitempty" db:"commit_message"` // Commit message
+	CommitAuthorName      *string       `json:"commit_author_name,omitempty" db:"commit_author_name"`
+	CommitAuthorEmail     *string       `json:"commit_author_email,omitempty" db:"commit_author_email"`
+	CommitAuthorAvatarURL *string       `json:"commit_author_avatar_url,omitempty" db:"commit_author_avatar_url"`
+	Description           *string       `json:"description,omitempty" db:"description"`
+	GitHubPRCommentID     *int64        `json:"github_pr_comment_id,omitempty" db:"github_pr_comment_id"`
+	GitHubCheckRunID      *int64        `json:"github_check_run_id,omitempty" db:"github_check_run_id"`
+	HostOS                *string       `json:"host_os,omitempty" db:"host_os"`
+	HostArch              *string       `json:"host_arch,omitempty" db:"host_arch"`
+	HostName              *string       `json:"host_name,omitempty" db:"host_name"`
+	StartedAt             *time.Time    `json:"started_at,omitempty" db:"started_at"`
+	FinishedAt            *time.Time    `json:"finished_at,omitempty" db:"finished_at"`
+	LastHeartbeatAt       *time.Time    `json:"last_heartbeat_at,omitempty" db:"last_heartbeat_at"`
+	ClientDisconnected    bool          `json:"client_disconnected" db:"client_disconnected"`
+	CreatedAt             time.Time     `json:"created_at" db:"created_at"`
 }
 
 // RunStatus represents the status of a run.
