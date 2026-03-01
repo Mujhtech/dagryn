@@ -17,6 +17,7 @@ import (
 	"github.com/mujhtech/dagryn/pkg/dagryn/cache/remote"
 	"github.com/mujhtech/dagryn/pkg/dagryn/condition"
 	"github.com/mujhtech/dagryn/pkg/dagryn/config"
+	"github.com/mujhtech/dagryn/pkg/dagryn/container"
 	"github.com/mujhtech/dagryn/pkg/dagryn/executor"
 	"github.com/mujhtech/dagryn/pkg/dagryn/plugin"
 	"github.com/mujhtech/dagryn/pkg/dagryn/scheduler"
@@ -137,6 +138,17 @@ func runRun(cmd *cobra.Command, args []string) error {
 	// Pass global plugins to scheduler for integration hook dispatch
 	if len(cfg.Plugins) > 0 {
 		opts.GlobalPlugins = cfg.Plugins
+	}
+
+	// Wire container config from project TOML
+	if cfg.Container.Enabled {
+		opts.ContainerConfig = &container.Config{
+			Enabled:     true,
+			Image:       cfg.Container.Image,
+			MemoryLimit: cfg.Container.MemoryLimit,
+			CPULimit:    cfg.Container.CPULimit,
+			Network:     cfg.Container.Network,
+		}
 	}
 
 	// Build condition context for task conditions

@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"net/http"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -148,19 +150,55 @@ func (s *CacheService) Upload(ctx context.Context, projectID uuid.UUID, taskName
 		}
 	}
 
-	// Buffer the stream so the body is seekable for S3 retries, and
-	// compute the SHA256 digest in one pass without a temp key.
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return fmt.Errorf("cache: read upload data: %w", err)
-	}
-	if size <= 0 {
-		size = int64(len(data))
+	// Compute SHA256 digest for CAS dedup. When the reader is seekable
+	// (e.g. *os.File from server-side cache saves), stream the hash from
+	// disk and seek back — avoids buffering the entire blob in memory.
+	// For non-seekable readers (HTTP request body), fall back to io.ReadAll.
+	var digestHash string
+	var data []byte
+	var rs io.ReadSeeker
+
+	var contentType string
+
+	if seeker, ok := r.(io.ReadSeeker); ok {
+		rs = seeker
+		if size <= 0 {
+			if f, ok := r.(*os.File); ok {
+				if info, err := f.Stat(); err == nil {
+					size = info.Size()
+				}
+			}
+		}
+		// Detect content type from the first 512 bytes.
+		sniff := make([]byte, 512)
+		n, _ := io.ReadFull(rs, sniff)
+		contentType = http.DetectContentType(sniff[:n])
+		if _, err := rs.Seek(0, io.SeekStart); err != nil {
+			return fmt.Errorf("cache: seek after sniff: %w", err)
+		}
+		hasher := sha256.New()
+		if _, err := io.Copy(hasher, rs); err != nil {
+			return fmt.Errorf("cache: hash upload data: %w", err)
+		}
+		digestHash = hex.EncodeToString(hasher.Sum(nil))
+		if _, err := rs.Seek(0, io.SeekStart); err != nil {
+			return fmt.Errorf("cache: seek for upload: %w", err)
+		}
+	} else {
+		var err error
+		data, err = io.ReadAll(r)
+		if err != nil {
+			return fmt.Errorf("cache: read upload data: %w", err)
+		}
+		if size <= 0 {
+			size = int64(len(data))
+		}
+		contentType = http.DetectContentType(data)
+		hasher := sha256.New()
+		hasher.Write(data)
+		digestHash = hex.EncodeToString(hasher.Sum(nil))
 	}
 
-	hasher := sha256.New()
-	hasher.Write(data)
-	digestHash := hex.EncodeToString(hasher.Sum(nil))
 	blobKey := blobStorageKey(digestHash)
 
 	// Check if blob already exists (content dedup)
@@ -170,8 +208,14 @@ func (s *CacheService) Upload(ctx context.Context, projectID uuid.UUID, taskName
 	}
 
 	if !exists {
-		putOpts := &storage.PutOptions{ContentLength: size}
-		if err := s.bucket.Put(ctx, blobKey, bytes.NewReader(data), putOpts); err != nil {
+		putOpts := &storage.PutOptions{ContentType: contentType, ContentLength: size}
+		var uploadReader io.Reader
+		if rs != nil {
+			uploadReader = rs
+		} else {
+			uploadReader = bytes.NewReader(data)
+		}
+		if err := s.bucket.Put(ctx, blobKey, uploadReader, putOpts); err != nil {
 			return fmt.Errorf("cache: store cas blob: %w", err)
 		}
 

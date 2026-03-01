@@ -110,7 +110,12 @@ func patternExplicitRoot(pattern string) string {
 // For targeted patterns (e.g. "node_modules/**"), no filtering is applied.
 func resolveDoublestar(root, pattern string) ([]string, error) {
 	fsys := os.DirFS(root)
-	matches, err := doublestar.Glob(fsys, pattern, doublestar.WithFilesOnly())
+	// WithNoFollow prevents descending into symlinked directories. This is
+	// critical for pnpm's node_modules where packages cross-reference each
+	// other via symlinks. Without it, files are returned at both their real
+	// path and through every symlink that points to them, creating duplicate
+	// archive entries that corrupt the symlink structure on extraction.
+	matches, err := doublestar.Glob(fsys, pattern, doublestar.WithNoFollow())
 	if err != nil {
 		return nil, err
 	}
@@ -126,9 +131,19 @@ func resolveDoublestar(root, pattern string) ([]string, error) {
 	}
 
 	if !shouldFilter {
-		abs := make([]string, len(matches))
-		for i, m := range matches {
-			abs[i] = filepath.Join(root, m)
+		abs := make([]string, 0, len(matches))
+		for _, m := range matches {
+			absPath := filepath.Join(root, m)
+			// Use Lstat to not follow symlinks — we need to detect them.
+			info, err := os.Lstat(absPath)
+			if err != nil {
+				continue
+			}
+			// Skip plain directories; keep regular files and symlinks.
+			if info.IsDir() {
+				continue
+			}
+			abs = append(abs, absPath)
 		}
 		return abs, nil
 	}
@@ -138,7 +153,16 @@ func resolveDoublestar(root, pattern string) ([]string, error) {
 		if isInsideSkipDir(m) {
 			continue
 		}
-		filtered = append(filtered, filepath.Join(root, m))
+		absPath := filepath.Join(root, m)
+		info, err := os.Lstat(absPath)
+		if err != nil {
+			continue
+		}
+		// Skip plain directories; keep regular files and symlinks.
+		if info.IsDir() {
+			continue
+		}
+		filtered = append(filtered, absPath)
 	}
 	return filtered, nil
 }

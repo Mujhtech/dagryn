@@ -1033,6 +1033,17 @@ func resolveAIProjectConfig(cfg config.AIConfig) *aiProjConfig {
 	return c
 }
 
+// artifactUploadJob holds the prepared data for a single artifact upload.
+type artifactUploadJob struct {
+	taskName        string
+	name            string
+	fileName        string
+	filePath        string   // non-empty for single-file uploads
+	archivePatterns []string // non-empty for multi-file archive uploads
+}
+
+const artifactUploadConcurrency = 4
+
 func (h *ExecuteRunHandler) collectArtifacts(ctx context.Context, projectID, runID uuid.UUID, workflow *task.Workflow, summary *scheduler.RunSummary, workDir string) {
 	if h.artifactService == nil || workflow == nil || summary == nil {
 		return
@@ -1043,6 +1054,8 @@ func (h *ExecuteRunHandler) collectArtifacts(ctx context.Context, projectID, run
 		resultStatus[res.Task] = res.Status
 	}
 
+	// Collect upload jobs first, then execute concurrently.
+	var jobs []artifactUploadJob
 	for _, tsk := range workflow.ListTasks() {
 		status, ok := resultStatus[tsk.Name]
 		if !ok || (status != executor.Success && status != executor.Cached) {
@@ -1068,15 +1081,15 @@ func (h *ExecuteRunHandler) collectArtifacts(ctx context.Context, projectID, run
 		}
 
 		var filtered []string
-		for _, path := range resolved {
-			relPath, err := filepath.Rel(workDir, path)
+		for _, p := range resolved {
+			relPath, err := filepath.Rel(workDir, p)
 			if err != nil {
 				continue
 			}
 			if isArtifactSkipPath(relPath) {
 				continue
 			}
-			filtered = append(filtered, path)
+			filtered = append(filtered, p)
 		}
 
 		if len(filtered) == 0 {
@@ -1084,60 +1097,91 @@ func (h *ExecuteRunHandler) collectArtifacts(ctx context.Context, projectID, run
 		}
 
 		if len(filtered) == 1 {
-			// Single file — upload directly (existing behavior).
-			path := filtered[0]
-			info, err := os.Stat(path)
-			if err != nil {
-				continue
+			p := filtered[0]
+			relPath, _ := filepath.Rel(workDir, p)
+			jobs = append(jobs, artifactUploadJob{
+				taskName: tsk.Name,
+				name:     relPath,
+				fileName: filepath.Base(relPath),
+				filePath: p,
+			})
+		} else {
+			var relPatterns []string
+			for _, p := range filtered {
+				relPath, _ := filepath.Rel(workDir, p)
+				relPatterns = append(relPatterns, relPath)
 			}
-			relPath, _ := filepath.Rel(workDir, path)
-			fileName := filepath.Base(relPath)
-			f, err := os.Open(path)
-			if err != nil {
-				continue
-			}
-			_, err = h.artifactService.Upload(ctx, projectID, runID, tsk.Name, relPath, fileName, f, info.Size(), 0, "", nil)
-			_ = f.Close()
-			if err != nil {
-				slog.Warn("execute_run: artifact upload failed", "run_id", runID, "task", tsk.Name, "file", relPath, "error", err)
-			}
-			continue
+			jobs = append(jobs, artifactUploadJob{
+				taskName:        tsk.Name,
+				name:            tsk.Name + " outputs",
+				fileName:        tsk.Name + "-outputs.tar.gz",
+				archivePatterns: relPatterns,
+			})
 		}
+	}
 
-		// 2+ files — bundle into a single tar.gz archive.
-		// Build relative patterns that cloud.CreateArchive can resolve.
-		var relPatterns []string
-		for _, path := range filtered {
-			relPath, _ := filepath.Rel(workDir, path)
-			relPatterns = append(relPatterns, relPath)
-		}
+	if len(jobs) == 0 {
+		return
+	}
 
-		archive, err := cloud.CreateArchive(workDir, relPatterns, artifactSkipDirs)
+	// Upload artifacts concurrently with bounded parallelism.
+	sem := make(chan struct{}, artifactUploadConcurrency)
+	var wg sync.WaitGroup
+	for _, job := range jobs {
+		wg.Add(1)
+		go func(j artifactUploadJob) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			h.uploadArtifact(ctx, projectID, runID, j, workDir)
+		}(job)
+	}
+	wg.Wait()
+}
+
+func (h *ExecuteRunHandler) uploadArtifact(ctx context.Context, projectID, runID uuid.UUID, job artifactUploadJob, workDir string) {
+	if job.filePath != "" {
+		// Single file upload
+		info, err := os.Stat(job.filePath)
 		if err != nil {
-			slog.Warn("execute_run: artifact archive failed", "run_id", runID, "task", tsk.Name, "error", err)
-			continue
+			return
 		}
-
-		info, err := archive.Stat()
+		f, err := os.Open(job.filePath)
 		if err != nil {
-			_ = archive.Close()
-			_ = os.Remove(archive.Name())
-			continue
+			return
 		}
+		_, err = h.artifactService.Upload(ctx, projectID, runID, job.taskName, job.name, job.fileName, f, info.Size(), 0, "", nil)
+		_ = f.Close()
+		if err != nil {
+			slog.Warn("execute_run: artifact upload failed", "run_id", runID, "task", job.taskName, "file", job.name, "error", err)
+		}
+		return
+	}
 
-		archiveMeta, _ := json.Marshal(map[string]interface{}{
-			"archive":    true,
-			"file_count": len(filtered),
-		})
+	// Multi-file archive upload
+	archive, err := cloud.CreateArchive(workDir, job.archivePatterns, artifactSkipDirs)
+	if err != nil {
+		slog.Warn("execute_run: artifact archive failed", "run_id", runID, "task", job.taskName, "error", err)
+		return
+	}
 
-		artifactName := tsk.Name + " outputs"
-		archiveFileName := tsk.Name + "-outputs.tar.gz"
-		_, err = h.artifactService.Upload(ctx, projectID, runID, tsk.Name, artifactName, archiveFileName, archive, info.Size(), 0, "application/gzip", archiveMeta)
+	info, err := archive.Stat()
+	if err != nil {
 		_ = archive.Close()
 		_ = os.Remove(archive.Name())
-		if err != nil {
-			slog.Warn("execute_run: artifact archive upload failed", "run_id", runID, "task", tsk.Name, "error", err)
-		}
+		return
+	}
+
+	archiveMeta, _ := json.Marshal(map[string]interface{}{
+		"archive":    true,
+		"file_count": len(job.archivePatterns),
+	})
+
+	_, err = h.artifactService.Upload(ctx, projectID, runID, job.taskName, job.name, job.fileName, archive, info.Size(), 0, "application/gzip", archiveMeta)
+	_ = archive.Close()
+	_ = os.Remove(archive.Name())
+	if err != nil {
+		slog.Warn("execute_run: artifact archive upload failed", "run_id", runID, "task", job.taskName, "error", err)
 	}
 }
 
