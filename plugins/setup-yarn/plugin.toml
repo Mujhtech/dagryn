@@ -1,0 +1,94 @@
+[plugin]
+name = "setup-yarn"
+description = "Install and configure Yarn package manager"
+version = "1.0.0"
+type = "composite"
+author = "dagryn"
+license = "MIT"
+
+[inputs.yarn-version]
+description = "Yarn version to install (classic v1.x)"
+default = "1.22.22"
+
+[inputs.cache]
+description = "Cache Yarn global cache directory"
+default = "true"
+
+[[step]]
+name = "detect-platform"
+command = """
+YARN_OS="${os}"
+YARN_ARCH="${arch}"
+echo "Platform: $YARN_OS-$YARN_ARCH"
+"""
+
+[[step]]
+name = "download-and-install"
+command = """
+YARN_VERSION="${inputs.yarn-version}"
+
+# Skip if yarn is already available on PATH
+if command -v yarn >/dev/null 2>&1; then
+  echo "Yarn $(yarn --version) already available, skipping install"
+  exit 0
+fi
+
+INSTALL_DIR="$HOME/.dagryn/tools/yarn-$YARN_VERSION"
+if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/bin/yarn" ]; then
+  echo "Yarn $YARN_VERSION already installed"
+else
+  mkdir -p "$INSTALL_DIR"
+  TARBALL="yarn-v${YARN_VERSION}.tar.gz"
+  URL="https://github.com/yarnpkg/yarn/releases/download/v${YARN_VERSION}/${TARBALL}"
+  echo "Downloading Yarn $YARN_VERSION from $URL"
+  TMPFILE=$(mktemp)
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$TMPFILE" "$URL"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$TMPFILE" "$URL"
+  else
+    echo "Error: curl or wget is required" >&2; exit 1
+  fi
+  if [ ! -s "$TMPFILE" ]; then
+    echo "Error: failed to download $URL" >&2; rm -f "$TMPFILE"; exit 1
+  fi
+  tar xzf "$TMPFILE" --strip-components=1 -C "$INSTALL_DIR"
+  rm -f "$TMPFILE"
+  if [ ! -f "$INSTALL_DIR/bin/yarn" ]; then
+    echo "Error: yarn binary not found after extraction" >&2; exit 1
+  fi
+  echo "Yarn $YARN_VERSION downloaded successfully"
+fi
+"""
+
+[[step]]
+name = "set-path"
+command = """
+YARN_VERSION="${inputs.yarn-version}"
+INSTALL_DIR="$HOME/.dagryn/tools/yarn-$YARN_VERSION"
+if [ -d "$INSTALL_DIR/bin" ]; then
+  export PATH="$INSTALL_DIR/bin:$PATH"
+fi
+echo "Yarn $(yarn --version) ready"
+"""
+[step.env]
+PATH = "$HOME/.dagryn/tools/yarn-${inputs.yarn-version}/bin:$PATH"
+
+[[step]]
+name = "cache-yarn"
+if = "${inputs.cache}"
+command = """
+CACHE_DIR=$(yarn cache dir 2>/dev/null || echo "$HOME/.cache/yarn")
+if [ -d "$CACHE_DIR" ]; then
+  echo "Yarn cache at $CACHE_DIR eligible for caching"
+else
+  echo "Yarn cache not yet created, will be cached after first install"
+fi
+"""
+
+[[cleanup]]
+name = "shell-cache-reset"
+command = """
+hash -r 2>/dev/null || true
+echo "setup-yarn cleanup complete"
+"""

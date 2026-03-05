@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"time"
 
 	"github.com/mujhtech/dagryn/pkg/dagryn/executor"
@@ -20,6 +21,7 @@ type ContainerExecutor struct {
 	stderr      io.Writer
 	pluginPaths []string          // Plugin binary directories to mount
 	extraEnv    map[string]string // Extra environment variables (e.g., from composite plugins)
+	setupScript string            // Shell script prepended to the task command (runs inside the container)
 }
 
 // ContainerExecutorOption configures the ContainerExecutor.
@@ -43,6 +45,12 @@ func WithPluginPaths(paths []string) ContainerExecutorOption {
 // WithExtraEnv adds extra environment variables to the container.
 func WithExtraEnv(env map[string]string) ContainerExecutorOption {
 	return func(e *ContainerExecutor) { e.extraEnv = env }
+}
+
+// WithSetupScript sets a shell script that is prepended to the task command.
+// This is used to run composite plugin setup steps inside the container.
+func WithSetupScript(script string) ContainerExecutorOption {
+	return func(e *ContainerExecutor) { e.setupScript = script }
 }
 
 // NewContainerExecutor creates a ContainerExecutor.
@@ -100,8 +108,9 @@ func (e *ContainerExecutor) Execute(ctx context.Context, t *task.Task) *executor
 
 	// Build environment
 	// Priority: task env > extra env (composite) > system env
-	env := make(map[string]string, len(t.Env)+len(e.extraEnv)+1)
+	env := make(map[string]string, len(t.Env)+len(e.extraEnv)+2)
 	env["DAGRYN_TASK"] = t.Name
+	env["CI"] = "true" // Standard CI indicator; tools like pnpm require it in non-TTY environments
 
 	// Merge extra environment (from composite plugins)
 	for k, v := range e.extraEnv {
@@ -113,24 +122,28 @@ func (e *ContainerExecutor) Execute(ctx context.Context, t *task.Task) *executor
 		env[k] = v
 	}
 
-	// Add plugin paths to PATH if provided
+	// Prepend the setup script (composite plugin steps) to the task command
+	// so that tool installation runs inside the container. The setup script
+	// uses explicit error handling (exit 1), then set -e applies to the task.
+	command := t.Command
+	if e.setupScript != "" {
+		command = e.setupScript + "set -e\n" + command
+	}
+
+	// Add plugin paths to PATH via the shell command rather than as an env
+	// var override. Setting PATH in the container env would replace the
+	// image's PATH (e.g. golang image sets /usr/local/go/bin in its ENV).
+	// By exporting inside the shell, $PATH inherits the image's value.
 	if len(e.pluginPaths) > 0 {
 		pluginPathsInContainer := make([]string, len(e.pluginPaths))
 		for i := range e.pluginPaths {
 			pluginPathsInContainer[i] = fmt.Sprintf("/dagryn-plugins/%d/bin", i)
 		}
-		// Prepend plugin paths to existing PATH
-		existingPath := env["PATH"]
-		if existingPath == "" {
-			existingPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-		}
-		env["PATH"] = fmt.Sprintf("%s:%s",
-			joinPaths(pluginPathsInContainer),
-			existingPath,
-		)
+		command = fmt.Sprintf("export PATH=\"%s:$PATH\"\n%s",
+			joinPaths(pluginPathsInContainer), command)
 	}
 
-	containerCfg.Command = []string{"sh", "-c", t.Command}
+	containerCfg.Command = []string{"sh", "-c", command}
 	containerCfg.WorkDir = workDir
 	containerCfg.Env = env
 	containerCfg.Mounts = []Mount{
@@ -176,14 +189,20 @@ func (e *ContainerExecutor) Execute(ctx context.Context, t *task.Task) *executor
 	logsDone := make(chan struct{})
 	go func() {
 		defer close(logsDone)
-		_ = e.runtime.Logs(ctx, containerID, e.stdout, e.stderr)
+		if err := e.runtime.Logs(ctx, containerID, e.stdout, e.stderr); err != nil && ctx.Err() == nil {
+			slog.Warn("container log streaming error", "container", containerID, "error", err)
+		}
 	}()
 
 	// Wait for container to exit
 	exitCode, waitErr := e.runtime.Wait(ctx, containerID)
 
-	// Wait for logs to finish streaming
-	<-logsDone
+	// Wait for logs to finish streaming, but don't block forever on cancellation
+	select {
+	case <-logsDone:
+	case <-time.After(5 * time.Second):
+		slog.Warn("timed out waiting for container log stream to close", "container", containerID)
+	}
 
 	result.EndTime = time.Now()
 	result.Duration = result.EndTime.Sub(result.StartTime)

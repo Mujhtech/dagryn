@@ -26,6 +26,7 @@ type Task struct {
 
 // TaskContainerConfig holds per-task container overrides.
 type TaskContainerConfig struct {
+	Enabled     *bool  `toml:"enabled"` // Explicitly enable/disable container for this task
 	Image       string `toml:"image"`
 	MemoryLimit string `toml:"memory_limit"`
 	CPULimit    string `toml:"cpu_limit"`

@@ -46,10 +46,13 @@ func TestContainerExecutorWithPluginPaths(t *testing.T) {
 	assert.Equal(t, "/dagryn-plugins/1/bin", mounts[2].Target)
 	assert.True(t, mounts[2].ReadOnly)
 
-	// Verify PATH was updated
-	env := mock.createCalls[0].Env
-	assert.Contains(t, env["PATH"], "/dagryn-plugins/0/bin")
-	assert.Contains(t, env["PATH"], "/dagryn-plugins/1/bin")
+	// Verify plugin paths are exported in the command (not env) so the
+	// image's PATH is preserved via $PATH shell expansion.
+	cmd := mock.createCalls[0].Command
+	require.True(t, len(cmd) >= 3, "expected sh -c <script>")
+	script := cmd[2]
+	assert.Contains(t, script, "/dagryn-plugins/0/bin")
+	assert.Contains(t, script, "/dagryn-plugins/1/bin")
 }
 
 func TestContainerExecutorWithExtraEnv(t *testing.T) {
@@ -116,8 +119,10 @@ func TestContainerExecutorWithPluginsAndEnv(t *testing.T) {
 	// Task env (highest priority)
 	assert.Equal(t, "task_value", env["CUSTOM_TASK_VAR"])
 
-	// Plugin paths in PATH
-	assert.Contains(t, env["PATH"], "/dagryn-plugins/0/bin")
+	// Plugin paths are exported in the command (not env) to preserve image PATH
+	cmd := mock.createCalls[0].Command
+	require.True(t, len(cmd) >= 3, "expected sh -c <script>")
+	assert.Contains(t, cmd[2], "/dagryn-plugins/0/bin")
 }
 
 func TestContainerExecutorEnvPriority(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -490,24 +491,52 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 		stderrWriter = stderrLW
 	}
 
-	// Get plugin paths for this task
-	pluginPaths := s.getPluginPathsForTask(t)
+	// Choose executor: container (if available and configured) or host.
+	// Tasks can opt out of container execution via [tasks.X.container] enabled = false.
+	useContainer := s.containerRuntime != nil && s.containerConfig != nil
+	if useContainer && t.Container != nil && t.Container.Enabled != nil && !*t.Container.Enabled {
+		useContainer = false
+	}
 
-	// Run composite plugin setup steps before the task command.
-	// This handles tasks like web-install that have both uses=["setup-node"] and a command.
+	// Get plugin paths for this task, using platform-specific paths for containers.
+	var pluginPaths []string
+	if useContainer {
+		containerPlatform := plugin.Platform{OS: "linux", Arch: runtime.GOARCH}
+		pluginPaths = s.pluginManager.GetBinPathsForPlatform(t.Uses, containerPlatform)
+		// Fallback to host paths if no platform-specific installation found
+		// (handles case where host is already Linux)
+		if len(pluginPaths) == 0 {
+			pluginPaths = s.getPluginPathsForTask(t)
+		}
+	} else {
+		pluginPaths = s.getPluginPathsForTask(t)
+	}
+
 	// Use WithOutput to get a goroutine-local copy, avoiding data races on the shared executor.
 	taskCE := s.compositeExecutor.WithOutput(stdoutWriter, stderrWriter)
-	compositeEnv, compositeCleanupTasks := s.runCompositeSetup(ctx, t, taskCE)
 
-	// Choose executor: container (if available and configured) or host
+	var compositeEnv map[string]string
+	var compositeCleanupTasks []compositeCleanupTask
+	var setupScript string
+
+	if useContainer {
+		// For container tasks, generate a setup script from composite plugins
+		// so it runs INSIDE the container with the correct platform (linux).
+		// The container is always Linux; the architecture matches the host.
+		setupScript = s.generateCompositeSetupScript(ctx, t, taskCE, "linux", runtime.GOARCH)
+	} else {
+		// For host tasks, run composite setup on the host as before.
+		compositeEnv, compositeCleanupTasks = s.runCompositeSetup(ctx, t, taskCE)
+	}
+
 	var taskExec executor.TaskExecutor
-	if s.containerRuntime != nil && s.containerConfig != nil {
+	if useContainer {
 		taskExec = container.NewContainerExecutor(
 			s.containerRuntime, s.projectRoot, s.containerConfig,
 			container.WithContainerStdout(stdoutWriter),
 			container.WithContainerStderr(stderrWriter),
 			container.WithPluginPaths(pluginPaths),
-			container.WithExtraEnv(compositeEnv),
+			container.WithSetupScript(setupScript),
 		)
 	} else {
 		taskExec = executor.New(s.projectRoot,
@@ -521,8 +550,10 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 	// Execute task
 	result := taskExec.Execute(ctx, t)
 
-	// Run composite cleanup after the task command (post behavior).
-	s.runCompositeCleanup(compositeCleanupTasks, taskCE)
+	// Run composite cleanup after the task command (host-only; containers are ephemeral).
+	if !useContainer {
+		s.runCompositeCleanup(compositeCleanupTasks, taskCE)
+	}
 
 	// Flush any partial lines from LineWriters
 	if stdoutLW != nil {
@@ -789,6 +820,30 @@ func (s *Scheduler) installPluginsForPlan(ctx context.Context, plan *dag.Executi
 		}
 	}
 
+	// When container execution is enabled and the host platform differs from
+	// the container platform (e.g. macOS host → Linux container), also install
+	// binary plugins for the container platform so they can run inside the container.
+	if s.containerRuntime != nil && s.containerConfig != nil {
+		containerPlatform := plugin.Platform{OS: "linux", Arch: runtime.GOARCH}
+		host := plugin.CurrentPlatform()
+		if containerPlatform.OS != host.OS || containerPlatform.Arch != host.Arch {
+			for _, spec := range specs {
+				resolved, err := s.pluginManager.Resolve(ctx, spec)
+				if err != nil {
+					continue
+				}
+				// Skip composite and integration plugins — they have no binary
+				if resolved.Manifest != nil && (resolved.Manifest.IsComposite() || resolved.Manifest.IsIntegration()) {
+					continue
+				}
+				if _, err := s.pluginManager.InstallForPlatform(ctx, spec, containerPlatform); err != nil {
+					slog.Warn("failed to install plugin for container platform",
+						"plugin", spec, "platform", containerPlatform.String(), "error", err)
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -851,6 +906,35 @@ func (s *Scheduler) runCompositeCleanup(tasks []compositeCleanupTask, ce *plugin
 	for _, t := range tasks {
 		ce.RunCleanup(t.manifest, t.setup, t.workdir)
 	}
+}
+
+// generateCompositeSetupScript builds a shell script from all composite plugins
+// used by a task, targeting the given OS/arch. The script is designed to run
+// inside the container so tools are downloaded for the container's platform.
+func (s *Scheduler) generateCompositeSetupScript(ctx context.Context, t *task.Task, ce *plugin.CompositeExecutor, targetOS, targetArch string) string {
+	if len(t.Uses) == 0 {
+		return ""
+	}
+
+	var scripts []string
+	for _, spec := range t.Uses {
+		resolved, err := s.pluginManager.Resolve(ctx, spec)
+		if err != nil || resolved.Manifest == nil || !resolved.Manifest.IsComposite() {
+			continue
+		}
+
+		script, err := ce.GenerateSetupScript(resolved.Manifest, t.With, targetOS, targetArch)
+		if err != nil {
+			slog.Warn("failed to generate setup script for composite plugin",
+				"plugin", spec, "error", err)
+			continue
+		}
+		if script != "" {
+			scripts = append(scripts, script)
+		}
+	}
+
+	return strings.Join(scripts, "\n")
 }
 
 // registerIntegrationPlugins resolves global plugins and registers those with

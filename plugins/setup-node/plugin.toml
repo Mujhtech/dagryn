@@ -7,8 +7,8 @@ author = "dagryn"
 license = "MIT"
 
 [inputs.node-version]
-description = "Node.js version to install"
-default = "20"
+description = "Node.js version to install (must be a full semver, e.g. 20.20.0)"
+default = "20.20.0"
 
 [inputs.cache]
 description = "Cache node_modules directory"
@@ -27,18 +27,46 @@ echo "Platform: $NODE_OS-$NODE_ARCH"
 name = "download-and-install"
 command = """
 NODE_VERSION="${inputs.node-version}"
+REQUESTED_MAJOR=$(echo "$NODE_VERSION" | cut -d. -f1)
+
+# Skip download if node is already available with matching major version
+if command -v node >/dev/null 2>&1; then
+  EXISTING=$(node --version 2>/dev/null | sed 's/^v//')
+  EXISTING_MAJOR=$(echo "$EXISTING" | cut -d. -f1)
+  if [ "$EXISTING_MAJOR" = "$REQUESTED_MAJOR" ]; then
+    echo "Node.js v$EXISTING already available, skipping download"
+    exit 0
+  fi
+fi
+
 NODE_OS="${os}"
 NODE_ARCH="${arch}"
 if [ "$NODE_ARCH" = "amd64" ]; then NODE_ARCH="x64"; fi
 INSTALL_DIR="$HOME/.dagryn/tools/node-$NODE_VERSION"
-if [ -d "$INSTALL_DIR" ]; then
+if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/bin/node" ]; then
   echo "Node.js $NODE_VERSION already installed"
 else
   mkdir -p "$INSTALL_DIR"
   TARBALL="node-v${NODE_VERSION}-${NODE_OS}-${NODE_ARCH}.tar.gz"
   URL="https://nodejs.org/dist/v${NODE_VERSION}/${TARBALL}"
   echo "Downloading Node.js $NODE_VERSION from $URL"
-  curl -fsSL "$URL" | tar xz --strip-components=1 -C "$INSTALL_DIR"
+  TMPFILE=$(mktemp)
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$TMPFILE" "$URL"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$TMPFILE" "$URL"
+  else
+    echo "Error: curl or wget is required" >&2; exit 1
+  fi
+  if [ ! -s "$TMPFILE" ]; then
+    echo "Error: failed to download $URL" >&2; rm -f "$TMPFILE"; exit 1
+  fi
+  tar xzf "$TMPFILE" --strip-components=1 -C "$INSTALL_DIR"
+  rm -f "$TMPFILE"
+  if [ ! -f "$INSTALL_DIR/bin/node" ]; then
+    echo "Error: node binary not found after extraction" >&2; exit 1
+  fi
+  echo "Node.js $NODE_VERSION downloaded successfully"
 fi
 """
 
@@ -47,9 +75,10 @@ name = "set-path"
 command = """
 NODE_VERSION="${inputs.node-version}"
 INSTALL_DIR="$HOME/.dagryn/tools/node-$NODE_VERSION"
-export PATH="$INSTALL_DIR/bin:$PATH"
-echo "Node.js $(node --version) installed"
-echo "npm $(npm --version) installed"
+if [ -d "$INSTALL_DIR/bin" ]; then
+  export PATH="$INSTALL_DIR/bin:$PATH"
+fi
+echo "Node.js $(node --version) ready"
 """
 [step.env]
 PATH = "$HOME/.dagryn/tools/node-${inputs.node-version}/bin:$PATH"

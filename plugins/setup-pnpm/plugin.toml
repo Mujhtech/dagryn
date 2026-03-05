@@ -1,0 +1,110 @@
+[plugin]
+name = "setup-pnpm"
+description = "Install and configure pnpm package manager"
+version = "1.0.0"
+type = "composite"
+author = "dagryn"
+license = "MIT"
+
+[inputs.pnpm-version]
+description = "pnpm version to install (must be a full semver, e.g. 10.30.3)"
+default = "10.30.3"
+
+[inputs.node-version]
+description = "Node.js version (required for pnpm to run). Leave empty to use system Node.js"
+default = ""
+
+[inputs.cache]
+description = "Cache pnpm store directory"
+default = "true"
+
+[[step]]
+name = "detect-platform"
+command = """
+PNPM_OS="${os}"
+PNPM_ARCH="${arch}"
+if [ "$PNPM_OS" = "darwin" ]; then PNPM_OS="macos"; fi
+if [ "$PNPM_OS" = "windows" ]; then PNPM_OS="win"; fi
+if [ "$PNPM_ARCH" = "amd64" ]; then PNPM_ARCH="x64"; fi
+echo "Platform: $PNPM_OS-$PNPM_ARCH"
+"""
+
+[[step]]
+name = "download-and-install"
+command = """
+PNPM_VERSION="${inputs.pnpm-version}"
+
+# Skip if pnpm is already available on PATH
+if command -v pnpm >/dev/null 2>&1; then
+  echo "pnpm $(pnpm --version) already available, skipping install"
+  exit 0
+fi
+
+# Prefer npm install when npm is available (e.g. node:*-bookworm-slim containers)
+if command -v npm >/dev/null 2>&1; then
+  echo "Installing pnpm via npm..."
+  npm install -g "pnpm@${PNPM_VERSION}"
+  echo "pnpm $(pnpm --version) installed via npm"
+  exit 0
+fi
+
+# Fallback: standalone binary download
+PNPM_OS="${os}"
+PNPM_ARCH="${arch}"
+if [ "$PNPM_OS" = "darwin" ]; then PNPM_OS="macos"; fi
+if [ "$PNPM_OS" = "windows" ]; then PNPM_OS="win"; fi
+if [ "$PNPM_ARCH" = "amd64" ]; then PNPM_ARCH="x64"; fi
+INSTALL_DIR="$HOME/.dagryn/tools/pnpm-$PNPM_VERSION"
+if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/pnpm" ]; then
+  echo "pnpm $PNPM_VERSION already installed"
+else
+  mkdir -p "$INSTALL_DIR"
+  URL="https://github.com/pnpm/pnpm/releases/download/v${PNPM_VERSION}/pnpm-${PNPM_OS}-${PNPM_ARCH}"
+  echo "Downloading pnpm $PNPM_VERSION from $URL"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$INSTALL_DIR/pnpm" "$URL"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$INSTALL_DIR/pnpm" "$URL"
+  else
+    echo "Error: curl or wget is required" >&2; exit 1
+  fi
+  if [ ! -s "$INSTALL_DIR/pnpm" ]; then
+    echo "Error: failed to download pnpm from $URL" >&2; exit 1
+  fi
+  chmod +x "$INSTALL_DIR/pnpm"
+  echo "pnpm $PNPM_VERSION downloaded successfully"
+fi
+"""
+
+[[step]]
+name = "set-path"
+command = """
+PNPM_VERSION="${inputs.pnpm-version}"
+INSTALL_DIR="$HOME/.dagryn/tools/pnpm-$PNPM_VERSION"
+if [ -d "$INSTALL_DIR" ]; then
+  export PATH="$INSTALL_DIR:$PATH"
+fi
+echo "pnpm $(pnpm --version) ready"
+"""
+[step.env]
+PATH = "$HOME/.dagryn/tools/pnpm-${inputs.pnpm-version}:$PATH"
+PNPM_HOME = "$HOME/.dagryn/tools/pnpm-${inputs.pnpm-version}"
+
+[[step]]
+name = "cache-pnpm-store"
+if = "${inputs.cache}"
+command = """
+STORE_DIR=$(pnpm store path 2>/dev/null || echo "$HOME/.local/share/pnpm/store")
+if [ -d "$STORE_DIR" ]; then
+  echo "pnpm store at $STORE_DIR eligible for caching"
+else
+  echo "pnpm store not yet created, will be cached after first install"
+fi
+"""
+
+[[cleanup]]
+name = "shell-cache-reset"
+command = """
+hash -r 2>/dev/null || true
+echo "setup-pnpm cleanup complete"
+"""
