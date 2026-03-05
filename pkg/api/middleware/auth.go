@@ -87,6 +87,11 @@ func authenticateJWT(ctx context.Context, config AuthConfig, token string) (*mod
 		return nil, err
 	}
 
+	// Check if user is deactivated
+	if user.DeactivatedAt != nil {
+		return nil, errAccountDeactivated
+	}
+
 	// Update token last used (async, don't block request)
 	go func() {
 		if err := config.JWTService.UpdateLastUsed(context.Background(), claims.ID); err != nil {
@@ -96,6 +101,8 @@ func authenticateJWT(ctx context.Context, config AuthConfig, token string) (*mod
 
 	return user, nil
 }
+
+var errAccountDeactivated = errors.New("account deactivated")
 
 // authenticateAPIKey validates an API key and returns the associated user and key.
 func authenticateAPIKey(ctx context.Context, config AuthConfig, rawKey string) (*models.User, *models.APIKey, error) {
@@ -114,6 +121,11 @@ func authenticateAPIKey(ctx context.Context, config AuthConfig, rawKey string) (
 			return nil, nil, authz.ErrInvalidToken
 		}
 		return nil, nil, err
+	}
+
+	// Check if user is deactivated
+	if user.DeactivatedAt != nil {
+		return nil, nil, errAccountDeactivated
 	}
 
 	return user, key, nil
@@ -136,6 +148,11 @@ func handleAuthError(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusUnauthorized, errorResponse{
 			Error:   "token_revoked",
 			Message: "The provided token has been revoked.",
+		})
+	case errors.Is(err, errAccountDeactivated):
+		writeJSON(w, http.StatusUnauthorized, errorResponse{
+			Error:   "account_deactivated",
+			Message: "Your account has been deactivated. Contact your team administrator.",
 		})
 	default:
 		writeJSON(w, http.StatusInternalServerError, errorResponse{

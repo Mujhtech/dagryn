@@ -83,6 +83,15 @@ type AIServerConfig struct {
 	RawResponseStorage    string `toml:"raw_response_storage" envconfig:"RAW_RESPONSE_STORAGE"`
 }
 
+// SSOConfig holds SAML SSO configuration.
+type SSOConfig struct {
+	SPCertFile       string `toml:"sp_cert_file" envconfig:"SP_CERT_FILE"`
+	SPKeyFile        string `toml:"sp_key_file" envconfig:"SP_KEY_FILE"`
+	SPCert           string `toml:"sp_cert" envconfig:"SP_CERT"`
+	SPKey            string `toml:"sp_key" envconfig:"SP_KEY"`
+	AutoGenerateCert bool   `toml:"auto_generate_cert" envconfig:"AUTO_GENERATE_CERT"`
+}
+
 // Config holds all server configuration.
 type Config struct {
 	Worker          WorkerConfig          `toml:"worker"`
@@ -102,6 +111,7 @@ type Config struct {
 	License         LicenseConfig         `toml:"license"`
 	Cache           CacheConfig           `toml:"cache"`
 	AI              AIServerConfig        `toml:"ai"`
+	SSO             SSOConfig             `toml:"sso"`
 }
 
 // StorageConfig holds cache storage backend configuration.
@@ -379,6 +389,7 @@ func ProcessEnvVars(cfg *Config) {
 	_ = envconfig.Process("DAGRYN", &cfg.Health)
 	_ = envconfig.Process("DAGRYN_STRIPE", &cfg.Stripe)
 	_ = envconfig.Process("DAGRYN_AI", &cfg.AI)
+	_ = envconfig.Process("DAGRYN_SSO", &cfg.SSO)
 
 	// OTEL vars use standard naming (not DAGRYN-prefixed).
 	if v := os.Getenv("OTEL_SERVICE_NAME"); v != "" {

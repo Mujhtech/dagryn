@@ -9,8 +9,10 @@ import (
 	"github.com/mujhtech/dagryn/pkg/entitlement"
 	"github.com/mujhtech/dagryn/pkg/githubapp"
 	"github.com/mujhtech/dagryn/pkg/licensing"
+	"github.com/mujhtech/dagryn/pkg/scim"
 	"github.com/mujhtech/dagryn/pkg/server/sse"
 	"github.com/mujhtech/dagryn/pkg/service"
+	"github.com/mujhtech/dagryn/pkg/sso"
 	"github.com/mujhtech/dagryn/pkg/worker"
 )
 
@@ -63,6 +65,12 @@ type Handler struct {
 
 	// baseURL is the public-facing dashboard URL for links in GitHub check runs.
 	baseURL string
+
+	// SSO service (optional; nil when SSO is not configured)
+	ssoService *sso.Service
+
+	// SCIM service (optional; nil when SCIM is not configured)
+	scimService *scim.Service
 }
 
 // New creates a new Handler with all dependencies.
@@ -138,6 +146,26 @@ func (h *Handler) AuditService() *service.AuditService {
 // SetEncrypter sets the encrypter for webhook secret encryption.
 func (h *Handler) SetEncrypter(e encrypt.Encrypt) {
 	h.encrypter = e
+}
+
+// SetSSOService sets the SSO service.
+func (h *Handler) SetSSOService(s *sso.Service) {
+	h.ssoService = s
+}
+
+// SSOService returns the SSO service (may be nil).
+func (h *Handler) SSOService() *sso.Service {
+	return h.ssoService
+}
+
+// SetSCIMService sets the SCIM service.
+func (h *Handler) SetSCIMService(s *scim.Service) {
+	h.scimService = s
+}
+
+// SCIMService returns the SCIM service (may be nil).
+func (h *Handler) SCIMService() *scim.Service {
+	return h.scimService
 }
 
 // Encrypter returns the encrypter (falls back to providerEncrypt).

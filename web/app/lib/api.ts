@@ -792,6 +792,37 @@ export interface ProjectActivitySummary {
   bandwidth_bytes: number;
 }
 
+// SSO types
+export interface SSOConnection {
+  id: string;
+  team_id: string;
+  idp_entity_id: string;
+  idp_sso_url: string;
+  idp_metadata_url?: string;
+  sp_entity_id: string;
+  sp_acs_url: string;
+  scim_enabled: boolean;
+  enforce_sso: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateSSOConnectionInput {
+  idp_entity_id: string;
+  idp_sso_url: string;
+  idp_metadata_url?: string;
+  idp_metadata_xml?: string;
+  certificate: string;
+}
+
+export interface UpdateSSOConnectionInput {
+  idp_entity_id?: string;
+  idp_sso_url?: string;
+  idp_metadata_url?: string;
+  idp_metadata_xml?: string;
+  certificate?: string;
+}
+
 // API Error
 export class ApiError extends Error {
   constructor(
@@ -1778,6 +1809,59 @@ class ApiClient {
 
   async getUserAnalytics(days = 30) {
     return this.fetch<AnalyticsOverview>(`/analytics?days=${days}`);
+  }
+
+  // SSO
+  async getSSOConnection(teamId: string) {
+    return this.fetch<SSOConnection>(`/teams/${teamId}/sso`);
+  }
+
+  async createSSOConnection(teamId: string, input: CreateSSOConnectionInput) {
+    return this.fetch<SSOConnection>(`/teams/${teamId}/sso`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+  }
+
+  async updateSSOConnection(teamId: string, input: UpdateSSOConnectionInput) {
+    return this.fetch<SSOConnection>(`/teams/${teamId}/sso`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+  }
+
+  async deleteSSOConnection(teamId: string) {
+    return this.fetch<void>(`/teams/${teamId}/sso`, { method: "DELETE" });
+  }
+
+  async testSSOConnection(teamId: string) {
+    return this.fetch<{ success: boolean; error?: string }>(
+      `/teams/${teamId}/sso/test`,
+      { method: "POST" },
+    );
+  }
+
+  async toggleSSOEnforcement(teamId: string, enforce: boolean) {
+    return this.fetch<SSOConnection>(`/teams/${teamId}/sso/enforce`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enforce }),
+    });
+  }
+
+  async generateSCIMToken(teamId: string) {
+    return this.fetch<{ token: string }>(`/teams/${teamId}/sso/scim-token`, {
+      method: "POST",
+    });
+  }
+
+  async rotateSCIMToken(teamId: string) {
+    return this.fetch<{ token: string }>(
+      `/teams/${teamId}/sso/scim-token/rotate`,
+      { method: "POST" },
+    );
   }
 
   // Public wrapper around the private fetch method.

@@ -20,9 +20,11 @@ import (
 	"github.com/mujhtech/dagryn/pkg/githubapp"
 	"github.com/mujhtech/dagryn/pkg/http/response"
 	"github.com/mujhtech/dagryn/pkg/licensing"
+	"github.com/mujhtech/dagryn/pkg/scim"
 	"github.com/mujhtech/dagryn/pkg/server/dashboard"
 	"github.com/mujhtech/dagryn/pkg/server/sse"
 	"github.com/mujhtech/dagryn/pkg/service"
+	"github.com/mujhtech/dagryn/pkg/sso"
 	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/mujhtech/dagryn/pkg/worker"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
@@ -47,6 +49,8 @@ type API struct {
 	extraRoutes       func(chi.Router)       // Injected by cloud binary via RegisterExtraRoutes.
 	dashboardHandler  http.Handler           // Overrides default embedded dashboard (set by cloud binary).
 	auditService      *service.AuditService  // Stored for passing to authHandler during BuildRouter.
+	ssoService        *sso.Service           // SSO service for SAML authentication.
+	scimService       *scim.Service          // SCIM service for user provisioning.
 }
 
 func New(
@@ -131,6 +135,18 @@ func (a *API) SetDashboardHandler(h http.Handler) {
 func (a *API) SetAuditService(s *service.AuditService) {
 	a.h.SetAuditService(s)
 	a.auditService = s
+}
+
+// SetSSOService sets the SSO service on both the API and handler.
+func (a *API) SetSSOService(s *sso.Service) {
+	a.ssoService = s
+	a.h.SetSSOService(s)
+}
+
+// SetSCIMService sets the SCIM service on both the API and handler.
+func (a *API) SetSCIMService(s *scim.Service) {
+	a.scimService = s
+	a.h.SetSCIMService(s)
 }
 
 // SetEncrypter delegates to the handler for webhook secret encryption.
@@ -229,6 +245,39 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 			r.Post("/github", a.h.GitHubWebhook)
 		})
 
+		// Public SAML SP endpoints (no auth required)
+		if a.ssoService != nil {
+			ssoHandler := handlers.NewSSOHandler(a.ssoService, a.jwtService, a.store, a.cfg.Server.BaseURL)
+			r.Route("/sso/{teamSlug}", func(r chi.Router) {
+				r.Get("/metadata", ssoHandler.SSOMetadata)
+				r.Get("/login", ssoHandler.SSOLogin)
+				r.Post("/acs", ssoHandler.SSOACS)
+			})
+		}
+
+		// SCIM 2.0 provisioning endpoints (SCIM token auth, no JWT)
+		if a.scimService != nil {
+			scimHandler := handlers.NewSCIMHandler(a.scimService)
+			r.Route("/scim/{teamSlug}", func(r chi.Router) {
+				r.Use(middleware.RequireFeature(a.entitlements, string(licensing.FeatureSSO)))
+				r.Use(middleware.SCIMAuth(a.store.SSO, a.store.Teams))
+
+				// Users
+				r.Get("/Users", scimHandler.ListSCIMUsers)
+				r.Post("/Users", scimHandler.CreateSCIMUser)
+				r.Get("/Users/{id}", scimHandler.GetSCIMUser)
+				r.Put("/Users/{id}", scimHandler.UpdateSCIMUser)
+				r.Patch("/Users/{id}", scimHandler.PatchSCIMUser)
+				r.Delete("/Users/{id}", scimHandler.DeleteSCIMUser)
+
+				// Groups
+				r.Get("/Groups", scimHandler.ListSCIMGroups)
+				r.Get("/Groups/{id}", scimHandler.GetSCIMGroup)
+				r.Patch("/Groups/{id}", scimHandler.PatchSCIMGroup)
+				r.Delete("/Groups/{id}", scimHandler.DeleteSCIMGroup)
+			})
+		}
+
 		// Auth routes (mixed public and protected)
 		r.Route("/auth", func(r chi.Router) {
 			// Public auth endpoints
@@ -316,6 +365,19 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 								r.Post("/test", a.h.TestAuditWebhook)
 							})
 						})
+					})
+
+					// Team SSO settings (gated by SSO feature)
+					r.Route("/sso", func(r chi.Router) {
+						r.Use(middleware.RequireFeature(a.entitlements, string(licensing.FeatureSSO)))
+						r.Get("/", a.h.GetSSOConnection)
+						r.Post("/", a.h.CreateSSOConnection)
+						r.Patch("/", a.h.UpdateSSOConnection)
+						r.Delete("/", a.h.DeleteSSOConnection)
+						r.Post("/test", a.h.TestSSOConnection)
+						r.Patch("/enforce", a.h.ToggleSSOEnforcement)
+						r.Post("/scim-token", a.h.GenerateSCIMToken)
+						r.Post("/scim-token/rotate", a.h.RotateSCIMToken)
 					})
 				})
 			})

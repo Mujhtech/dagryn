@@ -30,6 +30,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -46,8 +47,10 @@ import (
 	"github.com/mujhtech/dagryn/pkg/entitlement"
 	"github.com/mujhtech/dagryn/pkg/githubapp"
 	"github.com/mujhtech/dagryn/pkg/redis"
+	"github.com/mujhtech/dagryn/pkg/scim"
 	"github.com/mujhtech/dagryn/pkg/server/sse"
 	"github.com/mujhtech/dagryn/pkg/service"
+	"github.com/mujhtech/dagryn/pkg/sso"
 	"github.com/mujhtech/dagryn/pkg/storage"
 	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/mujhtech/dagryn/pkg/worker"
@@ -330,6 +333,20 @@ func (s *Server) Initialize(ctx context.Context) error {
 	// Wire encrypter for webhook secrets.
 	apiHandler.SetEncrypter(enc)
 
+	// Initialize SSO + SCIM services.
+	ssoConfig, err := s.buildSSOConfig()
+	if err != nil {
+		log.Warn().Err(err).Msg("SSO service not initialized")
+	} else if ssoConfig != nil {
+		ssoService := sso.NewService(*ssoConfig, s.store.SSO, s.store.Users, s.store.Teams)
+		apiHandler.SetSSOService(ssoService)
+		log.Debug().Msg("SSO service initialized")
+
+		scimService := scim.NewService(s.store.Users, s.store.Teams, s.config.Server.BaseURL)
+		apiHandler.SetSCIMService(scimService)
+		log.Debug().Msg("SCIM service initialized")
+	}
+
 	// Wire entitlements to services for quota enforcement.
 	if cacheService != nil {
 		cacheService.SetEntitlements(checker)
@@ -479,6 +496,48 @@ func (s *Server) Config() *config.Config {
 // AuditService returns the audit service (may be nil before Initialize).
 func (s *Server) AuditService() *service.AuditService {
 	return s.auditService
+}
+
+// buildSSOConfig builds the SSO config from server config.
+// Returns nil if SSO is not configured (no cert/key and auto-generate not enabled).
+func (s *Server) buildSSOConfig() (*sso.Config, error) {
+	cfg := s.config.SSO
+
+	var certPEM, keyPEM string
+
+	// Priority: inline cert/key > file cert/key > auto-generate
+	if cfg.SPCert != "" && cfg.SPKey != "" {
+		certPEM = cfg.SPCert
+		keyPEM = cfg.SPKey
+	} else if cfg.SPCertFile != "" && cfg.SPKeyFile != "" {
+		certData, err := os.ReadFile(cfg.SPCertFile)
+		if err != nil {
+			return nil, fmt.Errorf("read sp cert file: %w", err)
+		}
+		keyData, err := os.ReadFile(cfg.SPKeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("read sp key file: %w", err)
+		}
+		certPEM = string(certData)
+		keyPEM = string(keyData)
+	} else if cfg.AutoGenerateCert {
+		cert, key, err := sso.GenerateSPCertificate()
+		if err != nil {
+			return nil, fmt.Errorf("auto-generate sp certificate: %w", err)
+		}
+		certPEM = string(cert)
+		keyPEM = string(key)
+		log.Warn().Msg("Auto-generated self-signed SP certificate for SAML (not recommended for production)")
+	} else {
+		// SSO not configured
+		return nil, nil
+	}
+
+	return &sso.Config{
+		SPCertPEM: certPEM,
+		SPKeyPEM:  keyPEM,
+		BaseURL:   s.config.Server.BaseURL,
+	}, nil
 }
 
 // redisReadyChecker adapts *redis.Redis to handlers.ReadyChecker for /ready.

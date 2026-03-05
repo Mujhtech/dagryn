@@ -23,6 +23,7 @@ type Store struct {
 	Cache               repo.CacheStore
 	AuditLogs           repo.AuditLogStore
 	Analytics           repo.AnalyticsStore
+	SSO                 repo.SSOStore
 }
 
 func New(
@@ -46,5 +47,6 @@ func New(
 		Cache:               repo.NewCacheRepo(db.Pool()),
 		AuditLogs:           repo.NewAuditLogRepo(db.Pool()),
 		Analytics:           repo.NewAnalyticsRepo(db.Pool()),
+		SSO:                 repo.NewSSORepo(db.Pool()),
 	}
 }

@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as Dashboard_layoutRouteImport } from './routes/_dashboard_layout'
 import { Route as IndexRouteImport } from './routes/index'
@@ -26,6 +27,7 @@ import { Route as Dashboard_layoutPluginsBrowseRouteImport } from './routes/_das
 import { Route as Dashboard_layoutPluginsPluginNameRouteImport } from './routes/_dashboard_layout/plugins/$pluginName'
 import { Route as Dashboard_layoutTeamsTeamIdIndexRouteImport } from './routes/_dashboard_layout/teams/$teamId/index'
 import { Route as Dashboard_layoutProjectsProjectIdIndexRouteImport } from './routes/_dashboard_layout/projects/$projectId/index'
+import { Route as Dashboard_layoutTeamsTeamIdSsoRouteImport } from './routes/_dashboard_layout/teams/$teamId/sso'
 import { Route as Dashboard_layoutTeamsTeamIdAnalyticsRouteImport } from './routes/_dashboard_layout/teams/$teamId/analytics'
 import { Route as Dashboard_layoutProjectsNewGithubRouteImport } from './routes/_dashboard_layout/projects/new/github'
 import { Route as Dashboard_layoutProjectsProjectIdSettingsRouteImport } from './routes/_dashboard_layout/projects/$projectId/settings'
@@ -41,6 +43,11 @@ import { Route as Dashboard_layoutProjectsProjectIdSettingsApiKeysRouteImport } 
 import { Route as Dashboard_layoutProjectsProjectIdRunsRunIdRouteImport } from './routes/_dashboard_layout/projects/$projectId/runs/$runId'
 import { Route as Dashboard_layoutPluginsPublisherNameAnalyticsRouteImport } from './routes/_dashboard_layout/plugins/$publisher/$name/analytics'
 
+const SsoCallbackRoute = SsoCallbackRouteImport.update({
+  id: '/sso-callback',
+  path: '/sso-callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -136,6 +143,12 @@ const Dashboard_layoutProjectsProjectIdIndexRoute =
     path: '/projects/$projectId/',
     getParentRoute: () => Dashboard_layoutRoute,
   } as any)
+const Dashboard_layoutTeamsTeamIdSsoRoute =
+  Dashboard_layoutTeamsTeamIdSsoRouteImport.update({
+    id: '/teams/$teamId/sso',
+    path: '/teams/$teamId/sso',
+    getParentRoute: () => Dashboard_layoutRoute,
+  } as any)
 const Dashboard_layoutTeamsTeamIdAnalyticsRoute =
   Dashboard_layoutTeamsTeamIdAnalyticsRouteImport.update({
     id: '/teams/$teamId/analytics',
@@ -224,6 +237,7 @@ const Dashboard_layoutPluginsPublisherNameAnalyticsRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/sso-callback': typeof SsoCallbackRoute
   '/analytics': typeof Dashboard_layoutAnalyticsRoute
   '/dashboard': typeof Dashboard_layoutDashboardRoute
   '/license': typeof Dashboard_layoutLicenseRoute
@@ -244,6 +258,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/settings': typeof Dashboard_layoutProjectsProjectIdSettingsRouteWithChildren
   '/projects/new/github': typeof Dashboard_layoutProjectsNewGithubRoute
   '/teams/$teamId/analytics': typeof Dashboard_layoutTeamsTeamIdAnalyticsRoute
+  '/teams/$teamId/sso': typeof Dashboard_layoutTeamsTeamIdSsoRoute
   '/projects/$projectId/': typeof Dashboard_layoutProjectsProjectIdIndexRoute
   '/teams/$teamId/': typeof Dashboard_layoutTeamsTeamIdIndexRoute
   '/plugins/$publisher/$name/analytics': typeof Dashboard_layoutPluginsPublisherNameAnalyticsRoute
@@ -256,6 +271,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/sso-callback': typeof SsoCallbackRoute
   '/analytics': typeof Dashboard_layoutAnalyticsRoute
   '/dashboard': typeof Dashboard_layoutDashboardRoute
   '/license': typeof Dashboard_layoutLicenseRoute
@@ -275,6 +291,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/plugins': typeof Dashboard_layoutProjectsProjectIdPluginsRoute
   '/projects/new/github': typeof Dashboard_layoutProjectsNewGithubRoute
   '/teams/$teamId/analytics': typeof Dashboard_layoutTeamsTeamIdAnalyticsRoute
+  '/teams/$teamId/sso': typeof Dashboard_layoutTeamsTeamIdSsoRoute
   '/projects/$projectId': typeof Dashboard_layoutProjectsProjectIdIndexRoute
   '/teams/$teamId': typeof Dashboard_layoutTeamsTeamIdIndexRoute
   '/plugins/$publisher/$name/analytics': typeof Dashboard_layoutPluginsPublisherNameAnalyticsRoute
@@ -289,6 +306,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_dashboard_layout': typeof Dashboard_layoutRouteWithChildren
   '/login': typeof LoginRoute
+  '/sso-callback': typeof SsoCallbackRoute
   '/_dashboard_layout/analytics': typeof Dashboard_layoutAnalyticsRoute
   '/_dashboard_layout/dashboard': typeof Dashboard_layoutDashboardRoute
   '/_dashboard_layout/license': typeof Dashboard_layoutLicenseRoute
@@ -309,6 +327,7 @@ export interface FileRoutesById {
   '/_dashboard_layout/projects/$projectId/settings': typeof Dashboard_layoutProjectsProjectIdSettingsRouteWithChildren
   '/_dashboard_layout/projects/new/github': typeof Dashboard_layoutProjectsNewGithubRoute
   '/_dashboard_layout/teams/$teamId/analytics': typeof Dashboard_layoutTeamsTeamIdAnalyticsRoute
+  '/_dashboard_layout/teams/$teamId/sso': typeof Dashboard_layoutTeamsTeamIdSsoRoute
   '/_dashboard_layout/projects/$projectId/': typeof Dashboard_layoutProjectsProjectIdIndexRoute
   '/_dashboard_layout/teams/$teamId/': typeof Dashboard_layoutTeamsTeamIdIndexRoute
   '/_dashboard_layout/plugins/$publisher/$name/analytics': typeof Dashboard_layoutPluginsPublisherNameAnalyticsRoute
@@ -323,6 +342,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/sso-callback'
     | '/analytics'
     | '/dashboard'
     | '/license'
@@ -343,6 +363,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/settings'
     | '/projects/new/github'
     | '/teams/$teamId/analytics'
+    | '/teams/$teamId/sso'
     | '/projects/$projectId/'
     | '/teams/$teamId/'
     | '/plugins/$publisher/$name/analytics'
@@ -355,6 +376,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/sso-callback'
     | '/analytics'
     | '/dashboard'
     | '/license'
@@ -374,6 +396,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/plugins'
     | '/projects/new/github'
     | '/teams/$teamId/analytics'
+    | '/teams/$teamId/sso'
     | '/projects/$projectId'
     | '/teams/$teamId'
     | '/plugins/$publisher/$name/analytics'
@@ -387,6 +410,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_dashboard_layout'
     | '/login'
+    | '/sso-callback'
     | '/_dashboard_layout/analytics'
     | '/_dashboard_layout/dashboard'
     | '/_dashboard_layout/license'
@@ -407,6 +431,7 @@ export interface FileRouteTypes {
     | '/_dashboard_layout/projects/$projectId/settings'
     | '/_dashboard_layout/projects/new/github'
     | '/_dashboard_layout/teams/$teamId/analytics'
+    | '/_dashboard_layout/teams/$teamId/sso'
     | '/_dashboard_layout/projects/$projectId/'
     | '/_dashboard_layout/teams/$teamId/'
     | '/_dashboard_layout/plugins/$publisher/$name/analytics'
@@ -421,6 +446,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   Dashboard_layoutRoute: typeof Dashboard_layoutRouteWithChildren
   LoginRoute: typeof LoginRoute
+  SsoCallbackRoute: typeof SsoCallbackRoute
   AuthDeviceRoute: typeof AuthDeviceRoute
   AuthProviderCallbackRoute: typeof AuthProviderCallbackRoute
 }
@@ -552,6 +578,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/teams/$teamId/analytics'
       preLoaderRoute: typeof Dashboard_layoutTeamsTeamIdAnalyticsRouteImport
       parentRoute: typeof Dashboard_layoutRoute
+    }
+    '/_dashboard_layout/teams/$teamId/sso': {
+      id: '/_dashboard_layout/teams/$teamId/sso'
+      path: '/teams/$teamId/sso'
+      fullPath: '/teams/$teamId/sso'
+      preLoaderRoute: typeof Dashboard_layoutTeamsTeamIdSsoRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
+    }
+    '/sso-callback': {
+      id: '/sso-callback'
+      path: '/sso-callback'
+      fullPath: '/sso-callback'
+      preLoaderRoute: typeof SsoCallbackRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_dashboard_layout/projects/new/github': {
       id: '/_dashboard_layout/projects/new/github'
@@ -687,6 +727,7 @@ interface Dashboard_layoutRouteChildren {
   Dashboard_layoutProjectsProjectIdSettingsRoute: typeof Dashboard_layoutProjectsProjectIdSettingsRouteWithChildren
   Dashboard_layoutProjectsNewGithubRoute: typeof Dashboard_layoutProjectsNewGithubRoute
   Dashboard_layoutTeamsTeamIdAnalyticsRoute: typeof Dashboard_layoutTeamsTeamIdAnalyticsRoute
+  Dashboard_layoutTeamsTeamIdSsoRoute: typeof Dashboard_layoutTeamsTeamIdSsoRoute
   Dashboard_layoutProjectsProjectIdIndexRoute: typeof Dashboard_layoutProjectsProjectIdIndexRoute
   Dashboard_layoutTeamsTeamIdIndexRoute: typeof Dashboard_layoutTeamsTeamIdIndexRoute
   Dashboard_layoutPluginsPublisherNameAnalyticsRoute: typeof Dashboard_layoutPluginsPublisherNameAnalyticsRoute
@@ -722,6 +763,7 @@ const Dashboard_layoutRouteChildren: Dashboard_layoutRouteChildren = {
     Dashboard_layoutProjectsNewGithubRoute,
   Dashboard_layoutTeamsTeamIdAnalyticsRoute:
     Dashboard_layoutTeamsTeamIdAnalyticsRoute,
+  Dashboard_layoutTeamsTeamIdSsoRoute: Dashboard_layoutTeamsTeamIdSsoRoute,
   Dashboard_layoutProjectsProjectIdIndexRoute:
     Dashboard_layoutProjectsProjectIdIndexRoute,
   Dashboard_layoutTeamsTeamIdIndexRoute: Dashboard_layoutTeamsTeamIdIndexRoute,
@@ -740,6 +782,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   Dashboard_layoutRoute: Dashboard_layoutRouteWithChildren,
   LoginRoute: LoginRoute,
+  SsoCallbackRoute: SsoCallbackRoute,
   AuthDeviceRoute: AuthDeviceRoute,
   AuthProviderCallbackRoute: AuthProviderCallbackRoute,
 }

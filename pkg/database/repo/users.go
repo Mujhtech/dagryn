@@ -46,9 +46,9 @@ func (r *UserRepo) Create(ctx context.Context, user *models.User) error {
 func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	var user models.User
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, email, name, avatar_url, provider, provider_id, created_at, updated_at
+		SELECT id, email, name, avatar_url, provider, provider_id, deactivated_at, scim_external_id, created_at, updated_at
 		FROM users WHERE id = $1
-	`, id).Scan(&user.ID, &user.Email, &user.Name, &user.AvatarURL, &user.Provider, &user.ProviderID, &user.CreatedAt, &user.UpdatedAt)
+	`, id).Scan(&user.ID, &user.Email, &user.Name, &user.AvatarURL, &user.Provider, &user.ProviderID, &user.DeactivatedAt, &user.SCIMExternalID, &user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -63,9 +63,9 @@ func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.User, err
 func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	var user models.User
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, email, name, avatar_url, provider, provider_id, created_at, updated_at
+		SELECT id, email, name, avatar_url, provider, provider_id, deactivated_at, scim_external_id, created_at, updated_at
 		FROM users WHERE email = $1
-	`, email).Scan(&user.ID, &user.Email, &user.Name, &user.AvatarURL, &user.Provider, &user.ProviderID, &user.CreatedAt, &user.UpdatedAt)
+	`, email).Scan(&user.ID, &user.Email, &user.Name, &user.AvatarURL, &user.Provider, &user.ProviderID, &user.DeactivatedAt, &user.SCIMExternalID, &user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -80,9 +80,9 @@ func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*models.User, 
 func (r *UserRepo) GetByProvider(ctx context.Context, provider, providerID string) (*models.User, error) {
 	var user models.User
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, email, name, avatar_url, provider, provider_id, created_at, updated_at
+		SELECT id, email, name, avatar_url, provider, provider_id, deactivated_at, scim_external_id, created_at, updated_at
 		FROM users WHERE provider = $1 AND provider_id = $2
-	`, provider, providerID).Scan(&user.ID, &user.Email, &user.Name, &user.AvatarURL, &user.Provider, &user.ProviderID, &user.CreatedAt, &user.UpdatedAt)
+	`, provider, providerID).Scan(&user.ID, &user.Email, &user.Name, &user.AvatarURL, &user.Provider, &user.ProviderID, &user.DeactivatedAt, &user.SCIMExternalID, &user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -127,6 +127,89 @@ func (r *UserRepo) UpsertByProvider(ctx context.Context, user *models.User) erro
 	`, uuid.New(), user.Email, user.Name, user.AvatarURL, user.Provider, user.ProviderID, now).Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
 
 	return err
+}
+
+// Deactivate soft-deactivates a user account (SCIM deprovision).
+func (r *UserRepo) Deactivate(ctx context.Context, id uuid.UUID) error {
+	now := time.Now()
+	result, err := r.pool.Exec(ctx, `
+		UPDATE users SET deactivated_at = $1, updated_at = $1 WHERE id = $2 AND deactivated_at IS NULL
+	`, now, id)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// Reactivate re-enables a deactivated user account.
+func (r *UserRepo) Reactivate(ctx context.Context, id uuid.UUID) error {
+	now := time.Now()
+	result, err := r.pool.Exec(ctx, `
+		UPDATE users SET deactivated_at = NULL, updated_at = $1 WHERE id = $2 AND deactivated_at IS NOT NULL
+	`, now, id)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// GetBySCIMExternalID retrieves a user by SCIM external ID.
+func (r *UserRepo) GetBySCIMExternalID(ctx context.Context, externalID string) (*models.User, error) {
+	var user models.User
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, email, name, avatar_url, provider, provider_id, deactivated_at, scim_external_id, created_at, updated_at
+		FROM users WHERE scim_external_id = $1
+	`, externalID).Scan(&user.ID, &user.Email, &user.Name, &user.AvatarURL, &user.Provider, &user.ProviderID, &user.DeactivatedAt, &user.SCIMExternalID, &user.CreatedAt, &user.UpdatedAt)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+// ListByTeamForSCIM lists all users in a team with SCIM-relevant fields.
+func (r *UserRepo) ListByTeamForSCIM(ctx context.Context, teamID uuid.UUID, startIndex, count int) ([]models.User, int, error) {
+	var total int
+	err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM users u
+		JOIN team_members tm ON tm.user_id = u.id
+		WHERE tm.team_id = $1
+	`, teamID).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT u.id, u.email, u.name, u.avatar_url, u.provider, u.provider_id, u.deactivated_at, u.scim_external_id, u.created_at, u.updated_at
+		FROM users u
+		JOIN team_members tm ON tm.user_id = u.id
+		WHERE tm.team_id = $1
+		ORDER BY u.created_at ASC
+		LIMIT $2 OFFSET $3
+	`, teamID, count, startIndex-1)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var users []models.User
+	for rows.Next() {
+		var u models.User
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.Provider, &u.ProviderID, &u.DeactivatedAt, &u.SCIMExternalID, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, 0, err
+		}
+		users = append(users, u)
+	}
+	return users, total, rows.Err()
 }
 
 // Delete deletes a user.
