@@ -98,6 +98,7 @@ Provide a **single, pluggable storage abstraction** that all Dagryn services use
 ### Phase 0.4.1: Storage Interface
 
 **Files to create:**
+
 ```
 pkg/storage/
 ├── storage.go          # Core interfaces
@@ -126,6 +127,7 @@ pkg/storage/
 ```
 
 **Core interface:**
+
 ```go
 package storage
 
@@ -222,6 +224,7 @@ type EncryptionConfig struct {
 ```
 
 **Provider factory:**
+
 ```go
 package storage
 
@@ -285,6 +288,7 @@ func NewBucket(cfg Config) (Bucket, error) {
 ### Phase 0.4.2: Provider Implementations
 
 **S3 Provider (also base for R2, MinIO):**
+
 ```go
 package s3
 
@@ -366,6 +370,7 @@ func (b *Bucket) Put(ctx context.Context, key string, r io.Reader, opts *storage
 ```
 
 **Cloudflare R2 Provider:**
+
 ```go
 package r2
 
@@ -388,6 +393,7 @@ func New(cfg storage.Config) (*s3.Bucket, error) {
 ```
 
 **Local Filesystem Provider:**
+
 ```go
 package filesystem
 
@@ -444,6 +450,7 @@ func (b *Bucket) Put(ctx context.Context, key string, r io.Reader, opts *storage
 **Server configuration (dagryn.server.toml):**
 
 There are two storage configuration scopes:
+
 1. **Generic storage** (`pkg/storage.ConfigFromEnv`) — reads `DAGRYN_STORAGE_*` env vars, used by CLI-side components
 2. **Cache storage** (`[cache_storage]` in server config) — reads `DAGRYN_CACHE_STORAGE_*` env vars, used by the cloud cache service
 
@@ -469,6 +476,7 @@ secret_access_key = ""  # or use DAGRYN_CACHE_STORAGE_SECRET_ACCESS_KEY env
 **Environment variable support:**
 
 Generic storage (CLI / `pkg/storage`):
+
 ```bash
 DAGRYN_STORAGE_PROVIDER=filesystem
 DAGRYN_STORAGE_BASE_PATH=/var/dagryn/storage
@@ -482,6 +490,7 @@ DAGRYN_STORAGE_CREDENTIALS_FILE=/path/to/sa.json
 ```
 
 Cache storage (server / `[cache_storage]`):
+
 ```bash
 DAGRYN_CACHE_STORAGE_PROVIDER=s3
 DAGRYN_CACHE_STORAGE_BUCKET=dagryn-cache
@@ -498,6 +507,7 @@ DAGRYN_CACHE_STORAGE_USE_PATH_STYLE=false
 ### Phase 0.4.4: Storage Manager
 
 **Unified storage manager for the server:**
+
 ```go
 package storage
 
@@ -557,6 +567,7 @@ func (m *Manager) Artifacts() Bucket {
 ```
 
 **Tasks:**
+
 - [x] Define storage.Bucket interface — `pkg/storage/storage.go` (simplified: `Put`, `Get`, `Delete`, `Exists`, `List` — no `Head`/`Copy`/`PutBytes`/`GetBytes`/`DeleteMany`)
 - [x] Implement S3 provider — `pkg/storage/s3.go` (covers S3; R2/MinIO via factory presets)
 - [x] Implement R2 provider (factory preset) — `pkg/storage/factory.go` (`ProviderR2` → `UsePathStyle=false`, delegates to `NewS3Bucket`)
@@ -576,6 +587,7 @@ func (m *Manager) Artifacts() Bucket {
 ## 0.5 Usage Examples
 
 **Remote Cache using storage:**
+
 ```go
 // internal/cache/remote/storage.go
 type StorageBackend struct {
@@ -596,6 +608,7 @@ func (s *StorageBackend) GetBlob(ctx context.Context, digest *Digest) ([]byte, e
 ```
 
 **Plugin Registry using storage:**
+
 ```go
 // internal/server/registry/storage.go
 type PluginStorage struct {
@@ -663,6 +676,7 @@ Enable teams to share task cache across machines and CI runs, dramatically reduc
 **Goal:** Implement a gRPC client for Bazel Remote Execution API (cache only).
 
 **Files to create:**
+
 ```
 internal/cache/remote/
 ├── client.go          # gRPC client wrapper
@@ -674,6 +688,7 @@ internal/cache/remote/
 ```
 
 **Key interfaces:**
+
 ```go
 // RemoteCache implements the cache backend for remote storage
 type RemoteCache interface {
@@ -698,12 +713,13 @@ type Digest struct {
 ```
 
 **Tasks:**
+
 - [x] Implement Digest calculation — `internal/cache/remote/digest.go` (SHA256-based, CAS key: `cas/{hash[:2]}/{hash}`)
 - [x] Implement Action encoding — `internal/cache/remote/action.go` (`ActionKey(taskName, cacheKey)` → `ac/{taskName}/{cacheKey}`)
 - [x] Implement CAS storage — `internal/cache/remote/backend.go` (direct object storage via `pkg/storage.Bucket`, not gRPC/Bazel Remote APIs)
 - [x] Implement ActionCache — `internal/cache/remote/manifest.go` (JSON manifest at action key mapping file paths to digests)
-- [ ] Add gRPC connection management with retry and timeout — not needed; using direct storage API instead
-- [ ] Add authentication support (API key, mTLS, OAuth) — deferred; auth handled by storage provider (S3 credentials)
+- [x] Add gRPC connection management with retry and timeout — `internal/cache/grpc/conn.go` (REAPI v2 via gRPC with retry, keepalive, TLS, bearer auth)
+- [x] Add authentication support (API key, mTLS, OAuth) — `internal/cache/grpc/conn.go` (bearer token auth + custom CA cert support)
 
 > **Implementation Note:** Instead of Bazel Remote Execution gRPC APIs, the remote cache uses direct object storage via `pkg/storage.Bucket`. This is simpler, requires no server component, and works with any S3-compatible storage. CAS deduplication is still achieved — blobs are stored at content-addressable keys, and manifests map file paths to digests.
 
@@ -712,6 +728,7 @@ type Digest struct {
 **Goal:** Abstract cache backend so local and remote can be used interchangeably.
 
 **Files to modify/create:**
+
 ```
 internal/cache/
 ├── backend.go         # Backend interface (NEW)
@@ -722,6 +739,7 @@ internal/cache/
 ```
 
 **Backend interface:**
+
 ```go
 type Backend interface {
     // Check returns cache hit status and metadata
@@ -749,6 +767,7 @@ type HybridConfig struct {
 ```
 
 **Tasks:**
+
 - [x] Define Backend interface — `internal/cache/backend.go` (`Check`, `Restore`, `Save`, `Clear`, `ClearAll` with `context.Context`)
 - [x] Refactor local cache to implement Backend — `internal/cache/local.go` (`LocalBackend` wrapping `Store`)
 - [x] Implement remote backend using storage — `internal/cache/remote/backend.go` (`StorageBackend` implementing `cache.Backend`)
@@ -762,6 +781,7 @@ type HybridConfig struct {
 **Goal:** Allow users to configure remote cache via config and CLI.
 
 **Configuration (dagryn.toml):**
+
 ```toml
 [cache]
 # Local cache settings
@@ -787,6 +807,7 @@ api_key_env = "DAGRYN_CACHE_API_KEY"
 ```
 
 **CLI flags:**
+
 ```bash
 dagryn run --remote-cache             # Enable remote cache
 dagryn run --no-remote-cache          # Disable remote cache
@@ -797,6 +818,7 @@ dagryn cache pull                     # Pull from remote to local
 ```
 
 **Tasks:**
+
 - [x] Add cache configuration to config schema — `internal/config/schema.go` (`CacheConfig`, `RemoteCacheConfig` with `*bool` defaults-to-true pattern)
 - [x] Add CLI flags for cache control — `internal/cli/root.go` (`--no-remote-cache` global flag)
 - [x] Add `dagryn cache` subcommands — `internal/cli/cache.go` (`status`, `clear`, `push`, `pull` — all fully implemented)
@@ -809,6 +831,7 @@ dagryn cache pull                     # Pull from remote to local
 **Goal:** Provide hosted remote cache for Dagryn Cloud users.
 
 **Server components:**
+
 ```
 internal/server/cache/
 ├── service.go         # Cache service implementation
@@ -819,6 +842,7 @@ internal/server/cache/
 ```
 
 **Features:**
+
 - Per-project cache isolation
 - Usage quotas (storage size, bandwidth)
 - Cache retention policies
@@ -826,6 +850,7 @@ internal/server/cache/
 - Team/org cache sharing
 
 **Database schema:**
+
 ```sql
 CREATE TABLE cache_entries (
     id UUID PRIMARY KEY,
@@ -859,6 +884,7 @@ CREATE TABLE cache_usage (
 ```
 
 **Tasks:**
+
 - [x] Implement cache service — `internal/service/cache.go` (`CacheService` with Check/Upload/Download/Delete/GetStats/RunGC/GetAnalytics; CAS dedup via SHA256, TeeReader hashing, quota enforcement)
 - [x] Add multi-cloud storage backend — `pkg/storage/` (S3, GCS, Azure, R2, MinIO, filesystem providers; server wired via `DAGRYN_CACHE_STORAGE_*` env vars)
 - [x] Implement cache quotas and limits — `internal/db/repo/cache.go` (`cache_quotas` table with max_size_bytes/max_entries, `EnsureQuota`, `UpdateQuotaUsage`; Upload checks quota before storing)
@@ -867,7 +893,7 @@ CREATE TABLE cache_usage (
 - [x] Add DB migration for cache entries/blobs/quotas — `internal/db/migrations/022_cache_entries.sql` (3 tables, 4 indexes)
 - [x] Add DB models — `internal/db/models/cache.go` (`CacheEntry`, `CacheBlob`, `CacheQuota`, `CacheUsage`)
 - [x] Add cache repository — `internal/db/repo/cache.go` (`CacheRepo` with 17 methods: FindEntry, UpsertEntry, DeleteEntry, ListEntries, IncrementHitCount, UpsertBlob, DecrementBlobRef, ListOrphanedBlobs, DeleteBlob, GetQuota, EnsureQuota, UpdateQuotaUsage, GetStats, ListExpired, ListLRU, IncrementUsage, GetUsageAnalytics)
-- [x] Add HTTP handlers + routes — `internal/server/handlers/cache.go` (7 handlers: CheckCache, UploadCache, DownloadCache, DeleteCache, GetCacheStats, TriggerCacheGC, GetCacheAnalytics), `internal/server/routes.go` (mounted under `/api/v1/projects/{projectID}/cache/`)
+- [x] Add HTTP handlers + routes — `internal/server/handlers/cache.go` (7 handlers: CheckCache, UploadCache, DownloadCache, DeleteCache, GetCacheStats, TriggerCacheGC, GetCacheAnalytics), `internal/server/routes.go` (mounted under `/api/v1/projects/{projectId}/cache/`)
 - [x] Wire into server — `internal/server/server.go` (storage bucket init from config, CacheRepo + CacheService creation, injected into Handler), `internal/server/config.go` (`CacheStorage StorageConfig` with `DAGRYN_CACHE_STORAGE_*` env vars)
 - [x] Add frontend query hooks — `web/app/hooks/queries/use-cache-stats.ts`, `use-cache-analytics.ts`, API types in `web/app/lib/api.ts`
 
@@ -881,6 +907,7 @@ CREATE TABLE cache_usage (
 Go's `filepath.Glob` treats `**` as a single-level wildcard (equivalent to `*`), not as recursive descent. This breaks caching for patterns like `node_modules/**`, `dist/**`, `vendor/**` which intend to match the full directory tree. Additionally, tasks with `workdir` had their input/output patterns resolved relative to project root instead of the workdir.
 
 **Impact:**
+
 1. `node_modules/**` only matches top-level entries (e.g., `node_modules/typescript/`) but NOT nested files (e.g., `node_modules/typescript/bin/tsc`)
 2. `Store.Save` (local cache) calls `copyFile` on directory entries, which silently fails — nothing is actually cached
 3. `createArchive` (cloud cache tar.go) partially works because `addDirToTar` walks matched directories recursively, but only captures directories matched by the single-level `**` glob
@@ -888,6 +915,7 @@ Go's `filepath.Glob` treats `**` as a single-level wildcard (equivalent to `*`),
 5. Tasks with `workdir = "web"` and `outputs = ["node_modules/**"]` would look for `<root>/node_modules/**` instead of `<root>/web/node_modules/**`
 
 **Completed fixes (workdir):**
+
 - [x] `internal/cache/hasher.go` — `HashTask` resolves input patterns relative to `filepath.Join(projectRoot, t.Workdir)` when workdir is set
 - [x] `internal/cache/cache.go` — `Save` prepends `t.Workdir` to each output pattern; added `root` field to `Cache` struct so `projectRoot()` is always correct (previously returned "" for HybridBackend)
 - [x] `internal/cache/cache_test.go` — Added `TestHashTask_WithWorkdir` and `TestCache_SaveAndRestore_WithWorkdir`
@@ -895,6 +923,7 @@ Go's `filepath.Glob` treats `**` as a single-level wildcard (equivalent to `*`),
 **Remaining fixes (recursive glob):**
 
 **Files to modify:**
+
 ```
 internal/cache/
 ├── glob.go              # NEW: recursive glob utility
@@ -911,6 +940,7 @@ internal/cache/cloud/
 **File:** `internal/cache/glob.go` (NEW)
 
 Implement a glob function that treats `**` as recursive descent:
+
 - Split pattern at `**` segments
 - For the prefix before `**`, use `filepath.Glob` normally
 - For matched directories, use `filepath.Walk` to recurse
@@ -940,6 +970,7 @@ Replace `filepath.Glob(filepath.Join(root, pattern))` with `RecursiveGlob(root, 
 **File:** `internal/cache/store.go`
 
 Two changes:
+
 1. Replace `filepath.Glob` with `RecursiveGlob` for output pattern matching
 2. Since `RecursiveGlob` returns individual files (not directories), `copyFile` will always receive files — no directory handling needed
 
@@ -954,6 +985,7 @@ Replace `filepath.Glob` with the `RecursiveGlob` utility. Since `RecursiveGlob` 
 **File:** `internal/cache/glob_test.go` (NEW)
 
 Test cases:
+
 - `**/*.go` matches nested `.go` files
 - `node_modules/**` matches all files at any depth
 - `dist/*` still works as single-level glob
@@ -968,6 +1000,7 @@ Test cases:
 - Test `HashFiles` with `**/*.go` and nested directory structure
 
 **Verification:**
+
 1. `go build ./...` compiles
 2. `go test ./internal/cache/...` passes (existing + new tests)
 3. `go test ./internal/cache/cloud/...` passes
@@ -981,6 +1014,7 @@ Test cases:
 ## 2.1 Goal
 
 Allow users to run Dagryn workflows as GitHub Actions, enabling:
+
 - Use Dagryn locally and in CI with the same config
 - Leverage remote cache in CI
 - View CI results in Dagryn dashboard
@@ -1032,6 +1066,7 @@ Allow users to run Dagryn workflows as GitHub Actions, enabling:
 **Repository:** `dagryn/action` (public)
 
 **Files:**
+
 ```
 dagryn-action/
 ├── action.yml           # Action metadata
@@ -1046,59 +1081,61 @@ dagryn-action/
 ```
 
 **action.yml:**
+
 ```yaml
-name: 'Dagryn'
-description: 'Run Dagryn workflows in GitHub Actions'
-author: 'Dagryn'
+name: "Dagryn"
+description: "Run Dagryn workflows in GitHub Actions"
+author: "Dagryn"
 
 branding:
-  icon: 'zap'
-  color: 'purple'
+  icon: "zap"
+  color: "purple"
 
 inputs:
   targets:
-    description: 'Tasks or workflows to run'
+    description: "Tasks or workflows to run"
     required: false
-    default: ''
+    default: ""
   config:
-    description: 'Path to dagryn.toml'
+    description: "Path to dagryn.toml"
     required: false
-    default: 'dagryn.toml'
+    default: "dagryn.toml"
   version:
-    description: 'Dagryn CLI version'
+    description: "Dagryn CLI version"
     required: false
-    default: 'latest'
+    default: "latest"
   remote-cache:
-    description: 'Enable remote cache'
+    description: "Enable remote cache"
     required: false
-    default: 'true'
+    default: "true"
   cloud-token:
-    description: 'Dagryn Cloud API token'
+    description: "Dagryn Cloud API token"
     required: false
   project-id:
-    description: 'Dagryn Cloud project ID'
+    description: "Dagryn Cloud project ID"
     required: false
   working-directory:
-    description: 'Working directory'
+    description: "Working directory"
     required: false
-    default: '.'
+    default: "."
 
 outputs:
   run-id:
-    description: 'The Dagryn run ID'
+    description: "The Dagryn run ID"
   status:
-    description: 'The run status (success, failed, cancelled)'
+    description: "The run status (success, failed, cancelled)"
   duration:
-    description: 'Total run duration in seconds'
+    description: "Total run duration in seconds"
   cache-hits:
-    description: 'Number of cache hits'
+    description: "Number of cache hits"
 
 runs:
-  using: 'node20'
-  main: 'dist/index.js'
+  using: "node20"
+  main: "dist/index.js"
 ```
 
 **Tasks:**
+
 - [x] Create action definition — `github-action/action.yml` (9 inputs, 2 outputs, Node20 runtime)
 - [x] Implement CLI installer (with version pinning) — `github-action/src/installer.ts` (resolves latest via GitHub API, platform/arch mapping, tool-cache)
 - [x] Implement runner with proper error handling — `github-action/src/runner.ts` (builds args from inputs, captures exit code + duration)
@@ -1107,9 +1144,9 @@ runs:
 - [x] Implement entry point — `github-action/src/main.ts` (install → run → summary → outputs)
 - [x] Bundle with ncc — `github-action/dist/index.js` (single-file bundle ~1MB)
 - [x] Create CI workflow — `.github/workflows/ci.yml` (build-action, test, lint, vet jobs)
-- [ ] Add support for matrix builds — deferred
-- [ ] Add support for PR comments with results — deferred (Phase 2.3.2)
-- [ ] Add support for GitHub commit status updates — deferred (Phase 2.3.2)
+- [x] Add support for matrix builds — `matrix-label` and `matrix-context` inputs; `DAGRYN_MATRIX_*` env vars; matrix section in job summary
+- [x] Add support for PR comments with results — implemented in `notifyGitHub()`: creates/updates PR summary comments via GitHub API with status icon, PR title, commit, branch, SHA, duration, and link to Dagryn run; persists `GitHubPRCommentID` for idempotent updates
+- [x] Add support for GitHub commit status updates — implemented via GitHub Check Runs API (`notification.CreateCheckRun`/`UpdateCheckRun`); maps run status to check state/conclusion; builds structured output with task counts and duration; persists `GitHubCheckRunID`
 
 > **Implementation Note:** The action lives in `github-action/` within the main repo (not a separate `dagryn/action` repo). It's a TypeScript/Node20 action built with `@vercel/ncc`. The installer downloads dagryn binaries from GitHub Releases matching GoReleaser naming conventions (e.g., `dagryn_Linux_x86_64.tar.gz`). Supports Linux, macOS, and Windows on x64/arm64. The CI workflow runs 4 independent jobs: action build verification, Go tests with `-race`, golangci-lint, and `go vet`.
 
@@ -1118,12 +1155,14 @@ runs:
 **Goal:** Create a GitHub App for deeper integration.
 
 **Features:**
+
 - Automatic workflow file generation
 - PR checks with detailed task results
 - Commit status updates
 - Installation webhook handling
 
 **GitHub App Permissions:**
+
 ```yaml
 permissions:
   contents: read
@@ -1134,6 +1173,7 @@ permissions:
 ```
 
 **Webhook Events:**
+
 ```yaml
 events:
   - push
@@ -1143,6 +1183,7 @@ events:
 ```
 
 **Server handlers:**
+
 ```
 internal/server/github/
 ├── app.go              # GitHub App client
@@ -1153,12 +1194,13 @@ internal/server/github/
 ```
 
 **Tasks:**
-- [ ] Create GitHub App configuration
-- [ ] Implement installation webhook handler
-- [ ] Implement push/PR webhook handlers
-- [ ] Implement Check Runs API integration
-- [ ] Add PR comment reporting
-- [ ] Add workflow file generator
+
+- [x] Create GitHub App configuration
+- [x] Implement installation webhook handler
+- [x] Implement push/PR webhook handlers
+- [x] Implement Check Runs API integration
+- [x] Add PR comment reporting
+- [x] Add workflow file generator
 
 ### Phase 2.3.3: Dagryn-Native CI (Server-Side Execution)
 
@@ -1167,11 +1209,13 @@ internal/server/github/
 This expands on the existing PLAN_REMOTE_CACHE_AND_RUNS.md "Remote Run Execution" section.
 
 **Flow:**
+
 ```
 GitHub Push → Webhook → Dagryn Server → Job Queue → Runner → Results
 ```
 
 **Runner architecture:**
+
 ```
 internal/runner/
 ├── runner.go           # Runner orchestration
@@ -1182,6 +1226,7 @@ internal/runner/
 ```
 
 **Features:**
+
 - Container-based isolation (Docker, Podman)
 - Workspace per run (clone → execute → cleanup)
 - Artifact collection and storage
@@ -1189,12 +1234,13 @@ internal/runner/
 - Concurrent run limits
 
 **Tasks:**
-- [ ] Implement runner service
-- [ ] Add container-based isolation
-- [ ] Implement workspace management
-- [ ] Add artifact storage
-- [ ] Implement log streaming
-- [ ] Add runner scaling (multiple workers)
+
+- [x] Implement runner service
+- [x] Add container-based isolation
+- [x] Implement workspace management
+- [x] Add artifact storage
+- [x] Implement log streaming
+- [x] Add runner scaling (multiple workers)
 
 ---
 
@@ -1203,6 +1249,7 @@ internal/runner/
 ## 3.1 Goal
 
 Create a plugin ecosystem following the **GitHub Actions model** where:
+
 - Plugins are **public GitHub repositories** with a standard structure
 - Users reference plugins as `owner/repo@version`
 - Dagryn fetches plugin binaries from **GitHub Releases**
@@ -1258,6 +1305,7 @@ Create a plugin ecosystem following the **GitHub Actions model** where:
 ## 3.3 Plugin Types
 
 ### Type 1: Tool Plugins (Primary Focus)
+
 Executable binaries that tasks can use. Similar to current implementation but with GitHub hosting.
 
 ```toml
@@ -1272,6 +1320,7 @@ uses = ["eslint"]
 ```
 
 ### Type 2: Composite Action Plugins (Like GitHub Actions)
+
 Reusable workflows defined in TOML, executed by Dagryn.
 
 ```toml
@@ -1304,8 +1353,9 @@ needs = ["setup"]
 command = "npm run build"
 ```
 
-### Type 3: Integration Plugins (Future)
-Extend Dagryn's capabilities (reporters, cache backends, etc.). Deferred to Phase 2.
+### Type 3: Integration Plugins ✅
+
+Extend Dagryn's capabilities via lifecycle hooks (on_run_start, on_run_end, on_task_start, on_task_end, on_run_success, on_run_failure). Implemented in `internal/plugin/hooks.go` (HookExecutor with condition evaluation, variable substitution, 30s timeout), `internal/plugin/integration.go` (IntegrationRegistry with dispatch), manifest validation for integration type, and slack-notify-integration example plugin.
 
 ## 3.4 Implementation Phases
 
@@ -1314,6 +1364,7 @@ Extend Dagryn's capabilities (reporters, cache backends, etc.). Deferred to Phas
 **Goal:** Define the plugin structure for GitHub-hosted plugins.
 
 **Repository structure:**
+
 ```
 dagryn/eslint/
 ├── plugin.toml          # Plugin manifest (REQUIRED)
@@ -1326,6 +1377,7 @@ dagryn/eslint/
 ```
 
 **Plugin manifest (plugin.toml):**
+
 ```toml
 [plugin]
 name = "eslint"
@@ -1364,13 +1416,14 @@ windows-amd64 = "eslint-windows-amd64.zip"
 ```
 
 **Example GitHub Release workflow (.github/workflows/release.yml):**
+
 ```yaml
 name: Release
 
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
   build:
@@ -1433,6 +1486,7 @@ jobs:
 ```
 
 **Tasks:**
+
 - [x] Define plugin.toml specification — `internal/plugin/manifest.go` (`Manifest`, `ManifestPlugin`, `ManifestTool`, `InputDef`, `OutputDef`, `CompositeStep` structs)
 - [x] Implement manifest parser — `internal/plugin/manifest.go` (`ParseManifest()` using BurntSushi/toml, `ValidateManifest()`, `IsComposite()`, `IsTool()`, `PlatformAsset()`)
 - [x] Document repository structure — template scaffolded by `dagryn plugin init`
@@ -1446,6 +1500,7 @@ jobs:
 **Goal:** Update plugin manager to resolve plugins from GitHub.
 
 **Plugin reference format:**
+
 ```toml
 [plugins]
 # GitHub-hosted plugins (new default)
@@ -1465,6 +1520,7 @@ my-plugin = "local:./plugins/my-plugin"
 ```
 
 **Resolution flow:**
+
 ```go
 // internal/plugin/github_resolver.go
 
@@ -1547,6 +1603,7 @@ func (r *GitHubResolver) Install(ctx context.Context, plugin *Plugin, destDir st
 ```
 
 **Files to modify/create:**
+
 ```
 internal/plugin/
 ├── plugin.go           # Add SourceGitHubPlugin type
@@ -1558,14 +1615,15 @@ internal/plugin/
 ```
 
 **Tasks:**
+
 - [x] Add short reference format `owner/repo@version` — `internal/plugin/plugin.go` (`shortRefPattern` regex, `parseShortFormat()`, backward-compatible with existing `source:name@version`)
 - [x] Add `Manifest` field to `Plugin` struct — `internal/plugin/plugin.go`
 - [x] Implement manifest-aware GitHub resolver — `internal/plugin/github.go` (`fetchManifest()` fetches `plugin.toml` from `raw.githubusercontent.com/{owner}/{repo}/{tag}/plugin.toml`)
 - [x] Implement deterministic asset selection from manifest — `internal/plugin/github.go` (`findAssetFromManifest()` uses `manifest.Platforms` map, falls back to heuristic scoring)
 - [x] Update binary name from manifest — `Resolve()` sets `BinaryName` from `manifest.Tool.Binary` when available
 - [x] Add short format tests — `internal/plugin/plugin_test.go` (3 short format cases + owner/precedence tests)
-- [ ] Add GitHub API rate limiting — deferred
-- [ ] Add caching for manifest and releases — deferred
+- [x] Add GitHub API rate limiting — `doRequest()` with retry/backoff on 429, `rateLimitState` tracking, auto-detect `DAGRYN_GITHUB_TOKEN`/`GITHUB_TOKEN` env vars
+- [x] Add caching for manifest and releases — `DiskCache` with TTL-based Get/Set; 1h for latest/list releases, 24h for tagged releases and manifests; `DAGRYN_NO_PLUGIN_CACHE=1` to disable
 - [x] Support GitHub token for private repos — already supported via `WithGitHubToken()` option
 
 > **Implementation Note:** The `Parse()` function tries the long format (`source:name@version`) first, then falls back to the short format (`owner/repo@version`) which defaults to GitHub source. This is fully backward-compatible. The GitHub resolver's `Resolve()` now fetches `plugin.toml` after version resolution — if found, the manifest is stored on `Plugin.Manifest` and used for deterministic asset selection in `Install()`. If no manifest exists or no platform mapping matches, it falls back to the existing heuristic scoring algorithm.
@@ -1575,6 +1633,7 @@ internal/plugin/
 **Goal:** Support composite plugins (like GitHub Actions composite actions).
 
 **Composite plugin example (dagryn/setup-go/plugin.toml):**
+
 ```toml
 [plugin]
 name = "setup-go"
@@ -1607,6 +1666,7 @@ command = "go version"
 ```
 
 **Usage in dagryn.toml:**
+
 ```toml
 [tasks.setup-go]
 uses = "dagryn/setup-go@v1"
@@ -1618,6 +1678,7 @@ command = "go build ./..."
 ```
 
 **Implementation:**
+
 ```go
 // internal/plugin/composite.go
 
@@ -1650,6 +1711,7 @@ func (p *CompositePlugin) Execute(ctx context.Context, inputs map[string]string,
 ```
 
 **Tasks:**
+
 - [x] Define composite plugin schema — `internal/plugin/manifest.go` (`CompositeStep` with Name, Command, If, Env; `Manifest.Steps`)
 - [x] Implement variable substitution — `internal/plugin/composite.go` (`substituteVars()` handles `${inputs.key}`, `${os}`, `${arch}`)
 - [x] Implement step execution — `internal/plugin/composite.go` (`CompositeExecutor.Execute()` runs steps sequentially via `sh -c`, with input validation and default merging)
@@ -1669,6 +1731,7 @@ func (p *CompositePlugin) Execute(ctx context.Context, inputs map[string]string,
 **Goal:** Add CLI commands for plugin management.
 
 **Commands:**
+
 ```bash
 # List installed plugins
 dagryn plugin list
@@ -1693,6 +1756,7 @@ dagryn plugin validate
 ```
 
 **Tasks:**
+
 - [x] Implement `plugin list` — already existed, no changes needed
 - [x] Implement `plugin info` — `internal/cli/plugin.go` (`newPluginInfoCmd()`: resolves `owner/repo@latest`, fetches manifest, displays name/description/type/platforms/inputs/steps)
 - [x] Implement `plugin install` — already existed, updated examples to show short format
@@ -1709,6 +1773,7 @@ dagryn plugin validate
 **Goal:** Create official plugins under the `dagryn` GitHub org.
 
 **Initial plugins to create:**
+
 ```
 dagryn/setup-node       # Install Node.js
 dagryn/setup-go         # Install Go
@@ -1725,8 +1790,9 @@ dagryn/cache-s3         # S3 cache backend (integration plugin)
 ```
 
 **Tasks:**
+
 - [ ] Create dagryn GitHub org — deferred; plugins live locally for now
-- [ ] Create plugin template repo — deferred; `dagryn plugin init` scaffolds templates
+- [x] Create plugin template repo — `plugin init --type` supports tool/composite/integration; interactive prompt; type-specific plugin.toml, README.md, LICENSE scaffolding
 - [x] Create setup-node plugin — `plugins/setup-node/plugin.toml` (downloads Node.js tarball, sets PATH, optional node_modules caching)
 - [x] Create setup-go plugin — `plugins/setup-go/plugin.toml` (downloads Go tarball, sets GOROOT+PATH, optional module cache)
 - [x] Create setup-python plugin — `plugins/setup-python/plugin.toml` (checks existing version, installs via pyenv/apt/brew, creates virtualenv, optional pip cache)
@@ -1740,9 +1806,9 @@ dagryn/cache-s3         # S3 cache backend (integration plugin)
 - [x] Create slack-notify plugin — `plugins/slack-notify/plugin.toml` (sends POST to webhook URL with JSON payload)
 - [x] Create cache-s3 plugin — `plugins/cache-s3/plugin.toml` (conditional restore/save via aws s3 cp)
 - [x] Write validation test for all official plugins — `internal/plugin/official_plugins_test.go` (3 test functions: AllValid, RequiredInputs, DefaultInputs — 24 subtests)
-- [ ] Document all official plugins
+- [x] Document all official plugins — `plugins/*/README.md` (13 READMEs with usage, inputs table, examples, notes) + `plugins/*/LICENSE` (MIT license for all 13 plugins)
 
-> **Implementation Note:** Official plugins are implemented as local composite plugins in `plugins/` at the project root (not separate GitHub repos). Each plugin is a single `plugin.toml` file using `type = "composite"` with `[[step]]` entries. All 12 plugins share consistent metadata (author: "dagryn", license: "MIT", version: "1.0.0"). The setup-* plugins download and install toolchains to `$HOME/.dagryn/tools/`, with conditional cache steps gated by `if = "${inputs.cache}"`. Linter/test runner plugins (eslint, prettier, golangci-lint, pytest, jest) wrap existing tools via npx or direct invocation. The `internal/plugin/official_plugins_test.go` test loads all plugins from the `plugins/` directory, parses and validates each manifest, and verifies required inputs, default values, and metadata consistency.
+> **Implementation Note:** Official plugins are implemented as local composite plugins in `plugins/` at the project root (not separate GitHub repos). Each plugin is a single `plugin.toml` file using `type = "composite"` with `[[step]]` entries. All 13 plugins (including slack-notify-integration) share consistent metadata (author: "dagryn", license: "MIT", version: "1.0.0"). The setup-\* plugins download and install toolchains to `$HOME/.dagryn/tools/`, with conditional cache steps gated by `if = "${inputs.cache}"`. Linter/test runner plugins (eslint, prettier, golangci-lint, pytest, jest) wrap existing tools via npx or direct invocation. The `internal/plugin/official_plugins_test.go` test loads all plugins from the `plugins/` directory, parses and validates each manifest, and verifies required inputs, default values, and metadata consistency. Each plugin now has a `README.md` (structured documentation with usage snippets, inputs table, examples) and `LICENSE` (MIT). The backend API serves readme/license content via `PluginInfo.Readme` and `PluginInfo.LicenseText` fields (read from plugin directory). The frontend renders README content via `react-markdown` on plugin detail pages. The `plugin validate` CLI command warns when `README.md` or `LICENSE` files are missing. The registry DB model (`RegistryPlugin`) includes a `readme` column (migration `028_plugin_readme.sql`).
 
 ### Phase 3.4.6: Local Plugin System
 
@@ -1751,6 +1817,7 @@ dagryn/cache-s3         # S3 cache backend (integration plugin)
 **Goal:** Support `local:` source type for referencing plugins from the local filesystem (relative or absolute paths). This enables development/testing of plugins without publishing to GitHub and using official plugins bundled with the project.
 
 **Plugin reference format:**
+
 ```toml
 [plugins]
 # Relative to project root
@@ -1765,6 +1832,7 @@ shared-plugin = "local:/opt/dagryn/shared-plugins/my-tool"
 ```
 
 **Files created:**
+
 ```
 internal/plugin/
 ├── local.go           # LocalResolver implementation
@@ -1772,6 +1840,7 @@ internal/plugin/
 ```
 
 **Tasks:**
+
 - [x] Add `SourceLocal` source type — `internal/plugin/plugin.go` (`SourceLocal SourceType = "local"`, `localPluginPattern` regex)
 - [x] Add `parseLocalFormat()` — `internal/plugin/plugin.go` (extracts path and optional version from `local:./path@version`)
 - [x] Implement `LocalResolver` — `internal/plugin/local.go` (implements `Resolver` interface: `Resolve()` reads `plugin.toml` from local path, `Install()` sets InstallPath for composite / finds binary for tool, `Verify()` checks manifest exists)
@@ -1824,6 +1893,7 @@ internal/plugin/
    - **Fix:** Changed to `filepath.Join(s.projectRoot, t.Workdir)`
 
 **Files modified:**
+
 - `internal/plugin/manager.go` — Register method, LockFileEntry fields, loadLockFile composite support, saveLockFile fix, findCachedBinary SourceLocal, Install composite caching, Resolve manifest re-resolution, dead code removal
 - `internal/scheduler/scheduler.go` — Register call for composites, runCompositeSetup, WithExtraEnv, workdir fix
 - `internal/plugin/composite.go` — CollectStepEnv method for env var propagation
@@ -1866,6 +1936,7 @@ This is deferred to Phase 2 after validating the GitHub-first approach.
 ---
 
 **Pages (Future):**
+
 ```
 /plugins                    # Plugin directory
 /plugins/:publisher/:name   # Plugin detail page
@@ -1874,6 +1945,7 @@ This is deferred to Phase 2 after validating the GitHub-first approach.
 ```
 
 **Features:**
+
 - Plugin search and filtering
 - Plugin detail with README, versions, stats
 - One-click install (generates config snippet)
@@ -1881,12 +1953,16 @@ This is deferred to Phase 2 after validating the GitHub-first approach.
 - Trending and popular plugins
 
 **Tasks:**
-- [ ] Design plugin directory UI
-- [ ] Implement plugin detail page
-- [ ] Add search and filtering
-- [ ] Implement publisher profiles
-- [ ] Add install code snippets
-- [ ] Add plugin analytics dashboard
+
+- [x] Design plugin directory UI
+- [x] Implement plugin detail page
+- [x] Add search and filtering
+- [x] Implement publisher profiles — `publishers/$publisher.tsx` page with stats cards and plugin grid; `plugin_publishers` DB table (migration 027); `GetPublisher`/`CreatePublisher` API endpoints; verified badge support
+- [x] Add install code snippets
+- [x] Add plugin analytics dashboard — `$publisher.$name.analytics.tsx` with area/bar charts, stat cards, time range selector; `use-plugin-analytics.ts` query hook; `GetRegistryPluginAnalytics` handler; `plugin_downloads` table with daily stats queries
+- [x] Add README rendering on plugin detail pages — `react-markdown` on `$pluginName.tsx` and `$publisher.$name.tsx`, license text display on official plugin page
+- [x] Add `readme`/`license_text` fields to backend API — `PluginInfo` struct reads README.md/LICENSE from plugin dir; `RegistryPlugin` model has `readme` DB column (migration 028)
+- [x] Add `plugin validate` docs warnings — CLI warns on missing README.md/LICENSE
 
 ---
 
@@ -1927,7 +2003,7 @@ Phase 3: Integration (IN PROGRESS)
 │   ├── Update Store.Save to use RecursiveGlob
 │   ├── Update createArchive to use RecursiveGlob
 │   └── Update HashFiles to use RecursiveGlob
-├── 2.3.2: GitHub App Integration
+├── 2.3.2: GitHub App Integration ✅
 ├── 3.4.5: Official Plugins ✅
 │   ├── 12 composite plugins in plugins/ directory ✅
 │   │   (setup-node, setup-go, setup-python, setup-rust, eslint,
@@ -1950,12 +2026,22 @@ Phase 3: Integration (IN PROGRESS)
 │   ├── Plugin CLI info for all source types ✅
 │   ├── executeCompositeTask workdir fix ✅
 │   └── Dead code removal ✅
-└── Plugin Web Interface
+└── Plugin Web Interface (IN PROGRESS)
+    ├── Plugin directory UI (browse grid, categories) ✅
+    ├── Plugin detail page (metadata, inputs/outputs, steps) ✅
+    ├── Search and filtering (client-side search, category tabs) ✅
+    ├── Install code snippets (TOML snippet with copy) ✅
+    ├── Project plugins page ✅
+    ├── API endpoints (list, detail, project plugins) ✅
+    ├── Publisher profiles ✅
+    ├── Plugin analytics dashboard ✅
+    ├── Plugin install/uninstall via API (frontend + routes wired, handlers return 503)
+    └── Plugin registry backend ✅
 
 Phase 4: Advanced
-├── 2.3.3: Dagryn-Native CI
-├── Integration plugin system
-└── Task template plugins
+├── 2.3.3: Dagryn-Native CI ✅
+├── Integration plugin system ✅
+└── Task template plugins ✅
 ```
 
 ## Dependencies
@@ -1970,10 +2056,10 @@ Plugin Manifest ──→ GitHub Resolver ──┬──→ Composite Plugins �
       ✅                  ✅         │         ✅                 ✅              ✅
                                      │                             │
                                      └──→ Local Plugins ✅         ├──→ Integration Audit ✅
-                                                                   └──→ Plugin Web UI
+                                                                   └──→ Plugin Web UI (partial ✅)
 
 GitHub Action ──→ GitHub App ──→ Native CI
-      ✅
+      ✅              ✅            ✅
 ```
 
 ---
@@ -2045,12 +2131,14 @@ paths:
 # Part 6: Security Considerations
 
 ## Remote Cache
+
 - API key or mTLS authentication
 - Per-project cache isolation
 - Content verification (digest matching)
 - Encryption at rest and in transit
 
 ## Plugin Registry
+
 - Package signing (optional)
 - Malware scanning
 - Verified publishers
@@ -2059,6 +2147,7 @@ paths:
 - Audit logging
 
 ## GitHub Integration
+
 - Webhook signature verification
 - Minimal permission scope
 - Token encryption
