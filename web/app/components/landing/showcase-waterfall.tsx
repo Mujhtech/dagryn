@@ -11,7 +11,9 @@ export default function ShowcaseWaterfall() {
       gradient="bottom"
       maxHeight="28rem"
     >
-      <TasksWaterfall tasks={SHOWCASE_TASK_RESULTS} />
+      <div className="px-6 md:px-8">
+        <TasksWaterfall tasks={SHOWCASE_TASK_RESULTS} />
+      </div>
     </ShowcaseFrame>
   );
 }

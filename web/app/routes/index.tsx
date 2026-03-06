@@ -5,6 +5,7 @@ import { TerminalPreview } from "~/components/landing/terminal-preview";
 import { PricingSection } from "~/components/landing/pricing-section";
 import { GettingStarted } from "~/components/landing/getting-started";
 import { FooterWordmark } from "~/components/landing/footer-wordmark";
+import { GitHubStars } from "~/components/landing/github-stars";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Icons } from "~/components/icons";
@@ -88,10 +89,10 @@ function IndexPage() {
   ];
 
   return (
-    <div className="landing-shell relative min-h-screen overflow-hidden px-6 pt-8 md:pt-12">
+    <div className="landing-shell relative min-h-screen px-2 md:px-6 pt-8 md:pt-12">
       <div className="landing-glow landing-glow-a" />
       <div className="landing-glow landing-glow-b" />
-      <main className="landing-grid mx-auto max-w-6xl">
+      <main className="landing-grid mx-auto w-full max-w-6xl">
         {/* Hero */}
         <motion.section
           className="space-y-8 pt-8 md:pt-14"
@@ -119,13 +120,17 @@ function IndexPage() {
               move faster without guessing why builds drift.
             </motion.p>
           </div>
-          <motion.div className="flex flex-wrap gap-3" variants={fadeUp}>
+          <motion.div
+            className="flex flex-wrap items-center gap-3"
+            variants={fadeUp}
+          >
             <Button size="lg" asChild>
               <Link to="/login">Start Building</Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
               <Link to="/projects/new/github">Import from GitHub</Link>
             </Button>
+            <GitHubStars />
           </motion.div>
         </motion.section>
 

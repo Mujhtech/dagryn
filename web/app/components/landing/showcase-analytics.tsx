@@ -19,7 +19,7 @@ export default function ShowcaseAnalytics() {
         onDaysChange={() => {}}
         title="Project Analytics"
         subtitle="Last 14 days"
-        containerClassName="px-0"
+        containerClassName="px-6 md:px-8"
       />
     </ShowcaseFrame>
   );

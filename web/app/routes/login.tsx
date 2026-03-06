@@ -55,9 +55,7 @@ function LoginPage() {
             <Logo />
           </div>
           <h1 className="mt-4 text-2xl font-bold">Dagryn</h1>
-          <p className="text-muted-foreground">
-            Developer workflow orchestrator
-          </p>
+          <p className="text-muted-foreground">Local-first workflow runtime</p>
         </div>
 
         <div className="space-y-4">

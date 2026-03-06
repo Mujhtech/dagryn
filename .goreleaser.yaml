@@ -1,16 +1,28 @@
 version: 2
+
 before:
   hooks:
     - go mod tidy
     - go generate ./...
+
 builds:
   - main: ./cmd/dagryn/main.go
+    binary: dagryn
     env:
       - CGO_ENABLED=0
     goos:
       - linux
       - windows
       - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/mujhtech/dagryn/internal/version.Version={{.Version}}
+      - -X github.com/mujhtech/dagryn/internal/version.Commit={{.Commit}}
+      - -X github.com/mujhtech/dagryn/internal/version.BuildDate={{.Date}}
+
 archives:
   - format: tar.gz
     name_template: >-
@@ -23,3 +35,45 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
+
+checksum:
+  name_template: "{{ .ProjectName }}_checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+    - title: Bug Fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+    - title: Refactoring
+      regexp: '^.*?refactor(\([[:word:]]+\))??!?:.+$'
+    - title: Others
+      order: 999
+
+brews:
+  - repository:
+      owner: Mujhtech
+      name: homebrew-tap
+    directory: Formula
+    homepage: "https://github.com/Mujhtech/dagryn"
+    description: "Local-first workflow orchestrator with DAG-based task execution"
+    license: "MIT"
+    install: |
+      bin.install "dagryn"
+    test: |
+      system "#{bin}/dagryn", "version"
+
+release:
+  github:
+    owner: Mujhtech
+    name: dagryn
+  draft: false
+  prerelease: auto
+  name_template: "v{{.Version}}"

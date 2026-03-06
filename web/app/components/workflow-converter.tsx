@@ -129,7 +129,7 @@ function WorkflowConverter() {
 
   return (
     <Card className="py-0 gap-0 bg-background/35">
-      <div className="flex items-center px-4 py-1.5">
+      <div className="flex flex-wrap items-center gap-2 px-4 py-1.5">
         <div className="flex gap-2">
           <Select value={source} onValueChange={setSource}>
             <SelectTrigger className="w-45 h-9">
@@ -175,7 +175,7 @@ function WorkflowConverter() {
       <Separator />
 
       <CardContent className="px-0">
-        <div className="grid grid-cols-2">
+        <div className="grid grid-cols-1 md:grid-cols-2">
           <div className="flex flex-col">
             <div className="converter-editor-surface">
               <Editor
@@ -190,7 +190,7 @@ function WorkflowConverter() {
             </div>
           </div>
 
-          <div className="flex flex-col border-l border-muted">
+          <div className="flex flex-col border-t md:border-l border-muted">
             <div className="converter-editor-surface">
               <Editor
                 height="28rem"
