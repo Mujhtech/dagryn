@@ -268,7 +268,10 @@ function CacheAnalyticsPage() {
                 <Icons.Loader className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : analytics?.days && analytics.days.length > 0 ? (
-              <ChartContainer config={hitRateChartConfig} className="h-75">
+              <ChartContainer
+                config={hitRateChartConfig}
+                className="h-75 w-full"
+              >
                 <BarChart data={analytics.days}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis
@@ -285,13 +288,13 @@ function CacheAnalyticsPage() {
                   <Bar
                     dataKey="cache_hits"
                     fill="var(--color-cache_hits)"
-                    radius={[4, 4, 0, 0]}
+                    radius={[0, 0, 0, 0]}
                     stackId="a"
                   />
                   <Bar
                     dataKey="cache_misses"
                     fill="var(--color-cache_misses)"
-                    radius={[4, 4, 0, 0]}
+                    radius={[0, 0, 0, 0]}
                     stackId="a"
                   />
                 </BarChart>
@@ -318,7 +321,10 @@ function CacheAnalyticsPage() {
                 <Icons.Loader className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : analytics?.days && analytics.days.length > 0 ? (
-              <ChartContainer config={bandwidthChartConfig} className="h-75">
+              <ChartContainer
+                config={bandwidthChartConfig}
+                className="h-75 w-full"
+              >
                 <AreaChart data={analytics.days}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis

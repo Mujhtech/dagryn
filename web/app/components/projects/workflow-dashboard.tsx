@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { useProjectWorkflows, useRunDetail } from "~/hooks/queries";
-import type { Project, Run, RunStatus, TaskStatus, Workflow } from "~/lib/api";
+import type { Project, Run, RunStatus, TaskStatus, TriggerRunRequest, Workflow } from "~/lib/api";
 import { WorkflowDag, type TaskStatusInfo } from "~/components/workflow-dag";
 import { RunStreamClient, type TaskEventData } from "~/lib/sse";
 import { queryClient, queryKeys } from "~/lib/query-client";
@@ -23,7 +23,6 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  ResponsiveContainer,
   ComposedChart,
 } from "recharts";
 import { cn } from "~/lib/utils";
@@ -44,6 +43,15 @@ const RUN_STATUS_FILTER: Array<{
   { label: "Cancelled", value: "cancelled", color: "text-gray-500" },
   { label: "Running", value: "running", color: "text-yellow-500" },
 ];
+
+const chartConfig = {
+  success: { color: "hsl(var(--chart-1))", label: "Success" },
+  failed: { color: "hsl(var(--chart-2))", label: "Failed" },
+  duration: {
+    color: "hsl(var(--chart-3))",
+    label: "Duration (ms)",
+  },
+};
 
 type CurrentUser = {
   id: string;
@@ -93,13 +101,7 @@ type WorkflowDashboardProps = {
   toggleBranch: (branch: string) => void;
   triggerDialogOpen: boolean;
   setTriggerDialogOpen: (open: boolean) => void;
-  triggerTargets: string;
-  setTriggerTargets: (targets: string) => void;
-  triggerBranch: string;
-  setTriggerBranch: (branch: string) => void;
-  triggerForce: boolean;
-  setTriggerForce: (force: boolean) => void;
-  onTriggerRun: () => void;
+  onTriggerRun: (request: TriggerRunRequest) => void;
   triggerRunPending: boolean;
   triggerRunErrorMessage?: string;
   currentUser: CurrentUser;
@@ -141,12 +143,6 @@ export function WorkflowDashboard({
   toggleBranch,
   triggerDialogOpen,
   setTriggerDialogOpen,
-  triggerTargets,
-  setTriggerTargets,
-  triggerBranch,
-  setTriggerBranch,
-  triggerForce,
-  setTriggerForce,
   onTriggerRun,
   triggerRunPending,
   triggerRunErrorMessage,
@@ -477,13 +473,7 @@ export function WorkflowDashboard({
               <TriggerRunDialog
                 open={triggerDialogOpen}
                 onOpenChange={setTriggerDialogOpen}
-                triggerTargets={triggerTargets}
-                setTriggerTargets={setTriggerTargets}
-                triggerBranch={triggerBranch}
-                setTriggerBranch={setTriggerBranch}
-                triggerForce={triggerForce}
-                setTriggerForce={setTriggerForce}
-                onTriggerRun={onTriggerRun}
+                onSubmit={onTriggerRun}
                 isPending={triggerRunPending}
                 errorMessage={triggerRunErrorMessage}
                 defaultBranch={project.default_branch}
@@ -499,76 +489,77 @@ export function WorkflowDashboard({
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ChartContainer
-                  config={{
-                    success: { color: "hsl(var(--chart-1))" },
-                    failed: { color: "hsl(var(--chart-2))" },
-                    duration: { color: "hsl(var(--chart-3))" },
-                  }}
-                  className="h-75"
-                >
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart
-                      data={chartData.map((point) => ({
-                        date: point.date,
-                        success: point.success,
-                        failed: point.failed,
-                        duration: point.duration_ms,
-                      }))}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
-                      <YAxis
-                        yAxisId="left"
-                        label={{
-                          value: "Run Count",
-                          angle: -90,
-                          position: "insideLeft",
-                        }}
-                      />
-                      <YAxis
-                        yAxisId="right"
-                        orientation="right"
-                        tickFormatter={(v: number) => formatDuration(v)}
-                        label={{
-                          value: "Duration",
-                          angle: 90,
-                          position: "insideRight",
-                        }}
-                      />
-                      <ChartTooltip
-                        content={
-                          <ChartTooltipContent
-                            indicator="dot"
-                            formatter={(value, name) =>
-                              name === "duration"
-                                ? formatDuration(value as number)
-                                : value
-                            }
-                          />
-                        }
-                      />
-                      <Bar
-                        yAxisId="left"
-                        dataKey="success"
-                        stackId="a"
-                        fill="var(--color-success)"
-                      />
-                      <Bar
-                        yAxisId="left"
-                        dataKey="failed"
-                        stackId="a"
-                        fill="var(--color-failed)"
-                      />
-                      <Line
-                        yAxisId="right"
-                        type="monotone"
-                        dataKey="duration"
-                        stroke="var(--color-duration)"
-                        strokeDasharray="5 5"
-                      />
-                    </ComposedChart>
-                  </ResponsiveContainer>
+                <ChartContainer config={chartConfig} className="h-75 w-full">
+                  <ComposedChart
+                    data={chartData.map((point) => ({
+                      date: point.date,
+                      success: point.success,
+                      failed: point.failed,
+                      duration: point.duration_ms,
+                    }))}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis
+                      yAxisId="left"
+                      label={{
+                        value: "Run Count",
+                        angle: -90,
+                        position: "insideLeft",
+                      }}
+                    />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      tickFormatter={(v: number) => formatDuration(v)}
+                      label={{
+                        value: "Duration",
+                        angle: 90,
+                        position: "insideRight",
+                      }}
+                    />
+                    <ChartTooltip
+                      content={
+                        <ChartTooltipContent
+                          hideIndicator
+                          // indicator="dot"
+                          formatter={(value, name) => (
+                            <div className="text-muted-foreground flex min-w-32.5 items-center text-xs">
+                              {chartConfig[name as keyof typeof chartConfig]
+                                ?.label || name}
+                              <div className="text-foreground ml-auto flex items-baseline gap-0.5 font-mono font-medium tabular-nums">
+                                {name == "duration"
+                                  ? formatDuration(value as number)
+                                  : value}
+                                {/* <span className="text-muted-foreground font-normal">
+                                    ms
+                                  </span> */}
+                              </div>
+                            </div>
+                          )}
+                        />
+                      }
+                    />
+                    <Bar
+                      yAxisId="left"
+                      dataKey="success"
+                      stackId="a"
+                      fill="var(--color-success)"
+                    />
+                    <Bar
+                      yAxisId="left"
+                      dataKey="failed"
+                      stackId="a"
+                      fill="var(--color-failed)"
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="duration"
+                      stroke="var(--color-duration)"
+                      strokeDasharray="5 5"
+                    />
+                  </ComposedChart>
                 </ChartContainer>
               </CardContent>
             </Card>

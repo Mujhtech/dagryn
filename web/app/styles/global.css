@@ -572,24 +572,43 @@ html:active-view-transition-type(warp) {
 
 .landing-wordmark-wrap {
   margin-top: 1.2rem;
-  height: clamp(7rem, 14vw, 13rem);
+  height: clamp(6rem, 12vw, 10rem);
   overflow: hidden;
   border-top: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
   padding-top: 0.5rem;
+  mask-image: linear-gradient(
+    to bottom,
+    black 50%,
+    rgba(0, 0, 0, 0.5) 70%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black 50%,
+    rgba(0, 0, 0, 0.5) 70%,
+    transparent 100%
+  );
 }
 
-.landing-wordmark-svg {
+.landing-wordmark-letters {
+  display: flex;
+  justify-content: space-between;
   width: 100%;
-  height: 100%;
-  display: block;
+  user-select: none;
 }
 
-.landing-wordmark-svg-text {
+.landing-wordmark-letter {
+  display: inline-block;
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-  font-size: 248px;
+  font-size: clamp(5rem, 14vw, 13rem);
   font-weight: 620;
-  letter-spacing: -0.035em;
-  dominant-baseline: alphabetic;
+  line-height: 1;
+  color: var(--muted-foreground);
+}
+
+.landing-showcase-perspective {
+  transform: perspective(1200px) rotateX(2deg) scale(0.98);
+  transform-origin: center top;
 }
 
 .converter-editor-surface {
@@ -654,6 +673,10 @@ html:active-view-transition-type(warp) {
   .landing-terminal-cursor {
     animation: none !important;
   }
+
+  .landing-showcase-perspective {
+    transform: none;
+  }
 }
 
 @media (max-width: 767px) {
@@ -663,7 +686,6 @@ html:active-view-transition-type(warp) {
 
   .landing-wordmark-wrap {
     margin-top: 0.9rem;
-    height: clamp(6rem, 20vw, 9rem);
   }
 
   .converter-toolbar {

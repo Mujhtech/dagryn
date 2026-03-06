@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -226,6 +228,66 @@ func (h *Handler) syncWorkflowWithRequest(w http.ResponseWriter, r *http.Request
 		Changed:    changed,
 		Message:    message,
 	})
+}
+
+// syncWorkflowInternally parses raw TOML and upserts the workflow + tasks
+// without writing an HTTP response. Used by CreateProject when DagrynConfig
+// is provided inline.
+func (h *Handler) syncWorkflowInternally(ctx context.Context, projectID uuid.UUID, rawConfig string) error {
+	cfg, err := config.ParseBytes([]byte(rawConfig))
+	if err != nil {
+		return fmt.Errorf("parse config: %w", err)
+	}
+
+	name := cfg.Workflow.Name
+	if name == "" {
+		name = "default"
+	}
+
+	hash := config.ComputeConfigHash([]byte(rawConfig))
+	workflow := &models.ProjectWorkflow{
+		ProjectID:  projectID,
+		Name:       name,
+		IsDefault:  cfg.Workflow.Default,
+		ConfigHash: &hash,
+		RawConfig:  &rawConfig,
+	}
+
+	if _, err := h.store.Workflows.Upsert(ctx, workflow); err != nil {
+		return fmt.Errorf("upsert workflow: %w", err)
+	}
+
+	tasks := make([]models.WorkflowTask, 0, len(cfg.Tasks))
+	for taskName, taskCfg := range cfg.Tasks {
+		t := models.WorkflowTask{
+			WorkflowID: workflow.ID,
+			Name:       taskName,
+			Command:    taskCfg.Command,
+			Needs:      taskCfg.Needs,
+			Inputs:     taskCfg.Inputs,
+			Outputs:    taskCfg.Outputs,
+			Plugins:    taskCfg.GetPlugins(),
+			Env:        taskCfg.Env,
+		}
+		if taskCfg.Workdir != "" {
+			wd := taskCfg.Workdir
+			t.Workdir = &wd
+		}
+		if taskCfg.Group != "" {
+			g := taskCfg.Group
+			t.GroupName = &g
+		}
+		if taskCfg.If != "" {
+			c := taskCfg.If
+			t.ConditionExpr = &c
+		}
+		tasks = append(tasks, t)
+	}
+
+	if err := h.store.Workflows.UpsertTasks(ctx, workflow.ID, tasks); err != nil {
+		return fmt.Errorf("upsert tasks: %w", err)
+	}
+	return nil
 }
 
 // GetRunWorkflow gets the workflow snapshot for a specific run.

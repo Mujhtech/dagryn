@@ -73,7 +73,7 @@ workdir = "web"
 command = "pnpm build"
 needs = ["web-install"]
 inputs = ["src/**", "package.json", "tsconfig.json"]
-outputs = ["dist/**", "build/**"]
+outputs = ["dist/**", "build/**", "../pkg/server/dashboard/dist/**"]
 timeout = "10m"
 
 
@@ -163,3 +163,6 @@ max_suggestions_per_analysis = 5 # Max suggestions per run
 github_comment = true     # Post analysis as PR comment
 github_check = true       # Create GitHub check run
 github_suggestions = true # Post inline code suggestions
+
+[container]
+enabled = false

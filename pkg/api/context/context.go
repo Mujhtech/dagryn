@@ -20,6 +20,12 @@ const (
 	AuthMethodContextKey contextKey = "auth_method"
 	// APIKeyContextKey is the context key for the API key (if used).
 	APIKeyContextKey contextKey = "api_key"
+	// IPAddressContextKey is the context key for the client IP address.
+	IPAddressContextKey contextKey = "ip_address"
+	// UserAgentContextKey is the context key for the client user agent.
+	UserAgentContextKey contextKey = "user_agent"
+	// RequestIDContextKey is the context key for the request ID.
+	RequestIDContextKey contextKey = "request_id"
 )
 
 // AuthMethod represents how the request was authenticated.
@@ -78,4 +84,37 @@ func GetAPIKey(ctx context.Context) *models.APIKey {
 // IsAuthenticated returns true if the request is authenticated.
 func IsAuthenticated(ctx context.Context) bool {
 	return GetUser(ctx) != nil
+}
+
+// WithIPAddress adds the client IP address to the context.
+func WithIPAddress(ctx context.Context, ip string) context.Context {
+	return context.WithValue(ctx, IPAddressContextKey, ip)
+}
+
+// GetIPAddress returns the client IP address from the context.
+func GetIPAddress(ctx context.Context) string {
+	ip, _ := ctx.Value(IPAddressContextKey).(string)
+	return ip
+}
+
+// WithUserAgent adds the client user agent to the context.
+func WithUserAgent(ctx context.Context, ua string) context.Context {
+	return context.WithValue(ctx, UserAgentContextKey, ua)
+}
+
+// GetUserAgent returns the client user agent from the context.
+func GetUserAgent(ctx context.Context) string {
+	ua, _ := ctx.Value(UserAgentContextKey).(string)
+	return ua
+}
+
+// WithRequestID adds the request ID to the context.
+func WithRequestID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, RequestIDContextKey, id)
+}
+
+// GetRequestID returns the request ID from the context.
+func GetRequestID(ctx context.Context) string {
+	id, _ := ctx.Value(RequestIDContextKey).(string)
+	return id
 }

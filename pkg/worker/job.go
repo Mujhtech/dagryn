@@ -36,6 +36,7 @@ type Job struct {
 	aiConfig          *handlers.AIAnalysisConfig
 	metrics           *telemetry.Metrics
 	baseURL           string
+	auditService      *service.AuditService
 }
 
 // Config holds the configuration for the job system.
@@ -69,6 +70,8 @@ type Config struct {
 	Metrics *telemetry.Metrics
 	// BaseURL is the public-facing dashboard URL used in GitHub check runs and AI comments.
 	BaseURL string
+	// AuditService is the audit service for retention GC jobs (optional).
+	AuditService *service.AuditService
 }
 
 // DefaultConfig returns sensible defaults for job configuration.
@@ -110,6 +113,7 @@ func New(cfg Config, appCtx context.Context, rds *redis.Redis) (*Job, error) {
 		Scheduler:     NewScheduler(rds),
 		CancelManager: cancelMgr,
 
+		store:             cfg.Store,
 		providerEncrypt:   cfg.ProviderTokenEncrypt,
 		githubApp:         cfg.GitHubAppClient,
 		cacheService:      cfg.CacheService,
@@ -119,6 +123,7 @@ func New(cfg Config, appCtx context.Context, rds *redis.Redis) (*Job, error) {
 		aiConfig:          cfg.AIConfig,
 		metrics:           cfg.Metrics,
 		baseURL:           cfg.BaseURL,
+		auditService:      cfg.AuditService,
 	}, nil
 }
 
@@ -167,6 +172,22 @@ func (j *Job) RegisterAndStart() error {
 		artifactCleanupHandler := handlers.NewArtifactCleanupHandler(j.artifactService)
 		j.Executor.RegisterJobHandler(ArtifactCleanupTaskName, asynq.HandlerFunc(artifactCleanupHandler.Handle))
 		j.Scheduler.RegisterTask("0 2 * * *", ScheduleQueueName, ArtifactCleanupTaskName) // daily at 02:00
+	}
+
+	// Register audit retention GC handler if audit service is available
+	if j.auditService != nil {
+		auditGCHandler := handlers.NewAuditRetentionGCHandler(j.auditService)
+		j.Executor.RegisterJobHandler(AuditRetentionGCTaskName, asynq.HandlerFunc(auditGCHandler.Handle))
+		j.Scheduler.RegisterTask("0 * * * *", ScheduleQueueName, AuditRetentionGCTaskName) // every hour
+
+		// Register webhook forward handler
+		webhookHandler := handlers.NewAuditWebhookForwardHandler(j.store.AuditLogs, j.encrypter, log.Logger, j.metrics)
+		j.Executor.RegisterJobHandler(AuditWebhookForwardTaskName, asynq.HandlerFunc(webhookHandler.Handle))
+
+		// Register chain verification handler (daily at 04:00)
+		chainVerifyHandler := handlers.NewAuditChainVerifyHandler(j.auditService, j.store.AuditLogs, j.metrics, log.Logger)
+		j.Executor.RegisterJobHandler(AuditChainVerifyTaskName, asynq.HandlerFunc(chainVerifyHandler.Handle))
+		j.Scheduler.RegisterTask("0 4 * * *", ScheduleQueueName, AuditChainVerifyTaskName)
 	}
 
 	// Register AI handlers when AI repo is available.

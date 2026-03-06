@@ -5,13 +5,17 @@ import { useCapabilities } from "./queries/use-capabilities";
 
 const baseNavItems = [
   { title: "Dashboard", url: "/dashboard", icon: Icons.Dashboard },
+  { title: "Analytics", url: "/analytics", icon: Icons.TrendUp },
   { title: "Projects", url: "/projects", icon: Icons.Folder },
   { title: "Teams", url: "/teams", icon: Icons.Users },
   { title: "Invitations", url: "/invitations", icon: Icons.ListDetails },
   { title: "Plugins", url: "/plugins/browse", icon: Icons.Package },
 ];
 
-const dynamicNavMap: Record<string, { title: string; url: string; icon: FunctionComponent<IconProps> }> = {
+const dynamicNavMap: Record<
+  string,
+  { title: string; url: string; icon: FunctionComponent<IconProps> }
+> = {
   license: { title: "License", url: "/license", icon: Icons.Key },
   billing: { title: "Billing", url: "/billing", icon: Icons.CreditCard },
 };

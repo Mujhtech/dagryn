@@ -2,14 +2,18 @@ package handlers
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	apiCtx "github.com/mujhtech/dagryn/pkg/api/context"
+	"github.com/mujhtech/dagryn/pkg/dagryn/config"
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
 	"github.com/mujhtech/dagryn/pkg/entitlement"
 	"github.com/mujhtech/dagryn/pkg/http/response"
+	"github.com/mujhtech/dagryn/pkg/service"
 )
 
 // ListProjects godoc
@@ -140,10 +144,18 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// When creating from GitHub (repo_url set), verify the repo contains dagryn.toml at the root
-	if req.RepoURL != "" {
-		var accessToken string
+	// Validate provided dagryn config TOML if supplied
+	if strings.TrimSpace(req.DagrynConfig) != "" {
+		if _, err := config.ParseBytes([]byte(req.DagrynConfig)); err != nil {
+			_ = response.BadRequest(w, r, errors.New("invalid dagryn_config: "+err.Error()))
+			return
+		}
+	}
 
+	// When creating from GitHub (repo_url set), obtain an access token and optionally
+	// verify the repo contains dagryn.toml (skipped when the client provides DagrynConfig).
+	var accessToken string
+	if req.RepoURL != "" {
 		// Prefer GitHub App installation token if provided
 		if req.GitHubInstallationID != nil && req.GitHubRepoID != nil && h.githubApp != nil {
 			instRecord, err := h.store.GitHubInstallations.GetByID(ctx, *req.GitHubInstallationID)
@@ -178,9 +190,12 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		if err := h.checkGitHubRepoHasDagrynToml(ctx, accessToken, req.RepoURL); err != nil {
-			_ = response.BadRequest(w, r, err)
-			return
+		// Only check for dagryn.toml in the repo when the client didn't provide config inline
+		if strings.TrimSpace(req.DagrynConfig) == "" {
+			if err := h.checkGitHubRepoHasDagrynToml(ctx, accessToken, req.RepoURL); err != nil {
+				_ = response.BadRequest(w, r, err)
+				return
+			}
 		}
 	}
 
@@ -238,6 +253,39 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 			OwnerName:  ownerName,
 			TeamID:     teamID,
 		})
+	}
+
+	// Audit log: project created
+	if h.auditService != nil && teamID != nil {
+		h.auditService.Log(ctx, service.AuditEntry{
+			TeamID:       *teamID,
+			ProjectID:    &project.ID,
+			Action:       models.AuditActionProjectCreated,
+			Category:     models.AuditCategoryProject,
+			ResourceType: "project",
+			ResourceID:   project.ID.String(),
+			Description:  "Project created: " + project.Name,
+		})
+	}
+
+	// If a dagryn config was provided, sync the workflow to project_workflows
+	// and commit dagryn.toml to the GitHub repo in the background.
+	if rawCfg := strings.TrimSpace(req.DagrynConfig); rawCfg != "" {
+		if err := h.syncWorkflowInternally(ctx, project.ID, rawCfg); err != nil {
+			slog.Warn("create_project: failed to sync provided workflow", "project_id", project.ID, "error", err)
+		}
+
+		// Best-effort: create a branch + PR with dagryn.toml so users can merge it
+		if accessToken != "" && req.RepoURL != "" {
+			repoURL := req.RepoURL
+			cfgContent := rawCfg
+			branch := req.DefaultBranch
+			go func() {
+				if err := commitDagrynTomlToGitHub(accessToken, repoURL, cfgContent, branch); err != nil {
+					slog.Warn("create_project: failed to create dagryn.toml PR on GitHub", "repo", repoURL, "error", err)
+				}
+			}()
+		}
 	}
 
 	_ = response.Created(w, r, "Project created successfully", projectModelToResponse(project, models.RoleOwner))
@@ -382,6 +430,19 @@ func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.Projects.Update(ctx, project); err != nil {
 		_ = response.InternalServerError(w, r, errors.New("failed to update project"))
 		return
+	}
+
+	// Audit log: project updated
+	if h.auditService != nil && project.TeamID != nil {
+		h.auditService.Log(ctx, service.AuditEntry{
+			TeamID:       *project.TeamID,
+			ProjectID:    &project.ID,
+			Action:       models.AuditActionProjectUpdated,
+			Category:     models.AuditCategoryProject,
+			ResourceType: "project",
+			ResourceID:   project.ID.String(),
+			Description:  "Project updated: " + project.Name,
+		})
 	}
 
 	_ = response.Ok(w, r, "Success", projectModelToResponse(project, role))
@@ -561,6 +622,22 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	if !role.CanDeleteProject() {
 		_ = response.Forbidden(w, r, errors.New("only the project owner can delete this project"))
 		return
+	}
+
+	// Get project before deletion for audit details.
+	project, _ := h.store.Projects.GetByID(ctx, projectID)
+
+	// Audit log: project deleted (logged before deletion so the team/project context still exists).
+	if h.auditService != nil && project != nil && project.TeamID != nil {
+		h.auditService.Log(ctx, service.AuditEntry{
+			TeamID:       *project.TeamID,
+			ProjectID:    &projectID,
+			Action:       models.AuditActionProjectDeleted,
+			Category:     models.AuditCategoryProject,
+			ResourceType: "project",
+			ResourceID:   projectID.String(),
+			Description:  "Project deleted: " + project.Name,
+		})
 	}
 
 	if err := h.store.Projects.Delete(ctx, projectID); err != nil {

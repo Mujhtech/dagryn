@@ -11,6 +11,7 @@ import (
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
 	"github.com/mujhtech/dagryn/pkg/http/response"
+	"github.com/mujhtech/dagryn/pkg/service"
 )
 
 // ListProjectAPIKeys godoc
@@ -158,6 +159,22 @@ func (h *Handler) CreateProjectAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Audit log: API key created
+	if h.auditService != nil {
+		project, _ := h.store.Projects.GetByID(ctx, projectID)
+		if project != nil && project.TeamID != nil {
+			h.auditService.Log(ctx, service.AuditEntry{
+				TeamID:       *project.TeamID,
+				ProjectID:    &projectID,
+				Action:       models.AuditActionAPIKeyCreated,
+				Category:     models.AuditCategoryAPIKey,
+				ResourceType: "api_key",
+				ResourceID:   key.ID.String(),
+				Description:  "API key created: " + key.Name,
+			})
+		}
+	}
+
 	_ = response.Created(w, r, "Created successfully", APIKeyCreatedResponse{
 		APIKeyResponse: apiKeyModelToResponse(key),
 		Key:            rawKey,
@@ -233,6 +250,22 @@ func (h *Handler) RevokeProjectAPIKey(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.APIKeys.Revoke(ctx, keyID); err != nil {
 		_ = response.InternalServerError(w, r, errors.New("failed to revoke API key"))
 		return
+	}
+
+	// Audit log: API key revoked
+	if h.auditService != nil {
+		project, _ := h.store.Projects.GetByID(ctx, projectID)
+		if project != nil && project.TeamID != nil {
+			h.auditService.Log(ctx, service.AuditEntry{
+				TeamID:       *project.TeamID,
+				ProjectID:    &projectID,
+				Action:       models.AuditActionAPIKeyRevoked,
+				Category:     models.AuditCategoryAPIKey,
+				ResourceType: "api_key",
+				ResourceID:   keyID.String(),
+				Description:  "API key revoked: " + key.Name,
+			})
+		}
 	}
 
 	_ = response.NoContent(w, r)

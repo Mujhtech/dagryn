@@ -274,8 +274,9 @@ func TestBuildReviewComments(t *testing.T) {
 		},
 	}
 
-	comments := buildReviewComments(suggestions)
+	comments, nonDiff := buildReviewCommentsFiltered(suggestions, nil)
 	assert.Len(t, comments, 1) // Only the first is valid
+	assert.Len(t, nonDiff, 0)
 	assert.Equal(t, "handler.go", comments[0].Path)
-	assert.Equal(t, 12, comments[0].Line)
+	assert.Equal(t, 12, *comments[0].Line)
 }

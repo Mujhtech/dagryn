@@ -33,14 +33,18 @@ func (b *ServerBackend) Check(ctx context.Context, taskName, key string) (bool, 
 }
 
 func (b *ServerBackend) Restore(ctx context.Context, taskName, key string) error {
-	rc, err := b.svc.Download(ctx, b.projectID, taskName, key)
+	dl, err := b.svc.Download(ctx, b.projectID, taskName, key)
 	if err != nil {
 		return fmt.Errorf("server cache download: %w", err)
 	}
-	defer func() { _ = rc.Close() }()
+	defer func() { _ = dl.Body.Close() }()
 
-	if err := ExtractArchive(b.projectRoot, rc); err != nil {
+	vr := newVerifyReader(dl.Body, dl.DigestHash, dl.SizeBytes)
+	if err := ExtractArchive(b.projectRoot, vr); err != nil {
 		return fmt.Errorf("server cache extract: %w", err)
+	}
+	if err := vr.Verify(); err != nil {
+		return fmt.Errorf("server cache integrity: %w", err)
 	}
 	return nil
 }

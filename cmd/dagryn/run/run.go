@@ -17,6 +17,7 @@ import (
 	"github.com/mujhtech/dagryn/pkg/dagryn/cache/remote"
 	"github.com/mujhtech/dagryn/pkg/dagryn/condition"
 	"github.com/mujhtech/dagryn/pkg/dagryn/config"
+	"github.com/mujhtech/dagryn/pkg/dagryn/container"
 	"github.com/mujhtech/dagryn/pkg/dagryn/executor"
 	"github.com/mujhtech/dagryn/pkg/dagryn/plugin"
 	"github.com/mujhtech/dagryn/pkg/dagryn/scheduler"
@@ -139,6 +140,17 @@ func runRun(cmd *cobra.Command, args []string) error {
 		opts.GlobalPlugins = cfg.Plugins
 	}
 
+	// Wire container config from project TOML
+	if cfg.Container.Enabled {
+		opts.ContainerConfig = &container.Config{
+			Enabled:     true,
+			Image:       cfg.Container.Image,
+			MemoryLimit: cfg.Container.MemoryLimit,
+			CPULimit:    cfg.Container.CPULimit,
+			Network:     cfg.Container.Network,
+		}
+	}
+
 	// Build condition context for task conditions
 	opts.ConditionContext = &condition.Context{
 		Branch:  cli.GetGitBranch(),
@@ -216,6 +228,12 @@ func runRun(cmd *cobra.Command, args []string) error {
 	// Notify remote sync that run is starting
 	if remoteSync != nil {
 		remoteSync.OnRunStart()
+
+		// Get execution plan to send total task count to the server
+		plan, planErr := sched.GetExecutionPlan(targets)
+		if planErr == nil {
+			remoteSync.SetTotalTasks(plan.TotalTasks())
+		}
 	}
 
 	// Run tasks — returns as soon as all tasks finish; cache saves may still

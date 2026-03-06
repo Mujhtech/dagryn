@@ -210,7 +210,7 @@ function WorkflowConverter() {
       {(summary || error) && (
         <>
           <Separator />
-          <div className="mt-4 space-y-1">
+          <div className="p-1 space-y-1">
             {summary && (
               <p className="text-sm text-muted-foreground">{summary}</p>
             )}

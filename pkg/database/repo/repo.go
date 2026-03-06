@@ -108,6 +108,7 @@ type RunStore interface {
 	UpdateTargets(ctx context.Context, id uuid.UUID, targets []string) error
 	Start(ctx context.Context, id uuid.UUID) error
 	StartWithTotal(ctx context.Context, id uuid.UUID, totalTasks int) error
+	SetTotalTasks(ctx context.Context, id uuid.UUID, totalTasks int) error
 	Complete(ctx context.Context, id uuid.UUID, status models.RunStatus, errorMessage *string) error
 	IncrementCompleted(ctx context.Context, id uuid.UUID, cacheHit bool) error
 	IncrementFailed(ctx context.Context, id uuid.UUID) error
@@ -120,6 +121,7 @@ type RunStore interface {
 	UpdateTaskResult(ctx context.Context, result *models.TaskResult) error
 	GetTaskResult(ctx context.Context, runID uuid.UUID, taskName string) (*models.TaskResult, error)
 	ListTaskResults(ctx context.Context, runID uuid.UUID) ([]models.TaskResult, error)
+	DeleteTaskResultsByRun(ctx context.Context, runID uuid.UUID) error
 	GetRunWithTasks(ctx context.Context, id uuid.UUID) (*models.RunWithTasks, error)
 	CleanupOldRuns(ctx context.Context, olderThan time.Duration, keepMinimum int) (int64, error)
 	UpdateHeartbeat(ctx context.Context, id uuid.UUID) error
@@ -222,6 +224,33 @@ type AIStore interface {
 	GetMostRecentAnalysisByKey(ctx context.Context, projectID uuid.UUID, branch, commit string) (*models.AIAnalysis, error)
 	ListPostedSuggestionsByProjectAndBranch(ctx context.Context, projectID uuid.UUID, branch string) ([]models.AISuggestion, error)
 	DeleteExpiredBlobKeys(ctx context.Context, olderThan time.Time) (int64, error)
+}
+
+// AuditLogStore defines the interface for audit log repository operations.
+type AuditLogStore interface {
+	Create(ctx context.Context, log *models.AuditLog) error
+	GetByID(ctx context.Context, id uuid.UUID) (*models.AuditLog, error)
+	List(ctx context.Context, filter AuditLogFilter) (*AuditLogListResult, error)
+	DeleteBefore(ctx context.Context, teamID uuid.UUID, before time.Time) (int64, error)
+	GetLastHash(ctx context.Context, teamID uuid.UUID) (string, int64, error)
+	GetRetentionPolicy(ctx context.Context, teamID uuid.UUID) (*models.AuditLogRetentionPolicy, error)
+	UpsertRetentionPolicy(ctx context.Context, policy *models.AuditLogRetentionPolicy) error
+	ListAllRetentionPolicies(ctx context.Context) ([]models.AuditLogRetentionPolicy, error)
+	CountByTeam(ctx context.Context, teamID uuid.UUID) (int64, error)
+	ListChain(ctx context.Context, teamID uuid.UUID, afterSeq int64, limit int) ([]models.AuditLog, error)
+
+	// Webhook CRUD
+	CreateWebhook(ctx context.Context, w *models.AuditWebhook) error
+	GetWebhookByID(ctx context.Context, id uuid.UUID) (*models.AuditWebhook, error)
+	ListWebhooksByTeam(ctx context.Context, teamID uuid.UUID) ([]models.AuditWebhook, error)
+	UpdateWebhook(ctx context.Context, w *models.AuditWebhook) error
+	DeleteWebhook(ctx context.Context, id uuid.UUID) error
+	ListActiveWebhooksByTeam(ctx context.Context, teamID uuid.UUID) ([]models.AuditWebhook, error)
+}
+
+// AnalyticsStore defines the interface for cross-project analytics aggregation.
+type AnalyticsStore interface {
+	GetTeamAnalytics(ctx context.Context, projectIDs []uuid.UUID, teamID *uuid.UUID, days int) (*TeamAnalytics, error)
 }
 
 // CacheStore defines the interface for cache repository operations.

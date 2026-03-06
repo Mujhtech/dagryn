@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -736,9 +737,17 @@ func (c *Client) UploadCache(ctx context.Context, projectID uuid.UUID, taskName,
 	return nil
 }
 
+// CacheDownloadResult holds the download stream along with integrity metadata
+// from response headers (X-Checksum-SHA256, Content-Length).
+type CacheDownloadResult struct {
+	Body       io.ReadCloser
+	DigestHash string // from X-Checksum-SHA256 header
+	SizeBytes  int64  // from Content-Length header
+}
+
 // DownloadCache retrieves cache content for the given task/key.
-// Returns the response body as a stream (caller must close).
-func (c *Client) DownloadCache(ctx context.Context, projectID uuid.UUID, taskName, cacheKey string) (io.ReadCloser, error) {
+// Returns a CacheDownloadResult with the body stream and integrity metadata (caller must close Body).
+func (c *Client) DownloadCache(ctx context.Context, projectID uuid.UUID, taskName, cacheKey string) (*CacheDownloadResult, error) {
 	path := fmt.Sprintf("/api/v1/projects/%s/cache/%s/%s/download", projectID, taskName, cacheKey)
 	resp, err := c.doRequest(ctx, "GET", path, nil)
 	if err != nil {
@@ -747,7 +756,14 @@ func (c *Client) DownloadCache(ctx context.Context, projectID uuid.UUID, taskNam
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		return resp.Body, nil
+		result := &CacheDownloadResult{
+			Body:       resp.Body,
+			DigestHash: resp.Header.Get("X-Checksum-SHA256"),
+		}
+		if cl := resp.Header.Get("Content-Length"); cl != "" {
+			result.SizeBytes, _ = strconv.ParseInt(cl, 10, 64)
+		}
+		return result, nil
 	default:
 		defer func() { _ = resp.Body.Close() }()
 		return nil, c.parseError(resp)

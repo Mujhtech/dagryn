@@ -37,3 +37,5 @@ export { useCapabilities } from "./use-capabilities";
 export { useLicenseStatus } from "./use-license-status";
 export { useRunAIAnalysis, useProjectAIAnalyses } from "./use-ai-analysis";
 export { useAISuggestions } from "./use-ai-suggestions";
+export { useTeamAuditLogs, useProjectAuditLogs, useAuditRetentionPolicy, useAuditWebhooks } from "./use-team-audit-logs";
+export { useTeamAnalytics, useUserAnalytics } from "./use-team-analytics";

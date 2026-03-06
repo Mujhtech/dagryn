@@ -175,6 +175,7 @@ type CreateProjectRequest struct {
 	GitHubRepoID         *int64     `json:"github_repo_id,omitempty" example:"123456789"`
 	DefaultBranch        string     `json:"default_branch,omitempty" example:"main"`
 	Visibility           string     `json:"visibility,omitempty" example:"private"`
+	DagrynConfig         string     `json:"dagryn_config,omitempty"`
 }
 
 // UpdateProjectRequest represents a request to update a project.
@@ -311,27 +312,29 @@ type CreateInvitationRequest struct {
 //
 //	@Description	Workflow run information
 type RunResponse struct {
-	ID                uuid.UUID     `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	ProjectID         uuid.UUID     `json:"project_id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	WorkflowName      string        `json:"workflow_name" example:"build"`
-	Status            string        `json:"status" example:"success"`
-	TriggerSource     string        `json:"trigger_source" example:"cli"`
-	TriggerRef        string        `json:"trigger_ref,omitempty" example:"refs/heads/main"`
-	CommitSHA         string        `json:"commit_sha,omitempty" example:"abc123def456"`
-	PRTitle           string        `json:"pr_title,omitempty" example:"Fix bug in authentication"`
-	PRNumber          *int          `json:"pr_number,omitempty" example:"123"`
-	CommitMessage     string        `json:"commit_message,omitempty" example:"fix: resolve authentication issue"`
-	CommitAuthorName  string        `json:"commit_author_name,omitempty" example:"John Doe"`
-	CommitAuthorEmail string        `json:"commit_author_email,omitempty" example:"john@example.com"`
-	HostOS            string        `json:"host_os,omitempty" example:"darwin"`
-	HostArch          string        `json:"host_arch,omitempty" example:"arm64"`
-	HostName          string        `json:"host_name,omitempty" example:"macbook-pro.local"`
-	TriggeredByUser   *UserResponse `json:"triggered_by_user,omitempty"` // User who triggered (for local/API runs)
-	StartedAt         *time.Time    `json:"started_at,omitempty" example:"2024-01-15T10:30:00Z"`
-	FinishedAt        *time.Time    `json:"finished_at,omitempty" example:"2024-01-15T10:35:00Z"`
-	Duration          *int64        `json:"duration_ms,omitempty" example:"300000"`
-	TaskCount         int           `json:"task_count" example:"5"`
-	CreatedAt         time.Time     `json:"created_at" example:"2024-01-15T10:30:00Z"`
+	ID                    uuid.UUID     `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ProjectID             uuid.UUID     `json:"project_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	WorkflowName          string        `json:"workflow_name" example:"build"`
+	Description           string        `json:"description,omitempty" example:"Build and test the application"`
+	Status                string        `json:"status" example:"success"`
+	TriggerSource         string        `json:"trigger_source" example:"cli"`
+	TriggerRef            string        `json:"trigger_ref,omitempty" example:"refs/heads/main"`
+	CommitSHA             string        `json:"commit_sha,omitempty" example:"abc123def456"`
+	PRTitle               string        `json:"pr_title,omitempty" example:"Fix bug in authentication"`
+	PRNumber              *int          `json:"pr_number,omitempty" example:"123"`
+	CommitMessage         string        `json:"commit_message,omitempty" example:"fix: resolve authentication issue"`
+	CommitAuthorName      string        `json:"commit_author_name,omitempty" example:"John Doe"`
+	CommitAuthorEmail     string        `json:"commit_author_email,omitempty" example:"john@example.com"`
+	CommitAuthorAvatarURL string        `json:"commit_author_avatar_url,omitempty" example:"https://avatars.githubusercontent.com/u/1234567"`
+	HostOS                string        `json:"host_os,omitempty" example:"darwin"`
+	HostArch              string        `json:"host_arch,omitempty" example:"arm64"`
+	HostName              string        `json:"host_name,omitempty" example:"macbook-pro.local"`
+	TriggeredByUser       *UserResponse `json:"triggered_by_user,omitempty"` // User who triggered (for local/API runs)
+	StartedAt             *time.Time    `json:"started_at,omitempty" example:"2024-01-15T10:30:00Z"`
+	FinishedAt            *time.Time    `json:"finished_at,omitempty" example:"2024-01-15T10:35:00Z"`
+	Duration              *int64        `json:"duration_ms,omitempty" example:"300000"`
+	TaskCount             int           `json:"task_count" example:"5"`
+	CreatedAt             time.Time     `json:"created_at" example:"2024-01-15T10:30:00Z"`
 }
 
 // TaskResultResponse represents a task execution result in API responses.
@@ -354,10 +357,11 @@ type TaskResultResponse struct {
 //
 //	@Description	Trigger run request
 type TriggerRunRequest struct {
-	Targets   []string `json:"targets,omitempty" example:"[\"build\",\"test\"]"`
-	GitBranch string   `json:"git_branch,omitempty" example:"main"`
-	GitCommit string   `json:"git_commit,omitempty" example:"abc123def456"`
-	Force     bool     `json:"force,omitempty" example:"false"`
+	Targets     []string `json:"targets,omitempty" example:"[\"build\",\"test\"]"`
+	GitBranch   string   `json:"git_branch,omitempty" example:"main"`
+	GitCommit   string   `json:"git_commit,omitempty" example:"abc123def456"`
+	Force       bool     `json:"force,omitempty" example:"false"`
+	Description string   `json:"description,omitempty" example:"Retrying after infra fix"`
 	// SyncOnly when true creates a run record for status tracking without triggering remote execution.
 	// Use this when the CLI is executing locally and only needs to sync status to the server.
 	SyncOnly bool   `json:"sync_only,omitempty" example:"false"`
@@ -695,6 +699,242 @@ type SyncWorkflowResponse struct {
 	TaskCount  int       `json:"task_count" example:"5"`
 	Changed    bool      `json:"changed" example:"true"`
 	Message    string    `json:"message" example:"Workflow synced successfully"`
+}
+
+// AuditLogResponse represents an audit log entry.
+//
+//	@Description	Audit log entry
+type AuditLogResponse struct {
+	ID           string                 `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	TeamID       string                 `json:"team_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ActorID      *string                `json:"actor_id,omitempty"`
+	ActorEmail   string                 `json:"actor_email" example:"user@example.com"`
+	ActorType    string                 `json:"actor_type" example:"user"`
+	Action       string                 `json:"action" example:"project.created"`
+	Category     string                 `json:"category" example:"project"`
+	ResourceType string                 `json:"resource_type" example:"project"`
+	ResourceID   *string                `json:"resource_id,omitempty"`
+	ProjectID    *string                `json:"project_id,omitempty"`
+	Description  string                 `json:"description" example:"Created project my-app"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty"`
+	IPAddress    string                 `json:"ip_address,omitempty"`
+	UserAgent    string                 `json:"user_agent,omitempty"`
+	EntryHash    string                 `json:"entry_hash"`
+	PrevHash     string                 `json:"prev_hash,omitempty"`
+	SequenceNum  int64                  `json:"sequence_num"`
+	CreatedAt    string                 `json:"created_at" example:"2024-01-15T10:30:00Z"`
+}
+
+// AuditLogListResponse wraps a cursor-paginated list of audit log entries.
+//
+//	@Description	Cursor-paginated audit log list
+type AuditLogListResponse struct {
+	Data       []AuditLogResponse `json:"data"`
+	NextCursor string             `json:"next_cursor,omitempty"`
+	HasNext    bool               `json:"has_next"`
+}
+
+// AuditRetentionPolicyResponse represents a retention policy.
+//
+//	@Description	Audit log retention policy
+type AuditRetentionPolicyResponse struct {
+	TeamID        string `json:"team_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	RetentionDays int    `json:"retention_days" example:"90"`
+	UpdatedAt     string `json:"updated_at,omitempty"`
+}
+
+// UpdateRetentionPolicyRequest is the request body for updating retention.
+//
+//	@Description	Update retention policy request
+type UpdateRetentionPolicyRequest struct {
+	RetentionDays int `json:"retention_days" example:"90" minimum:"1" maximum:"3650"`
+}
+
+// AuditChainVerifyResponse represents chain verification results.
+//
+//	@Description	Audit chain verification result
+type AuditChainVerifyResponse struct {
+	Valid         bool     `json:"valid" example:"true"`
+	TotalEntries  int      `json:"total_entries" example:"1234"`
+	BrokenEntries []string `json:"broken_entries,omitempty"`
+}
+
+// AuditWebhookResponse represents a webhook in API responses.
+//
+//	@Description	Audit webhook configuration
+type AuditWebhookResponse struct {
+	ID          string   `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	TeamID      string   `json:"team_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	URL         string   `json:"url" example:"https://siem.example.com/audit"`
+	Description string   `json:"description" example:"Forward to Splunk"`
+	EventFilter []string `json:"event_filter" example:"[]"`
+	IsActive    bool     `json:"is_active" example:"true"`
+	CreatedAt   string   `json:"created_at" example:"2024-01-15T10:30:00Z"`
+	UpdatedAt   string   `json:"updated_at" example:"2024-01-15T10:30:00Z"`
+}
+
+// AuditWebhookCreatedResponse includes the HMAC secret (shown once).
+//
+//	@Description	Audit webhook creation response (secret shown only once)
+type AuditWebhookCreatedResponse struct {
+	AuditWebhookResponse
+	Secret string `json:"secret" example:"base64-encoded-hmac-secret"`
+}
+
+// CreateAuditWebhookRequest is the request body for creating a webhook.
+//
+//	@Description	Create audit webhook request
+type CreateAuditWebhookRequest struct {
+	URL         string   `json:"url" binding:"required" example:"https://siem.example.com/audit"`
+	Description string   `json:"description,omitempty" example:"Forward to Splunk"`
+	EventFilter []string `json:"event_filter,omitempty"`
+}
+
+// UpdateAuditWebhookRequest is the request body for updating a webhook.
+//
+//	@Description	Update audit webhook request
+type UpdateAuditWebhookRequest struct {
+	URL         *string  `json:"url,omitempty" example:"https://siem.example.com/audit"`
+	Description *string  `json:"description,omitempty" example:"Forward to Splunk"`
+	EventFilter []string `json:"event_filter,omitempty"`
+	IsActive    *bool    `json:"is_active,omitempty" example:"true"`
+}
+
+// TeamAnalyticsResponse contains aggregated analytics across projects.
+//
+//	@Description	Aggregated analytics response
+type TeamAnalyticsResponse struct {
+	Runs      RunAnalyticsResponse       `json:"runs"`
+	Cache     CacheAnalyticsResponse     `json:"cache"`
+	Artifacts ArtifactAnalyticsResponse  `json:"artifacts"`
+	Bandwidth BandwidthAnalyticsResponse `json:"bandwidth"`
+	AI        AIAnalyticsResponse        `json:"ai"`
+	AuditLog  AuditLogAnalyticsResponse  `json:"audit_log"`
+	Projects  []ProjectActivityResponse  `json:"projects"`
+}
+
+// RunAnalyticsResponse contains run analytics summary.
+type RunAnalyticsResponse struct {
+	TotalRuns     int                     `json:"total_runs"`
+	SuccessRuns   int                     `json:"success_runs"`
+	FailedRuns    int                     `json:"failed_runs"`
+	CancelledRuns int                     `json:"cancelled_runs"`
+	SuccessRate   float64                 `json:"success_rate"`
+	AvgDurationMs int64                   `json:"avg_duration_ms"`
+	Chart         []DailyRunPointResponse `json:"chart"`
+}
+
+// DailyRunPointResponse is a daily run chart data point.
+type DailyRunPointResponse struct {
+	Date          string `json:"date"`
+	Success       int    `json:"success"`
+	Failed        int    `json:"failed"`
+	Cancelled     int    `json:"cancelled"`
+	AvgDurationMs int64  `json:"avg_duration_ms"`
+}
+
+// CacheAnalyticsResponse contains cache analytics summary.
+type CacheAnalyticsResponse struct {
+	TotalEntries         int                       `json:"total_entries"`
+	TotalSizeBytes       int64                     `json:"total_size_bytes"`
+	TotalHits            int64                     `json:"total_hits"`
+	TotalMisses          int64                     `json:"total_misses"`
+	HitRate              float64                   `json:"hit_rate"`
+	TotalBytesUploaded   int64                     `json:"total_bytes_uploaded"`
+	TotalBytesDownloaded int64                     `json:"total_bytes_downloaded"`
+	Chart                []DailyCachePointResponse `json:"chart"`
+}
+
+// DailyCachePointResponse is a daily cache chart data point.
+type DailyCachePointResponse struct {
+	Date            string `json:"date"`
+	CacheHits       int    `json:"cache_hits"`
+	CacheMisses     int    `json:"cache_misses"`
+	BytesUploaded   int64  `json:"bytes_uploaded"`
+	BytesDownloaded int64  `json:"bytes_downloaded"`
+}
+
+// ArtifactAnalyticsResponse contains artifact analytics summary.
+type ArtifactAnalyticsResponse struct {
+	TotalArtifacts int                          `json:"total_artifacts"`
+	TotalSizeBytes int64                        `json:"total_size_bytes"`
+	Chart          []DailyArtifactPointResponse `json:"chart"`
+}
+
+// DailyArtifactPointResponse is a daily artifact chart data point.
+type DailyArtifactPointResponse struct {
+	Date      string `json:"date"`
+	Count     int    `json:"count"`
+	SizeBytes int64  `json:"size_bytes"`
+}
+
+// BandwidthAnalyticsResponse contains bandwidth analytics summary.
+type BandwidthAnalyticsResponse struct {
+	TotalBytes    int64                         `json:"total_bytes"`
+	UploadBytes   int64                         `json:"upload_bytes"`
+	DownloadBytes int64                         `json:"download_bytes"`
+	Chart         []DailyBandwidthPointResponse `json:"chart"`
+}
+
+// DailyBandwidthPointResponse is a daily bandwidth chart data point.
+type DailyBandwidthPointResponse struct {
+	Date          string `json:"date"`
+	UploadBytes   int64  `json:"upload_bytes"`
+	DownloadBytes int64  `json:"download_bytes"`
+}
+
+// AIAnalyticsResponse contains AI analysis analytics summary.
+type AIAnalyticsResponse struct {
+	TotalAnalyses      int                    `json:"total_analyses"`
+	SuccessAnalyses    int                    `json:"success_analyses"`
+	FailedAnalyses     int                    `json:"failed_analyses"`
+	TotalSuggestions   int                    `json:"total_suggestions"`
+	AppliedSuggestions int                    `json:"applied_suggestions"`
+	Chart              []DailyAIPointResponse `json:"chart"`
+}
+
+// DailyAIPointResponse is a daily AI analysis chart data point.
+type DailyAIPointResponse struct {
+	Date        string `json:"date"`
+	Analyses    int    `json:"analyses"`
+	Suggestions int    `json:"suggestions"`
+}
+
+// AuditLogAnalyticsResponse contains audit log analytics summary.
+type AuditLogAnalyticsResponse struct {
+	TotalEvents int                        `json:"total_events"`
+	TopActions  []AuditActionCountResponse `json:"top_actions"`
+	TopActors   []AuditActorCountResponse  `json:"top_actors"`
+	Chart       []DailyAuditPointResponse  `json:"chart"`
+}
+
+// AuditActionCountResponse represents an audit action with its count.
+type AuditActionCountResponse struct {
+	Action string `json:"action"`
+	Count  int    `json:"count"`
+}
+
+// AuditActorCountResponse represents an audit actor with their event count.
+type AuditActorCountResponse struct {
+	ActorEmail string `json:"actor_email"`
+	Count      int    `json:"count"`
+}
+
+// DailyAuditPointResponse is a daily audit log chart data point.
+type DailyAuditPointResponse struct {
+	Date   string `json:"date"`
+	Events int    `json:"events"`
+}
+
+// ProjectActivityResponse summarizes a project's activity for the leaderboard.
+type ProjectActivityResponse struct {
+	ProjectID         string  `json:"project_id"`
+	ProjectName       string  `json:"project_name"`
+	TotalRuns         int     `json:"total_runs"`
+	SuccessRate       float64 `json:"success_rate"`
+	CacheSizeBytes    int64   `json:"cache_size_bytes"`
+	ArtifactSizeBytes int64   `json:"artifact_size_bytes"`
+	BandwidthBytes    int64   `json:"bandwidth_bytes"`
 }
 
 // ParseJSON parses a JSON request body.

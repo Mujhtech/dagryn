@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
@@ -18,6 +19,7 @@ import (
 // S3Bucket implements Bucket using an S3-compatible object store.
 type S3Bucket struct {
 	client   *s3.Client
+	transfer *s3manager.Client
 	bucket   string
 	prefix   string
 	provider ProviderType
@@ -64,8 +66,14 @@ func NewS3Bucket(cfg Config) (*S3Bucket, error) {
 
 	client := s3.NewFromConfig(awsCfg, s3OptFns...)
 
+	transfer := s3manager.New(client, func(o *s3manager.Options) {
+		o.PartSizeBytes = 10 * 1024 * 1024 // 10 MiB per part
+		o.Concurrency = 5
+	})
+
 	return &S3Bucket{
 		client:   client,
+		transfer: transfer,
 		bucket:   cfg.Bucket,
 		prefix:   cfg.Prefix,
 		provider: cfg.Provider,
@@ -77,7 +85,7 @@ func (b *S3Bucket) fullKey(key string) string {
 }
 
 func (b *S3Bucket) Put(ctx context.Context, key string, r io.Reader, opts *PutOptions) error {
-	input := &s3.PutObjectInput{
+	input := &s3manager.UploadObjectInput{
 		Bucket: aws.String(b.bucket),
 		Key:    aws.String(b.fullKey(key)),
 		Body:   r,
@@ -90,7 +98,10 @@ func (b *S3Bucket) Put(ctx context.Context, key string, r io.Reader, opts *PutOp
 			input.ContentLength = aws.Int64(opts.ContentLength)
 		}
 	}
-	_, err := b.client.PutObject(ctx, input)
+	// The transfer manager automatically uses multipart upload for large
+	// objects with concurrent part uploads, and falls back to a single
+	// PutObject for small objects.
+	_, err := b.transfer.UploadObject(ctx, input)
 	if err != nil {
 		return fmt.Errorf("storage/%s: put %q: %w", b.provider, key, err)
 	}

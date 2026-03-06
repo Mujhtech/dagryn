@@ -475,12 +475,6 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate request
-	if len(req.Targets) == 0 {
-		_ = response.BadRequest(w, r, errors.New("at least one target is required"))
-		return
-	}
-
 	// Load project early (needed for git-linked metadata + optional enqueue)
 	project, err := h.store.Projects.GetByID(ctx, projectID)
 	if err != nil {
@@ -535,6 +529,9 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.HostName != "" {
 		run.HostName = &req.HostName
+	}
+	if req.Description != "" {
+		run.Description = &req.Description
 	}
 
 	// For git-linked projects (GitHub for now), fetch last commit metadata when triggering from dashboard/API.
@@ -679,6 +676,9 @@ func (h *Handler) enrichRunWithGitHubCommit(ctx context.Context, run *models.Run
 				Email string `json:"email"`
 			} `json:"author"`
 		} `json:"commit"`
+		Author struct {
+			AvatarURL string `json:"avatar_url"`
+		} `json:"author"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&commitResp); err != nil {
 		return
@@ -712,6 +712,12 @@ func (h *Handler) enrichRunWithGitHubCommit(ctx context.Context, run *models.Run
 			run.CommitAuthorEmail = &e
 		}
 	}
+	if run.CommitAuthorAvatarURL == nil || *run.CommitAuthorAvatarURL == "" {
+		if commitResp.Author.AvatarURL != "" {
+			a := commitResp.Author.AvatarURL
+			run.CommitAuthorAvatarURL = &a
+		}
+	}
 }
 
 // enrichRunWithGitHubPR attempts to populate PR metadata for a run using the GitHub API.
@@ -722,7 +728,7 @@ func (h *Handler) enrichRunWithGitHubPR(ctx context.Context, run *models.Run, pr
 	if project.RepoURL == nil || *project.RepoURL == "" {
 		return
 	}
-	if run.PRNumber != nil || run.GitCommit == nil || *run.GitCommit == "" {
+	if run.PRNumber != nil {
 		return
 	}
 
@@ -745,11 +751,12 @@ func (h *Handler) enrichRunWithGitHubPR(ctx context.Context, run *models.Run, pr
 }
 
 // enrichRunWithGitHubPRUsingToken populates PR metadata using a provided GitHub access token.
+// It first tries to find a PR by commit SHA, then falls back to searching by branch name.
 func (h *Handler) enrichRunWithGitHubPRUsingToken(ctx context.Context, run *models.Run, project *models.Project, accessToken string) {
 	if project.RepoURL == nil || *project.RepoURL == "" {
 		return
 	}
-	if run.PRNumber != nil || run.GitCommit == nil || *run.GitCommit == "" {
+	if run.PRNumber != nil {
 		return
 	}
 
@@ -758,42 +765,95 @@ func (h *Handler) enrichRunWithGitHubPRUsingToken(ctx context.Context, run *mode
 		return
 	}
 
-	u := fmt.Sprintf("https://api.github.com/repos/%s/%s/commits/%s/pulls", owner, repoName, *run.GitCommit)
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	// Strategy 1: look up PRs by commit SHA.
+	if run.GitCommit != nil && *run.GitCommit != "" {
+		if pr := h.fetchPRByCommit(ctx, client, accessToken, owner, repoName, *run.GitCommit); pr != nil {
+			run.PRNumber = &pr.Number
+			if pr.Title != "" {
+				run.PRTitle = &pr.Title
+			}
+			return
+		}
+	}
+
+	// Strategy 2: look up open PRs by branch name.
+	// Push webhooks may arrive before GitHub indexes the commit→PR association,
+	// but searching by head branch is immediate.
+	if run.GitBranch != nil && *run.GitBranch != "" {
+		if pr := h.fetchPRByBranch(ctx, client, accessToken, owner, repoName, *run.GitBranch); pr != nil {
+			run.PRNumber = &pr.Number
+			if pr.Title != "" {
+				run.PRTitle = &pr.Title
+			}
+			return
+		}
+	}
+}
+
+type ghPRRef struct {
+	Number int
+	Title  string
+}
+
+func (h *Handler) fetchPRByCommit(ctx context.Context, client *http.Client, token, owner, repo, sha string) *ghPRRef {
+	u := fmt.Sprintf("https://api.github.com/repos/%s/%s/commits/%s/pulls", owner, repo, sha)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
-		return
+		return nil
 	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return
+		return nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.ReadAll(resp.Body)
-		return
+		return nil
 	}
 
 	var prs []struct {
 		Number int    `json:"number"`
 		Title  string `json:"title"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&prs); err != nil {
-		return
+	if err := json.NewDecoder(resp.Body).Decode(&prs); err != nil || len(prs) == 0 || prs[0].Number == 0 {
+		return nil
 	}
-	if len(prs) == 0 || prs[0].Number == 0 {
-		return
+	return &ghPRRef{Number: prs[0].Number, Title: prs[0].Title}
+}
+
+func (h *Handler) fetchPRByBranch(ctx context.Context, client *http.Client, token, owner, repo, branch string) *ghPRRef {
+	u := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls?state=open&head=%s:%s&per_page=1",
+		owner, repo, owner, branch)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		_, _ = io.ReadAll(resp.Body)
+		return nil
 	}
 
-	n := prs[0].Number
-	run.PRNumber = &n
-	if prs[0].Title != "" {
-		title := prs[0].Title
-		run.PRTitle = &title
+	var prs []struct {
+		Number int    `json:"number"`
+		Title  string `json:"title"`
 	}
+	if err := json.NewDecoder(resp.Body).Decode(&prs); err != nil || len(prs) == 0 || prs[0].Number == 0 {
+		return nil
+	}
+	return &ghPRRef{Number: prs[0].Number, Title: prs[0].Title}
 }
 
 // enrichRunWithGitHubCommitUsingToken enriches a run with commit metadata using a provided GitHub access token.
@@ -871,6 +931,9 @@ func (h *Handler) enrichRunWithGitHubCommitUsingToken(ctx context.Context, run *
 				Email string `json:"email"`
 			} `json:"author"`
 		} `json:"commit"`
+		Author struct {
+			AvatarURL string `json:"avatar_url"`
+		} `json:"author"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&commitResp); err != nil {
 		return
@@ -902,6 +965,12 @@ func (h *Handler) enrichRunWithGitHubCommitUsingToken(ctx context.Context, run *
 		if commitResp.Commit.Author.Email != "" {
 			e := commitResp.Commit.Author.Email
 			run.CommitAuthorEmail = &e
+		}
+	}
+	if run.CommitAuthorAvatarURL == nil || *run.CommitAuthorAvatarURL == "" {
+		if commitResp.Author.AvatarURL != "" {
+			a := commitResp.Author.AvatarURL
+			run.CommitAuthorAvatarURL = &a
 		}
 	}
 }
@@ -1471,9 +1540,12 @@ func runModelToResponse(run *models.Run) RunResponse {
 		CreatedAt:     run.CreatedAt,
 	}
 
-	// Use first target as workflow name (simplified)
-	if len(run.Targets) > 0 {
-		resp.WorkflowName = run.Targets[0]
+	if run.WorkflowName != nil {
+		resp.WorkflowName = *run.WorkflowName
+	}
+
+	if run.Description != nil {
+		resp.Description = *run.Description
 	}
 
 	if run.GitBranch != nil {
@@ -1496,6 +1568,9 @@ func runModelToResponse(run *models.Run) RunResponse {
 	}
 	if run.CommitAuthorEmail != nil {
 		resp.CommitAuthorEmail = *run.CommitAuthorEmail
+	}
+	if run.CommitAuthorAvatarURL != nil {
+		resp.CommitAuthorAvatarURL = *run.CommitAuthorAvatarURL
 	}
 	if run.HostOS != nil {
 		resp.HostOS = *run.HostOS
@@ -1669,37 +1744,44 @@ func (h *Handler) UpdateRunStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update run based on new status
-	now := time.Now()
-	oldStatus := run.Status // Capture old status before updating for GitHub notification check
-	if newStatus == models.RunStatusRunning && run.Status == models.RunStatusPending {
-		// Starting the run
-		run.Status = newStatus
-		run.StartedAt = &now
-		if req.TotalTasks != nil {
-			run.TotalTasks = *req.TotalTasks
-		}
-	} else if newStatus.IsTerminal() {
-		// Completing the run
-		run.Status = newStatus
-		run.FinishedAt = &now
-		if run.StartedAt != nil {
-			duration := now.Sub(*run.StartedAt).Milliseconds()
-			run.DurationMs = &duration
-		}
-		if req.ErrorMessage != nil {
-			run.ErrorMessage = req.ErrorMessage
-		}
-	} else {
-		run.Status = newStatus
-	}
-
-	// Check if this transition makes the run terminal (used for GitHub callbacks).
+	// Use targeted updates so we never clobber atomically-incremented counters
+	// (completed_tasks, failed_tasks, cache_hits).
+	oldStatus := run.Status
 	becameTerminal := !oldStatus.IsTerminal() && newStatus.IsTerminal()
 
-	if err := h.store.Runs.Update(ctx, run); err != nil {
-		_ = response.InternalServerError(w, r, errors.New("failed to update run"))
-		return
+	if newStatus == models.RunStatusRunning && run.Status == models.RunStatusPending {
+		// Pending → Running: use Start or StartWithTotal.
+		if req.TotalTasks != nil {
+			if err := h.store.Runs.StartWithTotal(ctx, run.ID, *req.TotalTasks); err != nil {
+				_ = response.InternalServerError(w, r, errors.New("failed to update run"))
+				return
+			}
+		} else {
+			if err := h.store.Runs.Start(ctx, run.ID); err != nil {
+				_ = response.InternalServerError(w, r, errors.New("failed to update run"))
+				return
+			}
+		}
+	} else if newStatus.IsTerminal() {
+		// Terminal: use Complete (only sets status, finished_at, duration_ms, error_message).
+		if err := h.store.Runs.Complete(ctx, run.ID, newStatus, req.ErrorMessage); err != nil {
+			_ = response.InternalServerError(w, r, errors.New("failed to update run"))
+			return
+		}
+	} else {
+		// Any other transition (e.g. Running → Running with total_tasks update).
+		run.Status = newStatus
+		if err := h.store.Runs.Update(ctx, run); err != nil {
+			_ = response.InternalServerError(w, r, errors.New("failed to update run"))
+			return
+		}
+	}
+
+	// Update total_tasks if provided and not already handled by StartWithTotal.
+	if req.TotalTasks != nil && (newStatus != models.RunStatusRunning || oldStatus != models.RunStatusPending) {
+		if err := h.store.Runs.SetTotalTasks(ctx, run.ID, *req.TotalTasks); err != nil {
+			slog.Warn("UpdateRunStatus: failed to set total_tasks", "run_id", run.ID, "error", err)
+		}
 	}
 
 	// If this run was triggered from a GitHub PR, update commit status and post a summary comment.

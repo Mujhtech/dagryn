@@ -5,12 +5,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	apiCtx "github.com/mujhtech/dagryn/pkg/api/context"
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
 	"github.com/mujhtech/dagryn/pkg/http/response"
+	"github.com/mujhtech/dagryn/pkg/service"
 )
 
 // ListTeams godoc
@@ -122,6 +121,18 @@ func (h *Handler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Audit log: team created
+	if h.auditService != nil {
+		h.auditService.Log(ctx, service.AuditEntry{
+			TeamID:       team.ID,
+			Action:       models.AuditActionTeamCreated,
+			Category:     models.AuditCategoryTeam,
+			ResourceType: "team",
+			ResourceID:   team.ID.String(),
+			Description:  "Team created: " + team.Name,
+		})
+	}
+
 	_ = response.Created(w, r, "Team created successfully", teamModelToResponse(team, models.RoleOwner))
 }
 
@@ -133,12 +144,12 @@ func (h *Handler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 //	@Security		BearerAuth
 //	@Security		APIKeyAuth
 //	@Produce		json
-//	@Param			teamID	path		string	true	"Team ID"	format(uuid)
+//	@Param			teamId	path		string	true	"Team ID"	format(uuid)
 //	@Success		200		{object}	TeamResponse
 //	@Failure		401		{object}	ErrorResponse
 //	@Failure		403		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
-//	@Router			/api/v1/teams/{teamID} [get]
+//	@Router			/api/v1/teams/{teamId} [get]
 func (h *Handler) GetTeam(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -147,9 +158,9 @@ func (h *Handler) GetTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
+	teamID, err := getTeamIDFromPath(r)
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
+		_ = response.BadRequest(w, r, err)
 		return
 	}
 
@@ -186,14 +197,14 @@ func (h *Handler) GetTeam(w http.ResponseWriter, r *http.Request) {
 //	@Security		APIKeyAuth
 //	@Accept			json
 //	@Produce		json
-//	@Param			teamID	path		string				true	"Team ID"	format(uuid)
+//	@Param			teamId	path		string				true	"Team ID"	format(uuid)
 //	@Param			body	body		UpdateTeamRequest	true	"Update team request"
 //	@Success		200		{object}	TeamResponse
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
 //	@Failure		403		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
-//	@Router			/api/v1/teams/{teamID} [patch]
+//	@Router			/api/v1/teams/{teamId} [patch]
 func (h *Handler) UpdateTeam(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -202,9 +213,9 @@ func (h *Handler) UpdateTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
+	teamID, err := getTeamIDFromPath(r)
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
+		_ = response.BadRequest(w, r, err)
 		return
 	}
 
@@ -253,6 +264,18 @@ func (h *Handler) UpdateTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Audit log: team updated
+	if h.auditService != nil {
+		h.auditService.Log(ctx, service.AuditEntry{
+			TeamID:       teamID,
+			Action:       models.AuditActionTeamUpdated,
+			Category:     models.AuditCategoryTeam,
+			ResourceType: "team",
+			ResourceID:   teamID.String(),
+			Description:  "Team updated: " + team.Name,
+		})
+	}
+
 	_ = response.Ok(w, r, "Team updated successfully", teamModelToResponse(team, member.Role))
 }
 
@@ -263,12 +286,12 @@ func (h *Handler) UpdateTeam(w http.ResponseWriter, r *http.Request) {
 //	@Tags			teams
 //	@Security		BearerAuth
 //	@Security		APIKeyAuth
-//	@Param			teamID	path	string	true	"Team ID"	format(uuid)
+//	@Param			teamId	path	string	true	"Team ID"	format(uuid)
 //	@Success		204		"No Content"
 //	@Failure		401		{object}	ErrorResponse
 //	@Failure		403		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
-//	@Router			/api/v1/teams/{teamID} [delete]
+//	@Router			/api/v1/teams/{teamId} [delete]
 func (h *Handler) DeleteTeam(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -277,9 +300,9 @@ func (h *Handler) DeleteTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
+	teamID, err := getTeamIDFromPath(r)
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
+		_ = response.BadRequest(w, r, err)
 		return
 	}
 
@@ -297,6 +320,25 @@ func (h *Handler) DeleteTeam(w http.ResponseWriter, r *http.Request) {
 	if member.Role != models.RoleOwner {
 		_ = response.Forbidden(w, r, errors.New("only the owner can delete this team"))
 		return
+	}
+
+	// Get team name before deletion for audit.
+	team, _ := h.store.Teams.GetByID(ctx, teamID)
+
+	// Audit log: team deleted (logged before deletion so the team_id still exists).
+	if h.auditService != nil {
+		desc := "Team deleted"
+		if team != nil {
+			desc = "Team deleted: " + team.Name
+		}
+		h.auditService.Log(ctx, service.AuditEntry{
+			TeamID:       teamID,
+			Action:       models.AuditActionTeamDeleted,
+			Category:     models.AuditCategoryTeam,
+			ResourceType: "team",
+			ResourceID:   teamID.String(),
+			Description:  desc,
+		})
 	}
 
 	if err := h.store.Teams.Delete(ctx, teamID); err != nil {
@@ -319,12 +361,12 @@ func (h *Handler) DeleteTeam(w http.ResponseWriter, r *http.Request) {
 //	@Security		BearerAuth
 //	@Security		APIKeyAuth
 //	@Produce		json
-//	@Param			teamID	path		string	true	"Team ID"	format(uuid)
+//	@Param			teamId	path		string	true	"Team ID"	format(uuid)
 //	@Success		200		{object}	[]TeamMemberResponse
 //	@Failure		401		{object}	ErrorResponse
 //	@Failure		403		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
-//	@Router			/api/v1/teams/{teamID}/members [get]
+//	@Router			/api/v1/teams/{teamId}/members [get]
 func (h *Handler) ListTeamMembers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -333,9 +375,9 @@ func (h *Handler) ListTeamMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
+	teamID, err := getTeamIDFromPath(r)
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
+		_ = response.BadRequest(w, r, err)
 		return
 	}
 
@@ -373,14 +415,14 @@ func (h *Handler) ListTeamMembers(w http.ResponseWriter, r *http.Request) {
 //	@Security		APIKeyAuth
 //	@Accept			json
 //	@Produce		json
-//	@Param			teamID	path		string					true	"Team ID"	format(uuid)
+//	@Param			teamId	path		string					true	"Team ID"	format(uuid)
 //	@Param			body	body		AddTeamMemberRequest	true	"Add member request"
 //	@Success		201		{object}	TeamMemberResponse
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
 //	@Failure		403		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
-//	@Router			/api/v1/teams/{teamID}/members [post]
+//	@Router			/api/v1/teams/{teamId}/members [post]
 func (h *Handler) AddTeamMember(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -389,9 +431,9 @@ func (h *Handler) AddTeamMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
+	teamID, err := getTeamIDFromPath(r)
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
+		_ = response.BadRequest(w, r, err)
 		return
 	}
 
@@ -458,6 +500,19 @@ func (h *Handler) AddTeamMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Audit log: member added
+	if h.auditService != nil {
+		h.auditService.Log(ctx, service.AuditEntry{
+			TeamID:       teamID,
+			Action:       models.AuditActionMemberAdded,
+			Category:     models.AuditCategoryMember,
+			ResourceType: "team_member",
+			ResourceID:   req.UserID.String(),
+			Description:  "Member added to team",
+			Metadata:     map[string]interface{}{"role": string(role), "target_email": targetUser.Email},
+		})
+	}
+
 	_ = response.Created(w, r, "Member added successfully", TeamMemberResponse{
 		User:     userModelToResponse(targetUser),
 		Role:     string(role),
@@ -472,13 +527,13 @@ func (h *Handler) AddTeamMember(w http.ResponseWriter, r *http.Request) {
 //	@Tags			teams
 //	@Security		BearerAuth
 //	@Security		APIKeyAuth
-//	@Param			teamID	path	string	true	"Team ID"	format(uuid)
+//	@Param			teamId	path	string	true	"Team ID"	format(uuid)
 //	@Param			userID	path	string	true	"User ID"	format(uuid)
 //	@Success		204		"No Content"
 //	@Failure		401		{object}	ErrorResponse
 //	@Failure		403		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
-//	@Router			/api/v1/teams/{teamID}/members/{userID} [delete]
+//	@Router			/api/v1/teams/{teamId}/members/{userID} [delete]
 func (h *Handler) RemoveTeamMember(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -487,15 +542,15 @@ func (h *Handler) RemoveTeamMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
+	teamID, err := getTeamIDFromPath(r)
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
+		_ = response.BadRequest(w, r, err)
 		return
 	}
 
-	targetUserID, err := uuid.Parse(chi.URLParam(r, "userID"))
+	targetUserID, err := getUserIDFromPath(r)
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("invalid user ID"))
+		_ = response.BadRequest(w, r, err)
 		return
 	}
 
@@ -537,6 +592,18 @@ func (h *Handler) RemoveTeamMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Audit log: member removed
+	if h.auditService != nil {
+		h.auditService.Log(ctx, service.AuditEntry{
+			TeamID:       teamID,
+			Action:       models.AuditActionMemberRemoved,
+			Category:     models.AuditCategoryMember,
+			ResourceType: "team_member",
+			ResourceID:   targetUserID.String(),
+			Description:  "Member removed from team",
+		})
+	}
+
 	_ = response.NoContent(w, r)
 }
 
@@ -549,7 +616,7 @@ func (h *Handler) RemoveTeamMember(w http.ResponseWriter, r *http.Request) {
 //	@Security		APIKeyAuth
 //	@Accept			json
 //	@Produce		json
-//	@Param			teamID	path		string					true	"Team ID"	format(uuid)
+//	@Param			teamId	path		string					true	"Team ID"	format(uuid)
 //	@Param			userID	path		string					true	"User ID"	format(uuid)
 //	@Param			body	body		UpdateMemberRoleRequest	true	"Update role request"
 //	@Success		200		{object}	TeamMemberResponse
@@ -557,7 +624,7 @@ func (h *Handler) RemoveTeamMember(w http.ResponseWriter, r *http.Request) {
 //	@Failure		401		{object}	ErrorResponse
 //	@Failure		403		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
-//	@Router			/api/v1/teams/{teamID}/members/{userID}/role [patch]
+//	@Router			/api/v1/teams/{teamId}/members/{userID}/role [patch]
 func (h *Handler) UpdateTeamMemberRole(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -566,15 +633,15 @@ func (h *Handler) UpdateTeamMemberRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
+	teamID, err := getTeamIDFromPath(r)
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
+		_ = response.BadRequest(w, r, err)
 		return
 	}
 
-	targetUserID, err := uuid.Parse(chi.URLParam(r, "userID"))
+	targetUserID, err := getUserIDFromPath(r)
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("invalid user ID"))
+		_ = response.BadRequest(w, r, err)
 		return
 	}
 
@@ -627,6 +694,22 @@ func (h *Handler) UpdateTeamMemberRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Audit log: member role changed
+	if h.auditService != nil {
+		h.auditService.Log(ctx, service.AuditEntry{
+			TeamID:       teamID,
+			Action:       models.AuditActionMemberRoleChanged,
+			Category:     models.AuditCategoryMember,
+			ResourceType: "team_member",
+			ResourceID:   targetUserID.String(),
+			Description:  "Member role changed",
+			Metadata: map[string]interface{}{
+				"old_role": string(targetMember.Role),
+				"new_role": string(role),
+			},
+		})
+	}
+
 	targetUser, _ := h.store.Users.GetByID(ctx, targetUserID)
 	_ = response.Ok(w, r, "Member role updated successfully", TeamMemberResponse{
 		User:     userModelToResponse(targetUser),
@@ -643,12 +726,12 @@ func (h *Handler) UpdateTeamMemberRole(w http.ResponseWriter, r *http.Request) {
 //	@Security		BearerAuth
 //	@Security		APIKeyAuth
 //	@Produce		json
-//	@Param			teamID	path		string	true	"Team ID"	format(uuid)
+//	@Param			teamId	path		string	true	"Team ID"	format(uuid)
 //	@Success		200		{object}	[]InvitationResponse
 //	@Failure		401		{object}	ErrorResponse
 //	@Failure		403		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
-//	@Router			/api/v1/teams/{teamID}/invitations [get]
+//	@Router			/api/v1/teams/{teamId}/invitations [get]
 func (h *Handler) ListTeamInvitations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -657,9 +740,9 @@ func (h *Handler) ListTeamInvitations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
+	teamID, err := getTeamIDFromPath(r)
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
+		_ = response.BadRequest(w, r, err)
 		return
 	}
 
@@ -702,14 +785,14 @@ func (h *Handler) ListTeamInvitations(w http.ResponseWriter, r *http.Request) {
 //	@Security		APIKeyAuth
 //	@Accept			json
 //	@Produce		json
-//	@Param			teamID	path		string					true	"Team ID"	format(uuid)
+//	@Param			teamId	path		string					true	"Team ID"	format(uuid)
 //	@Param			body	body		CreateInvitationRequest	true	"Create invitation request"
 //	@Success		201		{object}	InvitationResponse
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
 //	@Failure		403		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
-//	@Router			/api/v1/teams/{teamID}/invitations [post]
+//	@Router			/api/v1/teams/{teamId}/invitations [post]
 func (h *Handler) CreateTeamInvitation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -718,9 +801,9 @@ func (h *Handler) CreateTeamInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
+	teamID, err := getTeamIDFromPath(r)
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
+		_ = response.BadRequest(w, r, err)
 		return
 	}
 
@@ -786,13 +869,13 @@ func (h *Handler) CreateTeamInvitation(w http.ResponseWriter, r *http.Request) {
 //	@Tags			teams
 //	@Security		BearerAuth
 //	@Security		APIKeyAuth
-//	@Param			teamID			path	string	true	"Team ID"		format(uuid)
-//	@Param			invitationID	path	string	true	"Invitation ID"	format(uuid)
+//	@Param			teamId			path	string	true	"Team ID"		format(uuid)
+//	@Param			invitationId	path	string	true	"Invitation ID"	format(uuid)
 //	@Success		204				"No Content"
 //	@Failure		401				{object}	ErrorResponse
 //	@Failure		403				{object}	ErrorResponse
 //	@Failure		404				{object}	ErrorResponse
-//	@Router			/api/v1/teams/{teamID}/invitations/{invitationID} [delete]
+//	@Router			/api/v1/teams/{teamId}/invitations/{invitationId} [delete]
 func (h *Handler) RevokeTeamInvitation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -801,15 +884,15 @@ func (h *Handler) RevokeTeamInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
+	teamID, err := getTeamIDFromPath(r)
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
+		_ = response.BadRequest(w, r, err)
 		return
 	}
 
-	invitationID, err := uuid.Parse(chi.URLParam(r, "invitationID"))
+	invitationID, err := getInvitationIDFromPath(r)
 	if err != nil {
-		_ = response.BadRequest(w, r, errors.New("invalid invitation ID"))
+		_ = response.BadRequest(w, r, err)
 		return
 	}
 

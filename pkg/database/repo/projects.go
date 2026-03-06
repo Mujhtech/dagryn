@@ -208,7 +208,7 @@ func (r *ProjectRepo) Delete(ctx context.Context, id uuid.UUID) error {
 // ListByUser returns all projects a user has access to.
 func (r *ProjectRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]models.ProjectWithMember, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT p.id, p.team_id, p.name, p.slug, p.path_hash, p.repo_url, p.repo_linked_by_user_id, p.github_installation_id, p.github_repo_id, p.billing_account_id, p.description, p.visibility, p.config_path,
+		SELECT p.id, p.team_id, p.name, p.slug, p.path_hash, p.repo_url, p.repo_linked_by_user_id, p.github_installation_id, p.github_repo_id, p.billing_account_id, p.default_branch, p.description, p.visibility, p.config_path,
 		       p.created_at, p.updated_at, p.last_run_at, pm.role, pm.joined_at
 		FROM projects p
 		JOIN project_members pm ON p.id = pm.project_id

@@ -164,21 +164,33 @@ func (h *AISuggestPublishHandler) Handle(ctx context.Context, t *asynq.Task) err
 		return nil
 	}
 
-	// Build review comments from suggestions.
-	comments := buildReviewComments(suggestions)
+	// Fetch PR diff files with hunk data so we can place comments correctly.
+	diffFiles, err := fetchPRDiffFiles(ctx, accessToken, owner, repoName, *run.PRNumber)
+	if err != nil {
+		h.logger.Warn().Err(err).Msg("failed to fetch PR files, will include all suggestions in body")
+	}
 
-	if len(comments) == 0 {
+	// Build review comments, splitting into inline (in-diff) and non-inline.
+	comments, nonDiffSuggestions := buildReviewCommentsFiltered(suggestions, diffFiles)
+
+	if len(comments) == 0 && len(nonDiffSuggestions) == 0 {
 		h.logger.Debug().Msg("no valid review comments to post")
 		return nil
 	}
 
 	// Post as a single PR review.
 	reviewBody := buildReviewBody(analysis, suggestions)
+	// Append suggestions for files not in the PR diff as text in the review body.
+	if len(nonDiffSuggestions) > 0 {
+		reviewBody += buildNonDiffSuggestionsBody(nonDiffSuggestions)
+	}
 	reviewReq := map[string]interface{}{
 		"body":      reviewBody,
 		"event":     "COMMENT",
 		"commit_id": *run.GitCommit,
-		"comments":  comments,
+	}
+	if len(comments) > 0 {
+		reviewReq["comments"] = comments
 	}
 
 	reviewURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d/reviews", owner, repoName, *run.PRNumber)
@@ -250,29 +262,165 @@ func (h *AISuggestPublishHandler) getGitHubToken(ctx context.Context, project *m
 
 // reviewComment represents a single review comment for the GitHub PR review API.
 type reviewComment struct {
-	Path string `json:"path"`
-	Line int    `json:"line"`
-	Side string `json:"side"`
-	Body string `json:"body"`
+	Path        string  `json:"path"`
+	Body        string  `json:"body"`
+	Line        *int    `json:"line,omitempty"`
+	Side        *string `json:"side,omitempty"`
+	StartLine   *int    `json:"start_line,omitempty"`
+	StartSide   *string `json:"start_side,omitempty"`
+	SubjectType *string `json:"subject_type,omitempty"`
 }
 
-// buildReviewComments builds GitHub PR review comments with suggestion blocks.
-func buildReviewComments(suggestions []models.AISuggestion) []reviewComment {
+// diffFileInfo holds patch metadata for a file in the PR diff.
+type diffFileInfo struct {
+	// Hunks contains the new-side line ranges covered by each hunk.
+	Hunks []hunkRange
+}
+
+type hunkRange struct {
+	Start int // first new-side line
+	End   int // last new-side line (Start + Count - 1)
+}
+
+// buildReviewCommentsFiltered classifies suggestions into three buckets:
+//  1. Line-level inline comments (file in diff AND lines within a hunk)
+//  2. File-level inline comments (file in diff BUT lines outside all hunks)
+//  3. Non-diff suggestions (file not in diff at all) — returned separately for the body
+func buildReviewCommentsFiltered(suggestions []models.AISuggestion, diffFiles map[string]*diffFileInfo) ([]reviewComment, []models.AISuggestion) {
 	var comments []reviewComment
+	var nonDiff []models.AISuggestion
+	side := "RIGHT"
+
 	for _, s := range suggestions {
 		if s.FilePath == "" || s.SuggestedCode == "" {
 			continue
 		}
-		body := buildSuggestionCommentBody(s)
-		comment := reviewComment{
-			Path: s.FilePath,
-			Line: s.EndLine,
-			Side: "RIGHT",
-			Body: body,
+
+		fi, fileKnown := diffFiles[s.FilePath]
+
+		// File not in the diff at all → body text.
+		// (Only when we actually have diff data; if diffFiles is nil we have no info.)
+		if diffFiles != nil && !fileKnown {
+			nonDiff = append(nonDiff, s)
+			continue
 		}
-		comments = append(comments, comment)
+
+		// File is in the diff (or diff data unavailable). Check if lines fall within a hunk.
+		if diffFiles == nil || linesInHunks(fi.Hunks, s.StartLine, s.EndLine) {
+			// Line-level comment.
+			comment := reviewComment{
+				Path: s.FilePath,
+				Line: &s.EndLine,
+				Side: &side,
+				Body: buildSuggestionCommentBody(s),
+			}
+			if s.StartLine > 0 && s.StartLine < s.EndLine {
+				comment.StartLine = &s.StartLine
+				comment.StartSide = &side
+			}
+			comments = append(comments, comment)
+		} else {
+			// File-level comment — lines are outside diff hunks.
+			subjectType := "file"
+			comments = append(comments, reviewComment{
+				Path:        s.FilePath,
+				SubjectType: &subjectType,
+				Body:        buildFileLevelSuggestionBody(s),
+			})
+		}
 	}
-	return comments
+	return comments, nonDiff
+}
+
+// linesInHunks reports whether the range [start, end] overlaps any hunk.
+func linesInHunks(hunks []hunkRange, start, end int) bool {
+	for _, h := range hunks {
+		if start <= h.End && end >= h.Start {
+			return true
+		}
+	}
+	return false
+}
+
+// fetchPRDiffFiles returns per-file diff info (hunks) for a pull request.
+func fetchPRDiffFiles(ctx context.Context, token, owner, repo string, prNumber int) (map[string]*diffFileInfo, error) {
+	u := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d/files?per_page=100", owner, repo, prNumber)
+	var files []struct {
+		Filename string `json:"filename"`
+		Patch    string `json:"patch"`
+	}
+	if err := notification.SendGitHubJSON(ctx, token, http.MethodGet, u, nil, &files); err != nil {
+		return nil, err
+	}
+	m := make(map[string]*diffFileInfo, len(files))
+	for _, f := range files {
+		m[f.Filename] = &diffFileInfo{Hunks: parseHunks(f.Patch)}
+	}
+	return m, nil
+}
+
+// parseHunks extracts new-side line ranges from a unified diff patch string.
+// Hunk headers look like: @@ -old_start,old_count +new_start,new_count @@
+func parseHunks(patch string) []hunkRange {
+	var hunks []hunkRange
+	for _, line := range strings.Split(patch, "\n") {
+		if !strings.HasPrefix(line, "@@") {
+			continue
+		}
+		// Find the +new_start,new_count portion.
+		plusIdx := strings.Index(line, "+")
+		if plusIdx < 0 {
+			continue
+		}
+		rest := line[plusIdx+1:]
+		// Ends at the next space or @@.
+		endIdx := strings.IndexAny(rest, " @")
+		if endIdx > 0 {
+			rest = rest[:endIdx]
+		}
+		var start, count int
+		if n, _ := fmt.Sscanf(rest, "%d,%d", &start, &count); n == 2 {
+			if count == 0 {
+				// A zero-count hunk (pure deletion) has no new-side lines.
+				continue
+			}
+			hunks = append(hunks, hunkRange{Start: start, End: start + count - 1})
+		} else if n, _ := fmt.Sscanf(rest, "%d", &start); n == 1 {
+			// Single-line hunk (count defaults to 1).
+			hunks = append(hunks, hunkRange{Start: start, End: start})
+		}
+	}
+	return hunks
+}
+
+// buildFileLevelSuggestionBody builds a suggestion body for file-level comments
+// (when the suggestion's lines are outside the PR diff hunks).
+func buildFileLevelSuggestionBody(s models.AISuggestion) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "**Dagryn AI Suggestion** (%.0f%% confidence) — lines %d–%d\n\n", s.Confidence*100, s.StartLine, s.EndLine)
+	fmt.Fprintf(&b, "%s\n\n", s.Explanation)
+	fmt.Fprintf(&b, "```diff\n- %s\n+ %s\n```\n",
+		strings.ReplaceAll(s.OriginalCode, "\n", "\n- "),
+		strings.ReplaceAll(s.SuggestedCode, "\n", "\n+ "))
+	return b.String()
+}
+
+// buildNonDiffSuggestionsBody renders suggestions for files not in the PR diff as
+// markdown text to be appended to the review body.
+func buildNonDiffSuggestionsBody(suggestions []models.AISuggestion) string {
+	var b strings.Builder
+	b.WriteString("\n\n---\n\n")
+	b.WriteString("**Additional suggestions** (files not in this PR's diff):\n\n")
+	for _, s := range suggestions {
+		fmt.Fprintf(&b, "<details><summary><code>%s</code> lines %d–%d (%.0f%% confidence)</summary>\n\n",
+			s.FilePath, s.StartLine, s.EndLine, s.Confidence*100)
+		fmt.Fprintf(&b, "%s\n\n", s.Explanation)
+		fmt.Fprintf(&b, "```diff\n- %s\n+ %s\n```\n\n",
+			strings.ReplaceAll(s.OriginalCode, "\n", "\n- "),
+			strings.ReplaceAll(s.SuggestedCode, "\n", "\n+ "))
+		b.WriteString("</details>\n\n")
+	}
+	return b.String()
 }
 
 // buildSuggestionCommentBody builds a GitHub suggestion block for a single suggestion.

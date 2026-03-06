@@ -2,7 +2,10 @@ package cloud
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -65,7 +68,10 @@ func TestBackend_SaveAndRestore(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"message": "created"})
 
 		case r.Method == "GET" && contains(r.URL.Path, "/download"):
+			h := sha256.Sum256(stored)
 			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Header().Set("X-Checksum-SHA256", hex.EncodeToString(h[:]))
+			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(stored)))
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write(stored)
 
@@ -109,6 +115,95 @@ func TestBackend_SaveNoPatterns(t *testing.T) {
 	b := newTestBackend(t, srv, projectID)
 	err := b.Save(context.Background(), "build", "key1", nil, cache.Metadata{})
 	require.NoError(t, err)
+}
+
+func TestBackend_RestoreChecksumMismatch(t *testing.T) {
+	projectID := uuid.New()
+
+	// Create a valid archive first via Save
+	var stored []byte
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "PUT":
+			data, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			stored = data
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]string{"message": "created"})
+
+		case r.Method == "GET" && contains(r.URL.Path, "/download"):
+			// Send a wrong checksum to simulate corruption
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Header().Set("X-Checksum-SHA256", "0000000000000000000000000000000000000000000000000000000000000000")
+			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(stored)))
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(stored)
+
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	srcRoot := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(srcRoot, "dist"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(srcRoot, "dist", "output.txt"), []byte("test"), 0644))
+
+	b := newTestBackendWithRoot(t, srv, projectID, srcRoot)
+	err := b.Save(context.Background(), "build", "key1", []string{"dist/**"}, cache.Metadata{})
+	require.NoError(t, err)
+
+	dstRoot := t.TempDir()
+	b2 := newTestBackendWithRoot(t, srv, projectID, dstRoot)
+	err = b2.Restore(context.Background(), "build", "key1")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cloud cache integrity")
+	assert.Contains(t, err.Error(), "checksum mismatch")
+}
+
+func TestBackend_RestoreNoChecksumHeader(t *testing.T) {
+	projectID := uuid.New()
+
+	var stored []byte
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "PUT":
+			data, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			stored = data
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]string{"message": "created"})
+
+		case r.Method == "GET" && contains(r.URL.Path, "/download"):
+			// No checksum headers — backward compatibility
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(stored)
+
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	srcRoot := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(srcRoot, "dist"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(srcRoot, "dist", "out.txt"), []byte("compat"), 0644))
+
+	b := newTestBackendWithRoot(t, srv, projectID, srcRoot)
+	err := b.Save(context.Background(), "build", "key1", []string{"dist/**"}, cache.Metadata{})
+	require.NoError(t, err)
+
+	dstRoot := t.TempDir()
+	b2 := newTestBackendWithRoot(t, srv, projectID, dstRoot)
+	err = b2.Restore(context.Background(), "build", "key1")
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(filepath.Join(dstRoot, "dist", "out.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "compat", string(data))
 }
 
 func TestBackend_ClearNoop(t *testing.T) {

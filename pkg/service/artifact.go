@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path"
 	"time"
 
@@ -70,29 +71,76 @@ func (s *ArtifactService) Upload(ctx context.Context, projectID, runID uuid.UUID
 	artifactID := uuid.New()
 	storageKey := artifactStorageKey(projectID, runID, taskName, artifactID, fileName)
 
-	// Buffer the entire stream so the body is seekable for S3 retries.
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, fmt.Errorf("artifact: read upload data: %w", err)
-	}
-	if size <= 0 {
-		size = int64(len(data))
-	}
+	var digest string
 
-	if contentType == "" {
-		contentType = http.DetectContentType(data)
-	}
+	// When the reader is seekable (e.g. *os.File from server-side artifact
+	// collection), stream the hash and upload directly without buffering the
+	// entire body in memory. For non-seekable readers (e.g. HTTP request
+	// bodies), fall back to io.ReadAll so S3 retries can re-read the body.
+	if rs, ok := reader.(io.ReadSeeker); ok {
+		if size <= 0 {
+			// Try to determine size via Stat if available (e.g. *os.File).
+			if f, ok := reader.(*os.File); ok {
+				if info, err := f.Stat(); err == nil {
+					size = info.Size()
+				}
+			}
+		}
 
-	hasher := sha256.New()
-	hasher.Write(data)
-	digest := hex.EncodeToString(hasher.Sum(nil))
+		// Detect content type from the first 512 bytes.
+		if contentType == "" {
+			sniff := make([]byte, 512)
+			n, _ := io.ReadFull(rs, sniff)
+			contentType = http.DetectContentType(sniff[:n])
+			if _, err := rs.Seek(0, io.SeekStart); err != nil {
+				return nil, fmt.Errorf("artifact: seek after sniff: %w", err)
+			}
+		}
 
-	putOpts := &storage.PutOptions{
-		ContentType:   contentType,
-		ContentLength: size,
-	}
-	if err := s.bucket.Put(ctx, storageKey, bytes.NewReader(data), putOpts); err != nil {
-		return nil, fmt.Errorf("artifact: upload blob: %w", err)
+		// Hash the file by streaming from disk.
+		hasher := sha256.New()
+		if _, err := io.Copy(hasher, rs); err != nil {
+			return nil, fmt.Errorf("artifact: hash data: %w", err)
+		}
+		digest = hex.EncodeToString(hasher.Sum(nil))
+
+		// Seek back for upload.
+		if _, err := rs.Seek(0, io.SeekStart); err != nil {
+			return nil, fmt.Errorf("artifact: seek for upload: %w", err)
+		}
+
+		putOpts := &storage.PutOptions{
+			ContentType:   contentType,
+			ContentLength: size,
+		}
+		if err := s.bucket.Put(ctx, storageKey, rs, putOpts); err != nil {
+			return nil, fmt.Errorf("artifact: upload blob: %w", err)
+		}
+	} else {
+		// Non-seekable reader: buffer into memory for S3 retries.
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			return nil, fmt.Errorf("artifact: read upload data: %w", err)
+		}
+		if size <= 0 {
+			size = int64(len(data))
+		}
+
+		if contentType == "" {
+			contentType = http.DetectContentType(data)
+		}
+
+		hasher := sha256.New()
+		hasher.Write(data)
+		digest = hex.EncodeToString(hasher.Sum(nil))
+
+		putOpts := &storage.PutOptions{
+			ContentType:   contentType,
+			ContentLength: size,
+		}
+		if err := s.bucket.Put(ctx, storageKey, bytes.NewReader(data), putOpts); err != nil {
+			return nil, fmt.Errorf("artifact: upload blob: %w", err)
+		}
 	}
 	var expiresAt *time.Time
 	if ttl > 0 {

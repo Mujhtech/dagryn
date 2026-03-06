@@ -10,6 +10,7 @@ import (
 	"github.com/mujhtech/dagryn/pkg/database/repo"
 	"github.com/mujhtech/dagryn/pkg/entitlement"
 	"github.com/mujhtech/dagryn/pkg/http/response"
+	"github.com/mujhtech/dagryn/pkg/service"
 )
 
 // ListProjectMembers godoc
@@ -178,6 +179,23 @@ func (h *Handler) AddProjectMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Audit log: member added to project
+	if h.auditService != nil {
+		project, _ := h.store.Projects.GetByID(ctx, projectID)
+		if project != nil && project.TeamID != nil {
+			h.auditService.Log(ctx, service.AuditEntry{
+				TeamID:       *project.TeamID,
+				ProjectID:    &projectID,
+				Action:       models.AuditActionMemberAdded,
+				Category:     models.AuditCategoryMember,
+				ResourceType: "project_member",
+				ResourceID:   req.UserID.String(),
+				Description:  "Member added to project",
+				Metadata:     map[string]interface{}{"role": string(newRole), "target_email": targetUser.Email},
+			})
+		}
+	}
+
 	_ = response.Created(w, r, "Created successfully", ProjectMemberResponse{
 		User:     userModelToResponse(targetUser),
 		Role:     string(newRole),
@@ -255,6 +273,22 @@ func (h *Handler) RemoveProjectMember(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.Projects.RemoveMember(ctx, projectID, targetUserID); err != nil {
 		_ = response.InternalServerError(w, r, errors.New("failed to remove member"))
 		return
+	}
+
+	// Audit log: member removed from project
+	if h.auditService != nil {
+		project, _ := h.store.Projects.GetByID(ctx, projectID)
+		if project != nil && project.TeamID != nil {
+			h.auditService.Log(ctx, service.AuditEntry{
+				TeamID:       *project.TeamID,
+				ProjectID:    &projectID,
+				Action:       models.AuditActionMemberRemoved,
+				Category:     models.AuditCategoryMember,
+				ResourceType: "project_member",
+				ResourceID:   targetUserID.String(),
+				Description:  "Member removed from project",
+			})
+		}
 	}
 
 	_ = response.NoContent(w, r)
@@ -346,6 +380,26 @@ func (h *Handler) UpdateProjectMemberRole(w http.ResponseWriter, r *http.Request
 	if err := h.store.Projects.UpdateMemberRole(ctx, projectID, targetUserID, newRole); err != nil {
 		_ = response.InternalServerError(w, r, errors.New("failed to update role"))
 		return
+	}
+
+	// Audit log: member role changed
+	if h.auditService != nil {
+		project, _ := h.store.Projects.GetByID(ctx, projectID)
+		if project != nil && project.TeamID != nil {
+			h.auditService.Log(ctx, service.AuditEntry{
+				TeamID:       *project.TeamID,
+				ProjectID:    &projectID,
+				Action:       models.AuditActionMemberRoleChanged,
+				Category:     models.AuditCategoryMember,
+				ResourceType: "project_member",
+				ResourceID:   targetUserID.String(),
+				Description:  "Project member role changed",
+				Metadata: map[string]interface{}{
+					"old_role": string(targetMember.Role),
+					"new_role": string(newRole),
+				},
+			})
+		}
 	}
 
 	targetUser, _ := h.store.Users.GetByID(ctx, targetUserID)

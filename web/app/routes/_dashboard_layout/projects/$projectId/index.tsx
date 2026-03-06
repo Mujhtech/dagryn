@@ -54,9 +54,6 @@ function ProjectDetailPage() {
   const perPage = 20;
 
   const [triggerDialogOpen, setTriggerDialogOpen] = useState(false);
-  const [triggerTargets, setTriggerTargets] = useState("");
-  const [triggerBranch, setTriggerBranch] = useState("");
-  const [triggerForce, setTriggerForce] = useState(false);
 
   const {
     data: project,
@@ -73,28 +70,10 @@ function ProjectDetailPage() {
 
   const triggerRunMutation = useTriggerRun(projectId);
 
-  const handleTriggerRun = () => {
-    const request: TriggerRunRequest = {};
-
-    if (triggerTargets.trim()) {
-      request.targets = triggerTargets
-        .split(",")
-        .map((target) => target.trim())
-        .filter(Boolean);
-    }
-    if (triggerBranch.trim()) {
-      request.git_branch = triggerBranch.trim();
-    }
-    if (triggerForce) {
-      request.force = true;
-    }
-
+  const handleTriggerRun = (request: TriggerRunRequest) => {
     triggerRunMutation.mutate(request, {
       onSuccess: (data) => {
         setTriggerDialogOpen(false);
-        setTriggerTargets("");
-        setTriggerBranch("");
-        setTriggerForce(false);
         navigate({
           to: "/projects/$projectId/runs/$runId",
           params: { projectId, runId: data.run_id },
@@ -234,12 +213,6 @@ function ProjectDetailPage() {
         toggleBranch={toggleBranch}
         triggerDialogOpen={triggerDialogOpen}
         setTriggerDialogOpen={setTriggerDialogOpen}
-        triggerTargets={triggerTargets}
-        setTriggerTargets={setTriggerTargets}
-        triggerBranch={triggerBranch}
-        setTriggerBranch={setTriggerBranch}
-        triggerForce={triggerForce}
-        setTriggerForce={setTriggerForce}
         onTriggerRun={handleTriggerRun}
         triggerRunPending={triggerRunMutation.isPending}
         triggerRunErrorMessage={triggerRunMutation.error?.message}
