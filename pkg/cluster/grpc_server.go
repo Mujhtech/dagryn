@@ -265,7 +265,7 @@ func (s *GRPCServer) handleTaskEvent(event *v1.TaskEvent) {
 		if execStatus != executor.Success && execStatus != executor.Cached {
 			status = models.TaskAssignmentFailed
 		}
-		resultJSON, _ := json.Marshal(map[string]interface{}{
+		resultJSON, _ := json.Marshal(map[string]any{
 			"status":    execStatus.String(),
 			"exit_code": e.Result.ExitCode,
 			"error":     e.Result.ErrorMessage,

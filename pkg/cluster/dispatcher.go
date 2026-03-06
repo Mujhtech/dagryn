@@ -180,7 +180,7 @@ func (e *RemoteTaskExecutor) Execute(ctx context.Context, t *task.Task) *executo
 	if result.Status != executor.Success {
 		status = models.TaskAssignmentFailed
 	}
-	resultJSON, _ := json.Marshal(map[string]interface{}{
+	resultJSON, _ := json.Marshal(map[string]any{
 		"status":    result.Status.String(),
 		"exit_code": result.ExitCode,
 		"error":     errorString(result.Error),
