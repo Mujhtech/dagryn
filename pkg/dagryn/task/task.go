@@ -6,6 +6,13 @@ import (
 	"time"
 )
 
+// TaskRoutingConfig controls how a task is dispatched in distributed mode.
+type TaskRoutingConfig struct {
+	Labels      map[string]string // Required worker labels
+	Cluster     string            // Target cluster name
+	PreferLocal bool              // Try local before remote (default true)
+}
+
 // Task represents an atomic unit of execution in Dagryn.
 // Tasks are immutable after creation.
 type Task struct {
@@ -22,6 +29,7 @@ type Task struct {
 	Container *TaskContainerConfig // Optional per-task container settings
 	Group     string               // Logical group for target resolution
 	If        string               // Condition expression for conditional execution
+	Routing   *TaskRoutingConfig   // Optional distributed dispatch routing config
 }
 
 // TaskContainerConfig holds per-task container overrides.
@@ -133,6 +141,17 @@ func (t *Task) Clone() *Task {
 	if t.Container != nil {
 		c := *t.Container
 		clone.Container = &c
+	}
+
+	if t.Routing != nil {
+		r := *t.Routing
+		if t.Routing.Labels != nil {
+			r.Labels = make(map[string]string, len(t.Routing.Labels))
+			for k, v := range t.Routing.Labels {
+				r.Labels[k] = v
+			}
+		}
+		clone.Routing = &r
 	}
 
 	return clone

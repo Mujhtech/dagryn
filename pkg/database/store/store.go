@@ -24,6 +24,7 @@ type Store struct {
 	AuditLogs           repo.AuditLogStore
 	Analytics           repo.AnalyticsStore
 	SSO                 repo.SSOStore
+	Clusters            repo.ClusterStore
 }
 
 func New(
@@ -48,5 +49,6 @@ func New(
 		AuditLogs:           repo.NewAuditLogRepo(db.Pool()),
 		Analytics:           repo.NewAnalyticsRepo(db.Pool()),
 		SSO:                 repo.NewSSORepo(db.Pool()),
+		Clusters:            repo.NewClusterRepo(db.Pool()),
 	}
 }

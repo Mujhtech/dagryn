@@ -36,6 +36,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/mujhtech/dagryn/pkg/api"
+	"github.com/mujhtech/dagryn/pkg/cluster"
 	"github.com/mujhtech/dagryn/pkg/api/handlers"
 	"github.com/mujhtech/dagryn/pkg/authn"
 	"github.com/mujhtech/dagryn/pkg/authz"
@@ -75,6 +76,11 @@ type Server struct {
 	extraRoutes       func(chi.Router)
 	dashboardHandler  http.Handler
 	auditService      *service.AuditService
+
+	// Cluster (distributed worker pool)
+	grpcServer     *cluster.GRPCServer
+	workerRegistry *cluster.WorkerRegistry
+	dispatcher     *cluster.Dispatcher
 }
 
 // SetEntitlementChecker allows an external binary to override the default
@@ -363,11 +369,49 @@ func (s *Server) Initialize(ctx context.Context) error {
 	// Setup routes
 	apiHandler.BuildRouter(s.router)
 
+	// Initialize cluster (distributed worker pool) if enabled
+	if s.config.Cluster.Enabled {
+		s.workerRegistry = cluster.NewWorkerRegistry(
+			s.store.Clusters,
+			s.config.Cluster.HeartbeatSec,
+			s.config.Cluster.StaleTimeoutSec,
+		)
+		s.dispatcher = cluster.NewDispatcher(
+			s.workerRegistry,
+			s.store.Clusters,
+			s.config.Cluster.DefaultRouter,
+		)
+		logBridge := cluster.NewLogBridge(s.sseHub)
+		s.grpcServer = cluster.NewGRPCServer(
+			s.workerRegistry,
+			s.store.Clusters,
+			logBridge,
+			s.config.Cluster,
+		)
+
+		grpcAddr := s.config.Cluster.GRPCAddress
+		if grpcAddr == "" {
+			grpcAddr = ":9001"
+		}
+		go func() {
+			if err := s.grpcServer.Serve(grpcAddr); err != nil {
+				log.Error().Err(err).Msg("gRPC cluster server error")
+			}
+		}()
+		go s.workerRegistry.StartStaleDetector(ctx)
+
+		reassigner := cluster.NewReassigner(s.store.Clusters, 0)
+		go reassigner.Start(ctx)
+
+		log.Info().Str("grpc_addr", grpcAddr).Msg("Cluster mode enabled")
+	}
+
 	log.Info().
 		Str("addr", s.config.Server.Address()).
 		Bool("swagger", s.config.Server.Swagger.Enabled).
 		Bool("telemetry", s.config.Telemetry.Enabled).
 		Int("oauth_providers", len(s.oauthProviders)).
+		Bool("cluster", s.config.Cluster.Enabled).
 		Msg("Server initialized")
 
 	return nil
@@ -445,6 +489,12 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	shutdownCtx, cancel := context.WithTimeout(ctx, s.config.Server.ShutdownTimeout)
 	defer cancel()
 
+	// Shutdown gRPC server (fix #10: graceful gRPC shutdown)
+	if s.grpcServer != nil {
+		s.grpcServer.GracefulStop()
+		log.Debug().Msg("gRPC cluster server stopped")
+	}
+
 	// Shutdown HTTP server
 	if err := s.server.Shutdown(shutdownCtx); err != nil {
 		log.Error().Err(err).Msg("Error shutting down HTTP server")
@@ -496,6 +546,16 @@ func (s *Server) Config() *config.Config {
 // AuditService returns the audit service (may be nil before Initialize).
 func (s *Server) AuditService() *service.AuditService {
 	return s.auditService
+}
+
+// Dispatcher returns the cluster dispatcher (nil if cluster mode is disabled).
+func (s *Server) Dispatcher() *cluster.Dispatcher {
+	return s.dispatcher
+}
+
+// WorkerRegistry returns the worker registry (nil if cluster mode is disabled).
+func (s *Server) WorkerRegistry() *cluster.WorkerRegistry {
+	return s.workerRegistry
 }
 
 // buildSSOConfig builds the SSO config from server config.

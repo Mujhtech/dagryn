@@ -92,6 +92,22 @@ type SSOConfig struct {
 	AutoGenerateCert bool   `toml:"auto_generate_cert" envconfig:"AUTO_GENERATE_CERT"`
 }
 
+// ClusterConfig holds multi-cluster / distributed worker pool configuration.
+type ClusterConfig struct {
+	Enabled           bool   `toml:"enabled" envconfig:"ENABLED"`
+	GRPCAddress       string `toml:"grpc_address" envconfig:"GRPC_ADDRESS"`          // default ":9001"
+	HeartbeatSec      int    `toml:"heartbeat_interval" envconfig:"HEARTBEAT_SEC"`   // default 10
+	StaleTimeoutSec   int    `toml:"stale_timeout" envconfig:"STALE_TIMEOUT_SEC"`    // default 30
+	MaxRetries        int    `toml:"max_retries" envconfig:"MAX_RETRIES"`            // default 2
+	RegistrationToken string `toml:"registration_token" envconfig:"REGISTRATION_TOKEN"`
+	DefaultRouter     string `toml:"default_router" envconfig:"DEFAULT_ROUTER"` // "least-loaded", "round-robin", "label-affinity"
+
+	// mTLS
+	TLSCertFile string `toml:"tls_cert_file" envconfig:"TLS_CERT_FILE"`
+	TLSKeyFile  string `toml:"tls_key_file" envconfig:"TLS_KEY_FILE"`
+	TLSCAFile   string `toml:"tls_ca_file" envconfig:"TLS_CA_FILE"`
+}
+
 // Config holds all server configuration.
 type Config struct {
 	Worker          WorkerConfig          `toml:"worker"`
@@ -112,6 +128,7 @@ type Config struct {
 	Cache           CacheConfig           `toml:"cache"`
 	AI              AIServerConfig        `toml:"ai"`
 	SSO             SSOConfig             `toml:"sso"`
+	Cluster         ClusterConfig         `toml:"cluster"`
 }
 
 // StorageConfig holds cache storage backend configuration.
@@ -390,6 +407,7 @@ func ProcessEnvVars(cfg *Config) {
 	_ = envconfig.Process("DAGRYN_STRIPE", &cfg.Stripe)
 	_ = envconfig.Process("DAGRYN_AI", &cfg.AI)
 	_ = envconfig.Process("DAGRYN_SSO", &cfg.SSO)
+	_ = envconfig.Process("DAGRYN_CLUSTER", &cfg.Cluster)
 
 	// OTEL vars use standard naming (not DAGRYN-prefixed).
 	if v := os.Getenv("OTEL_SERVICE_NAME"); v != "" {

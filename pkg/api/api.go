@@ -572,6 +572,34 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 				r.Post("/{token}/decline", a.h.DeclineInvitation)
 			})
 
+			// Cluster management routes
+			r.Route("/clusters", func(r chi.Router) {
+				r.Get("/", a.h.ListClusters)
+				r.Post("/", a.h.CreateCluster)
+				r.Route(fmt.Sprintf("/{%s}", handlers.ClusterIDParam), func(r chi.Router) {
+					r.Get("/", a.h.GetCluster)
+					r.Put("/", a.h.UpdateCluster)
+					r.Delete("/", a.h.DeleteCluster)
+				})
+			})
+
+			// Worker management routes
+			r.Route("/workers", func(r chi.Router) {
+				r.Get("/", a.h.ListWorkers)
+				r.Route(fmt.Sprintf("/{%s}", handlers.WorkerIDParam), func(r chi.Router) {
+					r.Get("/", a.h.GetWorker)
+					r.Delete("/", a.h.DeleteWorker)
+					r.Post("/drain", a.h.DrainWorker)
+				})
+			})
+
+			// Task assignment routes (per run)
+			r.Route("/runs", func(r chi.Router) {
+				r.Route(fmt.Sprintf("/{%s}", handlers.RunIDParam), func(r chi.Router) {
+					r.Get("/assignments", a.h.ListRunAssignments)
+				})
+			})
+
 			// Extra routes injected by the cloud binary (e.g. billing
 			// routes from dagryn-cloud via RegisterExtraRoutes).
 			if a.extraRoutes != nil {

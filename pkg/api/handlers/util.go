@@ -26,6 +26,8 @@ const (
 	TeamIDParam         = "teamId"
 	AuditLogIDParam     = "auditLogId"
 	WebhookIDParam      = "webhookId"
+	ClusterIDParam      = "clusterId"
+	WorkerIDParam       = "workerId"
 )
 
 func pathParamOrError(r *http.Request, paramName string) (string, error) {

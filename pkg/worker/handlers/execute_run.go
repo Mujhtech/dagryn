@@ -77,6 +77,12 @@ type JobEnqueuer interface {
 	EnqueueRaw(queue, taskName string, data []byte) error
 }
 
+// ClusterDispatcher dispatches tasks to remote workers. Optional; nil when cluster mode is disabled.
+type ClusterDispatcher interface {
+	// CreateRemoteExecutor creates a TaskExecutor that dispatches to remote workers.
+	CreateRemoteExecutor(runID, projectID string, gitSource interface{}, maxRetries int) executor.TaskExecutor
+}
+
 // ExecuteRunHandler handles the execute_run job: clone repo, load config, run workflow, report status.
 type ExecuteRunHandler struct {
 	runs                repo.RunStore
@@ -94,6 +100,7 @@ type ExecuteRunHandler struct {
 	eventPublisher      sse.EventPublisher
 	jobEnqueuer         JobEnqueuer
 	baseURL             string
+	clusterDispatcher   ClusterDispatcher
 }
 
 // GitHubAppClient is an interface for fetching installation tokens.
@@ -159,6 +166,11 @@ func NewExecuteRunHandler(
 		jobEnqueuer:         jobEnqueuer,
 		baseURL:             baseURL,
 	}
+}
+
+// SetClusterDispatcher sets the optional cluster dispatcher for distributed mode.
+func (h *ExecuteRunHandler) SetClusterDispatcher(d ClusterDispatcher) {
+	h.clusterDispatcher = d
 }
 
 // createSyntheticTask creates a task result for infrastructure operations like clone/cleanup.
@@ -639,6 +651,14 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		condCtx.PRNumber = *run.PRNumber
 	}
 	opts.ConditionContext = condCtx
+
+	// Wire cluster dispatcher for distributed mode (if configured)
+	if h.clusterDispatcher != nil {
+		opts.DistributedMode = true
+		opts.RemoteExecutor = h.clusterDispatcher.CreateRemoteExecutor(
+			runID.String(), projectID.String(), nil, 2,
+		)
+	}
 
 	sched, err := scheduler.New(workflow, workDir, opts)
 	if err != nil {

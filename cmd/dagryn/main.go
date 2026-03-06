@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/mujhtech/dagryn/cmd/dagryn/agent"
 	"github.com/mujhtech/dagryn/cmd/dagryn/ai"
 	"github.com/mujhtech/dagryn/cmd/dagryn/artifact"
 	"github.com/mujhtech/dagryn/cmd/dagryn/auth"
+	clustercmd "github.com/mujhtech/dagryn/cmd/dagryn/cluster"
 	"github.com/mujhtech/dagryn/cmd/dagryn/cache"
 	"github.com/mujhtech/dagryn/cmd/dagryn/clean"
 	"github.com/mujhtech/dagryn/cmd/dagryn/completion"
@@ -17,6 +19,7 @@ import (
 	initcmd "github.com/mujhtech/dagryn/cmd/dagryn/init"
 	"github.com/mujhtech/dagryn/cmd/dagryn/license"
 	"github.com/mujhtech/dagryn/cmd/dagryn/migrate"
+	"github.com/mujhtech/dagryn/cmd/dagryn/nodes"
 	"github.com/mujhtech/dagryn/cmd/dagryn/plugin"
 	"github.com/mujhtech/dagryn/cmd/dagryn/run"
 	"github.com/mujhtech/dagryn/cmd/dagryn/server"
@@ -43,6 +46,9 @@ func main() {
 	addCmd(root, "remote", cache.NewCmd(flags))
 	addCmd(root, "remote", use.NewCmd(flags))
 	addCmd(root, "remote", artifact.NewCmd(flags))
+	addCmd(root, "remote", agent.NewCmd(flags))
+	addCmd(root, "remote", clustercmd.NewCmd(flags))
+	addCmd(root, "remote", nodes.NewCmd(flags))
 
 	// Tool commands
 	addCmd(root, "tools", plugin.NewCmd(flags))
