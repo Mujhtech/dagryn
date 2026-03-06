@@ -1,0 +1,45 @@
+[plugin]
+name = "eslint"
+description = "Run ESLint for JavaScript/TypeScript linting"
+version = "1.0.0"
+type = "composite"
+author = "dagryn"
+license = "MIT"
+
+[inputs.args]
+description = "Files or directories to lint"
+default = "."
+
+[inputs.config]
+description = "Path to ESLint config file"
+
+[inputs.fix]
+description = "Automatically fix problems"
+default = "false"
+
+[[step]]
+name = "check-eslint"
+command = """
+if command -v eslint >/dev/null 2>&1 || npx eslint --version >/dev/null 2>&1; then
+  echo "ESLint available"
+else
+  echo "ERROR: ESLint not found. Install with: npm install eslint"
+  exit 1
+fi
+"""
+
+[[step]]
+name = "run-eslint"
+command = """
+ESLINT_ARGS="${inputs.args}"
+CONFIG_FLAG=""
+FIX_FLAG=""
+if [ -n "${inputs.config}" ]; then
+  CONFIG_FLAG="--config ${inputs.config}"
+fi
+if [ "${inputs.fix}" = "true" ]; then
+  FIX_FLAG="--fix"
+fi
+echo "Running: npx eslint $ESLINT_ARGS $CONFIG_FLAG $FIX_FLAG"
+npx eslint $ESLINT_ARGS $CONFIG_FLAG $FIX_FLAG
+"""

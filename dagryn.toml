@@ -13,39 +13,156 @@
 #   workdir  - Working directory for the command
 #   env      - Environment variables as key=value pairs
 #   uses     - Plugin(s) to install before running the task
+#
+# Cache configuration:
+#   [cache]
+#   enabled = true                    # Enable/disable local caching (default: true)
+#   dir = ""             # Override local cache directory
+#
+#   [cache.remote]
+#   enabled = true                    # Enable remote cache sharing
+#   cloud = true                      # Use Dagryn Cloud cache (requires "dagryn login")
+#   strategy = "local-first"          # "local-first", "remote-first", or "write-through"
+#   fallback_on_error = true          # Fall back to local cache on remote errors
+#
+#   # Self-hosted remote cache (when cloud = false):
+#   provider = "s3"                   # "s3" or "filesystem"
+#   bucket = "my-cache-bucket"
+#   region = "us-east-1"
+#   endpoint = ""                     # Custom S3 endpoint (for R2, MinIO, etc.)
+#   access_key_id = ""
+#   secret_access_key = ""
+#   prefix = ""                       # Key prefix in the bucket
 
 [workflow]
 name = "ci"
 default = true
 
+[workflow.trigger]
+[workflow.trigger.push]
+branches = [
+    "main",
+    "design",
+] # Match branches for push events (e.g., "main", "develop")
+[workflow.trigger.pull_request]
+branches = [
+    "main",
+    "design",
+] # Match branches for PR events (e.g., "main", "develop")
+types = ["opened", "synchronize"] # PR event types to match     
+
 # Global plugins (available to all tasks by reference name)
 [plugins]
-golangci-lint = "github:golangci/golangci-lint@v1.61.0"
+golangci-lint = "github:golangci/golangci-lint@v2.8.0"
+golang-vul = "go:golang.org/x/vuln/cmd/govulncheck@latest"
+setup-node = "local:./plugins/setup-node"
+setup-go = "local:./plugins/setup-go"
+
+# Install dependencies
+[tasks.web-install]
+workdir = "web"
+command = "pnpm install --frozen-lockfile"
+uses = ["setup-node"]
+inputs = ["package.json", "pnpm-lock.yaml"]
+outputs = ["node_modules/**"]
+timeout = "5m"
+
+# Build the web
+[tasks.web-build]
+workdir = "web"
+command = "pnpm build"
+needs = ["web-install"]
+inputs = ["src/**", "package.json", "tsconfig.json"]
+outputs = ["dist/**", "build/**", "../pkg/server/dashboard/dist/**"]
+timeout = "10m"
+
+
+# Run tests
+[tasks.web-test]
+workdir = "web"
+command = "pnpm test:run"
+needs = ["web-build"]
+inputs = ["src/**", "test/**", "tests/**", "__tests__/**", "package.json"]
+timeout = "5m"
+
+# Run linter (configured in package.json scripts)
+[tasks.web-lint]
+workdir = "web"
+command = "pnpm typecheck"
+needs = ["web-install"]
+inputs = ["src/**", ".eslintrc*", "eslint.config.*", "package.json"]
+timeout = "2m"
 
 # Build the Go application
-[tasks.build]
+[tasks.go-build]
 command = "go build -v ./..."
+uses = ["setup-go"]
+needs = ["web-build"]
 inputs = ["**/*.go", "go.mod", "go.sum"]
 outputs = ["bin/**"]
 timeout = "10m"
 
 # Run tests with coverage
-[tasks.test]
+[tasks.go-test]
 command = "go test -v -race -coverprofile=coverage.out ./..."
-needs = ["build"]
+needs = ["go-build"]
 inputs = ["**/*.go", "go.mod", "go.sum"]
 outputs = ["coverage.out"]
 timeout = "5m"
 
 # Run linter (auto-installed via plugin)
-[tasks.lint]
+[tasks.go-lint]
 uses = ["golangci-lint"]
+needs = ["go-build"]
 command = "golangci-lint run ./..."
 inputs = ["**/*.go", ".golangci.yml", ".golangci.yaml"]
 timeout = "2m"
 
+[tasks.go-vulnerability-scan]
+command = "govulncheck -C ./... -json > gosec-report.json"
+uses = ["golang-vul"]
+needs = ["go-build"]
+inputs = ["**/*.go", "go.mod", "go.sum"]
+outputs = ["gosec-report.json"]
+timeout = "5m"
+
 # Check code formatting (fails if files need formatting)
-[tasks.fmt]
+[tasks.go-fmt]
 command = "test -z \"$(gofmt -l .)\""
+needs = ["go-build"]
 inputs = ["**/*.go"]
 timeout = "1m"
+
+
+[cache]
+# Local cache settings
+local = true
+dir = ""
+
+[cache.remote]
+enabled = true
+# endpoint = "grpc://cache.example.com:9092"
+# Or use Dagryn Cloud cache
+cloud = true
+
+
+[ai]
+enabled = true                   # Enable AI analysis (default: false)
+mode = "summarize_and_suggest"   # "summarize" or "summarize_and_suggest"
+provider = "google"              # "openai", "google", or "gemini"
+model = "gemini-3-flash-preview" # Model name (default varies by provider)
+
+[ai.backend]
+mode = "managed"
+
+[ai.guardrails]
+min_confidence = 0.7             # Minimum confidence threshold (0.0-1.0)
+max_suggestions_per_analysis = 5 # Max suggestions per run
+
+[ai.publish]
+github_comment = true     # Post analysis as PR comment
+github_check = true       # Create GitHub check run
+github_suggestions = true # Post inline code suggestions
+
+[container]
+enabled = false

@@ -1,0 +1,34 @@
+[plugin]
+name = "jest"
+description = "Run Jest for JavaScript/TypeScript testing"
+version = "1.0.0"
+type = "composite"
+author = "dagryn"
+license = "MIT"
+
+[inputs.args]
+description = "Additional arguments to pass to Jest"
+default = ""
+
+[inputs.coverage]
+description = "Enable coverage reporting"
+default = "false"
+
+[inputs.config]
+description = "Path to Jest config file"
+
+[[step]]
+name = "run-jest"
+command = """
+JEST_ARGS="${inputs.args}"
+COV_FLAG=""
+CONFIG_FLAG=""
+if [ "${inputs.coverage}" = "true" ]; then
+  COV_FLAG="--coverage"
+fi
+if [ -n "${inputs.config}" ]; then
+  CONFIG_FLAG="--config ${inputs.config}"
+fi
+echo "Running: npx jest $COV_FLAG $CONFIG_FLAG $JEST_ARGS"
+npx jest $COV_FLAG $CONFIG_FLAG $JEST_ARGS
+"""

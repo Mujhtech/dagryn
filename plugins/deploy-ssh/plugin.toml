@@ -1,0 +1,92 @@
+[plugin]
+name = "deploy-ssh"
+description = "Deploy files to a remote server via SSH/SCP"
+version = "1.0.0"
+type = "composite"
+author = "dagryn"
+license = "MIT"
+
+[inputs.host]
+required = true
+description = "Remote host to deploy to"
+
+[inputs.user]
+required = true
+description = "SSH user for the remote host"
+
+[inputs.source]
+required = true
+description = "Local source path to deploy"
+
+[inputs.target]
+required = true
+description = "Remote target path"
+
+[inputs.key]
+description = "Path to SSH private key"
+default = "~/.ssh/id_rsa"
+
+[inputs.port]
+description = "SSH port"
+default = "22"
+
+[inputs.pre-deploy-command]
+description = "Command to run on the remote host before deploying"
+
+[inputs.post-deploy-command]
+description = "Command to run on the remote host after deploying"
+
+[[step]]
+name = "check-ssh"
+command = """
+SSH_KEY="${inputs.key}"
+if [ ! -f "$SSH_KEY" ] && [ "$SSH_KEY" = "~/.ssh/id_rsa" ]; then
+  SSH_KEY="$HOME/.ssh/id_rsa"
+fi
+if [ ! -f "$SSH_KEY" ]; then
+  echo "Error: SSH key not found at $SSH_KEY"
+  exit 1
+fi
+echo "SSH key found: $SSH_KEY"
+ssh -o BatchMode=yes -o ConnectTimeout=10 -i "$SSH_KEY" -p "${inputs.port}" "${inputs.user}@${inputs.host}" "echo 'SSH connection successful'"
+"""
+
+[[step]]
+name = "pre-deploy"
+command = """
+PRE_CMD="${inputs.pre-deploy-command}"
+if [ -n "$PRE_CMD" ]; then
+  SSH_KEY="${inputs.key}"
+  if [ ! -f "$SSH_KEY" ] && [ "$SSH_KEY" = "~/.ssh/id_rsa" ]; then
+    SSH_KEY="$HOME/.ssh/id_rsa"
+  fi
+  echo "Running pre-deploy command"
+  ssh -o BatchMode=yes -i "$SSH_KEY" -p "${inputs.port}" "${inputs.user}@${inputs.host}" "$PRE_CMD"
+fi
+"""
+
+[[step]]
+name = "deploy"
+command = """
+SSH_KEY="${inputs.key}"
+if [ ! -f "$SSH_KEY" ] && [ "$SSH_KEY" = "~/.ssh/id_rsa" ]; then
+  SSH_KEY="$HOME/.ssh/id_rsa"
+fi
+echo "Deploying ${inputs.source} to ${inputs.user}@${inputs.host}:${inputs.target}"
+scp -o BatchMode=yes -i "$SSH_KEY" -P "${inputs.port}" -r "${inputs.source}" "${inputs.user}@${inputs.host}:${inputs.target}"
+echo "Deploy complete"
+"""
+
+[[step]]
+name = "post-deploy"
+command = """
+POST_CMD="${inputs.post-deploy-command}"
+if [ -n "$POST_CMD" ]; then
+  SSH_KEY="${inputs.key}"
+  if [ ! -f "$SSH_KEY" ] && [ "$SSH_KEY" = "~/.ssh/id_rsa" ]; then
+    SSH_KEY="$HOME/.ssh/id_rsa"
+  fi
+  echo "Running post-deploy command"
+  ssh -o BatchMode=yes -i "$SSH_KEY" -p "${inputs.port}" "${inputs.user}@${inputs.host}" "$POST_CMD"
+fi
+"""

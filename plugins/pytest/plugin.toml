@@ -1,0 +1,46 @@
+[plugin]
+name = "pytest"
+description = "Run pytest for Python testing"
+version = "1.0.0"
+type = "composite"
+author = "dagryn"
+license = "MIT"
+
+[inputs.args]
+description = "Additional arguments to pass to pytest"
+default = ""
+
+[inputs.verbose]
+description = "Enable verbose output"
+default = "true"
+
+[inputs.coverage]
+description = "Enable coverage reporting"
+default = "false"
+
+[[step]]
+name = "check-pytest"
+command = """
+if python3 -m pytest --version >/dev/null 2>&1; then
+  echo "pytest available: $(python3 -m pytest --version)"
+else
+  echo "ERROR: pytest not found. Install with: pip install pytest"
+  exit 1
+fi
+"""
+
+[[step]]
+name = "run-pytest"
+command = """
+PYTEST_ARGS="${inputs.args}"
+VERBOSE_FLAG=""
+COV_FLAG=""
+if [ "${inputs.verbose}" = "true" ]; then
+  VERBOSE_FLAG="-v"
+fi
+if [ "${inputs.coverage}" = "true" ]; then
+  COV_FLAG="--cov"
+fi
+echo "Running: python3 -m pytest $VERBOSE_FLAG $COV_FLAG $PYTEST_ARGS"
+python3 -m pytest $VERBOSE_FLAG $COV_FLAG $PYTEST_ARGS
+"""

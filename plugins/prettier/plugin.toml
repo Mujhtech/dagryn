@@ -1,0 +1,33 @@
+[plugin]
+name = "prettier"
+description = "Run Prettier for code formatting"
+version = "1.0.0"
+type = "composite"
+author = "dagryn"
+license = "MIT"
+
+[inputs.args]
+description = "Files or directories to format"
+default = "."
+
+[inputs.check]
+description = "Check formatting without writing changes"
+default = "true"
+
+[inputs.write]
+description = "Write formatted output to files"
+default = "false"
+
+[[step]]
+name = "run-prettier"
+command = """
+PRETTIER_ARGS="${inputs.args}"
+MODE_FLAG=""
+if [ "${inputs.write}" = "true" ]; then
+  MODE_FLAG="--write"
+elif [ "${inputs.check}" = "true" ]; then
+  MODE_FLAG="--check"
+fi
+echo "Running: npx prettier $MODE_FLAG $PRETTIER_ARGS"
+npx prettier $MODE_FLAG $PRETTIER_ARGS
+"""

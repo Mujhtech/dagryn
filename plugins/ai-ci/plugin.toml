@@ -1,0 +1,22 @@
+[plugin]
+name = "ai-ci"
+description = "AI-powered failure analysis and inline suggestions for CI runs"
+type = "integration"
+version = "1.0.0"
+author = "dagryn"
+license = "MIT"
+homepage = "https://github.com/mujhtech/dagryn/plugins/ai-ci"
+
+[inputs]
+[inputs.publish]
+description = "Where to publish AI results"
+default = "github"
+[inputs.mode]
+description = "AI mode: summarize or summarize_and_suggest"
+default = "summarize"
+[inputs.backend_mode]
+description = "Backend: managed, byok, or agent"
+default = "byok"
+
+[hooks.on_run_failure]
+command = "dagryn ai analyze --run-id $DAGRYN_RUN_ID --project-root $DAGRYN_PROJECT_ROOT"

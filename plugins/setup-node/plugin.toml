@@ -1,0 +1,73 @@
+[plugin]
+name = "setup-node"
+description = "Install and configure Node.js"
+version = "1.0.0"
+type = "composite"
+author = "dagryn"
+license = "MIT"
+
+[inputs.node-version]
+description = "Node.js version to install"
+default = "20"
+
+[inputs.cache]
+description = "Cache node_modules directory"
+default = "true"
+
+[[step]]
+name = "detect-platform"
+command = """
+NODE_OS="${os}"
+NODE_ARCH="${arch}"
+if [ "$NODE_ARCH" = "amd64" ]; then NODE_ARCH="x64"; fi
+echo "Platform: $NODE_OS-$NODE_ARCH"
+"""
+
+[[step]]
+name = "download-and-install"
+command = """
+NODE_VERSION="${inputs.node-version}"
+NODE_OS="${os}"
+NODE_ARCH="${arch}"
+if [ "$NODE_ARCH" = "amd64" ]; then NODE_ARCH="x64"; fi
+INSTALL_DIR="$HOME/.dagryn/tools/node-$NODE_VERSION"
+if [ -d "$INSTALL_DIR" ]; then
+  echo "Node.js $NODE_VERSION already installed"
+else
+  mkdir -p "$INSTALL_DIR"
+  TARBALL="node-v${NODE_VERSION}-${NODE_OS}-${NODE_ARCH}.tar.gz"
+  URL="https://nodejs.org/dist/v${NODE_VERSION}/${TARBALL}"
+  echo "Downloading Node.js $NODE_VERSION from $URL"
+  curl -fsSL "$URL" | tar xz --strip-components=1 -C "$INSTALL_DIR"
+fi
+"""
+
+[[step]]
+name = "set-path"
+command = """
+NODE_VERSION="${inputs.node-version}"
+INSTALL_DIR="$HOME/.dagryn/tools/node-$NODE_VERSION"
+export PATH="$INSTALL_DIR/bin:$PATH"
+echo "Node.js $(node --version) installed"
+echo "npm $(npm --version) installed"
+"""
+[step.env]
+PATH = "$HOME/.dagryn/tools/node-${inputs.node-version}/bin:$PATH"
+
+[[step]]
+name = "cache-node-modules"
+if = "${inputs.cache}"
+command = """
+if [ -f "package-lock.json" ] || [ -f "yarn.lock" ] || [ -f "pnpm-lock.yaml" ]; then
+  echo "Lock file detected, node_modules eligible for caching"
+else
+  echo "No lock file found, skipping cache"
+fi
+"""
+
+[[cleanup]]
+name = "shell-cache-reset"
+command = """
+hash -r 2>/dev/null || true
+echo "setup-node cleanup complete"
+"""

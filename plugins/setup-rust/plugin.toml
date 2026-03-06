@@ -1,0 +1,63 @@
+[plugin]
+name = "setup-rust"
+description = "Install and configure Rust toolchain"
+version = "1.0.0"
+type = "composite"
+author = "dagryn"
+license = "MIT"
+
+[inputs.rust-version]
+description = "Rust toolchain version to install (stable, nightly, or specific version)"
+default = "stable"
+
+[inputs.cache]
+description = "Cache cargo registry and target directory"
+default = "true"
+
+[[step]]
+name = "install-rustup"
+command = """
+if command -v rustup >/dev/null 2>&1; then
+  echo "rustup already installed"
+else
+  echo "Installing rustup"
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none
+  export PATH="$HOME/.cargo/bin:$PATH"
+fi
+"""
+
+[[step]]
+name = "install-toolchain"
+command = """
+export PATH="$HOME/.cargo/bin:$PATH"
+TOOLCHAIN="${inputs.rust-version}"
+echo "Installing Rust toolchain: $TOOLCHAIN"
+rustup install "$TOOLCHAIN"
+rustup default "$TOOLCHAIN"
+"""
+
+[[step]]
+name = "verify"
+command = """
+export PATH="$HOME/.cargo/bin:$PATH"
+echo "Rust: $(rustc --version)"
+echo "Cargo: $(cargo --version)"
+"""
+
+[[step]]
+name = "cache-cargo"
+if = "${inputs.cache}"
+command = """
+CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+echo "Cargo registry at $CARGO_HOME/registry eligible for caching"
+if [ -d "target" ]; then
+  echo "Target directory eligible for caching"
+fi
+"""
+
+[[cleanup]]
+name = "shell-cache-reset"
+command = """
+hash -r 2>/dev/null || true
+echo "setup-rust cleanup complete"
+"""

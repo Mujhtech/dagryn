@@ -1,0 +1,164 @@
+# Dagryn Server - Development Configuration
+#
+# Minimal config for local development. Copy to dagryn.server.toml and customize.
+#
+# Required environment variables (or set below):
+#   JWT_SECRET - at least 32 characters
+#   GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET (or Google OAuth credentials)
+#
+# Optional AI environment variables:
+#   DAGRYN_AI_ENABLED=true             - Enable AI analysis
+#   DAGRYN_AI_PROVIDER=openai          - AI provider
+#   DAGRYN_AI_API_KEY=sk-...           - Provider API key
+#   DAGRYN_AI_BACKEND_MODE=byok        - Backend mode (byok/managed/agent)
+#   DAGRYN_AI_AGENT_ENDPOINT=...       - Agent endpoint URL (agent mode)
+#   DAGRYN_AI_AGENT_TOKEN=...          - Agent auth token (agent mode)
+
+[server]
+host = "localhost"
+port = 9000
+# base_url = "https://dagryn.dev"  # Public-facing URL for GitHub links (env: DAGRYN_BASE_URL)
+
+[server.swagger]
+enabled = true
+
+[database]
+url = "postgres://localhost:5432/dagryn?sslmode=disable"
+
+[redis]
+host = "localhost"
+port = 6379
+
+[auth]
+# Generate with: openssl rand -base64 32
+jwt_secret = "your-super-secret-jwt-key-at-least-32-chars"
+
+# Configure at least one OAuth provider
+[oauth.github]
+client_id = ""
+client_secret = ""
+
+[oauth.google]
+client_id = ""
+client_secret = ""
+
+[job]
+enabled = false
+concurrency = 10
+
+[telemetry]
+enabled = false
+
+# GitHub App configuration (optional, required for GitHub webhooks + app-based repo access)
+[github_app]
+# Numeric GitHub App ID
+app_id = 0
+# GitHub App OAuth client ID (from app settings)
+client_id = ""
+# PEM-encoded private key for the GitHub App (or set GITHUB_APP_PRIVATE_KEY env var)
+private_key = ""
+# Webhook secret configured on the GitHub App (or set GITHUB_APP_WEBHOOK_SECRET env var)
+webhook_secret = ""
+
+# Cache storage configuration (optional, enables cloud cache service)
+# Provider: "filesystem", "s3", "gcs", "azure", "r2", "minio"
+# Can also be configured via DAGRYN_CACHE_STORAGE_* environment variables.
+#
+# --- Filesystem (local development) ---
+# [cache_storage]
+# provider = "filesystem"
+# base_path = "/var/dagryn/cache-storage"
+# prefix = ""
+#
+# --- AWS S3 ---
+# [cache_storage]
+# provider = "s3"
+# bucket = "dagryn-cache"
+# region = "us-east-1"
+# access_key_id = ""      # or use AWS_ACCESS_KEY_ID env / IAM role
+# secret_access_key = ""  # or use AWS_SECRET_ACCESS_KEY env / IAM role
+# prefix = "v1/"
+#
+# --- Google Cloud Storage ---
+# [cache_storage]
+# provider = "gcs"
+# bucket = "dagryn-cache"
+# region = "us-central1"
+# credentials_file = "/path/to/service-account.json"  # or use GOOGLE_APPLICATION_CREDENTIALS env
+# prefix = "v1/"
+#
+# --- Azure Blob Storage ---
+# Uses access_key_id for account name and secret_access_key for account key.
+# Endpoint is the storage account URL (e.g. https://<account>.blob.core.windows.net).
+# Falls back to DefaultAzureCredential when keys are not set.
+# [cache_storage]
+# provider = "azure"
+# bucket = "dagryn-cache"          # container name
+# endpoint = "https://<account>.blob.core.windows.net"
+# access_key_id = ""               # storage account name
+# secret_access_key = ""           # storage account key
+# prefix = "v1/"
+#
+# --- Cloudflare R2 ---
+# Endpoint format: https://<account_id>.r2.cloudflarestorage.com
+# [cache_storage]
+# provider = "r2"
+# bucket = "dagryn-cache"
+# endpoint = "https://<account_id>.r2.cloudflarestorage.com"
+# access_key_id = ""
+# secret_access_key = ""
+# prefix = "v1/"
+#
+# --- MinIO (self-hosted S3-compatible) ---
+# [cache_storage]
+# provider = "minio"
+# bucket = "dagryn-cache"
+# endpoint = "http://minio.local:9000"
+# access_key_id = "minioadmin"
+# secret_access_key = "minioadmin"
+# use_path_style = true
+# prefix = "v1/"
+
+# AI analysis configuration (optional, enables AI-powered failure analysis)
+# Can also be configured via DAGRYN_AI_* environment variables.
+#
+# Backend modes:
+#   "byok"    - Bring Your Own Key: calls the provider API directly with your API key
+#   "managed" - Uses Dagryn-managed AI credits (requires paid plan)
+#   "agent"   - Routes requests to a self-hosted AI agent endpoint
+#
+# [ai]
+# enabled = false
+# provider = "openai"                  # AI provider ("openai", "google", "gemini")
+# api_key = ""                         # Provider API key (or set DAGRYN_AI_API_KEY env var)
+# backend_mode = "byok"               # "byok", "managed", or "agent"
+# timeout_seconds = 60                 # Max time for a single AI request
+# max_tokens = 4096                    # Max tokens in AI response
+# max_analyses_per_hour = 10           # Rate limit: max analyses per hour per project
+# cooldown_seconds = 30                # Min seconds between analyses for the same project
+# max_concurrent_analyses = 3          # Max analyses running at the same time
+# raw_response_ttl_hours = 168         # How long to keep raw AI response blobs (7 days)
+# raw_response_storage = ""            # Storage backend for raw blobs (uses cache_storage if empty)
+#
+# --- Agent mode (self-hosted AI endpoint) ---
+# agent_endpoint = ""                  # URL of the agent (or set DAGRYN_AI_AGENT_ENDPOINT env var)
+# agent_token = ""                     # Auth token for the agent (or set DAGRYN_AI_AGENT_TOKEN env var)
+
+# Artifact storage configuration (optional, enables artifact uploads)
+# Provider: "filesystem", "s3", "gcs", "azure", "r2", "minio"
+# Can also be configured via DAGRYN_ARTIFACT_STORAGE_* environment variables.
+#
+# --- Filesystem (local development) ---
+# [artifact_storage]
+# provider = "filesystem"
+# base_path = "/var/dagryn/artifacts"
+# prefix = ""
+#
+# --- AWS S3 ---
+# [artifact_storage]
+# provider = "s3"
+# bucket = "dagryn-artifacts"
+# region = "us-east-1"
+# access_key_id = ""      # or use AWS_ACCESS_KEY_ID env / IAM role
+# secret_access_key = ""  # or use AWS_SECRET_ACCESS_KEY env / IAM role
+# prefix = "v1/"

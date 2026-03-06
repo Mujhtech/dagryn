@@ -23,3 +23,11 @@ build.sh
 dump.rdb
 
 .dagryn
+
+**/node_modules/
+
+
+dist
+dist-ssr
+dagryn.server.toml
+.tanstack

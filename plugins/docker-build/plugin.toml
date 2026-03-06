@@ -1,0 +1,103 @@
+[plugin]
+name = "docker-build"
+description = "Build and optionally push Docker images"
+version = "1.0.0"
+type = "composite"
+author = "dagryn"
+license = "MIT"
+
+[inputs.context]
+description = "Docker build context path"
+default = "."
+
+[inputs.file]
+description = "Path to Dockerfile"
+default = "Dockerfile"
+
+[inputs.tags]
+required = true
+description = "Comma-separated list of image tags (e.g. myapp:latest,myapp:1.0)"
+
+[inputs.push]
+description = "Push image to registry after build"
+default = "false"
+
+[inputs.build-args]
+description = "Comma-separated build args (e.g. FOO=bar,BAZ=qux)"
+
+[inputs.cleanup-local-images]
+description = "Remove built local images during cleanup"
+default = "false"
+
+[[step]]
+name = "check-docker"
+command = """
+if command -v docker >/dev/null 2>&1; then
+  echo "Docker available: $(docker --version)"
+else
+  echo "ERROR: Docker not found. Please install Docker."
+  exit 1
+fi
+"""
+
+[[step]]
+name = "build-image"
+command = """
+CONTEXT="${inputs.context}"
+DOCKERFILE="${inputs.file}"
+TAGS="${inputs.tags}"
+BUILD_ARGS="${inputs.build-args}"
+
+TAG_FLAGS=""
+IFS=',' ; for tag in $TAGS; do
+  TAG_FLAGS="$TAG_FLAGS -t $tag"
+done
+
+ARG_FLAGS=""
+if [ -n "$BUILD_ARGS" ]; then
+  IFS=',' ; for arg in $BUILD_ARGS; do
+    ARG_FLAGS="$ARG_FLAGS --build-arg $arg"
+  done
+fi
+
+echo "Running: docker build -f $DOCKERFILE $TAG_FLAGS $ARG_FLAGS $CONTEXT"
+docker build -f "$DOCKERFILE" $TAG_FLAGS $ARG_FLAGS "$CONTEXT"
+"""
+
+[[step]]
+name = "push-image"
+if = "${inputs.push}"
+command = """
+TAGS="${inputs.tags}"
+IFS=',' ; for tag in $TAGS; do
+  echo "Pushing: $tag"
+  docker push "$tag"
+done
+"""
+
+[[cleanup]]
+name = "logout-registries"
+command = """
+TAGS="${inputs.tags}"
+IFS=',' ; for tag in $TAGS; do
+  IMAGE="${tag%%:*}"
+  REGISTRY="${IMAGE%%/*}"
+  case "$REGISTRY" in
+    *.*|*:*|localhost)
+      echo "Logging out of registry: $REGISTRY"
+      docker logout "$REGISTRY" >/dev/null 2>&1 || true
+      ;;
+  esac
+done
+"""
+
+[[cleanup]]
+name = "remove-local-images"
+if = "${inputs.cleanup-local-images}"
+command = """
+TAGS="${inputs.tags}"
+IFS=',' ; for tag in $TAGS; do
+  echo "Removing local image: $tag"
+  docker image rm "$tag" >/dev/null 2>&1 || true
+done
+"""

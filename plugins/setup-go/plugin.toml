@@ -1,0 +1,65 @@
+[plugin]
+name = "setup-go"
+description = "Install and configure Go"
+version = "1.0.0"
+type = "composite"
+author = "dagryn"
+license = "MIT"
+
+[inputs.go-version]
+description = "Go version to install"
+default = "1.22"
+
+[inputs.cache]
+description = "Cache Go module cache"
+default = "true"
+
+[[step]]
+name = "download-and-install"
+command = """
+GO_VERSION="${inputs.go-version}"
+GO_OS="${os}"
+GO_ARCH="${arch}"
+INSTALL_DIR="$HOME/.dagryn/tools/go-$GO_VERSION"
+if [ -d "$INSTALL_DIR/go" ]; then
+  echo "Go $GO_VERSION already installed"
+else
+  mkdir -p "$INSTALL_DIR"
+  TARBALL="go${GO_VERSION}.${GO_OS}-${GO_ARCH}.tar.gz"
+  URL="https://go.dev/dl/${TARBALL}"
+  echo "Downloading Go $GO_VERSION from $URL"
+  curl -fsSL "$URL" | tar xz -C "$INSTALL_DIR"
+fi
+"""
+
+[[step]]
+name = "set-environment"
+command = """
+GO_VERSION="${inputs.go-version}"
+INSTALL_DIR="$HOME/.dagryn/tools/go-$GO_VERSION"
+export GOROOT="$INSTALL_DIR/go"
+export PATH="$GOROOT/bin:$PATH"
+go version
+"""
+[step.env]
+GOROOT = "$HOME/.dagryn/tools/go-${inputs.go-version}/go"
+PATH = "$HOME/.dagryn/tools/go-${inputs.go-version}/go/bin:$PATH"
+
+[[step]]
+name = "cache-modules"
+if = "${inputs.cache}"
+command = """
+GOMODCACHE=$(go env GOMODCACHE 2>/dev/null || echo "$HOME/go/pkg/mod")
+if [ -d "$GOMODCACHE" ]; then
+  echo "Go module cache at $GOMODCACHE eligible for caching"
+else
+  echo "No Go module cache found yet"
+fi
+"""
+
+[[cleanup]]
+name = "shell-cache-reset"
+command = """
+hash -r 2>/dev/null || true
+echo "setup-go cleanup complete"
+"""

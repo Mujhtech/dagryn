@@ -1,0 +1,66 @@
+[plugin]
+name = "upload-artifact"
+description = "Upload build artifacts to S3-compatible storage"
+version = "1.0.0"
+type = "composite"
+author = "dagryn"
+license = "MIT"
+
+[inputs.path]
+required = true
+description = "Local path to upload (file or directory)"
+
+[inputs.name]
+required = true
+description = "Artifact name (used as S3 key prefix)"
+
+[inputs.bucket]
+required = true
+description = "S3 bucket name"
+
+[inputs.region]
+description = "AWS region"
+default = "us-east-1"
+
+[inputs.endpoint]
+description = "Custom S3 endpoint URL (for MinIO, R2, etc.)"
+
+[inputs.retention-days]
+description = "Number of days to retain artifacts"
+default = "30"
+
+[[step]]
+name = "check-aws-cli"
+command = """
+if ! command -v aws &> /dev/null; then
+  echo "Error: AWS CLI is not installed"
+  echo "Install it from https://aws.amazon.com/cli/"
+  exit 1
+fi
+echo "AWS CLI found: $(aws --version)"
+"""
+
+[[step]]
+name = "upload-artifacts"
+command = """
+ENDPOINT_FLAG=""
+if [ -n "${inputs.endpoint}" ]; then
+  ENDPOINT_FLAG="--endpoint-url ${inputs.endpoint}"
+fi
+
+SOURCE="${inputs.path}"
+DEST="s3://${inputs.bucket}/${inputs.name}/"
+
+if [ -d "$SOURCE" ]; then
+  echo "Uploading directory $SOURCE to $DEST"
+  aws s3 cp --recursive --region "${inputs.region}" $ENDPOINT_FLAG "$SOURCE" "$DEST"
+else
+  echo "Uploading file $SOURCE to $DEST"
+  aws s3 cp --region "${inputs.region}" $ENDPOINT_FLAG "$SOURCE" "$DEST"
+fi
+
+echo "Upload complete"
+echo "Artifact: ${inputs.name}"
+echo "Bucket: ${inputs.bucket}"
+echo "Retention: ${inputs.retention-days} days"
+"""

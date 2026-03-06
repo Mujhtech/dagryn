@@ -1,0 +1,42 @@
+[plugin]
+name = "slack-notify"
+description = "Send notifications to Slack via webhook"
+version = "1.0.0"
+type = "composite"
+author = "dagryn"
+license = "MIT"
+
+[inputs.webhook-url]
+required = true
+description = "Slack incoming webhook URL"
+
+[inputs.message]
+required = true
+description = "Message text to send"
+
+[inputs.channel]
+description = "Slack channel override"
+
+[inputs.username]
+description = "Bot username displayed in Slack"
+default = "Dagryn"
+
+[[step]]
+name = "send-notification"
+command = """
+WEBHOOK_URL="${inputs.webhook-url}"
+MESSAGE="${inputs.message}"
+CHANNEL="${inputs.channel}"
+USERNAME="${inputs.username}"
+
+PAYLOAD="{\"text\": \"$MESSAGE\", \"username\": \"$USERNAME\""
+if [ -n "$CHANNEL" ]; then
+  PAYLOAD="$PAYLOAD, \"channel\": \"$CHANNEL\""
+fi
+PAYLOAD="$PAYLOAD}"
+
+echo "Sending Slack notification"
+curl -fsSL -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$WEBHOOK_URL"
+echo ""
+echo "Notification sent"
+"""
