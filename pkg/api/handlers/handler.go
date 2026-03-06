@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/mujhtech/dagryn/pkg/database"
-	"github.com/mujhtech/dagryn/pkg/database/repo"
 	"github.com/mujhtech/dagryn/pkg/database/store"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
 	"github.com/mujhtech/dagryn/pkg/entitlement"
@@ -27,7 +26,6 @@ type Handler struct {
 	sseHub    *sse.Hub
 	jobClient *worker.Client
 
-	providerTokens  *repo.ProviderTokenRepo
 	providerEncrypt encrypt.Encrypt
 
 	// Config-driven ready checks

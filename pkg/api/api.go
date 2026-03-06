@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/mujhtech/dagryn/pkg/api/handlers"
@@ -163,8 +164,13 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 	// CORS
 	router.Use(middleware.CORS())
 
-	// Timeout
-	router.Use(middleware.Timeout(a.cfg.Server.WriteTimeout))
+	// Timeout — use a shorter timeout for normal requests and a longer
+	// one for uploads/downloads/SSE so large file transfers aren't killed.
+	uploadTimeout := a.cfg.Server.UploadTimeout
+	if uploadTimeout == 0 {
+		uploadTimeout = 10 * time.Minute
+	}
+	router.Use(middleware.AdaptiveTimeout(30*time.Second, uploadTimeout))
 
 	// For OSS, we need to wrap this in license checker only enterprise edition will have access to this route
 	workerRoutePrefix := a.cfg.Worker.RoutePrefix
@@ -211,6 +217,9 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 
 		// Public workflow tooling endpoints.
 		r.Post("/workflows/translate", a.h.TranslateGitHubWorkflowYAML)
+
+		// Public template endpoints.
+		r.Get("/templates/sample", a.h.GetSampleTemplate)
 
 		// Provider webhooks (public, no auth) - GitHub, GitLab, Bitbucket.
 		r.Route("/webhooks", func(r chi.Router) {
@@ -445,9 +454,10 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 
 			})
 
-			// License status
+			// License status and activation
 			r.Route("/license", func(r chi.Router) {
 				r.Get("/", a.h.GetLicenseStatus)
+				r.Post("/activate", a.h.ActivateLicense)
 			})
 
 			// Invitations (for accepting)

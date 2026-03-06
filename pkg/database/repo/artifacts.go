@@ -18,7 +18,7 @@ type ArtifactRepo struct {
 }
 
 // NewArtifactRepo creates a new artifact repository.
-func NewArtifactRepo(pool *pgxpool.Pool) *ArtifactRepo {
+func NewArtifactRepo(pool *pgxpool.Pool) ArtifactStore {
 	return &ArtifactRepo{pool: pool}
 }
 

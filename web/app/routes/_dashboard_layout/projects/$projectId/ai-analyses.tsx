@@ -12,11 +12,15 @@ import { Badge } from "~/components/ui/badge";
 import { Progress } from "~/components/ui/progress";
 import { Icons } from "~/components/icons";
 import type { AIAnalysis, AIAnalysisStatus } from "~/lib/api";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute(
   "/_dashboard_layout/projects/$projectId/ai-analyses",
 )({
   component: AIAnalysesPage,
+  head: () => {
+    return generateMetadata({ title: "AI Analyses" });
+  },
 });
 
 function AIAnalysesPage() {

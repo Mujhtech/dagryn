@@ -39,9 +39,13 @@ import {
 import { Badge } from "~/components/ui/badge";
 import type { Team, TeamMember, Invitation } from "~/lib/api";
 import { Icons } from "~/components/icons";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute("/_dashboard_layout/teams/$teamId/")({
   component: TeamDetailPage,
+  head: () => {
+    return generateMetadata({ title: "Team" });
+  },
 });
 
 function TeamDetailPage() {

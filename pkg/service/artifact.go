@@ -22,7 +22,7 @@ import (
 
 // ArtifactService coordinates artifact storage and database operations.
 type ArtifactService struct {
-	repo         *repo.ArtifactRepo
+	repo         repo.ArtifactStore
 	bucket       storage.Bucket
 	signer       storage.SignedURLer
 	logger       zerolog.Logger
@@ -35,7 +35,7 @@ func (s *ArtifactService) SetEntitlements(c entitlement.Checker) {
 }
 
 // NewArtifactService creates a new artifact service.
-func NewArtifactService(artifactRepo *repo.ArtifactRepo, bucket storage.Bucket, logger zerolog.Logger) *ArtifactService {
+func NewArtifactService(artifactRepo repo.ArtifactStore, bucket storage.Bucket, logger zerolog.Logger) *ArtifactService {
 	var signer storage.SignedURLer
 	if s, ok := bucket.(storage.SignedURLer); ok {
 		signer = s
@@ -70,26 +70,30 @@ func (s *ArtifactService) Upload(ctx context.Context, projectID, runID uuid.UUID
 	artifactID := uuid.New()
 	storageKey := artifactStorageKey(projectID, runID, taskName, artifactID, fileName)
 
-	head := make([]byte, 512)
-	n, _ := io.ReadFull(reader, head)
-	head = head[:n]
+	// Buffer the entire stream so the body is seekable for S3 retries.
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("artifact: read upload data: %w", err)
+	}
+	if size <= 0 {
+		size = int64(len(data))
+	}
+
 	if contentType == "" {
-		contentType = http.DetectContentType(head)
+		contentType = http.DetectContentType(data)
 	}
 
 	hasher := sha256.New()
-	combined := io.MultiReader(bytes.NewReader(head), reader)
-	tee := io.TeeReader(combined, hasher)
+	hasher.Write(data)
+	digest := hex.EncodeToString(hasher.Sum(nil))
 
-	putOpts := &storage.PutOptions{ContentType: contentType}
-	if size > 0 {
-		putOpts.ContentLength = size
+	putOpts := &storage.PutOptions{
+		ContentType:   contentType,
+		ContentLength: size,
 	}
-	if err := s.bucket.Put(ctx, storageKey, tee, putOpts); err != nil {
+	if err := s.bucket.Put(ctx, storageKey, bytes.NewReader(data), putOpts); err != nil {
 		return nil, fmt.Errorf("artifact: upload blob: %w", err)
 	}
-
-	digest := hex.EncodeToString(hasher.Sum(nil))
 	var expiresAt *time.Time
 	if ttl > 0 {
 		t := time.Now().Add(ttl)

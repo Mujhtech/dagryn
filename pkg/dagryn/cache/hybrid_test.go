@@ -66,8 +66,6 @@ func (m *mockBackend) ClearAll(_ context.Context) error {
 	return nil
 }
 
-// --- local-first strategy tests ---
-
 func TestHybridBackend_CheckLocalHit(t *testing.T) {
 	local := newMockBackend()
 	remote := newMockBackend()
@@ -218,8 +216,6 @@ func TestHybridBackend_ClearAllBoth(t *testing.T) {
 	assert.Len(t, remote.entries, 0)
 }
 
-// --- remote-first strategy tests ---
-
 func TestHybridBackend_RemoteFirst_CheckRemoteHit(t *testing.T) {
 	local := newMockBackend()
 	remote := newMockBackend()
@@ -317,8 +313,6 @@ func TestHybridBackend_RemoteFirst_SaveRemoteError_FallsBackToLocal(t *testing.T
 
 	assert.True(t, local.entries[entryKey("build", "k1")])
 }
-
-// --- write-through strategy tests ---
 
 func TestHybridBackend_WriteThrough_SaveBoth(t *testing.T) {
 	local := newMockBackend()

@@ -10,17 +10,18 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/mujhtech/dagryn/pkg/ai/aitypes"
 	"github.com/mujhtech/dagryn/pkg/database/models"
+	"github.com/mujhtech/dagryn/pkg/database/repo"
+	"github.com/mujhtech/dagryn/pkg/database/store"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// --- Mock suggestion repo ---
-
 type mockAISuggestRepo struct {
-	analyses    map[uuid.UUID]*models.AIAnalysis
-	suggestions []*models.AISuggestion
+	repo.AIStore // embed for interface satisfaction
+	analyses     map[uuid.UUID]*models.AIAnalysis
+	suggestions  []*models.AISuggestion
 }
 
 func newMockAISuggestRepo() *mockAISuggestRepo {
@@ -47,8 +48,6 @@ func (m *mockAISuggestRepo) CreateSuggestion(_ context.Context, s *models.AISugg
 func (m *mockAISuggestRepo) UpdateSuggestionStatus(_ context.Context, _ uuid.UUID, _ models.AISuggestionStatus, _ *string, _ *string) error {
 	return nil
 }
-
-// --- Tests ---
 
 func TestAISuggest_HappyPath(t *testing.T) {
 	analysisID := uuid.New()
@@ -79,7 +78,10 @@ func TestAISuggest_HappyPath(t *testing.T) {
 	}
 
 	handler := NewAISuggestHandler(
-		mockRepo, mockRuns,
+		store.Store{
+			AI:   mockRepo,
+			Runs: mockRuns,
+		},
 		encrypt.NewNoOpEncrypt(),
 		DefaultAISuggestConfig(),
 		&AIAnalysisConfig{
@@ -113,7 +115,10 @@ func TestAISuggest_AnalysisNotSuccess_Skips(t *testing.T) {
 	}
 
 	handler := NewAISuggestHandler(
-		mockRepo, &mockRunRepo{runs: make(map[uuid.UUID]*models.Run)},
+		store.Store{
+			AI:   mockRepo,
+			Runs: &mockRunRepo{runs: make(map[uuid.UUID]*models.Run)},
+		},
 		encrypt.NewNoOpEncrypt(),
 		DefaultAISuggestConfig(),
 		nil, // no server config
@@ -156,7 +161,10 @@ func TestAISuggest_NoConfig_Skips(t *testing.T) {
 
 	// No server config and no AI config in payload — should skip suggestions.
 	handler := NewAISuggestHandler(
-		mockRepo, mockRuns,
+		store.Store{
+			AI:   mockRepo,
+			Runs: mockRuns,
+		},
 		encrypt.NewNoOpEncrypt(),
 		DefaultAISuggestConfig(),
 		nil, // No server config

@@ -13,9 +13,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mujhtech/dagryn/pkg/dagryn/config"
-	"github.com/mujhtech/dagryn/pkg/entitlement"
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
+	"github.com/mujhtech/dagryn/pkg/entitlement"
 	"github.com/mujhtech/dagryn/pkg/worker"
 )
 

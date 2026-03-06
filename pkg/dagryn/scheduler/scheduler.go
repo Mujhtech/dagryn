@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/mujhtech/dagryn/pkg/dagryn/cache"
@@ -82,7 +83,9 @@ type Scheduler struct {
 	projectRoot       string
 
 	// Background cache saves
-	cacheSaveWg sync.WaitGroup
+	cacheSaveWg    sync.WaitGroup
+	cacheSaveTotal atomic.Int32
+	cacheSaveDone  atomic.Int32
 
 	// Integration plugin hooks
 	integrationRegistry *plugin.IntegrationRegistry
@@ -233,7 +236,7 @@ func (s *Scheduler) Run(ctx context.Context, targets []string) (*RunSummary, err
 	}
 
 	// Register integration plugins from global config
-	if !s.opts.DryRun {
+	if !s.opts.DryRun && !s.opts.NoPlugins {
 		s.registerIntegrationPlugins(ctx)
 	}
 
@@ -346,6 +349,12 @@ func (s *Scheduler) WaitCacheSaves() {
 	s.cacheSaveWg.Wait()
 }
 
+// CacheSaveProgress returns the total number of pending cache saves and how
+// many have completed so far. Callers can poll this to drive a progress bar.
+func (s *Scheduler) CacheSaveProgress() (total, done int) {
+	return int(s.cacheSaveTotal.Load()), int(s.cacheSaveDone.Load())
+}
+
 // executeTask executes a single task, checking dependencies and cache.
 func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map[string]*taskState, statesMu *sync.Mutex) *taskState {
 	t, ok := s.workflow.GetTask(taskName)
@@ -429,6 +438,11 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 				"task", taskName, "key", cacheKey, "error", err)
 			// Fall through to execution instead of returning Cached
 		} else {
+			// Emit a synthetic log line so remote dashboards show feedback
+			// for cached tasks (they produce no real output).
+			if s.onLogLine != nil {
+				s.onLogLine(taskName, "stdout", fmt.Sprintf("[cache hit] restored from %s", cacheKey[:12]))
+			}
 			result := &executor.Result{
 				Task:      taskName,
 				Status:    executor.Cached,
@@ -456,28 +470,34 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 		return s.executeCompositeTask(ctx, t, cacheKey)
 	}
 
-	// Get plugin paths for this task
-	pluginPaths := s.getPluginPathsForTask(t)
-
-	// Run composite plugin setup steps before the task command.
-	// This handles tasks like web-install that have both uses=["setup-node"] and a command.
-	compositeEnv, compositeCleanupTasks := s.runCompositeSetup(ctx, t)
-
-	// Set up output writers, wrapping with LineWriter if log callback is set
+	// Set up output writers, wrapping with LineWriter if log callback is set.
+	// This must happen before runCompositeSetup so plugin setup steps also stream.
 	stdoutWriter, stderrWriter := s.stdout, s.stderr
 	var stdoutLW, stderrLW *executor.LineWriter
+	var logLineEmitted bool
 
 	if s.onLogLine != nil {
 		name := taskName // Capture for closure
 		stdoutLW = executor.NewLineWriter(s.stdout, func(line string) {
+			logLineEmitted = true
 			s.onLogLine(name, "stdout", line)
 		})
 		stderrLW = executor.NewLineWriter(s.stderr, func(line string) {
+			logLineEmitted = true
 			s.onLogLine(name, "stderr", line)
 		})
 		stdoutWriter = stdoutLW
 		stderrWriter = stderrLW
 	}
+
+	// Get plugin paths for this task
+	pluginPaths := s.getPluginPathsForTask(t)
+
+	// Run composite plugin setup steps before the task command.
+	// This handles tasks like web-install that have both uses=["setup-node"] and a command.
+	// Use WithOutput to get a goroutine-local copy, avoiding data races on the shared executor.
+	taskCE := s.compositeExecutor.WithOutput(stdoutWriter, stderrWriter)
+	compositeEnv, compositeCleanupTasks := s.runCompositeSetup(ctx, t, taskCE)
 
 	// Choose executor: container (if available and configured) or host
 	var taskExec executor.TaskExecutor
@@ -502,7 +522,7 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 	result := taskExec.Execute(ctx, t)
 
 	// Run composite cleanup after the task command (post behavior).
-	s.runCompositeCleanup(compositeCleanupTasks)
+	s.runCompositeCleanup(compositeCleanupTasks, taskCE)
 
 	// Flush any partial lines from LineWriters
 	if stdoutLW != nil {
@@ -512,15 +532,27 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 		stderrLW.Flush()
 	}
 
+	// Emit a synthetic log line for tasks that produced no output so
+	// remote dashboards still show an entry in the log stream.
+	if s.onLogLine != nil && !logLineEmitted {
+		status := "completed"
+		if !result.IsSuccess() {
+			status = "failed"
+		}
+		s.onLogLine(taskName, "stdout", fmt.Sprintf("[%s] %s (no output)", status, t.Command))
+	}
+
 	// Save to cache on success (non-blocking — downstream tasks share data
 	// via the filesystem, not via cache, so the next DAG level can start
 	// immediately). Uses a detached context because Run()'s defer cancel()
 	// fires before WaitCacheSaves() is called by the caller.
 	if result.IsSuccess() && cacheKey != "" {
+		s.cacheSaveTotal.Add(1)
 		s.cacheSaveWg.Add(1)
 		go func() {
 			defer s.cacheSaveWg.Done()
-			saveCtx, saveCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer s.cacheSaveDone.Add(1)
+			saveCtx, saveCancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer saveCancel()
 			if err := s.cache.Save(saveCtx, t, cacheKey, result.Duration); err != nil {
 				slog.Warn("cache save failed", "task", taskName, "key", cacheKey, "error", err)
@@ -591,8 +623,33 @@ func (s *Scheduler) executeCompositeTask(ctx context.Context, t *task.Task, cach
 		workdir = filepath.Join(s.projectRoot, t.Workdir)
 	}
 
+	// Set up output writers with LineWriter for log streaming
+	var stdoutLW, stderrLW *executor.LineWriter
+	stdoutWriter, stderrWriter := s.stdout, s.stderr
+	if s.onLogLine != nil {
+		name := t.Name
+		stdoutLW = executor.NewLineWriter(s.stdout, func(line string) {
+			s.onLogLine(name, "stdout", line)
+		})
+		stderrLW = executor.NewLineWriter(s.stderr, func(line string) {
+			s.onLogLine(name, "stderr", line)
+		})
+		stdoutWriter = stdoutLW
+		stderrWriter = stderrLW
+	}
+	// Use WithOutput for a goroutine-local copy to avoid data races.
+	taskCE := s.compositeExecutor.WithOutput(stdoutWriter, stderrWriter)
+
 	// Execute the composite steps
-	err = s.compositeExecutor.Execute(ctx, resolved.Manifest, t.With, t.Env, workdir)
+	err = taskCE.Execute(ctx, resolved.Manifest, t.With, t.Env, workdir)
+
+	// Flush partial lines
+	if stdoutLW != nil {
+		stdoutLW.Flush()
+	}
+	if stderrLW != nil {
+		stderrLW.Flush()
+	}
 
 	endTime := time.Now()
 	duration := endTime.Sub(startTime)
@@ -619,10 +676,12 @@ func (s *Scheduler) executeCompositeTask(ctx context.Context, t *task.Task, cach
 		// Save to cache on success (non-blocking). Uses a detached context
 		// because Run()'s defer cancel() fires before WaitCacheSaves().
 		if cacheKey != "" {
+			s.cacheSaveTotal.Add(1)
 			s.cacheSaveWg.Add(1)
 			go func() {
 				defer s.cacheSaveWg.Done()
-				saveCtx, saveCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+				defer s.cacheSaveDone.Add(1)
+				saveCtx, saveCancel := context.WithTimeout(context.Background(), 10*time.Minute)
 				defer saveCancel()
 				if err := s.cache.Save(saveCtx, t, cacheKey, duration); err != nil {
 					slog.Warn("cache save failed", "task", t.Name, "key", cacheKey, "error", err)
@@ -744,7 +803,7 @@ func (s *Scheduler) getPluginPathsForTask(t *task.Task) []string {
 // runCompositeSetup runs composite plugin setup steps for a task that has both
 // a command and composite plugin uses. Returns collected environment variables
 // from the composite steps (e.g., PATH modifications).
-func (s *Scheduler) runCompositeSetup(ctx context.Context, t *task.Task) (map[string]string, []compositeCleanupTask) {
+func (s *Scheduler) runCompositeSetup(ctx context.Context, t *task.Task, ce *plugin.CompositeExecutor) (map[string]string, []compositeCleanupTask) {
 	if len(t.Uses) == 0 {
 		return nil, nil
 	}
@@ -764,7 +823,7 @@ func (s *Scheduler) runCompositeSetup(ctx context.Context, t *task.Task) (map[st
 		}
 
 		// Execute only setup steps now; run cleanup after task command.
-		setup, err := s.compositeExecutor.ExecuteSetup(ctx, resolved.Manifest, t.With, t.Env, workdir)
+		setup, err := ce.ExecuteSetup(ctx, resolved.Manifest, t.With, t.Env, workdir)
 		if err != nil {
 			// Log but don't fail — the task command will likely fail with a clear error
 			continue
@@ -776,7 +835,7 @@ func (s *Scheduler) runCompositeSetup(ctx context.Context, t *task.Task) (map[st
 		})
 
 		// Collect environment variables from composite steps
-		stepEnv := s.compositeExecutor.CollectStepEnv(resolved.Manifest, t.With)
+		stepEnv := ce.CollectStepEnv(resolved.Manifest, t.With)
 		for k, v := range stepEnv {
 			env[k] = v
 		}
@@ -788,9 +847,9 @@ func (s *Scheduler) runCompositeSetup(ctx context.Context, t *task.Task) (map[st
 	return env, cleanupTasks
 }
 
-func (s *Scheduler) runCompositeCleanup(tasks []compositeCleanupTask) {
+func (s *Scheduler) runCompositeCleanup(tasks []compositeCleanupTask, ce *plugin.CompositeExecutor) {
 	for _, t := range tasks {
-		s.compositeExecutor.RunCleanup(t.manifest, t.setup, t.workdir)
+		ce.RunCleanup(t.manifest, t.setup, t.workdir)
 	}
 }
 

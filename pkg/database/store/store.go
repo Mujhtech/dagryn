@@ -7,20 +7,20 @@ import (
 )
 
 type Store struct {
-	Users               *repo.UserRepo
-	Tokens              *repo.TokenRepo
-	Teams               *repo.TeamRepo
-	Projects            *repo.ProjectRepo
-	APIKeys             *repo.APIKeyRepo
-	Invitations         *repo.InvitationRepo
-	Runs                *repo.RunRepo
-	Artifacts           *repo.ArtifactRepo
-	ProviderTokens      *repo.ProviderTokenRepo
-	GitHubInstallations *repo.GitHubInstallationRepo
-	Workflows           *repo.WorkflowRepo
-	PluginRegistry      *repo.PluginRegistryRepo
-	AI                  *repo.AIRepo
-	Cache               *repo.CacheRepo
+	Users               repo.UserStore
+	Tokens              repo.TokenStore
+	Teams               repo.TeamStore
+	Projects            repo.ProjectStore
+	APIKeys             repo.APIKeyStore
+	Invitations         repo.InvitationStore
+	Runs                repo.RunStore
+	Artifacts           repo.ArtifactStore
+	ProviderTokens      repo.ProviderTokenStore
+	GitHubInstallations repo.GitHubInstallationStore
+	Workflows           repo.WorkflowStore
+	PluginRegistry      repo.PluginRegistryStore
+	AI                  repo.AIStore
+	Cache               repo.CacheStore
 }
 
 func New(

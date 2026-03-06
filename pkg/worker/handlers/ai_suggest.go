@@ -11,6 +11,7 @@ import (
 	"github.com/mujhtech/dagryn/pkg/ai/aitypes"
 	"github.com/mujhtech/dagryn/pkg/ai/provider"
 	"github.com/mujhtech/dagryn/pkg/database/models"
+	"github.com/mujhtech/dagryn/pkg/database/store"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
 	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/rs/zerolog"
@@ -38,13 +39,6 @@ func DefaultAISuggestConfig() AISuggestConfig {
 	}
 }
 
-// aiSuggestRepo defines AI repo operations needed by the suggest handler.
-type aiSuggestRepo interface {
-	GetAnalysisByID(ctx context.Context, id uuid.UUID) (*models.AIAnalysis, error)
-	CreateSuggestion(ctx context.Context, s *models.AISuggestion) error
-	UpdateSuggestionStatus(ctx context.Context, id uuid.UUID, status models.AISuggestionStatus, githubCommentID *string, failureReason *string) error
-}
-
 // aiSuggestPayload mirrors job.AISuggestRunPayload to avoid import cycle.
 type aiSuggestPayload struct {
 	AnalysisID string           `json:"analysis_id"`
@@ -55,8 +49,7 @@ type aiSuggestPayload struct {
 
 // AISuggestHandler processes ai_suggest:run jobs.
 type AISuggestHandler struct {
-	aiRepo       aiSuggestRepo
-	runs         runRepo
+	store        store.Store
 	encrypter    encrypt.Encrypt
 	config       AISuggestConfig
 	serverConfig *AIAnalysisConfig // Managed-mode fallback
@@ -66,8 +59,7 @@ type AISuggestHandler struct {
 
 // NewAISuggestHandler creates a new suggestion generation handler.
 func NewAISuggestHandler(
-	aiRepo aiSuggestRepo,
-	runs runRepo,
+	store store.Store,
 	encrypter encrypt.Encrypt,
 	config AISuggestConfig,
 	serverConfig *AIAnalysisConfig,
@@ -79,8 +71,7 @@ func NewAISuggestHandler(
 		m = metrics[0]
 	}
 	return &AISuggestHandler{
-		aiRepo:       aiRepo,
-		runs:         runs,
+		store:        store,
 		encrypter:    encrypter,
 		config:       config,
 		serverConfig: serverConfig,
@@ -175,7 +166,7 @@ func (h *AISuggestHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	// Fetch analysis — must be successful.
-	analysis, err := h.aiRepo.GetAnalysisByID(ctx, analysisID)
+	analysis, err := h.store.AI.GetAnalysisByID(ctx, analysisID)
 	if err != nil {
 		h.logger.Warn().Err(err).Str("analysis_id", payload.AnalysisID).Msg("analysis not found")
 		return nil
@@ -186,7 +177,7 @@ func (h *AISuggestHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	// Fetch run for metadata.
-	run, err := h.runs.GetByID(ctx, runID)
+	run, err := h.store.Runs.GetByID(ctx, runID)
 	if err != nil {
 		h.logger.Warn().Err(err).Str("run_id", payload.RunID).Msg("run not found")
 		return nil
@@ -286,7 +277,7 @@ func (h *AISuggestHandler) Handle(ctx context.Context, t *asynq.Task) error {
 			FailureReason: failureReason,
 		}
 
-		if err := h.aiRepo.CreateSuggestion(ctx, suggestion); err != nil {
+		if err := h.store.AI.CreateSuggestion(ctx, suggestion); err != nil {
 			h.logger.Warn().Err(err).Str("file", s.FilePath).Msg("failed to persist suggestion")
 			continue
 		}

@@ -14,6 +14,10 @@ const (
 	CacheDir = ".dagryn"
 	// CacheSubDir is the subdirectory for cached outputs.
 	CacheSubDir = "cache"
+	// maxSampleFiles is the number of output files to spot-check when deciding
+	// whether a restore is necessary. Checking a handful is sufficient —
+	// outputs are either all present (common) or all missing (after clean).
+	maxSampleFiles = 5
 )
 
 // Metadata contains information about a cached task.
@@ -68,6 +72,14 @@ func (s *Store) Exists(taskName, key string) bool {
 // Save saves task outputs to the cache.
 func (s *Store) Save(taskName, key string, outputPatterns []string, meta Metadata) error {
 	cachePath := s.TaskCachePath(taskName, key)
+
+	// If this exact cache entry already exists, skip the expensive copy.
+	// The key is derived from inputs so if the key matches the outputs
+	// are identical to what we would save.
+	if s.Exists(taskName, key) {
+		return nil
+	}
+
 	outputsPath := s.OutputsPath(taskName, key)
 
 	// Create cache directory
@@ -116,6 +128,13 @@ func (s *Store) Restore(taskName, key string) error {
 		return fmt.Errorf("cache not found for task %q with key %q", taskName, key)
 	}
 
+	// Fast path: if outputs are already in place from a previous run,
+	// skip the expensive walk + copy entirely. A cache hit means inputs
+	// haven't changed, so existing outputs are still valid.
+	if s.outputsAlreadyPresent(taskName, key) {
+		return nil
+	}
+
 	// Walk and copy all cached files
 	err := filepath.Walk(outputsPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -139,6 +158,40 @@ func (s *Store) Restore(taskName, key string) error {
 	}
 
 	return nil
+}
+
+// outputsAlreadyPresent checks whether the cached outputs are already at
+// their expected project paths. It reads the metadata for the list of saved
+// files and spot-checks a sample (first, last, and a few in the middle).
+// If all sampled files exist, we assume the full set is present and skip
+// the expensive restore walk.
+func (s *Store) outputsAlreadyPresent(taskName, key string) bool {
+	meta, err := s.GetMetadata(taskName, key)
+	if err != nil || len(meta.Outputs) == 0 {
+		return false
+	}
+
+	// Build a sample of indices to check.
+	n := len(meta.Outputs)
+	indices := make([]int, 0, maxSampleFiles)
+	indices = append(indices, 0) // first
+	if n > 1 {
+		indices = append(indices, n-1) // last
+	}
+	// Spread a few checks through the middle.
+	for i := 1; i < maxSampleFiles-1 && i < n-1; i++ {
+		idx := i * n / maxSampleFiles
+		indices = append(indices, idx)
+	}
+
+	for _, idx := range indices {
+		dest := filepath.Join(s.root, meta.Outputs[idx])
+		if _, err := os.Stat(dest); err != nil {
+			return false // at least one file missing → need full restore
+		}
+	}
+
+	return true
 }
 
 // GetMetadata retrieves metadata for a cached task.
@@ -225,12 +278,23 @@ func (s *Store) Root() string {
 }
 
 // copyFile copies a file from src to dest, creating directories as needed.
+// It tries a hardlink first (instant, no disk I/O) and falls back to a
+// byte-for-byte copy when the link fails (cross-device, filesystem limits, etc.).
 func copyFile(src, dest string) error {
 	// Create destination directory
 	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
 		return err
 	}
 
+	// Remove existing destination so Link doesn't fail with EEXIST.
+	_ = os.Remove(dest)
+
+	// Try hardlink first — same filesystem, instant, zero I/O.
+	if err := os.Link(src, dest); err == nil {
+		return nil
+	}
+
+	// Fallback: full byte copy.
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return err

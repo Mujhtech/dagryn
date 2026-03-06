@@ -53,12 +53,12 @@ type TokenPair struct {
 // JWTService handles JWT token operations.
 type JWTService struct {
 	config     JWTConfig
-	tokenRepo  *repo.TokenRepo
+	tokenRepo  repo.TokenStore
 	signingKey []byte
 }
 
 // NewJWTService creates a new JWT service.
-func NewJWTService(config JWTConfig, tokenRepo *repo.TokenRepo) *JWTService {
+func NewJWTService(config JWTConfig, tokenRepo repo.TokenStore) *JWTService {
 	return &JWTService{
 		config:     config,
 		tokenRepo:  tokenRepo,

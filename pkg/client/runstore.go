@@ -63,8 +63,6 @@ func NewRunStore(projectRoot string) *RunStore {
 	}
 }
 
-// --- Path helpers ---
-
 // RunsPath returns the path to the runs directory.
 func (s *RunStore) RunsPath() string {
 	return filepath.Join(s.root, DagrynDir, RunsDir)
@@ -84,8 +82,6 @@ func (s *RunStore) MetadataPath(runID uuid.UUID) string {
 func (s *RunStore) LogsPath(runID uuid.UUID) string {
 	return filepath.Join(s.RunPath(runID), RunLogsFile)
 }
-
-// --- CRUD operations ---
 
 // CreateRun creates a new local run record.
 func (s *RunStore) CreateRun(run *LocalRun) error {
@@ -152,8 +148,6 @@ func (s *RunStore) DeleteRun(runID uuid.UUID) error {
 
 	return nil
 }
-
-// --- Log operations ---
 
 // AppendLog appends a log entry to a run's log file.
 // This is optimized for high-frequency appends.
@@ -270,8 +264,6 @@ func (s *RunStore) CloseLogs(runID uuid.UUID) error {
 	return s.closeLogFDLocked(runID)
 }
 
-// --- Query operations ---
-
 // ListRuns returns all local runs, sorted by start time (newest first).
 func (s *RunStore) ListRuns() ([]*LocalRun, error) {
 	s.mu.Lock()
@@ -351,8 +343,6 @@ func (s *RunStore) MarkSynced(runID uuid.UUID) error {
 	return s.UpdateRun(run)
 }
 
-// --- Cleanup operations ---
-
 // CleanOldRuns removes runs older than maxAge.
 // Returns the number of runs deleted.
 func (s *RunStore) CleanOldRuns(maxAge time.Duration) (int, error) {
@@ -399,8 +389,6 @@ func (s *RunStore) CleanExcessRuns(keepCount int) (int, error) {
 
 	return deleted, nil
 }
-
-// --- Internal helpers ---
 
 // writeMetadataLocked writes run metadata to disk.
 // Must be called with s.mu held.

@@ -44,8 +44,8 @@ export const queryKeys = {
   githubAppInstallations: ["githubAppInstallations"] as const,
   githubAppRepos: (installationId: string) =>
     ["githubAppRepos", installationId] as const,
-  githubWorkflowTranslation: (repoFullName: string, installationId?: string) =>
-    ["githubWorkflowTranslation", repoFullName, installationId ?? "none"] as const,
+  githubWorkflowTranslation: (repoFullName: string, installationId?: string, ref?: string) =>
+    ["githubWorkflowTranslation", repoFullName, installationId ?? "none", ref ?? "default"] as const,
   projectWorkflows: (projectId: string) =>
     ["projectWorkflows", projectId] as const,
   runWorkflow: (projectId: string, runId: string) =>
@@ -77,4 +77,6 @@ export const queryKeys = {
   dashboardOverview: ["dashboardOverview"] as const,
   capabilities: ["capabilities"] as const,
   licenseStatus: ["licenseStatus"] as const,
+  sampleTemplate: (language: string) =>
+    ["sampleTemplate", language] as const,
 };

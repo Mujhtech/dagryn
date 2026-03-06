@@ -16,7 +16,7 @@ type GitHubInstallationRepo struct {
 }
 
 // NewGitHubInstallationRepo creates a new GitHubInstallationRepo.
-func NewGitHubInstallationRepo(pool *pgxpool.Pool) *GitHubInstallationRepo {
+func NewGitHubInstallationRepo(pool *pgxpool.Pool) GitHubInstallationStore {
 	return &GitHubInstallationRepo{pool: pool}
 }
 

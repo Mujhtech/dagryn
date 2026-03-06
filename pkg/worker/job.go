@@ -174,9 +174,7 @@ func (j *Job) RegisterAndStart() error {
 	// handlers are always registered so jobs enqueued by any project can be processed.
 
 	aiHandler := handlers.NewAIAnalysisHandler(
-		j.store.Runs,
-		j.store.Workflows,
-		j.store.AI,
+		j.store,
 		j.encrypter,
 		j.aiConfig,
 		j.Client,
@@ -187,13 +185,9 @@ func (j *Job) RegisterAndStart() error {
 
 	// Register AI publish handler
 	pubHandler := handlers.NewAIPublishHandler(
-		j.store.AI,
-		j.store.Runs,
-		j.store.Projects,
-		j.store.ProviderTokens,
+		j.store,
 		j.providerEncrypt,
 		j.githubApp,
-		j.store.GitHubInstallations,
 		j.encrypter,
 		j.baseURL,
 		log.Logger,
@@ -204,8 +198,7 @@ func (j *Job) RegisterAndStart() error {
 	// Register AI suggest run handler (v2 — generate inline code suggestions).
 	// Provider is now built per-job from the project config in the payload.
 	suggestHandler := handlers.NewAISuggestHandler(
-		j.store.AI,
-		j.store.Runs,
+		j.store,
 		j.encrypter,
 		handlers.DefaultAISuggestConfig(),
 		j.aiConfig,

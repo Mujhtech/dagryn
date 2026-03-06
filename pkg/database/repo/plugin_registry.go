@@ -18,11 +18,9 @@ type PluginRegistryRepo struct {
 }
 
 // NewPluginRegistryRepo creates a new plugin registry repository.
-func NewPluginRegistryRepo(pool *pgxpool.Pool) *PluginRegistryRepo {
+func NewPluginRegistryRepo(pool *pgxpool.Pool) PluginRegistryStore {
 	return &PluginRegistryRepo{pool: pool}
 }
-
-// --- Publisher CRUD ---
 
 // GetPublisherByName returns a publisher by slug name.
 func (r *PluginRegistryRepo) GetPublisherByName(ctx context.Context, name string) (*models.PluginPublisher, error) {
@@ -100,8 +98,6 @@ func (r *PluginRegistryRepo) ListPublishers(ctx context.Context) ([]*models.Plug
 	}
 	return publishers, rows.Err()
 }
-
-// --- Plugin CRUD ---
 
 // GetPluginByPublisherAndName returns a plugin with publisher info.
 func (r *PluginRegistryRepo) GetPluginByPublisherAndName(ctx context.Context, publisherName, pluginName string) (*models.RegistryPluginWithPublisher, error) {
@@ -188,11 +184,12 @@ func (r *PluginRegistryRepo) UpdatePlugin(ctx context.Context, p *models.Registr
 
 // PluginSearchParams holds search parameters.
 type PluginSearchParams struct {
-	Query  string
-	Type   string
-	Sort   string // "name", "downloads", "updated"
-	Limit  int
-	Offset int
+	Query     string
+	Type      string
+	Publisher string // Exact match on publisher name
+	Sort      string // "name", "downloads", "updated"
+	Limit     int
+	Offset    int
 }
 
 // PluginSearchResult holds paginated search results.
@@ -220,6 +217,11 @@ func (r *PluginRegistryRepo) SearchPlugins(ctx context.Context, params PluginSea
 	if params.Type != "" {
 		where += ` AND rp.type = $` + itoa(argIdx)
 		args = append(args, params.Type)
+		argIdx++
+	}
+	if params.Publisher != "" {
+		where += ` AND pp.name = $` + itoa(argIdx)
+		args = append(args, params.Publisher)
 		argIdx++
 	}
 
@@ -333,8 +335,6 @@ func (r *PluginRegistryRepo) ListTrending(ctx context.Context, limit, days int) 
 	return r.scanPluginsWithPublisher(rows)
 }
 
-// --- Versions ---
-
 // GetVersion returns a specific version of a plugin.
 func (r *PluginRegistryRepo) GetVersion(ctx context.Context, pluginID uuid.UUID, version string) (*models.PluginVersion, error) {
 	var v models.PluginVersion
@@ -406,8 +406,6 @@ func (r *PluginRegistryRepo) YankVersion(ctx context.Context, pluginID uuid.UUID
 	}
 	return nil
 }
-
-// --- Downloads ---
 
 // RecordDownload records a download event.
 func (r *PluginRegistryRepo) RecordDownload(ctx context.Context, d *models.PluginDownload) error {
@@ -496,8 +494,6 @@ func (r *PluginRegistryRepo) RecomputeWeeklyDownloads(ctx context.Context) error
 	`)
 	return err
 }
-
-// --- Helpers ---
 
 func (r *PluginRegistryRepo) scanPluginsWithPublisher(rows pgx.Rows) ([]*models.RegistryPluginWithPublisher, error) {
 	var plugins []*models.RegistryPluginWithPublisher

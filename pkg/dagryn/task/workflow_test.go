@@ -129,8 +129,6 @@ func TestWorkflow_Size(t *testing.T) {
 	assert.Equal(t, 2, w.Size())
 }
 
-// --- Group and ResolveTargets tests ---
-
 func TestWorkflow_TasksByGroup(t *testing.T) {
 	w := NewWorkflow("ci", nil)
 	_ = w.AddTask(&Task{Name: "build", Command: "echo build", Group: "backend"})

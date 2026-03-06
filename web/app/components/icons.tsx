@@ -63,6 +63,11 @@ import {
   ShieldCheckIcon,
   CloudIcon,
   CubeIcon,
+  GlobeIcon,
+  LockIcon,
+  CaretUpDownIcon,
+  ArrowSquareOutIcon,
+  LightningIcon,
 } from "@phosphor-icons/react";
 
 export const Icons = {
@@ -133,4 +138,9 @@ export const Icons = {
   Cloud: CloudIcon,
   Box: CubeIcon,
   Monitor: MonitorIcon,
+  Globe: GlobeIcon,
+  Lock: LockIcon,
+  ChevronsUpDown: CaretUpDownIcon,
+  ExternalLink: ArrowSquareOutIcon,
+  Zap: LightningIcon,
 };

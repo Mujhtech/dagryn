@@ -7,9 +7,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Icons } from "~/components/icons";
 import { RecentRunsSection } from "~/components/dashboard/recent-runs";
 import { ProjectStatsCard } from "~/components/dashboard/project-stats-card";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute("/_dashboard_layout/dashboard")({
   component: IndexPage,
+  head: () => {
+    return generateMetadata({ title: "Dashboard" });
+  },
 });
 
 function IndexPage() {

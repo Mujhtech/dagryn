@@ -8,7 +8,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "~/components/ui/card";
 import { Icons } from "~/components/icons";
 
 type GitHubIntegrationCardProps = {
@@ -52,12 +58,13 @@ export function GitHubIntegrationCard({
           GitHub Integration
         </CardTitle>
         <CardDescription>
-          Connect this project to a GitHub repository to enable webhook triggers.
+          Connect this project to a GitHub repository to enable webhook
+          triggers.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {isConnected ? (
-          <div className="rounded-md bg-green-500/10 p-4 space-y-2">
+          <div className="rounded-none bg-green-500/10 p-4 space-y-2">
             <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
               <Icons.Check className="h-4 w-4" />
               <span className="font-medium">Connected to GitHub</span>
@@ -83,7 +90,7 @@ export function GitHubIntegrationCard({
               </div>
             ) : installations.length === 0 ? (
               <div className="text-sm text-muted-foreground">
-                No GitHub App installations found. {" "}
+                No GitHub App installations found.{" "}
                 <a
                   href="https://github.com/apps/dagryn-dev/installations/new"
                   target="_blank"
@@ -98,14 +105,21 @@ export function GitHubIntegrationCard({
               <>
                 <div className="space-y-2">
                   <Label htmlFor="installation">GitHub Installation</Label>
-                  <Select value={selectedInstallation} onValueChange={setSelectedInstallation}>
+                  <Select
+                    value={selectedInstallation}
+                    onValueChange={setSelectedInstallation}
+                  >
                     <SelectTrigger id="installation" className="w-full">
                       <SelectValue placeholder="Select an installation" />
                     </SelectTrigger>
                     <SelectContent>
                       {installations.map((installation) => (
-                        <SelectItem key={installation.id} value={installation.id}>
-                          {installation.account_login} ({installation.account_type})
+                        <SelectItem
+                          key={installation.id}
+                          value={installation.id}
+                        >
+                          {installation.account_login} (
+                          {installation.account_type})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -141,13 +155,19 @@ export function GitHubIntegrationCard({
                         Loading repositories...
                       </div>
                     ) : (
-                      <Select value={selectedRepo} onValueChange={setSelectedRepo}>
+                      <Select
+                        value={selectedRepo}
+                        onValueChange={setSelectedRepo}
+                      >
                         <SelectTrigger id="repo" className="w-full">
                           <SelectValue placeholder="Select a repository" />
                         </SelectTrigger>
                         <SelectContent>
                           {repos.map((repo) => (
-                            <SelectItem key={repo.id} value={repo.id.toString()}>
+                            <SelectItem
+                              key={repo.id}
+                              value={repo.id.toString()}
+                            >
                               {repo.full_name}
                             </SelectItem>
                           ))}
@@ -171,7 +191,9 @@ export function GitHubIntegrationCard({
 
                 <Button
                   onClick={onConnect}
-                  disabled={!selectedInstallation || !selectedRepo || connectPending}
+                  disabled={
+                    !selectedInstallation || !selectedRepo || connectPending
+                  }
                 >
                   {connectPending ? (
                     <>

@@ -36,11 +36,15 @@ import { useProjectPlugins, useRegistryPlugins } from "~/hooks/queries";
 import { useInstallPlugin } from "~/hooks/mutations/use-install-plugin";
 import { useUninstallPlugin } from "~/hooks/mutations/use-uninstall-plugin";
 import { Icons } from "~/components/icons";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute(
   "/_dashboard_layout/projects/$projectId/plugins",
 )({
   component: ProjectPluginsPage,
+  head: () => {
+    return generateMetadata({ title: "Project Plugins" });
+  },
 });
 
 function formatNumber(n: number): string {

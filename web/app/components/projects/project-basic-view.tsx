@@ -5,24 +5,12 @@ import { Card, CardContent } from "~/components/ui/card";
 import { Icons } from "~/components/icons";
 import type { Project, Run } from "~/lib/api";
 import { RunCard } from "./run-card";
-import { TriggerRunDialog } from "./trigger-run-dialog";
 
 type ProjectBasicViewProps = {
   project: Project;
   projectId: string;
   filteredRuns: Run[];
   runsLoading: boolean;
-  triggerDialogOpen: boolean;
-  setTriggerDialogOpen: (open: boolean) => void;
-  triggerTargets: string;
-  setTriggerTargets: (targets: string) => void;
-  triggerBranch: string;
-  setTriggerBranch: (branch: string) => void;
-  triggerForce: boolean;
-  setTriggerForce: (force: boolean) => void;
-  onTriggerRun: () => void;
-  triggerRunPending: boolean;
-  triggerRunErrorMessage?: string;
   page: number;
   setPage: (page: number) => void;
   totalPages: number;
@@ -35,17 +23,6 @@ export function ProjectBasicView({
   projectId,
   filteredRuns,
   runsLoading,
-  triggerDialogOpen,
-  setTriggerDialogOpen,
-  triggerTargets,
-  setTriggerTargets,
-  triggerBranch,
-  setTriggerBranch,
-  triggerForce,
-  setTriggerForce,
-  onTriggerRun,
-  triggerRunPending,
-  triggerRunErrorMessage,
   page,
   setPage,
   totalPages,
@@ -106,19 +83,6 @@ export function ProjectBasicView({
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Recent Runs</h2>
-          <TriggerRunDialog
-            open={triggerDialogOpen}
-            onOpenChange={setTriggerDialogOpen}
-            triggerTargets={triggerTargets}
-            setTriggerTargets={setTriggerTargets}
-            triggerBranch={triggerBranch}
-            setTriggerBranch={setTriggerBranch}
-            triggerForce={triggerForce}
-            setTriggerForce={setTriggerForce}
-            onTriggerRun={onTriggerRun}
-            isPending={triggerRunPending}
-            errorMessage={triggerRunErrorMessage}
-          />
         </div>
 
         {runsLoading ? (

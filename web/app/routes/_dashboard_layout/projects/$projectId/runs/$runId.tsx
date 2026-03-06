@@ -34,11 +34,15 @@ import {
   type LogLine,
 } from "~/components/projects/run-detail/run-detail-tabs";
 import { useFavicon } from "~/hooks/use-favicon";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute(
   "/_dashboard_layout/projects/$projectId/runs/$runId",
 )({
   component: RunDetailPage,
+  head: () => {
+    return generateMetadata({ title: "Run Detail" });
+  },
 });
 
 function RunDetailPage() {
@@ -55,7 +59,7 @@ function RunDetailPage() {
     data: historicalLogs,
     isLoading: logsLoading,
     refetch: refetchLogs,
-  } = useRunLogs(projectId, runId, { perPage: 2000, enabled: !!run });
+  } = useRunLogs(projectId, runId, { perPage: 3000, enabled: !!run });
 
   const {
     data: artifacts,

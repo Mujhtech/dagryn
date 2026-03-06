@@ -50,7 +50,7 @@ type CacheRepo struct {
 }
 
 // NewCacheRepo creates a new cache repository.
-func NewCacheRepo(pool *pgxpool.Pool) *CacheRepo {
+func NewCacheRepo(pool *pgxpool.Pool) CacheStore {
 	return &CacheRepo{pool: pool}
 }
 

@@ -21,8 +21,8 @@ import (
 type AuthHandler struct {
 	jwtService           *authz.JWTService
 	deviceCodeService    *authz.DeviceCodeService
-	userRepo             *repo.UserRepo
-	providerTokenRepo    *repo.ProviderTokenRepo
+	userRepo             repo.UserStore
+	providerTokenRepo    repo.ProviderTokenStore
 	providerTokenEncrypt encrypt.Encrypt
 	providers            map[string]authn.Provider
 	baseURL              string
@@ -32,8 +32,8 @@ type AuthHandler struct {
 func NewAuthHandler(
 	jwtService *authz.JWTService,
 	deviceCodeService *authz.DeviceCodeService,
-	userRepo *repo.UserRepo,
-	providerTokenRepo *repo.ProviderTokenRepo,
+	userRepo repo.UserStore,
+	providerTokenRepo repo.ProviderTokenStore,
 	providerTokenEncrypt encrypt.Encrypt,
 	providers map[string]authn.Provider,
 	baseURL string,
@@ -559,8 +559,6 @@ func providerDisplayName(provider string) string {
 		return provider
 	}
 }
-
-// --- Auth Response Types ---
 
 // OAuthStartResponse represents the response when starting OAuth flow.
 //

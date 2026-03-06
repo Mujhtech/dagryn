@@ -5,30 +5,14 @@ import { useAuthProviders } from "~/hooks/queries";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import { Logo } from "~/components/logo";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
-  // loader: async ({ params }) => {
-  //   const post = await fetchPost(params.postId)
-  //   return { post }
-  // },
-  head: ({}) => {
-    return {
-      meta: [
-        { title: "Login" },
-        { name: "description", content: "Login to your Dagryn account" },
-        // Open Graph
-        // { property: "og:title", content: loaderData.post.title },
-        // { property: "og:description", content: loaderData.post.excerpt },
-        // { property: "og:image", content: loaderData.post.coverImage },
-        // { property: "og:type", content: "article" },
-        // // Twitter Card
-        // { name: "twitter:card", content: "summary_large_image" },
-        // { name: "twitter:title", content: loaderData.post.title },
-        // { name: "twitter:description", content: loaderData.post.excerpt },
-        // { name: "twitter:image", content: loaderData.post.coverImage },
-      ],
-    };
+  head: async ({}) => {
+    return generateMetadata({
+      title: "Login",
+    });
   },
 });
 
@@ -47,8 +31,6 @@ function LoginPage() {
 
   const handleOAuthLogin = async (auth_url: string) => {
     try {
-      // setLoadingProvider(provider);
-      // const { url } = await api.startOAuth(provider);
       window.location.href = auth_url;
     } catch (error) {
       console.error("Failed to start OAuth:", error);
@@ -124,11 +106,21 @@ function LoginPage() {
 
         <p className="mt-4 text-center text-sm text-muted-foreground">
           By signing in, you agree to our{" "}
-          <a href="#" className="underline hover:text-primary">
+          <a
+            href="https://dagryn.dev/terms"
+            target="_blank"
+            rel="noreferrer"
+            className="underline hover:text-primary"
+          >
             Terms of Service
           </a>{" "}
           and{" "}
-          <a href="#" className="underline hover:text-primary">
+          <a
+            href="https://dagryn.dev/privacy"
+            target="_blank"
+            rel="noreferrer"
+            className="underline hover:text-primary"
+          >
             Privacy Policy
           </a>
         </p>

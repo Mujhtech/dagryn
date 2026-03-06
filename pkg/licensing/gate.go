@@ -2,6 +2,7 @@ package licensing
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/rs/zerolog"
@@ -49,19 +50,15 @@ func (g *FeatureGate) Edition() Edition {
 // HasFeature checks if a specific feature is licensed.
 func (g *FeatureGate) HasFeature(f Feature) bool {
 	if g == nil || g.claims == nil {
-		return false
+		return slices.Contains(communityLimits.features, f)
 	}
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 	if g.revoked || g.claims.IsHardExpired() {
 		return false
 	}
-	for _, licensed := range g.claims.Features {
-		if licensed == f {
-			return true
-		}
-	}
-	return false
+
+	return slices.Contains(g.claims.Features, f)
 }
 
 // CheckLimit returns nil if the current value is within the licensed limit,

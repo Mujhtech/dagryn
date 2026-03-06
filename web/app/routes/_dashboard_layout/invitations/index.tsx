@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { usePendingInvitations } from "~/hooks/queries";
 import { useAcceptInvitation, useDeclineInvitation } from "~/hooks/mutations";
@@ -12,9 +13,13 @@ import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Icons } from "~/components/icons";
 import type { Invitation } from "~/lib/api";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute("/_dashboard_layout/invitations/")({
   component: InvitationsPage,
+  head: () => {
+    return generateMetadata({ title: "Invitations" });
+  },
 });
 
 function InvitationsPage() {
@@ -26,20 +31,31 @@ function InvitationsPage() {
   const acceptMutation = useAcceptInvitation();
   const declineMutation = useDeclineInvitation();
 
-  const list = (invitations as Invitation[] | undefined) ?? [];
-  // const pending = list.filter((i) => i.status === "pending");
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const list = ((invitations as Invitation[] | undefined) ?? []).filter(
+    (i) => i.status === "pending",
+  );
 
   const handleAccept = (inv: Invitation) => {
     if (!inv.accept_token) return;
     acceptMutation.mutate(inv.accept_token, {
-      onSuccess: () => {},
+      onSuccess: () => {
+        setSuccessMessage(
+          `Accepted invitation to ${inv.team_name || inv.project_name || "resource"}`,
+        );
+        setTimeout(() => setSuccessMessage(null), 3000);
+      },
     });
   };
 
   const handleDecline = (inv: Invitation) => {
     if (!inv.accept_token) return;
     declineMutation.mutate(inv.accept_token, {
-      onSuccess: () => {},
+      onSuccess: () => {
+        setSuccessMessage("Invitation declined");
+        setTimeout(() => setSuccessMessage(null), 3000);
+      },
     });
   };
 
@@ -74,6 +90,24 @@ function InvitationsPage() {
           Pending invitations to teams and projects
         </p>
       </div>
+
+      {successMessage ? (
+        <div className="rounded-md bg-green-500/10 p-3 text-sm text-green-600 dark:text-green-400">
+          {successMessage}
+        </div>
+      ) : null}
+
+      {acceptMutation.error ? (
+        <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+          {acceptMutation.error.message}
+        </div>
+      ) : null}
+
+      {declineMutation.error ? (
+        <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+          {declineMutation.error.message}
+        </div>
+      ) : null}
 
       {list.length === 0 ? (
         <Card>

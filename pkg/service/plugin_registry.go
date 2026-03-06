@@ -34,12 +34,12 @@ type PluginAnalytics struct {
 
 // PluginRegistryService coordinates plugin registry operations.
 type PluginRegistryService struct {
-	repo   *repo.PluginRegistryRepo
+	repo   repo.PluginRegistryStore
 	logger zerolog.Logger
 }
 
 // NewPluginRegistryService creates a new plugin registry service.
-func NewPluginRegistryService(registryRepo *repo.PluginRegistryRepo, logger zerolog.Logger) *PluginRegistryService {
+func NewPluginRegistryService(registryRepo repo.PluginRegistryStore, logger zerolog.Logger) *PluginRegistryService {
 	return &PluginRegistryService{
 		repo:   registryRepo,
 		logger: logger.With().Str("service", "plugin_registry").Logger(),
@@ -47,7 +47,7 @@ func NewPluginRegistryService(registryRepo *repo.PluginRegistryRepo, logger zero
 }
 
 // SearchPlugins searches the registry with pagination.
-func (s *PluginRegistryService) SearchPlugins(ctx context.Context, query, pluginType, sort string, page, perPage int) (*PluginSearchResult, error) {
+func (s *PluginRegistryService) SearchPlugins(ctx context.Context, query, pluginType, publisher, sort string, page, perPage int) (*PluginSearchResult, error) {
 	if page <= 0 {
 		page = 1
 	}
@@ -59,11 +59,12 @@ func (s *PluginRegistryService) SearchPlugins(ctx context.Context, query, plugin
 	}
 
 	result, err := s.repo.SearchPlugins(ctx, repo.PluginSearchParams{
-		Query:  query,
-		Type:   pluginType,
-		Sort:   sort,
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
+		Query:     query,
+		Type:      pluginType,
+		Publisher: publisher,
+		Sort:      sort,
+		Limit:     perPage,
+		Offset:    (page - 1) * perPage,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("search plugins: %w", err)

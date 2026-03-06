@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
@@ -12,10 +12,17 @@ import {
 } from "~/components/ui/card";
 import { Separator } from "~/components/ui/separator";
 import { Icons } from "~/components/icons";
-import WorkflowConverter from "~/components/workflow-converter";
+import { generateMetadata } from "~/lib/metadata";
+
+const WorkflowConverter = lazy(() => import("~/components/workflow-converter"));
 
 export const Route = createFileRoute("/")({
   component: IndexPage,
+  head: ({}) => {
+    return generateMetadata({
+      title: "Local-first workflow runtime",
+    });
+  },
 });
 
 function IndexPage() {
@@ -291,7 +298,15 @@ function IndexPage() {
                 Convert your existing GitHub Actions workflows to Dagryn tasks.
               </p>
             </div>
-            <WorkflowConverter />
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center h-64">
+                  <Icons.Loader className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              }
+            >
+              <WorkflowConverter />
+            </Suspense>
           </div>
         </section>
 

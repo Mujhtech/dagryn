@@ -17,9 +17,13 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Separator } from "~/components/ui/separator";
 import { Icons } from "~/components/icons";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute("/_dashboard_layout/settings")({
   component: SettingsPage,
+  head: () => {
+    return generateMetadata({ title: "Settings" });
+  },
 });
 
 function SettingsPage() {

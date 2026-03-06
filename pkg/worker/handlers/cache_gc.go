@@ -12,11 +12,11 @@ import (
 // CacheGCHandler runs garbage collection across all projects.
 type CacheGCHandler struct {
 	cacheService *service.CacheService
-	projects     *repo.ProjectRepo
+	projects     repo.ProjectStore
 }
 
 // NewCacheGCHandler creates a new cache GC handler.
-func NewCacheGCHandler(cs *service.CacheService, projects *repo.ProjectRepo) *CacheGCHandler {
+func NewCacheGCHandler(cs *service.CacheService, projects repo.ProjectStore) *CacheGCHandler {
 	return &CacheGCHandler{
 		cacheService: cs,
 		projects:     projects,

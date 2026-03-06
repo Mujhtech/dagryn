@@ -79,14 +79,14 @@ type JobEnqueuer interface {
 
 // ExecuteRunHandler handles the execute_run job: clone repo, load config, run workflow, report status.
 type ExecuteRunHandler struct {
-	runs                *repo.RunRepo
-	projects            *repo.ProjectRepo
-	workflows           *repo.WorkflowRepo
+	runs                repo.RunStore
+	projects            repo.ProjectStore
+	workflows           repo.WorkflowStore
 	encrypter           encrypt.Encrypt
-	providerTokens      *repo.ProviderTokenRepo
+	providerTokens      repo.ProviderTokenStore
 	providerEncrypt     encrypt.Encrypt
 	githubApp           GitHubAppClient
-	githubInstallations *repo.GitHubInstallationRepo
+	githubInstallations repo.GitHubInstallationStore
 	cacheService        *service.CacheService
 	artifactService     *service.ArtifactService
 	cancelManager       CancelManager
@@ -123,14 +123,14 @@ func NewGitHubAppClientAdapter(client *githubapp.Client) GitHubAppClient {
 
 // NewExecuteRunHandler creates an ExecuteRun handler.
 func NewExecuteRunHandler(
-	runs *repo.RunRepo,
-	projects *repo.ProjectRepo,
-	workflows *repo.WorkflowRepo,
+	runs repo.RunStore,
+	projects repo.ProjectStore,
+	workflows repo.WorkflowStore,
 	encrypter encrypt.Encrypt,
-	providerTokens *repo.ProviderTokenRepo,
+	providerTokens repo.ProviderTokenStore,
 	providerEncrypt encrypt.Encrypt,
 	githubApp GitHubAppClient,
-	githubInstallations *repo.GitHubInstallationRepo,
+	githubInstallations repo.GitHubInstallationStore,
 	cacheService *service.CacheService,
 	artifactService *service.ArtifactService,
 	cancelManager CancelManager,
@@ -797,7 +797,7 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	// the parent ctx may be cancelled. collectArtifacts filters internally to
 	// only Success/Cached tasks, so it's safe to call even when some tasks failed.
 	if h.artifactService != nil && summary != nil && len(summary.Results) > 0 {
-		artifactCtx, artifactCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		artifactCtx, artifactCancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		h.collectArtifacts(artifactCtx, projectID, runID, workflow, summary, workDir)
 		artifactCancel()
 	}

@@ -15,10 +15,14 @@ import { Icons } from "~/components/icons";
 import { ProjectBasicView } from "~/components/projects/project-basic-view";
 import { getEventType } from "~/components/projects/run-card";
 import { WorkflowDashboard } from "~/components/projects/workflow-dashboard";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute("/_dashboard_layout/projects/$projectId/")(
   {
     component: ProjectDetailPage,
+    head: () => {
+      return generateMetadata({ title: "Project" });
+    },
   },
 );
 
@@ -250,17 +254,6 @@ function ProjectDetailPage() {
       projectId={projectId}
       filteredRuns={filteredRuns}
       runsLoading={runsLoading}
-      triggerDialogOpen={triggerDialogOpen}
-      setTriggerDialogOpen={setTriggerDialogOpen}
-      triggerTargets={triggerTargets}
-      setTriggerTargets={setTriggerTargets}
-      triggerBranch={triggerBranch}
-      setTriggerBranch={setTriggerBranch}
-      triggerForce={triggerForce}
-      setTriggerForce={setTriggerForce}
-      onTriggerRun={handleTriggerRun}
-      triggerRunPending={triggerRunMutation.isPending}
-      triggerRunErrorMessage={triggerRunMutation.error?.message}
       page={page}
       setPage={(nextPage) => setPage(nextPage)}
       totalPages={totalPages}

@@ -37,11 +37,15 @@ import {
 } from "~/hooks/queries";
 import { usePluginAnalytics } from "~/hooks/queries";
 import { Icons } from "~/components/icons";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute(
   "/_dashboard_layout/plugins/$publisher/$name/analytics",
 )({
   component: PluginAnalyticsPage,
+  head: () => {
+    return generateMetadata({ title: "Plugin Analytics" });
+  },
 });
 
 function formatNumber(n: number): string {

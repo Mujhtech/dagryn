@@ -121,7 +121,7 @@ func (h *Handler) TranslateGitHubWorkflows(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	files, err := fetchGitHubWorkflowFiles(ctx, accessToken, owner, repoName)
+	files, err := fetchGitHubWorkflowFiles(ctx, accessToken, owner, repoName, strings.TrimSpace(req.Ref))
 	if err != nil {
 		_ = response.InternalServerError(w, r, err)
 		return
@@ -168,10 +168,10 @@ func (h *Handler) resolveGitHubAccessToken(ctx context.Context, userID uuid.UUID
 		return token.Token, nil
 	}
 
-	if h.providerTokens == nil || h.providerEncrypt == nil {
+	if h.providerEncrypt == nil {
 		return "", errors.New("github OAuth integration is not configured")
 	}
-	tok, err := h.providerTokens.GetByUserAndProvider(ctx, userID, "github")
+	tok, err := h.store.ProviderTokens.GetByUserAndProvider(ctx, userID, "github")
 	if err != nil {
 		return "", err
 	}
@@ -202,8 +202,11 @@ type githubContentFile struct {
 	Encoding string `json:"encoding"`
 }
 
-func fetchGitHubWorkflowFiles(ctx context.Context, token, owner, repoName string) (map[string][]byte, error) {
+func fetchGitHubWorkflowFiles(ctx context.Context, token, owner, repoName, ref string) (map[string][]byte, error) {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/.github/workflows", owner, repoName)
+	if ref != "" {
+		url += "?ref=" + ref
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -240,7 +243,7 @@ func fetchGitHubWorkflowFiles(ctx context.Context, token, owner, repoName string
 		if !strings.HasSuffix(name, ".yml") && !strings.HasSuffix(name, ".yaml") {
 			continue
 		}
-		content, err := fetchGitHubFile(ctx, token, owner, repoName, item.Path)
+		content, err := fetchGitHubFile(ctx, token, owner, repoName, item.Path, ref)
 		if err != nil {
 			return nil, err
 		}
@@ -249,8 +252,11 @@ func fetchGitHubWorkflowFiles(ctx context.Context, token, owner, repoName string
 	return files, nil
 }
 
-func fetchGitHubFile(ctx context.Context, token, owner, repoName, path string) ([]byte, error) {
+func fetchGitHubFile(ctx context.Context, token, owner, repoName, path, ref string) ([]byte, error) {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s", owner, repoName, path)
+	if ref != "" {
+		url += "?ref=" + ref
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err

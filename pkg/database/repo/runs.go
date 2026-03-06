@@ -53,7 +53,7 @@ type RunDashboardFacets struct {
 }
 
 // NewRunRepo creates a new run repository.
-func NewRunRepo(pool *pgxpool.Pool) *RunRepo {
+func NewRunRepo(pool *pgxpool.Pool) RunStore {
 	return &RunRepo{pool: pool}
 }
 
@@ -647,8 +647,6 @@ func (r *RunRepo) MarkAsStale(ctx context.Context, id uuid.UUID) error {
 	}
 	return nil
 }
-
-// --- Run Log Operations ---
 
 // AppendLog appends a single log entry to the database.
 func (r *RunRepo) AppendLog(ctx context.Context, log *models.RunLog) error {

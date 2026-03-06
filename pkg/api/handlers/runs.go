@@ -589,7 +589,7 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) enrichRunWithGitHubCommit(ctx context.Context, run *models.Run, project *models.Project, currentUserID uuid.UUID, requestedBranch string) {
-	if h.providerTokens == nil || h.providerEncrypt == nil {
+	if h.providerEncrypt == nil {
 		return
 	}
 	if project.RepoURL == nil || *project.RepoURL == "" {
@@ -602,7 +602,7 @@ func (h *Handler) enrichRunWithGitHubCommit(ctx context.Context, run *models.Run
 		tokenUserID = *project.RepoLinkedByUserID
 	}
 
-	tok, err := h.providerTokens.GetByUserAndProvider(ctx, tokenUserID, "github")
+	tok, err := h.store.ProviderTokens.GetByUserAndProvider(ctx, tokenUserID, "github")
 	if err != nil || tok == nil {
 		return
 	}
@@ -716,7 +716,7 @@ func (h *Handler) enrichRunWithGitHubCommit(ctx context.Context, run *models.Run
 
 // enrichRunWithGitHubPR attempts to populate PR metadata for a run using the GitHub API.
 func (h *Handler) enrichRunWithGitHubPR(ctx context.Context, run *models.Run, project *models.Project, currentUserID uuid.UUID) {
-	if h.providerTokens == nil || h.providerEncrypt == nil {
+	if h.providerEncrypt == nil {
 		return
 	}
 	if project.RepoURL == nil || *project.RepoURL == "" {
@@ -732,7 +732,7 @@ func (h *Handler) enrichRunWithGitHubPR(ctx context.Context, run *models.Run, pr
 		tokenUserID = *project.RepoLinkedByUserID
 	}
 
-	tok, err := h.providerTokens.GetByUserAndProvider(ctx, tokenUserID, "github")
+	tok, err := h.store.ProviderTokens.GetByUserAndProvider(ctx, tokenUserID, "github")
 	if err != nil || tok == nil {
 		return
 	}
@@ -948,12 +948,12 @@ func (h *Handler) notifyGitHubForRun(ctx context.Context, projectID, runID uuid.
 	}
 
 	// Fallback to legacy OAuth token if no installation token was obtained
-	if accessToken == "" && h.providerTokens != nil && h.providerEncrypt != nil {
+	if accessToken == "" && h.providerEncrypt != nil {
 		tokenUserID := uuid.Nil
 		if project.RepoLinkedByUserID != nil {
 			tokenUserID = *project.RepoLinkedByUserID
 		}
-		tok, err := h.providerTokens.GetByUserAndProvider(ctx, tokenUserID, "github")
+		tok, err := h.store.ProviderTokens.GetByUserAndProvider(ctx, tokenUserID, "github")
 		if err == nil && tok != nil {
 			decrypted, err := h.providerEncrypt.Decrypt(tok.AccessTokenEncrypted)
 			if err == nil {
@@ -1437,8 +1437,6 @@ func (h *Handler) GetRunDetail(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// --- Helper functions ---
-
 // getBaseURL extracts the base URL from a request
 func getBaseURL(r *http.Request) string {
 	scheme := "http"
@@ -1459,8 +1457,6 @@ func ptrToString(s *string) string {
 	}
 	return *s
 }
-
-// --- Helper functions ---
 
 func runModelToResponse(run *models.Run) RunResponse {
 	resp := RunResponse{
@@ -1574,8 +1570,6 @@ func apiKeyWithProjectToResponse(key *models.APIKeyWithProject) APIKeyResponse {
 // func parseIntParam(s string) (int, error) {
 // 	return strconv.Atoi(s)
 // }
-
-// --- Run Status Update Handlers ---
 
 // UpdateRunStatus godoc
 //
@@ -2242,7 +2236,7 @@ func (h *Handler) GetLogs(w http.ResponseWriter, r *http.Request) {
 	page, perPage := GetPageParams(r)
 	// Allow larger per_page for logs
 	if pp := r.URL.Query().Get("per_page"); pp != "" {
-		if n, err := strconv.Atoi(pp); err == nil && n > 0 && n <= 2000 {
+		if n, err := strconv.Atoi(pp); err == nil && n > 0 && n <= 3000 {
 			perPage = n
 		}
 	}

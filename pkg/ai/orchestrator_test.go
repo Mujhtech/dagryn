@@ -16,8 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- Mock data sources ---
-
 type mockRunDS struct {
 	run    *models.Run
 	tasks  []models.TaskResult
@@ -44,8 +42,6 @@ func (m *mockWorkflowDS) GetByID(_ context.Context, _ uuid.UUID) (*models.Workfl
 	return nil, m.err
 }
 
-// --- Mock provider ---
-
 type mockProvider struct {
 	output *aitypes.AnalysisOutput
 	err    error
@@ -54,8 +50,6 @@ type mockProvider struct {
 func (m *mockProvider) AnalyzeFailure(_ context.Context, _ aitypes.AnalysisInput) (*aitypes.AnalysisOutput, error) {
 	return m.output, m.err
 }
-
-// --- Mock AI data store ---
 
 type mockAIDataStore struct {
 	created  *models.AIAnalysis
@@ -80,8 +74,6 @@ func (m *mockAIDataStore) UpdateAnalysisResults(_ context.Context, a *models.AIA
 	m.statuses = append(m.statuses, a.Status)
 	return nil
 }
-
-// --- Test helpers ---
 
 func ptrStr(s string) *string { return &s }
 func ptrInt(i int) *int       { return &i }
@@ -132,8 +124,6 @@ func defaultOutput() *aitypes.AnalysisOutput {
 		RecommendedActions: []string{"Add nil check"},
 	}
 }
-
-// --- Tests ---
 
 func TestOrchestrator_HappyPath(t *testing.T) {
 	runDS := defaultRunDS()

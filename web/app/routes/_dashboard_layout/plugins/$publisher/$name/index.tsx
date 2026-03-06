@@ -34,11 +34,15 @@ import { Icons } from "~/components/icons";
 
 import type { PluginVersionInfo } from "~/lib/api";
 import { MarkdownRenderer } from "~/components/markdown-renderer";
+import { generateMetadata } from "~/lib/metadata";
 
 export const Route = createFileRoute(
   "/_dashboard_layout/plugins/$publisher/$name/",
 )({
   component: RegistryPluginDetailPage,
+  head: () => {
+    return generateMetadata({ title: "Plugin" });
+  },
 });
 
 function formatNumber(n: number): string {

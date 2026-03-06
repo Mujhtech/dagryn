@@ -6,8 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// --- TriggerConfig matching tests ---
-
 func TestTriggerConfig_MatchesPush_NilTrigger(t *testing.T) {
 	var tc *TriggerConfig
 	assert.True(t, tc.MatchesPush("any-branch"))

@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"runtime"
@@ -16,6 +17,8 @@ const compositeCleanupTimeout = 30 * time.Second
 type CompositeExecutor struct {
 	projectRoot string
 	logger      Logger
+	stdout      io.Writer
+	stderr      io.Writer
 }
 
 // CompositeSetupResult carries state from setup execution to cleanup.
@@ -32,6 +35,28 @@ func NewCompositeExecutor(projectRoot string, logger Logger) *CompositeExecutor 
 	return &CompositeExecutor{
 		projectRoot: projectRoot,
 		logger:      logger,
+	}
+}
+
+// SetOutput sets the stdout and stderr writers for step output streaming.
+// When set, step output is written to these writers in real time instead of
+// being captured silently.
+//
+// Deprecated: Use WithOutput for concurrent use. SetOutput mutates shared state
+// and is not safe to call from multiple goroutines.
+func (e *CompositeExecutor) SetOutput(stdout, stderr io.Writer) {
+	e.stdout = stdout
+	e.stderr = stderr
+}
+
+// WithOutput returns a shallow copy of the executor with the given writers set.
+// The copy is safe to use concurrently with the original or other copies.
+func (e *CompositeExecutor) WithOutput(stdout, stderr io.Writer) *CompositeExecutor {
+	return &CompositeExecutor{
+		projectRoot: e.projectRoot,
+		logger:      e.logger,
+		stdout:      stdout,
+		stderr:      stderr,
 	}
 }
 
@@ -118,15 +143,34 @@ func (e *CompositeExecutor) ExecuteSetup(ctx context.Context, manifest *Manifest
 			cmd.Env = append(cmd.Environ(), stepEnv...)
 		}
 
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			return &CompositeSetupResult{
-				Inputs: mergedInputs,
-				Env:    cleanupEnv,
-			}, fmt.Errorf("step %d (%s) failed: %w\nOutput: %s", i, step.Name, err, string(output))
+		// Stream output when writers are set; otherwise capture to buffer.
+		if e.stdout != nil || e.stderr != nil {
+			stdout := e.stdout
+			if stdout == nil {
+				stdout = io.Discard
+			}
+			stderr := e.stderr
+			if stderr == nil {
+				stderr = io.Discard
+			}
+			cmd.Stdout = stdout
+			cmd.Stderr = stderr
+			if err := cmd.Run(); err != nil {
+				return &CompositeSetupResult{
+					Inputs: mergedInputs,
+					Env:    cleanupEnv,
+				}, fmt.Errorf("step %d (%s) failed: %w", i, step.Name, err)
+			}
+		} else {
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				return &CompositeSetupResult{
+					Inputs: mergedInputs,
+					Env:    cleanupEnv,
+				}, fmt.Errorf("step %d (%s) failed: %w\nOutput: %s", i, step.Name, err, string(output))
+			}
+			e.logger.Debug("step %d output: %s", i, string(output))
 		}
-
-		e.logger.Debug("step %d output: %s", i, string(output))
 	}
 
 	return &CompositeSetupResult{
@@ -196,12 +240,27 @@ func (e *CompositeExecutor) executeCleanup(ctx context.Context, cleanupSteps []C
 			cmd.Env = append(cmd.Environ(), stepEnv...)
 		}
 
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			// Log error but continue with other cleanup steps
-			e.logger.Warn("cleanup step %d (%s) failed (continuing): %v\nOutput: %s", i, step.Name, err, string(output))
+		if e.stdout != nil || e.stderr != nil {
+			stdout := e.stdout
+			if stdout == nil {
+				stdout = io.Discard
+			}
+			stderr := e.stderr
+			if stderr == nil {
+				stderr = io.Discard
+			}
+			cmd.Stdout = stdout
+			cmd.Stderr = stderr
+			if err := cmd.Run(); err != nil {
+				e.logger.Warn("cleanup step %d (%s) failed (continuing): %v", i, step.Name, err)
+			}
 		} else {
-			e.logger.Debug("cleanup step %d output: %s", i, string(output))
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				e.logger.Warn("cleanup step %d (%s) failed (continuing): %v\nOutput: %s", i, step.Name, err, string(output))
+			} else {
+				e.logger.Debug("cleanup step %d output: %s", i, string(output))
+			}
 		}
 	}
 

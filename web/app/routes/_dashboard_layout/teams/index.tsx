@@ -22,6 +22,7 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog";
 import { Icons } from "~/components/icons";
+import { generateMetadata } from "~/lib/metadata";
 
 function slugify(text: string): string {
   return text
@@ -34,6 +35,9 @@ function slugify(text: string): string {
 
 export const Route = createFileRoute("/_dashboard_layout/teams/")({
   component: TeamsPage,
+  head: () => {
+    return generateMetadata({ title: "Teams" });
+  },
 });
 
 function TeamsPage() {

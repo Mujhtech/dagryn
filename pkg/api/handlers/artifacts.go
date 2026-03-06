@@ -279,15 +279,15 @@ func (h *Handler) UploadArtifact(w http.ResponseWriter, r *http.Request) {
 //	@Security		APIKeyAuth
 //	@Produce		json
 //	@Param			projectId	path		string	true	"Project ID"	format(uuid)
-//	@Param			runID		path		string	true	"Run ID"		format(uuid)
-//	@Param			artifactID	path		string	true	"Artifact ID"	format(uuid)
+//	@Param			runId		path		string	true	"Run ID"		format(uuid)
+//	@Param			artifactId	path		string	true	"Artifact ID"	format(uuid)
 //	@Success		200			{object}	ArtifactResponse
 //	@Failure		400			{object}	ErrorResponse
 //	@Failure		401			{object}	ErrorResponse
 //	@Failure		403			{object}	ErrorResponse
 //	@Failure		404			{object}	ErrorResponse
 //	@Failure		503			{object}	ErrorResponse
-//	@Router			/api/v1/projects/{projectId}/runs/{runID}/artifacts/{artifactID} [get]
+//	@Router			/api/v1/projects/{projectId}/runs/{runId}/artifacts/{artifactId} [get]
 func (h *Handler) GetArtifact(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -301,12 +301,13 @@ func (h *Handler) GetArtifact(w http.ResponseWriter, r *http.Request) {
 		_ = response.BadRequest(w, r, err)
 		return
 	}
+
 	runID, err := getRunIDFromPath(r)
 	if err != nil {
 		_ = response.BadRequest(w, r, err)
 		return
 	}
-	artifactID := chi.URLParam(r, "artifactID")
+	artifactID := chi.URLParam(r, ArtifactIDParam)
 
 	role, err := h.store.Projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
@@ -367,15 +368,15 @@ func (h *Handler) GetArtifact(w http.ResponseWriter, r *http.Request) {
 //	@Security		APIKeyAuth
 //	@Produce		application/octet-stream
 //	@Param			projectId	path		string	true	"Project ID"	format(uuid)
-//	@Param			runID		path		string	true	"Run ID"		format(uuid)
-//	@Param			artifactID	path		string	true	"Artifact ID"	format(uuid)
+//	@Param			runId		path		string	true	"Run ID"		format(uuid)
+//	@Param			artifactId	path		string	true	"Artifact ID"	format(uuid)
 //	@Success		200			{string}	string	"Artifact content"
 //	@Failure		400			{object}	ErrorResponse
 //	@Failure		401			{object}	ErrorResponse
 //	@Failure		403			{object}	ErrorResponse
 //	@Failure		404			{object}	ErrorResponse
 //	@Failure		503			{object}	ErrorResponse
-//	@Router			/api/v1/projects/{projectId}/runs/{runID}/artifacts/{artifactID}/download [get]
+//	@Router			/api/v1/projects/{projectId}/runs/{runId}/artifacts/{artifactId}/download [get]
 func (h *Handler) DownloadArtifact(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -394,7 +395,7 @@ func (h *Handler) DownloadArtifact(w http.ResponseWriter, r *http.Request) {
 		_ = response.BadRequest(w, r, err)
 		return
 	}
-	artifactID := chi.URLParam(r, "artifactID")
+	artifactID := chi.URLParam(r, ArtifactIDParam)
 
 	role, err := h.store.Projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {
@@ -473,15 +474,15 @@ func (h *Handler) DownloadArtifact(w http.ResponseWriter, r *http.Request) {
 //	@Security		APIKeyAuth
 //	@Produce		json
 //	@Param			projectId	path		string	true	"Project ID"	format(uuid)
-//	@Param			runID		path		string	true	"Run ID"		format(uuid)
-//	@Param			artifactID	path		string	true	"Artifact ID"	format(uuid)
+//	@Param			runId		path		string	true	"Run ID"		format(uuid)
+//	@Param			artifactId	path		string	true	"Artifact ID"	format(uuid)
 //	@Success		204			{object}	SuccessResponse
 //	@Failure		400			{object}	ErrorResponse
 //	@Failure		401			{object}	ErrorResponse
 //	@Failure		403			{object}	ErrorResponse
 //	@Failure		404			{object}	ErrorResponse
 //	@Failure		503			{object}	ErrorResponse
-//	@Router			/api/v1/projects/{projectId}/runs/{runID}/artifacts/{artifactID} [delete]
+//	@Router			/api/v1/projects/{projectId}/runs/{runId}/artifacts/{artifactId} [delete]
 func (h *Handler) DeleteArtifact(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := apiCtx.GetUser(ctx)
@@ -500,7 +501,7 @@ func (h *Handler) DeleteArtifact(w http.ResponseWriter, r *http.Request) {
 		_ = response.BadRequest(w, r, err)
 		return
 	}
-	artifactID := chi.URLParam(r, "artifactID")
+	artifactID := chi.URLParam(r, ArtifactIDParam)
 
 	role, err := h.store.Projects.GetUserRole(ctx, projectID, user.ID)
 	if err != nil {

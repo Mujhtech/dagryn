@@ -77,6 +77,7 @@ export interface GitHubRepo {
   clone_url: string;
   default_branch: string;
   private: boolean;
+  language: string;
 }
 
 export interface GitHubAppInstallation {
@@ -110,6 +111,7 @@ export interface Project {
   repo_url?: string;
   github_installation_id?: string;
   github_repo_id?: number;
+  default_branch?: string;
   member_count: number;
   created_at: string;
   updated_at: string;
@@ -610,6 +612,13 @@ export interface DashboardRun {
   created_at: string;
 }
 
+// Feature entry returned by the API
+export interface FeatureEntry {
+  feature: string;
+  label: string;
+  enabled: boolean;
+}
+
 // License types
 export interface LicenseStatus {
   mode: "cloud" | "self_hosted";
@@ -617,7 +626,7 @@ export interface LicenseStatus {
   licensed: boolean;
   customer?: string;
   seats: number;
-  features: Record<string, boolean>;
+  features: FeatureEntry[];
   limits: {
     projects: { current: number; limit: number | null };
     team_members: { current: number; limit: number | null };
@@ -639,7 +648,7 @@ export interface CapabilitiesNavItem {
 export interface CapabilitiesResponse {
   mode: "cloud" | "self_hosted";
   edition: "community" | "pro" | "enterprise" | "cloud";
-  features: Record<string, boolean>;
+  features: FeatureEntry[];
   nav: CapabilitiesNavItem[];
 }
 
@@ -1032,6 +1041,7 @@ class ApiClient {
   async translateGitHubWorkflows(data: {
     repo_full_name: string;
     github_installation_id?: string;
+    ref?: string;
   }) {
     return this.fetch<GitHubWorkflowTranslateResponse>(
       "/providers/github/workflows/translate",
@@ -1052,6 +1062,12 @@ class ApiClient {
     });
   }
 
+  async getSampleTemplate(language: string) {
+    return this.fetch<{ language: string; project_type: string; template: string }>(
+      `/templates/sample?language=${encodeURIComponent(language)}`,
+    );
+  }
+
   async createProject(data: {
     name: string;
     slug: string;
@@ -1061,6 +1077,7 @@ class ApiClient {
     repo_url?: string;
     github_installation_id?: string;
     github_repo_id?: number;
+    default_branch?: string;
   }) {
     const body: Record<string, unknown> = {
       name: data.name,
@@ -1081,6 +1098,9 @@ class ApiClient {
     }
     if (data.github_repo_id != null) {
       body.github_repo_id = data.github_repo_id;
+    }
+    if (data.default_branch != null && data.default_branch !== "") {
+      body.default_branch = data.default_branch;
     }
     return this.fetch<Project>("/projects", {
       method: "POST",
@@ -1216,6 +1236,7 @@ class ApiClient {
       github_installation_id: string;
       github_repo_id: number;
       repo_url: string;
+      default_branch?: string;
     },
   ) {
     return this.fetch<Project>(`/projects/${projectId}/connect-github`, {
@@ -1347,6 +1368,7 @@ class ApiClient {
   async searchRegistryPlugins(params?: {
     q?: string;
     type?: string;
+    publisher?: string;
     sort?: string;
     page?: number;
     per_page?: number;
@@ -1354,6 +1376,7 @@ class ApiClient {
     const query = new URLSearchParams();
     if (params?.q) query.set("q", params.q);
     if (params?.type) query.set("type", params.type);
+    if (params?.publisher) query.set("publisher", params.publisher);
     if (params?.sort) query.set("sort", params.sort);
     if (params?.page) query.set("page", String(params.page));
     if (params?.per_page) query.set("per_page", String(params.per_page));
@@ -1439,6 +1462,13 @@ class ApiClient {
   // License
   async getLicenseStatus() {
     return this.fetch<LicenseStatus>("/license");
+  }
+
+  async activateLicense(licenseKey: string) {
+    return this.fetch<LicenseStatus>("/license/activate", {
+      method: "POST",
+      body: JSON.stringify({ license_key: licenseKey }),
+    });
   }
 
   // Public wrapper around the private fetch method.

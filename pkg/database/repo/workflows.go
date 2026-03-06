@@ -16,7 +16,7 @@ type WorkflowRepo struct {
 }
 
 // NewWorkflowRepo creates a new workflow repository.
-func NewWorkflowRepo(pool *pgxpool.Pool) *WorkflowRepo {
+func NewWorkflowRepo(pool *pgxpool.Pool) WorkflowStore {
 	return &WorkflowRepo{pool: pool}
 }
 

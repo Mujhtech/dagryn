@@ -162,11 +162,11 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 
 		// Fallback to OAuth token if no installation token was obtained
 		if accessToken == "" {
-			if h.providerTokens == nil || h.providerEncrypt == nil {
+			if h.providerEncrypt == nil {
 				_ = response.BadRequest(w, r, errors.New("gitHub integration is not configured; cannot create project from repository"))
 				return
 			}
-			tok, err := h.providerTokens.GetByUserAndProvider(ctx, user.ID, "github")
+			tok, err := h.store.ProviderTokens.GetByUserAndProvider(ctx, user.ID, "github")
 			if err != nil || tok == nil {
 				_ = response.BadRequest(w, r, errors.New("no GitHub account linked. Log in with GitHub to create a project from a repository"))
 				return
@@ -215,6 +215,9 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		if req.GitHubRepoID != nil {
 			project.GitHubRepoID = req.GitHubRepoID
 		}
+	}
+	if req.DefaultBranch != "" {
+		project.DefaultBranch = &req.DefaultBranch
 	}
 
 	if err := h.store.Projects.Create(ctx, project, user.ID); err != nil {
@@ -504,6 +507,9 @@ func (h *Handler) ConnectProjectToGitHub(w http.ResponseWriter, r *http.Request)
 	project.GitHubRepoID = &req.GitHubRepoID
 	project.RepoURL = &req.RepoURL
 	project.RepoLinkedByUserID = &user.ID
+	if req.DefaultBranch != "" {
+		project.DefaultBranch = &req.DefaultBranch
+	}
 
 	if err := h.store.Projects.Update(ctx, project); err != nil {
 		_ = response.InternalServerError(w, r, errors.New("failed to update project"))

@@ -24,6 +24,22 @@ func projectModelToResponse(project *models.Project, role models.Role) ProjectRe
 		resp.RepoURL = *project.RepoURL
 	}
 
+	// if role != "" {
+	// 	resp.Role = string(role)
+	// }
+
+	if project.GitHubInstallationID != nil {
+		resp.GitHubInstallationID = project.GitHubInstallationID
+	}
+
+	if project.GitHubRepoID != nil {
+		resp.GithubRepoID = project.GitHubRepoID
+	}
+
+	if project.DefaultBranch != nil {
+		resp.DefaultBranch = *project.DefaultBranch
+	}
+
 	if project.TeamID != nil {
 		resp.TeamID = *project.TeamID
 	}
@@ -47,6 +63,9 @@ func projectWithMemberToResponse(project *models.ProjectWithMember) ProjectRespo
 	}
 	if project.RepoURL != nil {
 		resp.RepoURL = *project.RepoURL
+	}
+	if project.DefaultBranch != nil {
+		resp.DefaultBranch = *project.DefaultBranch
 	}
 	if project.TeamID != nil {
 		resp.TeamID = *project.TeamID
