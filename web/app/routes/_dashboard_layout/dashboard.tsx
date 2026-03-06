@@ -5,7 +5,6 @@ import { useDashboardOverview } from "~/hooks/queries";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Icons } from "~/components/icons";
-import { UsageSummaryCard } from "~/components/dashboard/usage-summary";
 import { RecentRunsSection } from "~/components/dashboard/recent-runs";
 import { ProjectStatsCard } from "~/components/dashboard/project-stats-card";
 
@@ -109,9 +108,8 @@ function IndexPage() {
           />
         ) : (
           <div className="flex flex-col lg:flex-row gap-6">
-            {/* Left: Usage + Recent Runs */}
+            {/* Left: Recent Runs */}
             <div className="w-full lg:w-85 space-y-6 shrink-0">
-              <UsageSummaryCard />
               <RecentRunsSection runs={recentRuns} />
             </div>
             {/* Right: Projects grid */}

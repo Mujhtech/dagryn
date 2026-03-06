@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --config vite.config.mjs",
     "build": "vite build --config vite.config.mjs && pnpm copy-dist",
-    "copy-dist": "rm -rf ../internal/server/dashboard/dist && cp -r dist ../internal/server/dashboard/dist",
+    "copy-dist": "rm -rf ../pkg/server/dashboard/dist && cp -r dist ../pkg/server/dashboard/dist",
     "preview": "vite preview --config vite.config.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest",

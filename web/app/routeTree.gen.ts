@@ -14,8 +14,8 @@ import { Route as Dashboard_layoutRouteImport } from './routes/_dashboard_layout
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthDeviceRouteImport } from './routes/auth/device'
 import { Route as Dashboard_layoutSettingsRouteImport } from './routes/_dashboard_layout/settings'
+import { Route as Dashboard_layoutLicenseRouteImport } from './routes/_dashboard_layout/license'
 import { Route as Dashboard_layoutDashboardRouteImport } from './routes/_dashboard_layout/dashboard'
-import { Route as Dashboard_layoutBillingRouteImport } from './routes/_dashboard_layout/billing'
 import { Route as Dashboard_layoutTeamsIndexRouteImport } from './routes/_dashboard_layout/teams/index'
 import { Route as Dashboard_layoutProjectsIndexRouteImport } from './routes/_dashboard_layout/projects/index'
 import { Route as Dashboard_layoutInvitationsIndexRouteImport } from './routes/_dashboard_layout/invitations/index'
@@ -60,17 +60,17 @@ const Dashboard_layoutSettingsRoute =
     path: '/settings',
     getParentRoute: () => Dashboard_layoutRoute,
   } as any)
+const Dashboard_layoutLicenseRoute = Dashboard_layoutLicenseRouteImport.update({
+  id: '/license',
+  path: '/license',
+  getParentRoute: () => Dashboard_layoutRoute,
+} as any)
 const Dashboard_layoutDashboardRoute =
   Dashboard_layoutDashboardRouteImport.update({
     id: '/dashboard',
     path: '/dashboard',
     getParentRoute: () => Dashboard_layoutRoute,
   } as any)
-const Dashboard_layoutBillingRoute = Dashboard_layoutBillingRouteImport.update({
-  id: '/billing',
-  path: '/billing',
-  getParentRoute: () => Dashboard_layoutRoute,
-} as any)
 const Dashboard_layoutTeamsIndexRoute =
   Dashboard_layoutTeamsIndexRouteImport.update({
     id: '/teams/',
@@ -182,8 +182,8 @@ const Dashboard_layoutPluginsPublisherNameAnalyticsRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/billing': typeof Dashboard_layoutBillingRoute
   '/dashboard': typeof Dashboard_layoutDashboardRoute
+  '/license': typeof Dashboard_layoutLicenseRoute
   '/settings': typeof Dashboard_layoutSettingsRoute
   '/auth/device': typeof AuthDeviceRoute
   '/plugins/$pluginName': typeof Dashboard_layoutPluginsPluginNameRoute
@@ -208,8 +208,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/billing': typeof Dashboard_layoutBillingRoute
   '/dashboard': typeof Dashboard_layoutDashboardRoute
+  '/license': typeof Dashboard_layoutLicenseRoute
   '/settings': typeof Dashboard_layoutSettingsRoute
   '/auth/device': typeof AuthDeviceRoute
   '/plugins/$pluginName': typeof Dashboard_layoutPluginsPluginNameRoute
@@ -236,8 +236,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_dashboard_layout': typeof Dashboard_layoutRouteWithChildren
   '/login': typeof LoginRoute
-  '/_dashboard_layout/billing': typeof Dashboard_layoutBillingRoute
   '/_dashboard_layout/dashboard': typeof Dashboard_layoutDashboardRoute
+  '/_dashboard_layout/license': typeof Dashboard_layoutLicenseRoute
   '/_dashboard_layout/settings': typeof Dashboard_layoutSettingsRoute
   '/auth/device': typeof AuthDeviceRoute
   '/_dashboard_layout/plugins/$pluginName': typeof Dashboard_layoutPluginsPluginNameRoute
@@ -264,8 +264,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
-    | '/billing'
     | '/dashboard'
+    | '/license'
     | '/settings'
     | '/auth/device'
     | '/plugins/$pluginName'
@@ -290,8 +290,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
-    | '/billing'
     | '/dashboard'
+    | '/license'
     | '/settings'
     | '/auth/device'
     | '/plugins/$pluginName'
@@ -317,8 +317,8 @@ export interface FileRouteTypes {
     | '/'
     | '/_dashboard_layout'
     | '/login'
-    | '/_dashboard_layout/billing'
     | '/_dashboard_layout/dashboard'
+    | '/_dashboard_layout/license'
     | '/_dashboard_layout/settings'
     | '/auth/device'
     | '/_dashboard_layout/plugins/$pluginName'
@@ -386,18 +386,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Dashboard_layoutSettingsRouteImport
       parentRoute: typeof Dashboard_layoutRoute
     }
+    '/_dashboard_layout/license': {
+      id: '/_dashboard_layout/license'
+      path: '/license'
+      fullPath: '/license'
+      preLoaderRoute: typeof Dashboard_layoutLicenseRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
+    }
     '/_dashboard_layout/dashboard': {
       id: '/_dashboard_layout/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof Dashboard_layoutDashboardRouteImport
-      parentRoute: typeof Dashboard_layoutRoute
-    }
-    '/_dashboard_layout/billing': {
-      id: '/_dashboard_layout/billing'
-      path: '/billing'
-      fullPath: '/billing'
-      preLoaderRoute: typeof Dashboard_layoutBillingRouteImport
       parentRoute: typeof Dashboard_layoutRoute
     }
     '/_dashboard_layout/teams/': {
@@ -530,8 +530,8 @@ declare module '@tanstack/react-router' {
 }
 
 interface Dashboard_layoutRouteChildren {
-  Dashboard_layoutBillingRoute: typeof Dashboard_layoutBillingRoute
   Dashboard_layoutDashboardRoute: typeof Dashboard_layoutDashboardRoute
+  Dashboard_layoutLicenseRoute: typeof Dashboard_layoutLicenseRoute
   Dashboard_layoutSettingsRoute: typeof Dashboard_layoutSettingsRoute
   Dashboard_layoutPluginsPluginNameRoute: typeof Dashboard_layoutPluginsPluginNameRoute
   Dashboard_layoutPluginsBrowseRoute: typeof Dashboard_layoutPluginsBrowseRoute
@@ -553,8 +553,8 @@ interface Dashboard_layoutRouteChildren {
 }
 
 const Dashboard_layoutRouteChildren: Dashboard_layoutRouteChildren = {
-  Dashboard_layoutBillingRoute: Dashboard_layoutBillingRoute,
   Dashboard_layoutDashboardRoute: Dashboard_layoutDashboardRoute,
+  Dashboard_layoutLicenseRoute: Dashboard_layoutLicenseRoute,
   Dashboard_layoutSettingsRoute: Dashboard_layoutSettingsRoute,
   Dashboard_layoutPluginsPluginNameRoute:
     Dashboard_layoutPluginsPluginNameRoute,

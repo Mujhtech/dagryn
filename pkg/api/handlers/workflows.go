@@ -1,0 +1,370 @@
+package handlers
+
+import (
+	"errors"
+	"net/http"
+	"strings"
+
+	"github.com/google/uuid"
+	"github.com/mujhtech/dagryn/pkg/dagryn/config"
+	"github.com/mujhtech/dagryn/pkg/database/models"
+	"github.com/mujhtech/dagryn/pkg/http/response"
+)
+
+// ListProjectWorkflows lists all workflows for a project.
+//
+//	@Summary		List project workflows
+//	@Description	Get all workflows synced to a project
+//	@Tags			workflows
+//	@Accept			json
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"
+//	@Success		200			{array}		WorkflowResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/projects/{projectId}/workflows [get]
+func (h *Handler) ListProjectWorkflows(w http.ResponseWriter, r *http.Request) {
+	projectID, err := getProjectIDFromPath(r)
+	if err != nil {
+		_ = response.BadRequest(w, r, err)
+		return
+	}
+
+	// Get workflows with tasks
+	workflows, err := h.store.Workflows.ListByProjectWithTasks(r.Context(), projectID)
+	if err != nil {
+		_ = response.InternalServerError(w, r, errors.New("failed to fetch workflows"))
+		return
+	}
+
+	// Convert to response format
+	resp := make([]WorkflowResponse, len(workflows))
+	for i, wf := range workflows {
+		resp[i] = toWorkflowResponse(wf)
+	}
+
+	_ = response.Ok(w, r, "Success", resp)
+}
+
+// SyncProjectWorkflow syncs a workflow from the CLI.
+//
+//	@Summary		Sync workflow
+//	@Description	Sync workflow configuration from CLI to server
+//	@Tags			workflows
+//	@Accept			json
+//	@Produce		json
+//	@Param			projectId	path		string				true	"Project ID"
+//	@Param			request		body		SyncWorkflowRequest	true	"Workflow to sync"
+//	@Success		200			{object}	SyncWorkflowResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/projects/{projectId}/workflows/sync [post]
+func (h *Handler) SyncProjectWorkflow(w http.ResponseWriter, r *http.Request) {
+	projectID, err := getProjectIDFromPath(r)
+	if err != nil {
+		_ = response.BadRequest(w, r, err)
+		return
+	}
+
+	// Parse request
+	var req SyncWorkflowRequest
+	if err := ParseJSON(r, &req); err != nil {
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
+		return
+	}
+
+	h.syncWorkflowWithRequest(w, r, projectID, req)
+}
+
+// SyncProjectWorkflowFromToml syncs a workflow from raw TOML.
+//
+//	@Summary		Sync workflow from TOML
+//	@Description	Sync workflow configuration from raw TOML to server
+//	@Tags			workflows
+//	@Accept			json
+//	@Produce		json
+//	@Param			projectId	path		string						true	"Project ID"
+//	@Param			request		body		SyncWorkflowFromTomlRequest	true	"Workflow TOML"
+//	@Success		200			{object}	SyncWorkflowResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/projects/{projectId}/workflows/sync-from-toml [post]
+func (h *Handler) SyncProjectWorkflowFromToml(w http.ResponseWriter, r *http.Request) {
+	projectID, err := getProjectIDFromPath(r)
+	if err != nil {
+		_ = response.BadRequest(w, r, err)
+		return
+	}
+
+	var req SyncWorkflowFromTomlRequest
+	if err := ParseJSON(r, &req); err != nil {
+		_ = response.BadRequest(w, r, errors.New("invalid request body"))
+		return
+	}
+	if strings.TrimSpace(req.RawConfig) == "" {
+		_ = response.BadRequest(w, r, errors.New("raw_config is required"))
+		return
+	}
+
+	cfg, err := config.ParseBytes([]byte(req.RawConfig))
+	if err != nil {
+		_ = response.BadRequest(w, r, errors.New("failed to parse dagryn.toml"))
+		return
+	}
+
+	syncReq := SyncWorkflowRequest{
+		Name:       cfg.Workflow.Name,
+		IsDefault:  cfg.Workflow.Default,
+		ConfigHash: config.ComputeConfigHash([]byte(req.RawConfig)),
+		RawConfig:  req.RawConfig,
+		Tasks:      make([]SyncWorkflowTaskData, 0, len(cfg.Tasks)),
+	}
+	if syncReq.Name == "" {
+		syncReq.Name = "default"
+	}
+	for name, taskCfg := range cfg.Tasks {
+		taskData := SyncWorkflowTaskData{
+			Name:      name,
+			Command:   taskCfg.Command,
+			Needs:     taskCfg.Needs,
+			Inputs:    taskCfg.Inputs,
+			Outputs:   taskCfg.Outputs,
+			Plugins:   taskCfg.GetPlugins(),
+			Env:       taskCfg.Env,
+			Group:     taskCfg.Group,
+			Condition: taskCfg.If,
+		}
+		if taskCfg.Workdir != "" {
+			taskData.Workdir = &taskCfg.Workdir
+		}
+		syncReq.Tasks = append(syncReq.Tasks, taskData)
+	}
+
+	h.syncWorkflowWithRequest(w, r, projectID, syncReq)
+}
+
+func (h *Handler) syncWorkflowWithRequest(w http.ResponseWriter, r *http.Request, projectID uuid.UUID, req SyncWorkflowRequest) {
+	// Verify project exists
+	project, err := h.store.Projects.GetByID(r.Context(), projectID)
+	if err != nil {
+		_ = response.InternalServerError(w, r, errors.New("failed to fetch project"))
+		return
+	}
+	if project == nil {
+		_ = response.NotFound(w, r, errors.New("project not found"))
+		return
+	}
+
+	if req.Name == "" {
+		req.Name = "default"
+	}
+
+	// Create workflow model
+	workflow := &models.ProjectWorkflow{
+		ProjectID: projectID,
+		Name:      req.Name,
+		IsDefault: req.IsDefault,
+	}
+	if req.ConfigHash != "" {
+		workflow.ConfigHash = &req.ConfigHash
+	}
+	if req.RawConfig != "" {
+		workflow.RawConfig = &req.RawConfig
+	}
+
+	// Upsert workflow
+	changed, err := h.store.Workflows.Upsert(r.Context(), workflow)
+	if err != nil {
+		_ = response.InternalServerError(w, r, errors.New("failed to sync workflow"))
+		return
+	}
+
+	// Convert tasks
+	tasks := make([]models.WorkflowTask, len(req.Tasks))
+	for i, t := range req.Tasks {
+		tasks[i] = models.WorkflowTask{
+			WorkflowID:     workflow.ID,
+			Name:           t.Name,
+			Command:        t.Command,
+			Needs:          t.Needs,
+			Inputs:         t.Inputs,
+			Outputs:        t.Outputs,
+			Plugins:        t.Plugins,
+			TimeoutSeconds: t.TimeoutSeconds,
+			Workdir:        t.Workdir,
+			Env:            t.Env,
+		}
+		if t.Group != "" {
+			tasks[i].GroupName = &t.Group
+		}
+		if t.Condition != "" {
+			tasks[i].ConditionExpr = &t.Condition
+		}
+	}
+
+	// Upsert tasks
+	if err := h.store.Workflows.UpsertTasks(r.Context(), workflow.ID, tasks); err != nil {
+		_ = response.InternalServerError(w, r, errors.New("failed to sync workflow tasks"))
+		return
+	}
+
+	message := "Workflow synced successfully"
+	if changed {
+		message = "Workflow updated successfully"
+	}
+
+	_ = response.Ok(w, r, message, SyncWorkflowResponse{
+		WorkflowID: workflow.ID,
+		Name:       workflow.Name,
+		TaskCount:  len(tasks),
+		Changed:    changed,
+		Message:    message,
+	})
+}
+
+// GetRunWorkflow gets the workflow snapshot for a specific run.
+//
+//	@Summary		Get run workflow
+//	@Description	Get the workflow snapshot used for a specific run
+//	@Tags			workflows
+//	@Produce		json
+//	@Param			projectId	path		string	true	"Project ID"
+//	@Param			runID		path		string	true	"Run ID"
+//	@Success		200			{object}	WorkflowResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/projects/{projectId}/runs/{runID}/workflow [get]
+func (h *Handler) GetRunWorkflow(w http.ResponseWriter, r *http.Request) {
+	runID, err := getRunIDFromPath(r)
+	if err != nil {
+		_ = response.BadRequest(w, r, err)
+		return
+	}
+
+	// Get the run to find its workflow ID
+	run, err := h.store.Runs.GetByID(r.Context(), runID)
+	if err != nil {
+		_ = response.InternalServerError(w, r, errors.New("failed to fetch run"))
+		return
+	}
+	if run == nil {
+		_ = response.NotFound(w, r, errors.New("run not found"))
+		return
+	}
+
+	// Check if run has a workflow linked; fall back to project default for pre-existing runs
+	if run.WorkflowID == nil {
+		wf, err := h.store.Workflows.GetDefaultByProject(r.Context(), run.ProjectID)
+		if err != nil || wf == nil {
+			_ = response.NotFound(w, r, errors.New("run has no workflow snapshot"))
+			return
+		}
+		fallbackID := wf.ID
+		run.WorkflowID = &fallbackID
+	}
+
+	// Get the workflow
+	workflow, err := h.store.Workflows.GetByID(r.Context(), *run.WorkflowID)
+	if err != nil {
+		_ = response.InternalServerError(w, r, errors.New("failed to fetch workflow"))
+		return
+	}
+	if workflow == nil {
+		_ = response.NotFound(w, r, errors.New("workflow not found"))
+		return
+	}
+
+	_ = response.Ok(w, r, "Success", toWorkflowResponse(*workflow))
+}
+
+// toWorkflowResponse converts a WorkflowWithTasks to WorkflowResponse.
+func toWorkflowResponse(wf models.WorkflowWithTasks) WorkflowResponse {
+	tasks := make([]WorkflowTaskResponse, len(wf.Tasks))
+	for i, t := range wf.Tasks {
+		tasks[i] = WorkflowTaskResponse{
+			Name:           t.Name,
+			Command:        t.Command,
+			Needs:          t.Needs,
+			Inputs:         t.Inputs,
+			Outputs:        t.Outputs,
+			Plugins:        t.Plugins,
+			TimeoutSeconds: t.TimeoutSeconds,
+			Workdir:        t.Workdir,
+			Env:            t.Env,
+		}
+		if t.GroupName != nil {
+			tasks[i].Group = *t.GroupName
+		}
+		if t.ConditionExpr != nil {
+			tasks[i].Condition = *t.ConditionExpr
+		}
+	}
+
+	resp := WorkflowResponse{
+		ID:        wf.ID,
+		Name:      wf.Name,
+		Version:   wf.Version,
+		IsDefault: wf.IsDefault,
+		SyncedAt:  wf.SyncedAt,
+		Tasks:     tasks,
+	}
+
+	// Extract trigger, cache, AI, and container config from raw_config if available
+	if wf.RawConfig != nil && *wf.RawConfig != "" {
+		if cfg, err := config.ParseBytes([]byte(*wf.RawConfig)); err == nil {
+			// Trigger
+			if cfg.Workflow.Trigger != nil {
+				trigger := &WorkflowTriggerResponse{}
+				if cfg.Workflow.Trigger.Push != nil {
+					trigger.Push = &PushTriggerResponse{
+						Branches: cfg.Workflow.Trigger.Push.Branches,
+					}
+				}
+				if cfg.Workflow.Trigger.PullRequest != nil {
+					trigger.PullRequest = &PullRequestTriggerResponse{
+						Branches: cfg.Workflow.Trigger.PullRequest.Branches,
+						Types:    cfg.Workflow.Trigger.PullRequest.Types,
+					}
+				}
+				resp.Trigger = trigger
+			}
+
+			// Cache config
+			resp.Cache = &WorkflowCacheConfig{
+				Enabled:       cfg.Cache.IsEnabled(),
+				Dir:           cfg.Cache.Dir,
+				RemoteEnabled: cfg.Cache.Remote.Enabled,
+				RemoteCloud:   cfg.Cache.Remote.Cloud,
+			}
+
+			// AI config
+			resp.AI = &WorkflowAIConfig{
+				Enabled:     cfg.AI.IsEnabled(),
+				Mode:        cfg.AI.Mode,
+				Provider:    cfg.AI.Provider,
+				Model:       cfg.AI.Model,
+				BackendMode: cfg.AI.Backend.Mode,
+			}
+
+			// Container config
+			if cfg.Container.Enabled {
+				resp.Container = &WorkflowContainerConfig{
+					Enabled:     true,
+					Image:       cfg.Container.Image,
+					MemoryLimit: cfg.Container.MemoryLimit,
+					CPULimit:    cfg.Container.CPULimit,
+					Network:     cfg.Container.Network,
+				}
+			}
+		}
+	}
+
+	return resp
+}

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mujhtech/dagryn/internal/config"
-	"github.com/mujhtech/dagryn/internal/dag"
-	"github.com/mujhtech/dagryn/internal/scheduler"
+	"github.com/mujhtech/dagryn/pkg/dagryn/config"
+	"github.com/mujhtech/dagryn/pkg/dagryn/dag"
+	"github.com/mujhtech/dagryn/pkg/dagryn/scheduler"
 	"github.com/spf13/cobra"
 )
 

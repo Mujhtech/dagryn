@@ -9,7 +9,8 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
-	"github.com/mujhtech/dagryn/internal/db"
+	"github.com/mujhtech/dagryn/pkg/config"
+	"github.com/mujhtech/dagryn/pkg/database"
 )
 
 func init() {
@@ -99,27 +100,22 @@ func getDatabaseURL(override string) string {
 	if override != "" {
 		return override
 	}
-	if url := os.Getenv("DATABASE_URL"); url != "" {
-		return url
-	}
+	config.LoadDotEnv()
 	if url := os.Getenv("DAGRYN_DATABASE_URL"); url != "" {
 		return url
 	}
-	if url := os.Getenv("POSTGRES_URL"); url != "" {
-		return url
-	}
-	return db.DefaultConfig().URL
+	return database.DefaultConfig().URL
 }
 
 func runMigrateUp(databaseURL string) error {
 	ctx := context.Background()
 
-	cfg := db.DefaultConfig()
+	cfg := database.DefaultConfig()
 	cfg.URL = getDatabaseURL(databaseURL)
 
 	log.Info().Str("database", maskDatabaseURL(cfg.URL)).Msg("Connecting to database")
 
-	database, err := db.New(ctx, cfg)
+	database, err := database.New(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
@@ -138,12 +134,12 @@ func runMigrateUp(databaseURL string) error {
 func runMigrateDown(databaseURL string, steps int) error {
 	ctx := context.Background()
 
-	cfg := db.DefaultConfig()
+	cfg := database.DefaultConfig()
 	cfg.URL = getDatabaseURL(databaseURL)
 
 	log.Info().Str("database", maskDatabaseURL(cfg.URL)).Msg("Connecting to database")
 
-	database, err := db.New(ctx, cfg)
+	database, err := database.New(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
@@ -164,10 +160,10 @@ func runMigrateDown(databaseURL string, steps int) error {
 func runMigrateStatus(databaseURL string) error {
 	ctx := context.Background()
 
-	cfg := db.DefaultConfig()
+	cfg := database.DefaultConfig()
 	cfg.URL = getDatabaseURL(databaseURL)
 
-	database, err := db.New(ctx, cfg)
+	database, err := database.New(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}

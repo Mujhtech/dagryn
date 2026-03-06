@@ -1,56 +1,24 @@
 import { useLocation } from "@tanstack/react-router";
-import { Icons } from "./icons";
 
 import { useAuth } from "~/lib/auth";
+import { useNavItems } from "~/hooks/use-nav-items";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuButton,
+  // SidebarMenuButton,
   SidebarMenuItem,
 } from "~/components/ui/sidebar";
 import { NavUser } from "./nav-user";
 import { NavMain } from "./nav-main";
 import { Logo } from "./logo";
 
-const navItems = [
-  {
-    title: "Dashboard",
-    url: "/dashboard",
-    icon: Icons.Dashboard,
-  },
-  {
-    title: "Projects",
-    url: "/projects",
-    icon: Icons.Folder,
-  },
-  {
-    title: "Teams",
-    url: "/teams",
-    icon: Icons.Users,
-  },
-  {
-    title: "Invitations",
-    url: "/invitations",
-    icon: Icons.ListDetails,
-  },
-  {
-    title: "Plugins",
-    url: "/plugins/browse",
-    icon: Icons.Package,
-  },
-  {
-    title: "Billing",
-    url: "/billing",
-    icon: Icons.CreditCard,
-  },
-];
-
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const location = useLocation();
   const { user } = useAuth();
+  const navItems = useNavItems();
 
   const isActive = (url: string) => {
     if (url === "/") {
@@ -64,16 +32,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
+            <Logo className="h-5 w-5" />
+            {/* <SidebarMenuButton
               asChild
               className="data-[slot=sidebar-menu-button]:p-1.5! h-fit! [&>svg]:size-5"
             >
-              <a href="#">
-                {/* <IconInnerShadowTop className="!size-5" /> */}
-                <Logo />
-                <span className="text-base font-semibold">DAGRYN.</span>
-              </a>
-            </SidebarMenuButton>
+             
+            </SidebarMenuButton> */}
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>

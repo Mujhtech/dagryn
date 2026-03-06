@@ -21,5 +21,4 @@ export { useConnectProjectToGitHub } from "./use-connect-project-to-github";
 export { useInstallPlugin } from "./use-install-plugin";
 export { usePublishPlugin } from "./use-publish-plugin";
 export { useUninstallPlugin } from "./use-uninstall-plugin";
-export { useCreateCheckoutSession, useCreatePortalSession, useCancelSubscription } from "./use-billing";
 export { useRetryAIAnalysis, usePostAISuggestions } from "./use-ai-analysis";

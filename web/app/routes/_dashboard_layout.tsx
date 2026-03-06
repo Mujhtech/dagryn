@@ -9,6 +9,7 @@ import {
 import { Separator } from "~/components/ui/separator";
 import { useAuth } from "~/lib/auth";
 import { Icons } from "~/components/icons";
+import { useLicenseStatus } from "~/hooks/queries/use-license-status";
 import { useFavicon } from "~/hooks/use-favicon";
 
 export const Route = createFileRoute("/_dashboard_layout")({
@@ -52,6 +53,7 @@ function LayoutComponent() {
             <div className="ml-auto flex items-center gap-2"></div>
           </div>
         </header>
+        <LicenseBanner />
         <div className="flex flex-1 flex-col">
           <Outlet />
         </div>
@@ -99,4 +101,45 @@ function formatPathSegment(segment: string): string {
   }
   // Capitalize first letter
   return segment.charAt(0).toUpperCase() + segment.slice(1);
+}
+
+function LicenseBanner() {
+  const { data: license } = useLicenseStatus();
+
+  // No banner in cloud mode or when data is unavailable
+  if (!license || license.mode === "cloud") return null;
+
+  if (license.grace_period) {
+    return (
+      <div className="bg-destructive/10 border-b border-destructive/20 px-4 py-2 text-sm text-destructive">
+        Your license has expired. Enterprise features will be disabled soon.{" "}
+        <a
+          href="https://dagryn.dev/contact"
+          className="underline font-medium"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Renew now.
+        </a>
+      </div>
+    );
+  }
+
+  if (license.expiring && license.days_remaining != null) {
+    return (
+      <div className="bg-yellow-500/10 border-b border-yellow-500/20 px-4 py-2 text-sm text-yellow-700 dark:text-yellow-400">
+        Your license expires in {license.days_remaining} days.{" "}
+        <a
+          href="https://dagryn.dev/contact"
+          className="underline font-medium"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Contact us to renew.
+        </a>
+      </div>
+    );
+  }
+
+  return null;
 }
