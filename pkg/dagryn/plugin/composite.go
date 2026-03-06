@@ -328,16 +328,69 @@ func (e *CompositeExecutor) CollectStepEnv(manifest *Manifest, inputs map[string
 	return env
 }
 
+// GenerateSetupScript produces a shell script from a composite plugin's setup
+// steps, targeting a specific OS/arch. This is used to run plugin setup inside
+// a container instead of on the host. Shell variables like $HOME and $PATH are
+// kept as-is (not expanded) so the container shell resolves them at runtime.
+func (e *CompositeExecutor) GenerateSetupScript(manifest *Manifest, inputs map[string]string, targetOS, targetArch string) (string, error) {
+	if manifest == nil || !manifest.IsComposite() {
+		return "", fmt.Errorf("manifest is not a composite plugin")
+	}
+
+	mergedInputs, err := e.mergeInputs(manifest, inputs)
+	if err != nil {
+		return "", err
+	}
+
+	var sb strings.Builder
+	for _, step := range manifest.Steps {
+		// Evaluate conditional
+		if step.If != "" {
+			condResult := substituteVarsForPlatform(step.If, mergedInputs, targetOS, targetArch)
+			if condResult == "false" || condResult == "" {
+				continue
+			}
+		}
+
+		// Export step environment variables (substitute inputs/os/arch but
+		// keep shell variables like $HOME, $PATH for container resolution).
+		for k, v := range step.Env {
+			resolved := substituteVarsForPlatform(v, mergedInputs, targetOS, targetArch)
+			fmt.Fprintf(&sb, "export %s=\"%s\"\n", k, resolved)
+		}
+
+		// Wrap each step command in a subshell so that `exit 0` (used to
+		// short-circuit a step) doesn't terminate the entire script and
+		// skip the actual task command. Env exports above stay in the
+		// outer shell so they persist for subsequent steps and the task.
+		command := substituteVarsForPlatform(step.Command, mergedInputs, targetOS, targetArch)
+		sb.WriteString("(\n")
+		sb.WriteString(command)
+		if !strings.HasSuffix(command, "\n") {
+			sb.WriteByte('\n')
+		}
+		sb.WriteString(")\n")
+	}
+
+	return sb.String(), nil
+}
+
 // substituteVars replaces ${inputs.key}, ${os}, and ${arch} in a string.
 func substituteVars(s string, inputs map[string]string) string {
+	return substituteVarsForPlatform(s, inputs, runtime.GOOS, runtime.GOARCH)
+}
+
+// substituteVarsForPlatform replaces ${inputs.key}, ${os}, and ${arch} in a
+// string using the supplied platform values instead of the host runtime.
+func substituteVarsForPlatform(s string, inputs map[string]string, targetOS, targetArch string) string {
 	// Replace ${inputs.key} patterns
 	for k, v := range inputs {
 		s = strings.ReplaceAll(s, fmt.Sprintf("${inputs.%s}", k), v)
 	}
 
 	// Replace built-in variables
-	s = strings.ReplaceAll(s, "${os}", runtime.GOOS)
-	s = strings.ReplaceAll(s, "${arch}", runtime.GOARCH)
+	s = strings.ReplaceAll(s, "${os}", targetOS)
+	s = strings.ReplaceAll(s, "${arch}", targetArch)
 
 	return s
 }

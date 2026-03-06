@@ -27,10 +27,13 @@ func TestOfficialPlugins_AllValid(t *testing.T) {
 		"notify-discord",
 		"prettier",
 		"pytest",
+		"setup-bun",
 		"setup-go",
 		"setup-node",
+		"setup-pnpm",
 		"setup-python",
 		"setup-rust",
+		"setup-yarn",
 		"slack-notify",
 		"slack-notify-integration",
 		"upload-artifact",
@@ -122,6 +125,44 @@ func TestOfficialPlugins_RequiredInputs(t *testing.T) {
 	}
 }
 
+func TestOfficialPlugins_SkipIfPresent(t *testing.T) {
+	pluginsDir := filepath.Join("..", "..", "..", "plugins")
+
+	// All setup-* plugins should detect pre-installed tools and skip download
+	setupPlugins := []struct {
+		plugin  string
+		skipCmd string // expected command -v check in download step
+	}{
+		{"setup-node", "command -v node"},
+		{"setup-pnpm", "command -v pnpm"},
+		{"setup-go", "command -v go"},
+		{"setup-yarn", "command -v yarn"},
+		{"setup-bun", "command -v bun"},
+	}
+
+	for _, tt := range setupPlugins {
+		t.Run(tt.plugin, func(t *testing.T) {
+			data, err := os.ReadFile(filepath.Join(pluginsDir, tt.plugin, "plugin.toml"))
+			require.NoError(t, err)
+
+			manifest, err := ParseManifest(data)
+			require.NoError(t, err)
+
+			// Find the download-and-install step
+			var downloadStep *CompositeStep
+			for i := range manifest.Steps {
+				if manifest.Steps[i].Name == "download-and-install" {
+					downloadStep = &manifest.Steps[i]
+					break
+				}
+			}
+			require.NotNil(t, downloadStep, "should have a download-and-install step")
+			assert.Contains(t, downloadStep.Command, tt.skipCmd,
+				"download step should check if tool is already available")
+		})
+	}
+}
+
 func TestOfficialPlugins_DefaultInputs(t *testing.T) {
 	pluginsDir := filepath.Join("..", "..", "..", "plugins")
 
@@ -130,7 +171,10 @@ func TestOfficialPlugins_DefaultInputs(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"setup-node", "node-version", "20"},
+		{"setup-node", "node-version", "20.20.0"},
+		{"setup-pnpm", "pnpm-version", "10.30.3"},
+		{"setup-yarn", "yarn-version", "1.22.22"},
+		{"setup-bun", "bun-version", "1.2.5"},
 		{"setup-go", "go-version", "1.22"},
 		{"setup-python", "python-version", "3.12"},
 		{"setup-rust", "rust-version", "stable"},

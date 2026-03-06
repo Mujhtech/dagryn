@@ -18,6 +18,14 @@ default = "true"
 name = "download-and-install"
 command = """
 GO_VERSION="${inputs.go-version}"
+
+# Skip download if go is already available on PATH
+if command -v go >/dev/null 2>&1; then
+  EXISTING=$(go version | awk '{print $3}' | sed 's/^go//')
+  echo "Go $EXISTING already available, skipping download"
+  exit 0
+fi
+
 GO_OS="${os}"
 GO_ARCH="${arch}"
 INSTALL_DIR="$HOME/.dagryn/tools/go-$GO_VERSION"
@@ -28,7 +36,23 @@ else
   TARBALL="go${GO_VERSION}.${GO_OS}-${GO_ARCH}.tar.gz"
   URL="https://go.dev/dl/${TARBALL}"
   echo "Downloading Go $GO_VERSION from $URL"
-  curl -fsSL "$URL" | tar xz -C "$INSTALL_DIR"
+  TMPFILE=$(mktemp)
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$TMPFILE" "$URL"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$TMPFILE" "$URL"
+  else
+    echo "Error: curl or wget is required" >&2; exit 1
+  fi
+  if [ ! -s "$TMPFILE" ]; then
+    echo "Error: failed to download $URL" >&2; rm -f "$TMPFILE"; exit 1
+  fi
+  tar xzf "$TMPFILE" -C "$INSTALL_DIR"
+  rm -f "$TMPFILE"
+  if [ ! -d "$INSTALL_DIR/go/bin" ]; then
+    echo "Error: go binary not found after extraction" >&2; exit 1
+  fi
+  echo "Go $GO_VERSION downloaded successfully"
 fi
 """
 
@@ -37,13 +61,15 @@ name = "set-environment"
 command = """
 GO_VERSION="${inputs.go-version}"
 INSTALL_DIR="$HOME/.dagryn/tools/go-$GO_VERSION"
-export GOROOT="$INSTALL_DIR/go"
-export PATH="$GOROOT/bin:$PATH"
-go version
+if [ -d "$INSTALL_DIR/go" ]; then
+  export GOROOT="$INSTALL_DIR/go"
+  export PATH="$GOROOT/bin:$PATH"
+fi
+echo "Go $(go version) ready"
 """
 [step.env]
-GOROOT = "$HOME/.dagryn/tools/go-${inputs.go-version}/go"
-PATH = "$HOME/.dagryn/tools/go-${inputs.go-version}/go/bin:$PATH"
+GOROOT = "$(go env GOROOT 2>/dev/null || echo $HOME/.dagryn/tools/go-${inputs.go-version}/go)"
+PATH = "$(go env GOROOT 2>/dev/null || echo $HOME/.dagryn/tools/go-${inputs.go-version}/go)/bin:$PATH"
 
 [[step]]
 name = "cache-modules"

@@ -447,6 +447,153 @@ func (m *Manager) findCachedBinary(plugin *Plugin, installDir string) string {
 	return ""
 }
 
+// InstallForPlatform installs a binary plugin for a specific target platform.
+// It uses a platform-specific install directory (<source>/<name>/<version>/<os>-<arch>/)
+// and creates a resolver configured for the target platform. Composite and integration
+// plugins are skipped since they have no binary.
+func (m *Manager) InstallForPlatform(ctx context.Context, spec string, target Platform) (*InstallResult, error) {
+	cacheKey := spec + ":" + target.String()
+
+	// Check if already installed for this platform
+	m.mu.RLock()
+	if plugin, ok := m.installed[cacheKey]; ok {
+		m.mu.RUnlock()
+		return &InstallResult{
+			Plugin:  plugin,
+			Status:  StatusCached,
+			Message: fmt.Sprintf("Plugin %s already installed for %s", plugin.Name, target.String()),
+		}, nil
+	}
+	m.mu.RUnlock()
+
+	// Resolve the plugin (uses host resolver, which is fine for version resolution)
+	plugin, err := m.Resolve(ctx, spec)
+	if err != nil {
+		return &InstallResult{Status: StatusFailed, Error: err}, err
+	}
+
+	// Skip composite and integration plugins — they have no binary
+	if plugin.Manifest != nil && (plugin.Manifest.IsComposite() || plugin.Manifest.IsIntegration()) {
+		return &InstallResult{
+			Plugin:  plugin,
+			Status:  StatusCached,
+			Message: fmt.Sprintf("Plugin %s is composite/integration, no binary needed", plugin.Name),
+		}, nil
+	}
+
+	// Build platform-specific install directory
+	installDir := m.getInstallDirForPlatform(plugin, target)
+
+	// Check if already cached on disk
+	if m.isCached(plugin, installDir) {
+		binaryPath := m.findCachedBinaryForPlatform(plugin, installDir, target)
+		if binaryPath != "" {
+			platformPlugin := *plugin // Copy
+			platformPlugin.InstallPath = installDir
+			platformPlugin.BinaryPath = binaryPath
+
+			m.mu.Lock()
+			m.installed[cacheKey] = &platformPlugin
+			m.mu.Unlock()
+
+			return &InstallResult{
+				Plugin:  &platformPlugin,
+				Status:  StatusCached,
+				Message: fmt.Sprintf("Plugin %s found in cache for %s", plugin.Name, target.String()),
+			}, nil
+		}
+	}
+
+	// Create a platform-specific resolver and install
+	platformPlugin := *plugin // Copy
+	var resolver Resolver
+
+	switch plugin.Source {
+	case SourceGo:
+		resolver = &GoResolver{platform: target}
+	case SourceGitHub:
+		resolver = NewGitHubResolver(WithPlatform(target))
+	default:
+		// Other source types (npm, pip, cargo) are not binary-platform-specific
+		return &InstallResult{
+			Plugin:  plugin,
+			Status:  StatusCached,
+			Message: fmt.Sprintf("Plugin %s source %s does not need platform-specific install", plugin.Name, plugin.Source),
+		}, nil
+	}
+
+	result, err := resolver.Install(ctx, &platformPlugin, installDir)
+	if err != nil {
+		return result, err
+	}
+
+	// Cache the installed plugin under the platform-specific key
+	m.mu.Lock()
+	m.installed[cacheKey] = &platformPlugin
+	m.mu.Unlock()
+
+	return result, nil
+}
+
+// GetBinPathsForPlatform returns binary directories for installed plugins
+// using platform-specific cache keys.
+func (m *Manager) GetBinPathsForPlatform(specs []string, target Platform) []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	paths := make([]string, 0, len(specs))
+	seen := make(map[string]bool)
+
+	for _, spec := range specs {
+		cacheKey := spec + ":" + target.String()
+		plugin, ok := m.installed[cacheKey]
+		if !ok || plugin.BinaryPath == "" {
+			continue
+		}
+
+		binDir := filepath.Dir(plugin.BinaryPath)
+		if !seen[binDir] {
+			seen[binDir] = true
+			paths = append(paths, binDir)
+		}
+	}
+
+	return paths
+}
+
+// getInstallDirForPlatform returns a platform-specific installation directory.
+func (m *Manager) getInstallDirForPlatform(plugin *Plugin, target Platform) string {
+	version := plugin.ResolvedVersion
+	if version == "" {
+		version = plugin.Version
+	}
+	platformDir := fmt.Sprintf("%s-%s", target.OS, target.Arch)
+	return filepath.Join(m.pluginDir, string(plugin.Source), plugin.Name, version, platformDir)
+}
+
+// findCachedBinaryForPlatform finds a binary in a platform-specific cached plugin directory.
+func (m *Manager) findCachedBinaryForPlatform(plugin *Plugin, installDir string, target Platform) string {
+	var searchPaths []string
+
+	switch plugin.Source {
+	case SourceGitHub, SourceGo, SourceCargo:
+		searchPaths = []string{
+			filepath.Join(installDir, plugin.BinaryName+target.BinaryExtension()),
+			filepath.Join(installDir, "bin", plugin.BinaryName+target.BinaryExtension()),
+		}
+	default:
+		return ""
+	}
+
+	for _, path := range searchPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	return ""
+}
+
 // LockFileEntry represents an entry in the lock file.
 type LockFileEntry struct {
 	Spec            string    `json:"spec"`

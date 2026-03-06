@@ -1,4 +1,4 @@
-.PHONY: build build-go frontend test install clean lint run swagger swagger-fmt server server-dev migrate
+.PHONY: build build-go frontend test install clean lint run swagger swagger-fmt server server-dev migrate proto-gen
 
 # Binary name
 BINARY=dagryn
@@ -14,26 +14,35 @@ GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 
 # Swagger
-SWAG=swag
+SWAG=$(shell go env GOPATH)/bin/swag
+
+# Version info
+GIT_VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+GIT_COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_DATE=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
+LDFLAGS=-X github.com/mujhtech/dagryn/internal/version.Version=$(GIT_VERSION) \
+        -X github.com/mujhtech/dagryn/internal/version.Commit=$(GIT_COMMIT) \
+        -X github.com/mujhtech/dagryn/internal/version.BuildDate=$(BUILD_DATE) \
+        -X github.com/mujhtech/dagryn/pkg/api/handlers.Version=$(GIT_VERSION)
 
 # Build the frontend
 frontend:
-	cd web && npm run build
+	cd web && pnpm build
 
 # Build the binary
 build: frontend
 	@mkdir -p $(BUILD_DIR)
-	$(GOBUILD) -o $(BUILD_DIR)/$(BINARY) ./cmd/dagryn
+	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY) ./cmd/dagryn
 
 # Build Go binary only (without frontend)
 build-go:
 	@mkdir -p $(BUILD_DIR)
-	$(GOBUILD) -o $(BUILD_DIR)/$(BINARY) ./cmd/dagryn
+	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY) ./cmd/dagryn
 
 # Build with version info
 build-release:
 	@mkdir -p $(BUILD_DIR)
-	$(GOBUILD) -ldflags "-X github.com/mujhtech/dagryn/internal/server/handlers.Version=$(shell git describe --tags --always --dirty)" -o $(BUILD_DIR)/$(BINARY) ./cmd/dagryn
+	$(GOBUILD) -ldflags "$(LDFLAGS) -s -w" -o $(BUILD_DIR)/$(BINARY) ./cmd/dagryn
 
 # Run tests
 test:
@@ -73,11 +82,11 @@ vet:
 
 # Generate swagger documentation
 swagger:
-	$(SWAG) init -g internal/server/server.go -o docs --parseDependency --parseInternal
+	$(SWAG) init -g pkg/server/server.go -o docs --parseDependency --parseInternal
 
 # Format swagger comments
 swagger-fmt:
-	$(SWAG) fmt -g internal/server/server.go
+	$(SWAG) fmt -g pkg/server/server.go
 
 # Install swagger CLI tool
 swagger-install:
@@ -89,11 +98,11 @@ server: build
 
 # Start the server with .env and dagryn.server.toml config
 server-dev: build
-	@set -a && source .env && set +a && ./$(BUILD_DIR)/$(BINARY) server --config dagryn.server.toml $(ARGS)
+	./$(BUILD_DIR)/$(BINARY) server --config dagryn.server.toml $(ARGS)
 
 
 worker-dev:
-	@set -a && source .env && set +a && ./$(BUILD_DIR)/$(BINARY) worker --config dagryn.server.toml $(ARGS)
+	./$(BUILD_DIR)/$(BINARY) worker --config dagryn.server.toml $(ARGS)
 
 # Run database migrations
 migrate: build
@@ -117,6 +126,11 @@ lint:
 
 # All checks before commit
 check: fmt vet lint test
+
+# Generate protobuf code (requires buf, protoc-gen-go, protoc-gen-go-grpc)
+# Install: brew install buf && go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+proto-gen:
+	PATH=$(PATH):$(shell go env GOPATH)/bin buf generate
 
 # Docker build
 docker-build:
