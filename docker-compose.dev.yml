@@ -1,0 +1,188 @@
+# Load environment variables from .env file
+# Copy .env.docker.example to .env and configure your settings
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: dagryn-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dagryn}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432" # Changed to 5433 to avoid conflict
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dagryn-network
+
+  # Redis Cache & Job Queue
+  redis:
+    image: redis:7-alpine
+    container_name: dagryn-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT_EXTERNAL:-6380}:6379" # Changed to 6380 to avoid conflict
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - dagryn-network
+
+  # MinIO (Optional S3-compatible storage)
+  minio:
+    image: minio/minio:latest
+    container_name: dagryn-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "${MINIO_API_PORT:-9091}:9000" # API - Changed to 9091 to avoid conflict
+      - "${MINIO_CONSOLE_PORT:-9002}:9001" # Console - Changed to 9002 to avoid conflict
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - dagryn-network
+
+  # Database Migration
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dagryn-migrate
+    command: ["dagryn", "migrate", "up"]
+    env_file:
+      - .env
+    environment:
+      # Override with Docker service names
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/dagryn?sslmode=disable}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dagryn-network
+    restart: "no"
+
+  # Dagryn Server (API + Web UI)
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dagryn-server
+    restart: unless-stopped
+    ports:
+      - "${DAGRYN_PORT:-8888}:9000" # Changed to 8888 to avoid conflict
+    env_file:
+      - .env
+    environment:
+      # Override with Docker service names
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/dagryn?sslmode=disable}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      DAGRYN_HOST: ${DAGRYN_HOST:-0.0.0.0}
+      DAGRYN_PORT: ${DAGRYN_PORT:-9000}
+
+      # All other configuration should be in .env file
+      # Required in .env:
+      # - JWT_SECRET
+      # - JOB_ENCRYPTION_KEY
+      # - GITHUB_CLIENT_ID & GITHUB_CLIENT_SECRET (or)
+      # - GOOGLE_CLIENT_ID & GOOGLE_CLIENT_SECRET
+    volumes:
+      - ./data:/app/data
+      - ./cache:/app/cache
+      - ./logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock # For Docker executor
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - dagryn-network
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=web"
+      - "traefik.http.routers.dagryn.rule=Host(`dagryn.mujhtech.xyz`)"
+      - "traefik.http.routers.dagryn.entrypoints=websecure"
+      - "traefik.http.routers.dagryn.tls=true"
+      - "traefik.http.routers.dagryn.tls.certresolver=letsencrypt"
+      - "traefik.http.services.dagryn.loadbalancer.server.port=9000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:9000/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Dagryn Worker (Background Job Processor)
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dagryn-worker
+    restart: unless-stopped
+    command: ["dagryn", "worker", "--config", "/app/dagryn.server.toml"]
+    env_file:
+      - .env
+    environment:
+      # Override with Docker service names
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/dagryn?sslmode=disable}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+
+      # All other configuration should be in .env file
+    volumes:
+      - ./data:/app/data
+      - ./cache:/app/cache
+      - ./logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock # For Docker executor
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - dagryn-network
+
+networks:
+  dagryn-network:
+    driver: bridge
+  web:
+    external: true
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

@@ -1,0 +1,87 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+bin/
+dist/
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Dependencies
+node_modules/
+vendor/
+
+# Test coverage
+coverage/
+*.coverage
+*.coverprofile
+
+# Logs
+*.log
+logs/
+
+# Data directories
+data/
+cache/
+tmp/
+temp/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.secret
+
+# Documentation (but keep swagger docs for API)
+# docs/
+*.md
+!README.md
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Docker
+docker-compose.yml
+docker-compose.*.yml
+Dockerfile
+.dockerignore
+
+# Testing
+*_test.go
+test/
+tests/
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# Development tools
+Makefile
+.golangci.yaml
+.goreleaser.yaml
+air.toml
+
+# Frontend build artifacts (will be copied from builder stage)
+web/dist/
+web/node_modules/
+web/.turbo/
+web/coverage/
