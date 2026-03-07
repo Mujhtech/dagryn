@@ -58,17 +58,16 @@ changelog:
       order: 999
 
 homebrew_casks:
-  - repository:
+  - name: dagryn
+    repository:
       owner: Mujhtech
       name: homebrew-tap
     directory: Casks
     homepage: "https://github.com/Mujhtech/dagryn"
     description: "Local-first workflow orchestrator with DAG-based task execution"
     license: "MIT"
-    install: |
-      bin.install "dagryn"
-    test: |
-      system "#{bin}/dagryn", "version"
+    binaries:
+      - dagryn
 
 release:
   github:
