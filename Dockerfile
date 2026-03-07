@@ -58,7 +58,7 @@ WORKDIR /app
 COPY --from=go-builder /bin/dagryn /usr/local/bin/dagryn
 
 # Copy example config
-COPY dagryn.server.toml /app/dagryn.server.toml
+COPY dagryn.server.example.toml /app/dagryn.server.toml
 
 # Create necessary directories
 RUN mkdir -p /app/data /app/cache /app/logs && \
