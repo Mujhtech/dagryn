@@ -57,11 +57,11 @@ changelog:
     - title: Others
       order: 999
 
-brews:
+homebrew_casks:
   - repository:
       owner: Mujhtech
       name: homebrew-tap
-    directory: Formula
+    directory: Casks
     homepage: "https://github.com/Mujhtech/dagryn"
     description: "Local-first workflow orchestrator with DAG-based task execution"
     license: "MIT"
