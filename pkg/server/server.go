@@ -30,6 +30,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -367,11 +368,20 @@ func (s *Server) initAuthServices() error {
 	}
 	s.jwtService = authz.NewJWTService(jwtConfig, s.store.Tokens)
 
+	// Determine the public-facing base URL for OAuth redirects and device codes.
+	// In production, DAGRYN_BASE_URL should be set to the public domain (e.g. https://dagryn.dev).
+	// In development, fall back to http://host:port.
+	baseURL := s.config.Server.BaseURL
+	if baseURL == "" {
+		baseURL = fmt.Sprintf("http://%s", s.config.Server.Address())
+	}
+	baseURL = strings.TrimRight(baseURL, "/")
+
 	// Initialize device code service
 	deviceCodeConfig := authz.DeviceCodeConfig{
 		Expiry:          15 * time.Minute,
 		PollInterval:    5 * time.Second,
-		VerificationURI: fmt.Sprintf("http://%s/auth/device", s.config.Server.Address()),
+		VerificationURI: baseURL + "/auth/device",
 	}
 	s.deviceCodeService = authz.NewDeviceCodeService(s.db.Pool(), deviceCodeConfig)
 
@@ -383,7 +393,7 @@ func (s *Server) initAuthServices() error {
 		s.oauthProviders["github"] = authn.NewGitHubProvider(authn.Config{
 			ClientID:     s.config.OAuth.GitHub.ClientID,
 			ClientSecret: s.config.OAuth.GitHub.ClientSecret,
-			RedirectURL:  fmt.Sprintf("http://%s/auth/github/callback", s.config.Server.Address()),
+			RedirectURL:  baseURL + "/auth/github/callback",
 			Scopes:       []string{"read:user", "user:email", "repo"},
 		})
 		log.Debug().Msg("GitHub OAuth provider initialized")
@@ -394,7 +404,7 @@ func (s *Server) initAuthServices() error {
 		s.oauthProviders["google"] = authn.NewGoogleProvider(authn.Config{
 			ClientID:     s.config.OAuth.Google.ClientID,
 			ClientSecret: s.config.OAuth.Google.ClientSecret,
-			RedirectURL:  fmt.Sprintf("http://%s/api/v1/auth/google/callback", s.config.Server.Address()),
+			RedirectURL:  baseURL + "/api/v1/auth/google/callback",
 			Scopes:       []string{"openid", "email", "profile"},
 		})
 		log.Debug().Msg("Google OAuth provider initialized")
