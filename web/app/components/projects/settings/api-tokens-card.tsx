@@ -1,7 +1,9 @@
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import type { APIKey } from "~/lib/api";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -13,18 +15,30 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/com
 import { Separator } from "~/components/ui/separator";
 import { Badge } from "~/components/ui/badge";
 import { Icons } from "~/components/icons";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "~/components/ui/form";
+
+const apiTokenSchema = z.object({
+  name: z.string().min(1, "Token name is required"),
+  expiry: z.enum(["30d", "90d", "1y", "no"]),
+});
+
+type APITokenFormValues = z.infer<typeof apiTokenSchema>;
 
 type APITokensCardProps = {
   apiKeys?: APIKey[];
   apiKeysLoading: boolean;
   apiKeysError?: string;
-  apiKeyName: string;
-  setApiKeyName: (value: string) => void;
-  apiKeyExpiry: string;
-  setApiKeyExpiry: (value: string) => void;
   createdKey: string | null;
   onCopyKey: () => void;
-  onCreateToken: () => void;
+  onCreateToken: (values: { name: string; expires_in?: string }) => void;
   createPending: boolean;
   revokePending: boolean;
   onRevoke: (id: string) => void;
@@ -34,10 +48,6 @@ export function APITokensCard({
   apiKeys,
   apiKeysLoading,
   apiKeysError,
-  apiKeyName,
-  setApiKeyName,
-  apiKeyExpiry,
-  setApiKeyExpiry,
   createdKey,
   onCopyKey,
   onCreateToken,
@@ -45,6 +55,22 @@ export function APITokensCard({
   revokePending,
   onRevoke,
 }: APITokensCardProps) {
+  const form = useForm<APITokenFormValues>({
+    resolver: zodResolver(apiTokenSchema),
+    defaultValues: {
+      name: "",
+      expiry: "90d",
+    },
+  });
+
+  const onSubmit = (values: APITokenFormValues) => {
+    onCreateToken({
+      name: values.name.trim(),
+      expires_in: values.expiry === "no" ? undefined : values.expiry,
+    });
+    form.setValue("name", "");
+  };
+
   return (
     <Card className="py-6">
       <CardHeader>
@@ -64,62 +90,87 @@ export function APITokensCard({
           </div>
         ) : null}
 
-        <div className="space-y-2">
-          <Label htmlFor="api-key-name">Token name</Label>
-          <Input
-            id="api-key-name"
-            value={apiKeyName}
-            onChange={(event) => setApiKeyName(event.target.value)}
-            placeholder="Production deploy token"
-          />
-        </div>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Token name</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Production deploy token"
+                      disabled={createPending}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-        <div className="space-y-2">
-          <Label htmlFor="api-key-expiry">Expiration</Label>
-          <Select value={apiKeyExpiry} onValueChange={setApiKeyExpiry}>
-            <SelectTrigger id="api-key-expiry" className="w-full">
-              <SelectValue placeholder="Select expiration" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="30d">30 days</SelectItem>
-              <SelectItem value="90d">90 days</SelectItem>
-              <SelectItem value="1y">1 year</SelectItem>
-              <SelectItem value="no">No expiration</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            You can revoke a token at any time. For most CI systems, <span className="font-medium">90 days</span> is a good default.
-          </p>
-        </div>
+            <FormField
+              control={form.control}
+              name="expiry"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Expiration</FormLabel>
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    disabled={createPending}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select expiration" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="30d">30 days</SelectItem>
+                      <SelectItem value="90d">90 days</SelectItem>
+                      <SelectItem value="1y">1 year</SelectItem>
+                      <SelectItem value="no">No expiration</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    You can revoke a token at any time. For most CI systems, <span className="font-medium">90 days</span> is a good default.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Button onClick={onCreateToken} disabled={createPending || !apiKeyName.trim()}>
-            {createPending ? (
-              <>
-                <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
-                Creating...
-              </>
-            ) : (
-              "Create Token"
-            )}
-          </Button>
-
-          {createdKey ? (
-            <div className="flex flex-1 items-center gap-2 rounded-md bg-muted px-3 py-2">
-              <Icons.Key className="h-4 w-4 text-muted-foreground" />
-              <span className="font-mono text-xs truncate">{createdKey}</span>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-7 w-7"
-                onClick={onCopyKey}
-              >
-                <Icons.Copy className="h-3 w-3" />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Button type="submit" disabled={createPending}>
+                {createPending ? (
+                  <>
+                    <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create Token"
+                )}
               </Button>
+
+              {createdKey ? (
+                <div className="flex flex-1 items-center gap-2 rounded-md bg-muted px-3 py-2">
+                  <Icons.Key className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-mono text-xs truncate">{createdKey}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={onCopyKey}
+                  >
+                    <Icons.Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </div>
+          </form>
+        </Form>
 
         <Separator />
 

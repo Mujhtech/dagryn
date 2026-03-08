@@ -2,6 +2,7 @@ import { useLocation } from "@tanstack/react-router";
 
 import { useAuth } from "~/lib/auth";
 import { useNavItems } from "~/hooks/use-nav-items";
+import { useHealth } from "~/hooks/queries/use-health";
 import {
   Sidebar,
   SidebarContent,
@@ -19,6 +20,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const location = useLocation();
   const { user } = useAuth();
   const navItems = useNavItems();
+  const { data: health } = useHealth();
 
   const isActive = (url: string) => {
     if (url === "/") {
@@ -47,7 +49,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* <NavDocuments items={data.documents} />
         <NavSecondary items={data.navSecondary} className="mt-auto" /> */}
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="gap-1">
         <NavUser
           user={{
             email: user?.email || "",
@@ -55,6 +57,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             avatar: user?.avatar_url || "",
           }}
         />
+        {health?.version && (
+          <div className="px-3">
+            <a
+              href={`https://github.com/mujhtech/dagryn/releases/tag/${health.version}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground text-[0.5rem] transition-colors"
+            >
+              v{health.version.replace(/^v/, "")}
+            </a>
+          </div>
+        )}
       </SidebarFooter>
     </Sidebar>
   );

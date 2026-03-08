@@ -1,5 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   useTeam,
   useTeamMembers,
@@ -52,6 +55,14 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "~/components/ui/form";
 import { Badge } from "~/components/ui/badge";
 import { Switch } from "~/components/ui/switch";
 import type { Team, TeamMember, Invitation, AuditLogEntry, AuditWebhook } from "~/lib/api";
@@ -60,6 +71,20 @@ import { Icons } from "~/components/icons";
 import { AuditLogDetailSheet } from "~/components/audit-log-detail";
 import { generateMetadata } from "~/lib/metadata";
 import type { AuditLogParams } from "~/hooks/queries/use-team-audit-logs";
+
+const editTeamSchema = z.object({
+  name: z.string().min(1, "Team name is required"),
+  description: z.string().optional(),
+});
+
+type EditTeamFormValues = z.infer<typeof editTeamSchema>;
+
+const inviteSchema = z.object({
+  email: z.string().min(1, "Email is required").email("Must be a valid email"),
+  role: z.enum(["member", "admin"]),
+});
+
+type InviteFormValues = z.infer<typeof inviteSchema>;
 
 export const Route = createFileRoute("/_dashboard_layout/teams/$teamId/")({
   component: TeamDetailPage,
@@ -87,23 +112,55 @@ function TeamDetailPage() {
   const revokeInvitationMutation = useRevokeTeamInvitation(teamId);
   const removeMemberMutation = useRemoveTeamMember(teamId);
 
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState("member");
   const [isInviteOpen, setIsInviteOpen] = useState(false);
-  const [editName, setEditName] = useState("");
-  const [editDescription, setEditDescription] = useState("");
   const [isEditOpen, setIsEditOpen] = useState(false);
+
+  const editForm = useForm<EditTeamFormValues>({
+    resolver: zodResolver(editTeamSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+    },
+  });
+
+  const inviteForm = useForm<InviteFormValues>({
+    resolver: zodResolver(inviteSchema),
+    defaultValues: {
+      email: "",
+      role: "member",
+    },
+  });
 
   useEffect(() => {
     if (team) {
-      setEditName(team.name);
-      setEditDescription(team.description ?? "");
+      editForm.reset({
+        name: team.name,
+        description: team.description ?? "",
+      });
     }
   }, [team]);
 
-  const handleUpdateTeam = () => {
+  const handleEditOpenChange = (open: boolean) => {
+    setIsEditOpen(open);
+    if (open && team) {
+      editForm.reset({
+        name: team.name,
+        description: team.description ?? "",
+      });
+    }
+  };
+
+  const handleInviteOpenChange = (open: boolean) => {
+    setIsInviteOpen(open);
+    if (!open) {
+      inviteForm.reset();
+      createInvitationMutation.reset();
+    }
+  };
+
+  const onEditSubmit = (values: EditTeamFormValues) => {
     updateTeamMutation.mutate(
-      { name: editName, description: editDescription || undefined },
+      { name: values.name, description: values.description || undefined },
       { onSuccess: () => setIsEditOpen(false) },
     );
   };
@@ -120,14 +177,12 @@ function TeamDetailPage() {
     });
   };
 
-  const handleCreateInvitation = () => {
-    if (!inviteEmail.trim()) return;
+  const onInviteSubmit = (values: InviteFormValues) => {
     createInvitationMutation.mutate(
-      { email: inviteEmail.trim(), role: inviteRole },
+      { email: values.email, role: values.role },
       {
         onSuccess: () => {
-          setInviteEmail("");
-          setInviteRole("member");
+          inviteForm.reset();
           setIsInviteOpen(false);
         },
       },
@@ -192,7 +247,7 @@ function TeamDetailPage() {
               Analytics
             </Link>
           </Button>
-          <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+          <Dialog open={isEditOpen} onOpenChange={handleEditOpenChange}>
             <DialogTrigger asChild>
               <Button variant="outline">Edit</Button>
             </DialogTrigger>
@@ -203,35 +258,60 @@ function TeamDetailPage() {
                   Update team name and description.
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label>Name</Label>
-                  <Input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    disabled={updateTeamMutation.isPending}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Description</Label>
-                  <Input
-                    value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
-                    disabled={updateTeamMutation.isPending}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsEditOpen(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleUpdateTeam}
-                  disabled={updateTeamMutation.isPending}
+              <Form {...editForm}>
+                <form
+                  onSubmit={editForm.handleSubmit(onEditSubmit)}
+                  className="grid gap-4 py-4"
                 >
-                  Save
-                </Button>
-              </DialogFooter>
+                  <FormField
+                    control={editForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            disabled={updateTeamMutation.isPending}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editForm.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Input
+                            disabled={updateTeamMutation.isPending}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsEditOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={updateTeamMutation.isPending}
+                    >
+                      Save
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
             </DialogContent>
           </Dialog>
           <Button
@@ -327,7 +407,7 @@ function TeamDetailPage() {
                 <CardTitle>Pending Invitations</CardTitle>
                 <CardDescription>Invite people by email</CardDescription>
               </div>
-              <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
+              <Dialog open={isInviteOpen} onOpenChange={handleInviteOpenChange}>
                 <DialogTrigger asChild>
                   <Button size="sm">
                     <Icons.Mail className="mr-2 h-4 w-4" />
@@ -341,52 +421,76 @@ function TeamDetailPage() {
                       Send an invitation by email.
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid gap-2">
-                      <Label>Email</Label>
-                      <Input
-                        type="email"
-                        value={inviteEmail}
-                        onChange={(e) => setInviteEmail(e.target.value)}
-                        placeholder="colleague@example.com"
-                        disabled={createInvitationMutation.isPending}
+                  <Form {...inviteForm}>
+                    <form
+                      onSubmit={inviteForm.handleSubmit(onInviteSubmit)}
+                      className="grid gap-4 py-4"
+                    >
+                      <FormField
+                        control={inviteForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="email"
+                                placeholder="colleague@example.com"
+                                disabled={createInvitationMutation.isPending}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label>Role</Label>
-                      <select
-                        className="flex h-9 w-full rounded-none border border-input bg-transparent px-3 py-1 text-sm"
-                        value={inviteRole}
-                        onChange={(e) => setInviteRole(e.target.value)}
-                        disabled={createInvitationMutation.isPending}
-                      >
-                        <option value="member">Member</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    </div>
-                    {createInvitationMutation.error && (
-                      <p className="text-sm text-destructive">
-                        {createInvitationMutation.error.message}
-                      </p>
-                    )}
-                  </div>
-                  <DialogFooter>
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsInviteOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleCreateInvitation}
-                      disabled={
-                        createInvitationMutation.isPending ||
-                        !inviteEmail.trim()
-                      }
-                    >
-                      Send invite
-                    </Button>
-                  </DialogFooter>
+                      <FormField
+                        control={inviteForm.control}
+                        name="role"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Role</FormLabel>
+                            <Select
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              disabled={createInvitationMutation.isPending}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select a role" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="member">Member</SelectItem>
+                                <SelectItem value="admin">Admin</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      {createInvitationMutation.error && (
+                        <p className="text-sm text-destructive">
+                          {createInvitationMutation.error.message}
+                        </p>
+                      )}
+                      <DialogFooter>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setIsInviteOpen(false)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          disabled={createInvitationMutation.isPending}
+                        >
+                          Send invite
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </Form>
                 </DialogContent>
               </Dialog>
             </CardHeader>
@@ -493,6 +597,13 @@ function formatRelativeTime(dateStr: string) {
   return date.toLocaleDateString();
 }
 
+const webhookSchema = z.object({
+  url: z.string().min(1, "URL is required").url("Must be a valid URL"),
+  description: z.string().optional(),
+});
+
+type WebhookFormValues = z.infer<typeof webhookSchema>;
+
 function AuditLogTab({ teamId }: { teamId: string }) {
   const [category, setCategory] = useState("");
   const [actorEmail, setActorEmail] = useState("");
@@ -503,11 +614,17 @@ function AuditLogTab({ teamId }: { teamId: string }) {
   const [isExporting, setIsExporting] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null);
   const [showAddWebhook, setShowAddWebhook] = useState(false);
-  const [webhookUrl, setWebhookUrl] = useState("");
-  const [webhookDescription, setWebhookDescription] = useState("");
   const [createdSecret, setCreatedSecret] = useState<string | null>(null);
   const [testingWebhookId, setTestingWebhookId] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ webhookId: string; success: boolean; statusCode?: number; error?: string; durationMs: number } | null>(null);
+
+  const webhookForm = useForm<WebhookFormValues>({
+    resolver: zodResolver(webhookSchema),
+    defaultValues: {
+      url: "",
+      description: "",
+    },
+  });
 
   const params: AuditLogParams = {
     ...(category ? { category } : {}),
@@ -526,16 +643,22 @@ function AuditLogTab({ teamId }: { teamId: string }) {
   const updateWebhookMutation = useUpdateAuditWebhook(teamId);
   const deleteWebhookMutation = useDeleteAuditWebhook(teamId);
 
-  const handleCreateWebhook = async () => {
-    if (!webhookUrl) return;
+  const handleWebhookDialogOpenChange = (open: boolean) => {
+    setShowAddWebhook(open);
+    if (!open) {
+      setCreatedSecret(null);
+      webhookForm.reset();
+    }
+  };
+
+  const onWebhookSubmit = async (values: WebhookFormValues) => {
     try {
       const result = await createWebhookMutation.mutateAsync({
-        url: webhookUrl,
-        description: webhookDescription || undefined,
+        url: values.url,
+        description: values.description || undefined,
       });
       setCreatedSecret(result.secret);
-      setWebhookUrl("");
-      setWebhookDescription("");
+      webhookForm.reset();
     } catch {
       // mutation error is available via createWebhookMutation.error
     }
@@ -800,14 +923,7 @@ function AuditLogTab({ teamId }: { teamId: string }) {
             Forward audit log events to external SIEM systems
           </CardDescription>
         </div>
-        <Dialog open={showAddWebhook} onOpenChange={(open) => {
-          setShowAddWebhook(open);
-          if (!open) {
-            setCreatedSecret(null);
-            setWebhookUrl("");
-            setWebhookDescription("");
-          }
-        }}>
+        <Dialog open={showAddWebhook} onOpenChange={handleWebhookDialogOpenChange}>
           <DialogTrigger asChild>
             <Button size="sm">
               <Icons.Plus className="mr-2 h-4 w-4" />
@@ -853,43 +969,63 @@ function AuditLogTab({ teamId }: { teamId: string }) {
                     HTTPS POST with HMAC-SHA256 signing.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="webhook-url">URL</Label>
-                    <Input
-                      id="webhook-url"
-                      placeholder="https://example.com/webhook"
-                      value={webhookUrl}
-                      onChange={(e) => setWebhookUrl(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="webhook-desc">Description (optional)</Label>
-                    <Input
-                      id="webhook-desc"
-                      placeholder="e.g. Splunk SIEM"
-                      value={webhookDescription}
-                      onChange={(e) => setWebhookDescription(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowAddWebhook(false)}
+                <Form {...webhookForm}>
+                  <form
+                    onSubmit={webhookForm.handleSubmit(onWebhookSubmit)}
+                    className="space-y-4"
                   >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleCreateWebhook}
-                    disabled={!webhookUrl || createWebhookMutation.isPending}
-                  >
-                    {createWebhookMutation.isPending ? (
-                      <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
-                    ) : null}
-                    Create
-                  </Button>
-                </DialogFooter>
+                    <FormField
+                      control={webhookForm.control}
+                      name="url"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>URL</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="https://example.com/webhook"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={webhookForm.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Description (optional)</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="e.g. Splunk SIEM"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setShowAddWebhook(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={createWebhookMutation.isPending}
+                      >
+                        {createWebhookMutation.isPending ? (
+                          <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
+                        Create
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </Form>
               </>
             )}
           </DialogContent>

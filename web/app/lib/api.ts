@@ -1769,6 +1769,25 @@ class ApiClient {
     });
   }
 
+  // Health
+  async getHealth() {
+    const response = await fetch("/health", {
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      throw new ApiError(response.status, "unknown", "Health check failed");
+    }
+    const json = await response.json();
+    return json.data as {
+      status: string;
+      version: string;
+      mode: string;
+      edition: string;
+      licensed: boolean;
+      timestamp: string;
+    };
+  }
+
   // Analytics
   async getTeamAnalytics(teamId: string, days = 30) {
     return this.fetch<AnalyticsOverview>(

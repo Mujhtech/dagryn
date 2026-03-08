@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Project } from "~/lib/api";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -19,23 +20,21 @@ import { Icons } from "~/components/icons";
 
 type DangerZoneCardProps = {
   project: Project;
-  deleteConfirmText: string;
-  setDeleteConfirmText: (value: string) => void;
-  canDelete: boolean;
+  onDelete: () => void;
   deletePending: boolean;
   deleteError?: string;
-  onDelete: () => void;
 };
 
 export function DangerZoneCard({
   project,
-  deleteConfirmText,
-  setDeleteConfirmText,
-  canDelete,
+  onDelete,
   deletePending,
   deleteError,
-  onDelete,
 }: DangerZoneCardProps) {
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+
+  const canDelete = deleteConfirmText === project.slug;
+
   return (
     <Card className="border-destructive/50 py-6">
       <CardHeader>

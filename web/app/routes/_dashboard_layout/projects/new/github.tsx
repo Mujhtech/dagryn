@@ -5,6 +5,7 @@ import {
   useGitHubAppInstallations,
   useGitHubAppRepos,
   useGitHubWorkflowTranslation,
+  useTeams,
 } from "~/hooks/queries";
 import { useCreateProject } from "~/hooks/mutations";
 import { api } from "~/lib/api";
@@ -26,7 +27,14 @@ import { Icons } from "~/components/icons";
 import Editor from "@monaco-editor/react";
 import type { MonacoInstance } from "~/lib/monaco";
 import "~/lib/monaco";
-import type { GitHubAppInstallation, GitHubRepo } from "~/lib/api";
+import type { GitHubAppInstallation, GitHubRepo, Team } from "~/lib/api";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
 import {
   Command,
   CommandEmpty,
@@ -922,6 +930,9 @@ function ProjectDetailsSection({
   setImportSlugEdited,
   branch,
   onBranchChange,
+  teamId,
+  setTeamId,
+  teams,
   disabled,
 }: {
   importName: string;
@@ -931,6 +942,9 @@ function ProjectDetailsSection({
   setImportSlugEdited: (v: boolean) => void;
   branch: string;
   onBranchChange: (v: string) => void;
+  teamId: string;
+  setTeamId: (v: string) => void;
+  teams: Team[];
   disabled?: boolean;
 }) {
   return (
@@ -978,6 +992,28 @@ function ProjectDetailsSection({
           Change the branch to detect workflows from a different branch.
         </p>
       </div>
+
+      {teams.length > 0 && (
+        <div className="grid gap-2">
+          <Label htmlFor="import-team">Team (optional)</Label>
+          <Select value={teamId} onValueChange={setTeamId} disabled={disabled}>
+            <SelectTrigger id="import-team">
+              <SelectValue placeholder="No team" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No team</SelectItem>
+              {teams.map((team) => (
+                <SelectItem key={team.id} value={team.id}>
+                  {team.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Assign this project to a team
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -985,6 +1021,8 @@ function ProjectDetailsSection({
 function ImportFromGitHubPage() {
   const navigate = useNavigate();
   const createProjectMutation = useCreateProject();
+  const { data: teamsData } = useTeams();
+  const teams = teamsData?.data ?? [];
 
   const [gitScope, setGitScope] = useState<GitScope | null>(null);
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
@@ -997,6 +1035,7 @@ function ImportFromGitHubPage() {
   const [importName, setImportName] = useState("");
   const [importSlug, setImportSlug] = useState("");
   const [importSlugEdited, setImportSlugEdited] = useState(false);
+  const [importTeamId, setImportTeamId] = useState("");
 
   const [useDetectedWorkflow, setUseDetectedWorkflow] = useState(true);
   const [workflowDraft, setWorkflowDraft] = useState("");
@@ -1072,6 +1111,7 @@ function ImportFromGitHubPage() {
     setImportName("");
     setImportSlug("");
     setImportSlugEdited(false);
+    setImportTeamId("");
     setWorkflowDraft("");
     setUseDetectedWorkflow(true);
     setWorkflowSyncError("");
@@ -1168,6 +1208,7 @@ function ImportFromGitHubPage() {
       const project = await createProjectMutation.mutateAsync({
         name: importName.trim(),
         slug: importSlug.trim(),
+        team_id: importTeamId && importTeamId !== "none" ? importTeamId : undefined,
         repo_url: repoUrl,
         github_installation_id:
           gitScope?.kind === "installation" ? (gitScope.id ?? "") : "",
@@ -1354,6 +1395,9 @@ function ImportFromGitHubPage() {
               setImportSlugEdited={setImportSlugEdited}
               branch={effectiveBranch}
               onBranchChange={setBranchOverride}
+              teamId={importTeamId}
+              setTeamId={setImportTeamId}
+              teams={teams}
               disabled={createProjectMutation.isPending}
             />
 

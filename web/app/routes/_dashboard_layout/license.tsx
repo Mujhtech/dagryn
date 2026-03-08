@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useLicenseStatus } from "~/hooks/queries/use-license-status";
 import { useActivateLicense } from "~/hooks/mutations/use-activate-license";
 import {
@@ -12,9 +15,22 @@ import {
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
 import { Icons } from "~/components/icons";
 import { generateMetadata } from "~/lib/metadata";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "~/components/ui/form";
+
+const licenseKeySchema = z.object({
+  licenseKey: z.string().min(1, "License key is required"),
+});
+
+type LicenseKeyFormValues = z.infer<typeof licenseKeySchema>;
 
 export const Route = createFileRoute("/_dashboard_layout/license")({
   component: LicensePage,
@@ -200,14 +216,18 @@ function LicensePage() {
 }
 
 function ActivateLicenseCard() {
-  const [licenseKey, setLicenseKey] = useState("");
   const activateMutation = useActivateLicense();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!licenseKey.trim()) return;
-    activateMutation.mutate(licenseKey.trim(), {
-      onSuccess: () => setLicenseKey(""),
+  const form = useForm<LicenseKeyFormValues>({
+    resolver: zodResolver(licenseKeySchema),
+    defaultValues: {
+      licenseKey: "",
+    },
+  });
+
+  const onSubmit = (values: LicenseKeyFormValues) => {
+    activateMutation.mutate(values.licenseKey.trim(), {
+      onSuccess: () => form.reset(),
     });
   };
 
@@ -228,42 +248,51 @@ function ActivateLicenseCard() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="license-key">License Key</Label>
-            <Input
-              id="license-key"
-              type="text"
-              placeholder="dagryn-license-v1.xxxxx.xxxxx"
-              value={licenseKey}
-              onChange={(e) => setLicenseKey(e.target.value)}
-              disabled={activateMutation.isPending}
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="licenseKey"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>License Key</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="text"
+                      placeholder="dagryn-license-v1.xxxxx.xxxxx"
+                      disabled={activateMutation.isPending}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          {activateMutation.isError && (
-            <p className="text-destructive text-sm">
-              {activateMutation.error?.message || "Failed to activate license"}
-            </p>
-          )}
-          {activateMutation.isSuccess && (
-            <p className="text-green-600 dark:text-green-400 text-sm">
-              License activated successfully.
-            </p>
-          )}
-          <Button
-            type="submit"
-            disabled={activateMutation.isPending || !licenseKey.trim()}
-          >
-            {activateMutation.isPending ? (
-              <>
-                <Icons.Loader className="h-4 w-4 animate-spin mr-2" />
-                Activating...
-              </>
-            ) : (
-              "Activate License"
+            {activateMutation.isError && (
+              <p className="text-destructive text-sm">
+                {activateMutation.error?.message || "Failed to activate license"}
+              </p>
             )}
-          </Button>
-        </form>
+            {activateMutation.isSuccess && (
+              <p className="text-green-600 dark:text-green-400 text-sm">
+                License activated successfully.
+              </p>
+            )}
+            <Button
+              type="submit"
+              disabled={activateMutation.isPending}
+            >
+              {activateMutation.isPending ? (
+                <>
+                  <Icons.Loader className="h-4 w-4 animate-spin mr-2" />
+                  Activating...
+                </>
+              ) : (
+                "Activate License"
+              )}
+            </Button>
+          </form>
+        </Form>
       </CardContent>
     </Card>
   );
@@ -271,15 +300,19 @@ function ActivateLicenseCard() {
 
 function ChangeLicenseCard() {
   const [showForm, setShowForm] = useState(false);
-  const [licenseKey, setLicenseKey] = useState("");
   const activateMutation = useActivateLicense();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!licenseKey.trim()) return;
-    activateMutation.mutate(licenseKey.trim(), {
+  const form = useForm<LicenseKeyFormValues>({
+    resolver: zodResolver(licenseKeySchema),
+    defaultValues: {
+      licenseKey: "",
+    },
+  });
+
+  const onSubmit = (values: LicenseKeyFormValues) => {
+    activateMutation.mutate(values.licenseKey.trim(), {
       onSuccess: () => {
-        setLicenseKey("");
+        form.reset();
         setShowForm(false);
       },
     });
@@ -306,51 +339,60 @@ function ChangeLicenseCard() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="new-license-key">New License Key</Label>
-            <Input
-              id="new-license-key"
-              type="text"
-              placeholder="dagryn-license-v1.xxxxx.xxxxx"
-              value={licenseKey}
-              onChange={(e) => setLicenseKey(e.target.value)}
-              disabled={activateMutation.isPending}
-            />
-          </div>
-          {activateMutation.isError && (
-            <p className="text-destructive text-sm">
-              {activateMutation.error?.message || "Failed to activate license"}
-            </p>
-          )}
-          <div className="flex gap-2">
-            <Button
-              type="submit"
-              disabled={activateMutation.isPending || !licenseKey.trim()}
-            >
-              {activateMutation.isPending ? (
-                <>
-                  <Icons.Loader className="h-4 w-4 animate-spin mr-2" />
-                  Activating...
-                </>
-              ) : (
-                "Activate License"
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="licenseKey"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>New License Key</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="text"
+                      placeholder="dagryn-license-v1.xxxxx.xxxxx"
+                      disabled={activateMutation.isPending}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setShowForm(false);
-                setLicenseKey("");
-                activateMutation.reset();
-              }}
-              disabled={activateMutation.isPending}
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
+            />
+            {activateMutation.isError && (
+              <p className="text-destructive text-sm">
+                {activateMutation.error?.message || "Failed to activate license"}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <Button
+                type="submit"
+                disabled={activateMutation.isPending}
+              >
+                {activateMutation.isPending ? (
+                  <>
+                    <Icons.Loader className="h-4 w-4 animate-spin mr-2" />
+                    Activating...
+                  </>
+                ) : (
+                  "Activate License"
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setShowForm(false);
+                  form.reset();
+                  activateMutation.reset();
+                }}
+                disabled={activateMutation.isPending}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </Form>
       </CardContent>
     </Card>
   );
@@ -393,4 +435,3 @@ function LimitRow({
     </div>
   );
 }
-

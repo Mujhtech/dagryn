@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { useAuth } from "~/lib/auth";
 import { useUpdateUser } from "~/hooks/mutations";
@@ -18,6 +21,20 @@ import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Separator } from "~/components/ui/separator";
 import { Icons } from "~/components/icons";
 import { generateMetadata } from "~/lib/metadata";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "~/components/ui/form";
+
+const settingsSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+});
+
+type SettingsFormValues = z.infer<typeof settingsSchema>;
 
 export const Route = createFileRoute("/_dashboard_layout/settings")({
   component: SettingsPage,
@@ -28,25 +45,27 @@ export const Route = createFileRoute("/_dashboard_layout/settings")({
 
 function SettingsPage() {
   const { user, refreshUser } = useAuth();
-  const [name, setName] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Use TanStack Query mutation for updating user
   const updateUserMutation = useUpdateUser();
 
+  const form = useForm<SettingsFormValues>({
+    resolver: zodResolver(settingsSchema),
+    defaultValues: {
+      name: "",
+    },
+  });
+
   useEffect(() => {
     if (user) {
-      setName(user.name || "");
+      form.reset({ name: user.name || "" });
     }
-  }, [user]);
+  }, [user, form]);
 
-  const handleSave = async () => {
-    if (!name.trim()) {
-      return;
-    }
-
+  const handleSave = (values: SettingsFormValues) => {
     updateUserMutation.mutate(
-      { name: name.trim() },
+      { name: values.name.trim() },
       {
         onSuccess: async () => {
           await refreshUser();
@@ -80,82 +99,94 @@ function SettingsPage() {
             </CardTitle>
             <CardDescription>Update your personal information.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Avatar Display */}
-            <div className="flex items-center gap-4">
-              <Avatar className="h-20 w-20">
-                <AvatarImage src={user.avatar_url} alt={user.name || "User"} />
-                <AvatarFallback className="text-2xl">
-                  {user.name?.charAt(0)?.toUpperCase() || "U"}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <p className="text-sm text-muted-foreground">
-                  Profile picture is synced from your OAuth provider.
-                </p>
-              </div>
-            </div>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSave)}>
+              <CardContent className="space-y-6">
+                {/* Avatar Display */}
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-20 w-20">
+                    <AvatarImage src={user.avatar_url} alt={user.name || "User"} />
+                    <AvatarFallback className="text-2xl">
+                      {user.name?.charAt(0)?.toUpperCase() || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Profile picture is synced from your OAuth provider.
+                    </p>
+                  </div>
+                </div>
 
-            <Separator />
+                <Separator />
 
-            {/* Name Field */}
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your name"
-              />
-            </div>
-
-            {/* Email Field (Read-only) */}
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <div className="flex items-center gap-2">
-                <Icons.Mail className="h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="email"
-                  value={user.email}
-                  disabled
-                  className="bg-muted"
+                {/* Name Field */}
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Your name"
+                          disabled={updateUserMutation.isPending}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Email is managed by your OAuth provider and cannot be changed.
-              </p>
-            </div>
 
-            {updateUserMutation.error && (
-              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                {updateUserMutation.error.message}
-              </div>
-            )}
+                {/* Email Field (Read-only) */}
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <div className="flex items-center gap-2">
+                    <Icons.Mail className="h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      value={user.email}
+                      disabled
+                      className="bg-muted"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Email is managed by your OAuth provider and cannot be changed.
+                  </p>
+                </div>
 
-            {saveSuccess && (
-              <div className="rounded-md bg-green-500/10 p-3 text-sm text-green-600 dark:text-green-400">
-                Profile updated successfully!
-              </div>
-            )}
-          </CardContent>
-          <CardFooter>
-            <Button
-              onClick={handleSave}
-              disabled={updateUserMutation.isPending}
-            >
-              {updateUserMutation.isPending ? (
-                <>
-                  <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Icons.FloppyDisk className="mr-2 h-4 w-4" />
-                  Save Changes
-                </>
-              )}
-            </Button>
-          </CardFooter>
+                {updateUserMutation.error && (
+                  <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                    {updateUserMutation.error.message}
+                  </div>
+                )}
+
+                {saveSuccess && (
+                  <div className="rounded-md bg-green-500/10 p-3 text-sm text-green-600 dark:text-green-400">
+                    Profile updated successfully!
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter>
+                <Button
+                  type="submit"
+                  disabled={updateUserMutation.isPending}
+                >
+                  {updateUserMutation.isPending ? (
+                    <>
+                      <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Icons.FloppyDisk className="mr-2 h-4 w-4" />
+                      Save Changes
+                    </>
+                  )}
+                </Button>
+              </CardFooter>
+            </form>
+          </Form>
         </Card>
 
         {/* Account Info Card */}

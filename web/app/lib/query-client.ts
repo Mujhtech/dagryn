@@ -85,6 +85,7 @@ export const queryKeys = {
     ["teamAuditRetention", teamId] as const,
   teamAuditWebhooks: (teamId: string) =>
     ["teamAuditWebhooks", teamId] as const,
+  health: ["health"] as const,
   sampleTemplate: (language: string) =>
     ["sampleTemplate", language] as const,
   teamAnalytics: (teamId: string, days: number) =>
