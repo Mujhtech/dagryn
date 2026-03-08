@@ -120,15 +120,6 @@ services:
         condition: service_completed_successfully
     networks:
       - dagryn-network
-      - web
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=web"
-      - "traefik.http.routers.dagryn.rule=Host(`dagryn.mujhtech.xyz`)"
-      - "traefik.http.routers.dagryn.entrypoints=websecure"
-      - "traefik.http.routers.dagryn.tls=true"
-      - "traefik.http.routers.dagryn.tls.certresolver=letsencrypt"
-      - "traefik.http.services.dagryn.loadbalancer.server.port=9000"
     healthcheck:
       test:
         [
@@ -179,8 +170,6 @@ services:
 networks:
   dagryn-network:
     driver: bridge
-  web:
-    external: true
 
 volumes:
   postgres_data:
