@@ -39,8 +39,17 @@ COPY . .
 # Copy built frontend from previous stage
 COPY --from=frontend-builder /app/web/dist ./pkg/server/dashboard/dist
 
-# Build the Go binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o /bin/dagryn ./cmd/dagryn
+# Build the Go binary with version info
+ARG GIT_VERSION=dev
+ARG GIT_COMMIT=unknown
+ARG BUILD_DATE=unknown
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-w -s \
+      -X github.com/mujhtech/dagryn/internal/version.Version=${GIT_VERSION} \
+      -X github.com/mujhtech/dagryn/internal/version.Commit=${GIT_COMMIT} \
+      -X github.com/mujhtech/dagryn/internal/version.BuildDate=${BUILD_DATE} \
+      -X github.com/mujhtech/dagryn/pkg/api/handlers.Version=${GIT_VERSION}" \
+    -o /bin/dagryn ./cmd/dagryn
 
 # Stage 3: Final runtime image
 FROM alpine:latest

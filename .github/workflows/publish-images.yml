@@ -47,10 +47,24 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract version metadata
+        id: meta
+        run: |
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          echo "commit=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/dagryn:latest,ghcr.io/mujhtech/dagryn:latest
+          build-args: |
+            GIT_VERSION=${{ steps.meta.outputs.version }}
+            GIT_COMMIT=${{ steps.meta.outputs.commit }}
+            BUILD_DATE=${{ steps.meta.outputs.date }}
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/dagryn:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/dagryn:${{ steps.meta.outputs.version }}
+            ghcr.io/mujhtech/dagryn:latest
+            ghcr.io/mujhtech/dagryn:${{ steps.meta.outputs.version }}

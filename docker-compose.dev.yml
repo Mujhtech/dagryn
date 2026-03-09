@@ -67,6 +67,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        GIT_VERSION: ${GIT_VERSION:-dev}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        BUILD_DATE: ${BUILD_DATE:-unknown}
     container_name: dagryn-migrate
     command: ["dagryn", "migrate", "up"]
     env_file:
@@ -86,6 +90,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        GIT_VERSION: ${GIT_VERSION:-dev}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        BUILD_DATE: ${BUILD_DATE:-unknown}
     container_name: dagryn-server
     restart: unless-stopped
     ports:
@@ -140,6 +148,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        GIT_VERSION: ${GIT_VERSION:-dev}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        BUILD_DATE: ${BUILD_DATE:-unknown}
     container_name: dagryn-worker
     restart: unless-stopped
     command: ["dagryn", "worker", "--config", "/app/dagryn.server.toml"]

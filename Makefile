@@ -1,4 +1,4 @@
-.PHONY: build build-go frontend test install clean lint run swagger swagger-fmt server server-dev migrate proto-gen
+.PHONY: build build-go frontend test install clean lint run swagger swagger-fmt server server-dev migrate proto-gen docker-build docker-run compose-up compose-down compose-logs
 
 # Binary name
 BINARY=dagryn
@@ -132,10 +132,27 @@ check: fmt vet lint test
 proto-gen:
 	PATH=$(PATH):$(shell go env GOPATH)/bin buf generate
 
-# Docker build
+# Docker build (standalone)
 docker-build:
-	docker build -t dagryn:latest .
+	docker build \
+		--build-arg GIT_VERSION=$(GIT_VERSION) \
+		--build-arg GIT_COMMIT=$(GIT_COMMIT) \
+		--build-arg BUILD_DATE=$(BUILD_DATE) \
+		-t dagryn:$(GIT_VERSION) -t dagryn:latest .
 
 # Docker run
 docker-run:
 	docker run -p 9000:9000 dagryn:latest
+
+# Compose up (build with version info)
+compose-up:
+	GIT_VERSION=$(GIT_VERSION) GIT_COMMIT=$(GIT_COMMIT) BUILD_DATE=$(BUILD_DATE) \
+		docker compose -f docker-compose.dev.yml up --build -d
+
+# Compose down
+compose-down:
+	docker compose -f docker-compose.dev.yml down
+
+# Compose logs
+compose-logs:
+	docker compose -f docker-compose.dev.yml logs -f

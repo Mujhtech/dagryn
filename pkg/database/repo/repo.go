@@ -58,7 +58,6 @@ type ProjectStore interface {
 	GetByPathHash(ctx context.Context, userID uuid.UUID, pathHash string) (*models.Project, error)
 	Update(ctx context.Context, project *models.Project) error
 	UpdateLastRunAt(ctx context.Context, id uuid.UUID) error
-	UpdateBillingAccountID(ctx context.Context, projectID, billingAccountID uuid.UUID) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	ListByUser(ctx context.Context, userID uuid.UUID) ([]models.ProjectWithMember, error)
 	ListByTeam(ctx context.Context, teamID uuid.UUID) ([]models.Project, error)
@@ -268,7 +267,6 @@ type CacheStore interface {
 	GetQuota(ctx context.Context, projectID uuid.UUID) (*models.CacheQuota, error)
 	EnsureQuota(ctx context.Context, projectID uuid.UUID) error
 	UpdateQuotaUsage(ctx context.Context, projectID uuid.UUID, sizeDelta int64, entryDelta int) error
-	IncrementBandwidthUsage(ctx context.Context, projectID uuid.UUID, bytes int64) error
 	GetStats(ctx context.Context, projectID uuid.UUID) (*CacheStats, error)
 	ListExpired(ctx context.Context, before time.Time) ([]models.CacheEntry, error)
 	ListLRU(ctx context.Context, projectID uuid.UUID, limit int) ([]models.CacheEntry, error)
