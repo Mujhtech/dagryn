@@ -818,6 +818,8 @@ function WorkflowDetectionSection({
   workflowTranslation:
     | {
         detected: boolean;
+        has_dagryn_toml: boolean;
+        dagryn_toml?: string;
         workflows: { file: string; name: string; task_count: number }[];
         tasks_toml: string;
       }
@@ -837,10 +839,34 @@ function WorkflowDetectionSection({
       {workflowTranslationLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Icons.Loader className="h-4 w-4 animate-spin" />
-          Checking .github/workflows...
+          Checking repository...
         </div>
       ) : workflowTranslationError ? (
-        <p className="text-sm text-destructive">Failed to inspect workflows.</p>
+        <p className="text-sm text-destructive">Failed to inspect repository.</p>
+      ) : workflowTranslation?.has_dagryn_toml ? (
+        <div className="rounded-none border bg-muted/40 p-3 space-y-3">
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="text-xs">
+              dagryn.toml found
+            </Badge>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            This repository already contains a <code className="font-mono text-foreground">dagryn.toml</code> configuration
+            file. The project will use the existing configuration.
+          </p>
+
+          <div className="rounded-none border overflow-hidden">
+            <Editor
+              height="320px"
+              language="toml"
+              theme="dagryn-import"
+              beforeMount={setupEditorTheme}
+              value={workflowDraft}
+              options={{ ...tomlEditorOptions, readOnly: true }}
+            />
+          </div>
+        </div>
       ) : workflowTranslation?.detected ? (
         <div className="rounded-none border bg-muted/40 p-3 space-y-3">
           <div className="flex items-center gap-2">
@@ -1155,7 +1181,11 @@ function ImportFromGitHubPage() {
       return;
     }
 
-    if (workflowTranslation?.detected) {
+    if (workflowTranslation?.has_dagryn_toml) {
+      // Repo already has dagryn.toml — use it directly, no translation needed
+      setWorkflowDraft(workflowTranslation.dagryn_toml?.trim() ?? "");
+      setUseDetectedWorkflow(false);
+    } else if (workflowTranslation?.detected) {
       setWorkflowDraft(workflowTranslation.tasks_toml.trim());
       setUseDetectedWorkflow(true);
       // Auto-enable push trigger when workflows are detected
@@ -1356,10 +1386,15 @@ function ImportFromGitHubPage() {
       {selectedRepo && gitScope?.kind !== "manual_url" && (
         <Card>
           <CardHeader>
-            <CardTitle>Workflow Detection</CardTitle>
+            <CardTitle>
+              {workflowTranslation?.has_dagryn_toml
+                ? "Configuration"
+                : "Workflow Detection"}
+            </CardTitle>
             <CardDescription>
-              Automatically translate GitHub Actions workflows to Dagryn
-              configuration
+              {workflowTranslation?.has_dagryn_toml
+                ? "This repository already has a Dagryn configuration file"
+                : "Automatically translate GitHub Actions workflows to Dagryn configuration"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

@@ -98,6 +98,8 @@ export interface GitHubWorkflowTranslateResponse {
   workflows: GitHubWorkflowSummary[];
   plugins: Record<string, string>;
   tasks_toml: string;
+  has_dagryn_toml: boolean;
+  dagryn_toml?: string;
 }
 
 // Project types
