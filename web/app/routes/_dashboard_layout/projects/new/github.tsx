@@ -205,6 +205,54 @@ function buildTriggerToml(config: TriggerConfig): string {
   return lines.join("\n");
 }
 
+// Parse a TriggerConfig from a TOML config string by reading [workflow.trigger*] sections.
+function parseTriggerFromToml(config: string): TriggerConfig {
+  const lines = config.split("\n");
+  const result: TriggerConfig = { ...DEFAULT_TRIGGER_CONFIG };
+
+  let currentSection = "";
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed === "[workflow.trigger]") {
+      result.enabled = true;
+      currentSection = "trigger";
+      continue;
+    }
+    if (trimmed === "[workflow.trigger.push]") {
+      result.push = true;
+      currentSection = "push";
+      continue;
+    }
+    if (trimmed === "[workflow.trigger.pull_request]") {
+      result.pullRequest = true;
+      currentSection = "pr";
+      continue;
+    }
+    if (trimmed.startsWith("[")) {
+      currentSection = "";
+      continue;
+    }
+
+    const arrayMatch = trimmed.match(/^(\w+)\s*=\s*\[([^\]]*)\]/);
+    if (!arrayMatch) continue;
+
+    const key = arrayMatch[1];
+    const values = [...arrayMatch[2].matchAll(/"([^"]*)"/g)].map((m) => m[1]);
+
+    if (currentSection === "push" && key === "branches") {
+      result.pushBranches = values;
+    } else if (currentSection === "pr" && key === "branches") {
+      result.prBranches = values;
+    } else if (currentSection === "pr" && key === "types") {
+      result.prTypes = values;
+    }
+  }
+
+  return result;
+}
+
 // Inject the trigger section into a TOML config, replacing any existing trigger block.
 function injectTriggerSection(config: string, trigger: TriggerConfig): string {
   const stripped = stripTriggerSection(config);
@@ -1183,8 +1231,11 @@ function ImportFromGitHubPage() {
 
     if (workflowTranslation?.has_dagryn_toml) {
       // Repo already has dagryn.toml — use it directly, no translation needed
-      setWorkflowDraft(workflowTranslation.dagryn_toml?.trim() ?? "");
+      const tomlContent = workflowTranslation.dagryn_toml?.trim() ?? "";
+      setWorkflowDraft(tomlContent);
       setUseDetectedWorkflow(false);
+      // Parse trigger config from the existing dagryn.toml
+      setTriggerConfig(parseTriggerFromToml(tomlContent));
     } else if (workflowTranslation?.detected) {
       setWorkflowDraft(workflowTranslation.tasks_toml.trim());
       setUseDetectedWorkflow(true);
@@ -1209,12 +1260,14 @@ function ImportFromGitHubPage() {
   }, [selectedRepo, workflowTranslation, effectiveBranch, sampleTemplateData]);
 
   // Inject trigger config into editor whenever triggers change
+  // Skip when repo has dagryn.toml — the config is read-only from the repo.
   useEffect(() => {
+    if (workflowTranslation?.has_dagryn_toml) return;
     setWorkflowDraft((prev) => {
       if (!prev) return prev;
       return injectTriggerSection(prev, triggerConfig);
     });
-  }, [triggerConfig]);
+  }, [triggerConfig, workflowTranslation?.has_dagryn_toml]);
 
   const canCreate =
     gitScope?.kind === "manual_url"
@@ -1376,9 +1429,15 @@ function ImportFromGitHubPage() {
         <RunTriggersSection
           triggerConfig={triggerConfig}
           onTriggerChange={setTriggerConfig}
-          autoDetected={Boolean(workflowTranslation?.detected)}
+          autoDetected={Boolean(
+            workflowTranslation?.detected ||
+              workflowTranslation?.has_dagryn_toml,
+          )}
           defaultBranch={selectedRepo?.default_branch}
-          disabled={createProjectMutation.isPending}
+          disabled={
+            createProjectMutation.isPending ||
+            Boolean(workflowTranslation?.has_dagryn_toml)
+          }
         />
       )}
 
