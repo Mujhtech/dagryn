@@ -121,15 +121,25 @@ func (e *CompositeExecutor) ExecuteSetup(ctx context.Context, manifest *Manifest
 		e.logger.Info("running step %d: %s", i, step.Name)
 
 		// Build environment
-		stepEnv := make([]string, 0)
-		for k, v := range cleanupEnv {
-			stepEnv = append(stepEnv, fmt.Sprintf("%s=%s", k, v))
-		}
 		for k, v := range step.Env {
 			resolved := substituteVars(v, mergedInputs)
-			stepEnv = append(stepEnv, fmt.Sprintf("%s=%s", k, resolved))
-			// Track for cleanup
-			cleanupEnv[k] = resolved
+			expanded := expandWithEnv(resolved, cleanupEnv)
+			cleanupEnv[k] = expanded
+		}
+
+		// Build deduplicated env: start from OS env, overlay accumulated cleanupEnv
+		envMap := make(map[string]string)
+		for _, e := range os.Environ() {
+			if k, v, ok := strings.Cut(e, "="); ok {
+				envMap[k] = v
+			}
+		}
+		for k, v := range cleanupEnv {
+			envMap[k] = v
+		}
+		cmdEnv := make([]string, 0, len(envMap))
+		for k, v := range envMap {
+			cmdEnv = append(cmdEnv, k+"="+v)
 		}
 
 		// Execute via shell
@@ -139,9 +149,7 @@ func (e *CompositeExecutor) ExecuteSetup(ctx context.Context, manifest *Manifest
 		} else {
 			cmd.Dir = e.projectRoot
 		}
-		if len(stepEnv) > 0 {
-			cmd.Env = append(cmd.Environ(), stepEnv...)
-		}
+		cmd.Env = cmdEnv
 
 		// Stream output when writers are set; otherwise capture to buffer.
 		if e.stdout != nil || e.stderr != nil {
@@ -219,14 +227,24 @@ func (e *CompositeExecutor) executeCleanup(ctx context.Context, cleanupSteps []C
 
 		e.logger.Info("running cleanup step %d: %s", i, step.Name)
 
-		// Build environment
-		stepEnv := make([]string, 0)
+		// Build deduplicated env for cleanup step
+		envMap := make(map[string]string)
+		for _, e := range os.Environ() {
+			if k, v, ok := strings.Cut(e, "="); ok {
+				envMap[k] = v
+			}
+		}
 		for k, v := range env {
-			stepEnv = append(stepEnv, fmt.Sprintf("%s=%s", k, v))
+			envMap[k] = v
 		}
 		for k, v := range step.Env {
 			resolved := substituteVars(v, inputs)
-			stepEnv = append(stepEnv, fmt.Sprintf("%s=%s", k, resolved))
+			expanded := expandWithEnv(resolved, env)
+			envMap[k] = expanded
+		}
+		cmdEnv := make([]string, 0, len(envMap))
+		for k, v := range envMap {
+			cmdEnv = append(cmdEnv, k+"="+v)
 		}
 
 		// Execute via shell
@@ -236,9 +254,7 @@ func (e *CompositeExecutor) executeCleanup(ctx context.Context, cleanupSteps []C
 		} else {
 			cmd.Dir = e.projectRoot
 		}
-		if len(stepEnv) > 0 {
-			cmd.Env = append(cmd.Environ(), stepEnv...)
-		}
+		cmd.Env = cmdEnv
 
 		if e.stdout != nil || e.stderr != nil {
 			stdout := e.stdout
@@ -319,8 +335,8 @@ func (e *CompositeExecutor) CollectStepEnv(manifest *Manifest, inputs map[string
 		}
 		for k, v := range step.Env {
 			resolved := substituteVars(v, mergedInputs)
-			// Expand shell variables like $HOME, $PATH
-			resolved = os.ExpandEnv(resolved)
+			// Expand shell variables like $HOME, $PATH using accumulated env
+			resolved = expandWithEnv(resolved, env)
 			env[k] = resolved
 		}
 	}
@@ -378,6 +394,17 @@ func (e *CompositeExecutor) GenerateSetupScript(manifest *Manifest, inputs map[s
 // substituteVars replaces ${inputs.key}, ${os}, and ${arch} in a string.
 func substituteVars(s string, inputs map[string]string) string {
 	return substituteVarsForPlatform(s, inputs, runtime.GOOS, runtime.GOARCH)
+}
+
+// expandWithEnv expands shell-style $VAR and ${VAR} references using the
+// provided env map first, falling back to os.Getenv for unset keys.
+func expandWithEnv(s string, env map[string]string) string {
+	return os.Expand(s, func(key string) string {
+		if v, ok := env[key]; ok {
+			return v
+		}
+		return os.Getenv(key)
+	})
 }
 
 // substituteVarsForPlatform replaces ${inputs.key}, ${os}, and ${arch} in a

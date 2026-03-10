@@ -300,6 +300,8 @@ const (
 	StatusCached
 	// StatusFailed means the plugin installation failed.
 	StatusFailed
+	// StatusResolved means the plugin manifest was loaded (composite/integration).
+	StatusResolved
 )
 
 // String returns the string representation of the status.
@@ -315,6 +317,8 @@ func (s Status) String() string {
 		return "CACHED"
 	case StatusFailed:
 		return "FAILED"
+	case StatusResolved:
+		return "RESOLVED"
 	default:
 		return "UNKNOWN"
 	}
@@ -330,5 +334,5 @@ type InstallResult struct {
 
 // IsSuccess returns true if the plugin was installed successfully.
 func (r *InstallResult) IsSuccess() bool {
-	return r.Status == StatusInstalled || r.Status == StatusCached
+	return r.Status == StatusInstalled || r.Status == StatusCached || r.Status == StatusResolved
 }

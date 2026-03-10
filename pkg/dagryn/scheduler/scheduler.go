@@ -787,8 +787,8 @@ func (s *Scheduler) installPluginsForPlan(ctx context.Context, plan *dag.Executi
 			if s.onPluginDone != nil {
 				s.onPluginDone(spec, &plugin.InstallResult{
 					Plugin:  resolved,
-					Status:  plugin.StatusInstalled,
-					Message: fmt.Sprintf("Resolved integration plugin %s", resolved.Name),
+					Status:  plugin.StatusResolved,
+					Message: fmt.Sprintf("Loaded integration plugin %s", resolved.Name),
 				})
 			}
 			continue
@@ -800,8 +800,8 @@ func (s *Scheduler) installPluginsForPlan(ctx context.Context, plan *dag.Executi
 			if s.onPluginDone != nil {
 				s.onPluginDone(spec, &plugin.InstallResult{
 					Plugin:  resolved,
-					Status:  plugin.StatusInstalled,
-					Message: fmt.Sprintf("Resolved composite plugin %s", resolved.Name),
+					Status:  plugin.StatusResolved,
+					Message: fmt.Sprintf("Loaded composite plugin %s", resolved.Name),
 				})
 			}
 			continue
@@ -877,10 +877,20 @@ func (s *Scheduler) runCompositeSetup(ctx context.Context, t *task.Task, ce *plu
 			continue
 		}
 
+		// Merge task env with accumulated plugin env so each plugin sees previous ones
+		mergedEnv := make(map[string]string, len(t.Env)+len(env))
+		for k, v := range t.Env {
+			mergedEnv[k] = v
+		}
+		for k, v := range env {
+			mergedEnv[k] = v // plugin env overrides task env
+		}
+
 		// Execute only setup steps now; run cleanup after task command.
-		setup, err := ce.ExecuteSetup(ctx, resolved.Manifest, t.With, t.Env, workdir)
+		setup, err := ce.ExecuteSetup(ctx, resolved.Manifest, t.With, mergedEnv, workdir)
 		if err != nil {
-			// Log but don't fail — the task command will likely fail with a clear error
+			slog.Warn("composite plugin setup failed",
+				"plugin", spec, "task", t.Name, "error", err)
 			continue
 		}
 		cleanupTasks = append(cleanupTasks, compositeCleanupTask{
@@ -889,9 +899,8 @@ func (s *Scheduler) runCompositeSetup(ctx context.Context, t *task.Task, ce *plu
 			workdir:  workdir,
 		})
 
-		// Collect environment variables from composite steps
-		stepEnv := ce.CollectStepEnv(resolved.Manifest, t.With)
-		for k, v := range stepEnv {
+		// Use setup result env (properly expanded by ExecuteSetup) instead of CollectStepEnv
+		for k, v := range setup.Env {
 			env[k] = v
 		}
 	}
