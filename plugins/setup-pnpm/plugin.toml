@@ -62,6 +62,17 @@ PNPM_ARCH="${arch}"
 if [ "$PNPM_OS" = "darwin" ]; then PNPM_OS="macos"; fi
 if [ "$PNPM_OS" = "windows" ]; then PNPM_OS="win"; fi
 if [ "$PNPM_ARCH" = "amd64" ]; then PNPM_ARCH="x64"; fi
+
+# Detect musl libc — pnpm ships "linuxstatic" binaries for musl/Alpine
+PNPM_PLATFORM="${PNPM_OS}"
+if [ "$PNPM_OS" = "linux" ]; then
+  if command -v ldd >/dev/null 2>&1 && ldd --version 2>&1 | grep -qi musl; then
+    PNPM_PLATFORM="linuxstatic"
+  elif [ -f /etc/alpine-release ]; then
+    PNPM_PLATFORM="linuxstatic"
+  fi
+fi
+
 INSTALL_DIR="$HOME/.dagryn/tools/pnpm-$PNPM_VERSION"
 if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/pnpm" ]; then
   if "$INSTALL_DIR/pnpm" --version >/dev/null 2>&1; then
@@ -73,7 +84,7 @@ if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/pnpm" ]; then
 fi
 
 mkdir -p "$INSTALL_DIR"
-URL="https://github.com/pnpm/pnpm/releases/download/v${PNPM_VERSION}/pnpm-${PNPM_OS}-${PNPM_ARCH}"
+URL="https://github.com/pnpm/pnpm/releases/download/v${PNPM_VERSION}/pnpm-${PNPM_PLATFORM}-${PNPM_ARCH}"
 echo "Downloading pnpm $PNPM_VERSION from $URL"
 if command -v curl >/dev/null 2>&1; then
   curl -fsSL -o "$INSTALL_DIR/pnpm" "$URL"
@@ -83,11 +94,27 @@ else
   echo "Error: curl or wget is required" >&2; exit 1
 fi
 if [ ! -s "$INSTALL_DIR/pnpm" ]; then
-  echo "Error: failed to download pnpm from $URL" >&2; exit 1
+  # Retry with standard linux platform name if linuxstatic failed
+  if [ "$PNPM_PLATFORM" = "linuxstatic" ]; then
+    echo "linuxstatic build not available, trying linux build..." >&2
+    URL="https://github.com/pnpm/pnpm/releases/download/v${PNPM_VERSION}/pnpm-linux-${PNPM_ARCH}"
+    echo "Downloading pnpm $PNPM_VERSION from $URL"
+    if command -v curl >/dev/null 2>&1; then
+      curl -fsSL -o "$INSTALL_DIR/pnpm" "$URL"
+    elif command -v wget >/dev/null 2>&1; then
+      wget -q -O "$INSTALL_DIR/pnpm" "$URL"
+    fi
+  fi
+  if [ ! -s "$INSTALL_DIR/pnpm" ]; then
+    echo "Error: failed to download pnpm from $URL" >&2; exit 1
+  fi
 fi
 chmod +x "$INSTALL_DIR/pnpm"
 if ! "$INSTALL_DIR/pnpm" --version >/dev/null 2>&1; then
-  echo "Error: pnpm binary cannot execute" >&2
+  echo "Error: pnpm binary cannot execute on this system" >&2
+  if [ "$PNPM_PLATFORM" != "linuxstatic" ] && [ "$PNPM_OS" = "linux" ]; then
+    echo "Hint: on Alpine/musl, the linuxstatic variant should have been used" >&2
+  fi
   rm -rf "$INSTALL_DIR"
   exit 1
 fi

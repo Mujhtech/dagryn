@@ -81,7 +81,26 @@ if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/bin/node" ]; then
   rm -rf "$INSTALL_DIR"
 fi
 
-mkdir -p "$INSTALL_DIR"
+# Helper: download a tarball and validate it's actually a gzip file
+download_tarball() {
+  _url="$1"; _dest="$2"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$_dest" "$_url" 2>/dev/null || return 1
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$_dest" "$_url" 2>/dev/null || return 1
+  else
+    return 1
+  fi
+  # Validate: must be non-empty and start with gzip magic bytes (1f 8b)
+  if [ ! -s "$_dest" ]; then return 1; fi
+  _magic=$(od -A n -t x1 -N 2 "$_dest" 2>/dev/null | tr -d ' ')
+  if [ "$_magic" != "1f8b" ]; then
+    echo "Downloaded file is not a valid gzip archive" >&2
+    rm -f "$_dest"
+    return 1
+  fi
+  return 0
+}
 
 # Try unofficial musl build first if on musl, fall back to official build
 if [ -n "$NODE_VARIANT" ]; then
@@ -89,12 +108,9 @@ if [ -n "$NODE_VARIANT" ]; then
   URL="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}/${TARBALL}"
   echo "Downloading Node.js $NODE_VERSION (musl) from $URL"
   TMPFILE=$(mktemp)
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "$TMPFILE" "$URL" 2>/dev/null
-  elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$TMPFILE" "$URL" 2>/dev/null
-  fi
-  if [ -s "$TMPFILE" ]; then
+  if download_tarball "$URL" "$TMPFILE"; then
+    rm -rf "$INSTALL_DIR"
+    mkdir -p "$INSTALL_DIR"
     tar xzf "$TMPFILE" --strip-components=1 -C "$INSTALL_DIR"
     rm -f "$TMPFILE"
     if [ -f "$INSTALL_DIR/bin/node" ] && "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
@@ -103,14 +119,15 @@ if [ -n "$NODE_VARIANT" ]; then
     fi
     echo "musl build failed verification, trying official build..." >&2
     rm -rf "$INSTALL_DIR"
-    mkdir -p "$INSTALL_DIR"
   else
     rm -f "$TMPFILE"
-    echo "musl build not available, trying official build..." >&2
+    echo "musl build not available for v$NODE_VERSION, trying official build..." >&2
   fi
 fi
 
 # Official Node.js build (glibc)
+rm -rf "$INSTALL_DIR"
+mkdir -p "$INSTALL_DIR"
 TARBALL="node-v${NODE_VERSION}-${NODE_OS}-${NODE_ARCH}.tar.gz"
 URL="https://nodejs.org/dist/v${NODE_VERSION}/${TARBALL}"
 echo "Downloading Node.js $NODE_VERSION from $URL"
@@ -132,12 +149,15 @@ if [ ! -f "$INSTALL_DIR/bin/node" ]; then
 fi
 # Verify the binary can actually execute (catches libc mismatch)
 if ! "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
-  echo "Error: node binary exists but cannot execute" >&2
+  echo "Error: node binary exists but cannot execute on this system" >&2
   echo "System: $(uname -a)" >&2
+  if [ -n "$NODE_VARIANT" ]; then
+    echo "Hint: musl build was not available for Node.js v$NODE_VERSION" >&2
+    echo "Hint: install libstdc++ (apk add libstdc++) or use a Node.js version with musl support" >&2
+  fi
   if command -v ldd >/dev/null 2>&1; then
-    echo "Binary linkage: $(ldd "$INSTALL_DIR/bin/node" 2>&1)" >&2
-  elif command -v file >/dev/null 2>&1; then
-    echo "Binary type: $(file "$INSTALL_DIR/bin/node" 2>&1)" >&2
+    echo "Binary linkage:" >&2
+    ldd "$INSTALL_DIR/bin/node" 2>&1 | head -5 >&2
   fi
   rm -rf "$INSTALL_DIR"
   exit 1
