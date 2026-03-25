@@ -1,7 +1,7 @@
 [plugin]
 name = "setup-pnpm"
 description = "Install and configure pnpm package manager"
-version = "1.0.0"
+version = "1.1.0"
 type = "composite"
 author = "dagryn"
 license = "MIT"
@@ -43,8 +43,16 @@ fi
 # Prefer npm install when npm is available (e.g. node:*-bookworm-slim containers)
 if command -v npm >/dev/null 2>&1; then
   echo "Installing pnpm via npm..."
-  npm install -g "pnpm@${PNPM_VERSION}"
-  echo "pnpm $(pnpm --version) installed via npm"
+  if ! npm install -g "pnpm@${PNPM_VERSION}"; then
+    echo "Error: npm install -g pnpm failed" >&2
+    exit 1
+  fi
+  INSTALLED_VERSION=$(pnpm --version 2>/dev/null)
+  if [ -z "$INSTALLED_VERSION" ]; then
+    echo "Error: pnpm not found after npm install (node may not be executable)" >&2
+    exit 1
+  fi
+  echo "pnpm $INSTALLED_VERSION installed via npm"
   exit 0
 fi
 
@@ -56,24 +64,34 @@ if [ "$PNPM_OS" = "windows" ]; then PNPM_OS="win"; fi
 if [ "$PNPM_ARCH" = "amd64" ]; then PNPM_ARCH="x64"; fi
 INSTALL_DIR="$HOME/.dagryn/tools/pnpm-$PNPM_VERSION"
 if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/pnpm" ]; then
-  echo "pnpm $PNPM_VERSION already installed"
-else
-  mkdir -p "$INSTALL_DIR"
-  URL="https://github.com/pnpm/pnpm/releases/download/v${PNPM_VERSION}/pnpm-${PNPM_OS}-${PNPM_ARCH}"
-  echo "Downloading pnpm $PNPM_VERSION from $URL"
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "$INSTALL_DIR/pnpm" "$URL"
-  elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$INSTALL_DIR/pnpm" "$URL"
-  else
-    echo "Error: curl or wget is required" >&2; exit 1
+  if "$INSTALL_DIR/pnpm" --version >/dev/null 2>&1; then
+    echo "pnpm $PNPM_VERSION already installed"
+    exit 0
   fi
-  if [ ! -s "$INSTALL_DIR/pnpm" ]; then
-    echo "Error: failed to download pnpm from $URL" >&2; exit 1
-  fi
-  chmod +x "$INSTALL_DIR/pnpm"
-  echo "pnpm $PNPM_VERSION downloaded successfully"
+  echo "Existing pnpm binary cannot execute, re-downloading..."
+  rm -rf "$INSTALL_DIR"
 fi
+
+mkdir -p "$INSTALL_DIR"
+URL="https://github.com/pnpm/pnpm/releases/download/v${PNPM_VERSION}/pnpm-${PNPM_OS}-${PNPM_ARCH}"
+echo "Downloading pnpm $PNPM_VERSION from $URL"
+if command -v curl >/dev/null 2>&1; then
+  curl -fsSL -o "$INSTALL_DIR/pnpm" "$URL"
+elif command -v wget >/dev/null 2>&1; then
+  wget -q -O "$INSTALL_DIR/pnpm" "$URL"
+else
+  echo "Error: curl or wget is required" >&2; exit 1
+fi
+if [ ! -s "$INSTALL_DIR/pnpm" ]; then
+  echo "Error: failed to download pnpm from $URL" >&2; exit 1
+fi
+chmod +x "$INSTALL_DIR/pnpm"
+if ! "$INSTALL_DIR/pnpm" --version >/dev/null 2>&1; then
+  echo "Error: pnpm binary cannot execute" >&2
+  rm -rf "$INSTALL_DIR"
+  exit 1
+fi
+echo "pnpm $PNPM_VERSION downloaded successfully"
 """
 
 [[step]]
@@ -84,7 +102,7 @@ INSTALL_DIR="$HOME/.dagryn/tools/pnpm-$PNPM_VERSION"
 if [ -d "$INSTALL_DIR" ]; then
   export PATH="$INSTALL_DIR:$PATH"
 fi
-echo "pnpm $(pnpm --version) ready"
+echo "pnpm $(pnpm --version 2>/dev/null || echo 'unknown') ready"
 """
 [step.env]
 PATH = "$HOME/.dagryn/tools/pnpm-${inputs.pnpm-version}:$PATH"

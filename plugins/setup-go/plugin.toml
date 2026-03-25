@@ -1,7 +1,7 @@
 [plugin]
 name = "setup-go"
 description = "Install and configure Go"
-version = "1.0.0"
+version = "1.1.0"
 type = "composite"
 author = "dagryn"
 license = "MIT"
@@ -30,30 +30,40 @@ GO_OS="${os}"
 GO_ARCH="${arch}"
 INSTALL_DIR="$HOME/.dagryn/tools/go-$GO_VERSION"
 if [ -d "$INSTALL_DIR/go" ]; then
-  echo "Go $GO_VERSION already installed"
-else
-  mkdir -p "$INSTALL_DIR"
-  TARBALL="go${GO_VERSION}.${GO_OS}-${GO_ARCH}.tar.gz"
-  URL="https://go.dev/dl/${TARBALL}"
-  echo "Downloading Go $GO_VERSION from $URL"
-  TMPFILE=$(mktemp)
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "$TMPFILE" "$URL"
-  elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$TMPFILE" "$URL"
-  else
-    echo "Error: curl or wget is required" >&2; exit 1
+  if "$INSTALL_DIR/go/bin/go" version >/dev/null 2>&1; then
+    echo "Go $GO_VERSION already installed"
+    exit 0
   fi
-  if [ ! -s "$TMPFILE" ]; then
-    echo "Error: failed to download $URL" >&2; rm -f "$TMPFILE"; exit 1
-  fi
-  tar xzf "$TMPFILE" -C "$INSTALL_DIR"
-  rm -f "$TMPFILE"
-  if [ ! -d "$INSTALL_DIR/go/bin" ]; then
-    echo "Error: go binary not found after extraction" >&2; exit 1
-  fi
-  echo "Go $GO_VERSION downloaded successfully"
+  echo "Existing Go binary cannot execute, re-downloading..."
+  rm -rf "$INSTALL_DIR"
 fi
+
+mkdir -p "$INSTALL_DIR"
+TARBALL="go${GO_VERSION}.${GO_OS}-${GO_ARCH}.tar.gz"
+URL="https://go.dev/dl/${TARBALL}"
+echo "Downloading Go $GO_VERSION from $URL"
+TMPFILE=$(mktemp)
+if command -v curl >/dev/null 2>&1; then
+  curl -fsSL -o "$TMPFILE" "$URL"
+elif command -v wget >/dev/null 2>&1; then
+  wget -q -O "$TMPFILE" "$URL"
+else
+  echo "Error: curl or wget is required" >&2; exit 1
+fi
+if [ ! -s "$TMPFILE" ]; then
+  echo "Error: failed to download $URL" >&2; rm -f "$TMPFILE"; exit 1
+fi
+tar xzf "$TMPFILE" -C "$INSTALL_DIR"
+rm -f "$TMPFILE"
+if [ ! -f "$INSTALL_DIR/go/bin/go" ]; then
+  echo "Error: go binary not found after extraction" >&2; exit 1
+fi
+if ! "$INSTALL_DIR/go/bin/go" version >/dev/null 2>&1; then
+  echo "Error: go binary exists but cannot execute" >&2
+  rm -rf "$INSTALL_DIR"
+  exit 1
+fi
+echo "Go $GO_VERSION downloaded successfully"
 """
 
 [[step]]
@@ -65,11 +75,11 @@ if [ -d "$INSTALL_DIR/go" ]; then
   export GOROOT="$INSTALL_DIR/go"
   export PATH="$GOROOT/bin:$PATH"
 fi
-echo "Go $(go version) ready"
+echo "Go $(go version 2>/dev/null || echo 'unknown') ready"
 """
 [step.env]
-GOROOT = "$(go env GOROOT 2>/dev/null || echo $HOME/.dagryn/tools/go-${inputs.go-version}/go)"
-PATH = "$(go env GOROOT 2>/dev/null || echo $HOME/.dagryn/tools/go-${inputs.go-version}/go)/bin:$PATH"
+GOROOT = "$HOME/.dagryn/tools/go-${inputs.go-version}/go"
+PATH = "$HOME/.dagryn/tools/go-${inputs.go-version}/go/bin:$PATH"
 
 [[step]]
 name = "cache-modules"

@@ -379,6 +379,8 @@ func (e *CompositeExecutor) GenerateSetupScript(manifest *Manifest, inputs map[s
 		// short-circuit a step) doesn't terminate the entire script and
 		// skip the actual task command. Env exports above stay in the
 		// outer shell so they persist for subsequent steps and the task.
+		// After the subshell, check its exit code so real failures (e.g.,
+		// a failed download) abort the script instead of being swallowed.
 		command := substituteVarsForPlatform(step.Command, mergedInputs, targetOS, targetArch)
 		sb.WriteString("(\n")
 		sb.WriteString(command)
@@ -386,6 +388,7 @@ func (e *CompositeExecutor) GenerateSetupScript(manifest *Manifest, inputs map[s
 			sb.WriteByte('\n')
 		}
 		sb.WriteString(")\n")
+		fmt.Fprintf(&sb, "_step_exit=$?; if [ $_step_exit -ne 0 ]; then echo \"Plugin step '%s' failed (exit $_step_exit)\" >&2; exit $_step_exit; fi\n", step.Name)
 	}
 
 	return sb.String(), nil

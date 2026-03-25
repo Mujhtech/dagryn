@@ -1,7 +1,7 @@
 [plugin]
 name = "setup-node"
 description = "Install and configure Node.js"
-version = "1.0.0"
+version = "1.1.0"
 type = "composite"
 author = "dagryn"
 license = "MIT"
@@ -20,7 +20,21 @@ command = """
 NODE_OS="${os}"
 NODE_ARCH="${arch}"
 if [ "$NODE_ARCH" = "amd64" ]; then NODE_ARCH="x64"; fi
-echo "Platform: $NODE_OS-$NODE_ARCH"
+
+# Detect C library (glibc vs musl) for correct binary variant
+NODE_LIBC=""
+if [ "$NODE_OS" = "linux" ]; then
+  if command -v ldd >/dev/null 2>&1 && ldd --version 2>&1 | grep -qi musl; then
+    NODE_LIBC="musl"
+  elif [ -f /etc/alpine-release ]; then
+    NODE_LIBC="musl"
+  else
+    NODE_LIBC="glibc"
+  fi
+  echo "Platform: $NODE_OS-$NODE_ARCH ($NODE_LIBC)"
+else
+  echo "Platform: $NODE_OS-$NODE_ARCH"
+fi
 """
 
 [[step]]
@@ -42,32 +56,93 @@ fi
 NODE_OS="${os}"
 NODE_ARCH="${arch}"
 if [ "$NODE_ARCH" = "amd64" ]; then NODE_ARCH="x64"; fi
+
+# Detect musl libc (Alpine, etc.) to download the correct binary variant
+NODE_VARIANT=""
+if [ "$NODE_OS" = "linux" ]; then
+  if command -v ldd >/dev/null 2>&1 && ldd --version 2>&1 | grep -qi musl; then
+    NODE_VARIANT="-musl"
+  elif [ -f /etc/alpine-release ]; then
+    NODE_VARIANT="-musl"
+  fi
+  if [ -n "$NODE_VARIANT" ]; then
+    echo "Detected musl libc, using unofficial Node.js musl build"
+  fi
+fi
+
 INSTALL_DIR="$HOME/.dagryn/tools/node-$NODE_VERSION"
 if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/bin/node" ]; then
-  echo "Node.js $NODE_VERSION already installed"
-else
-  mkdir -p "$INSTALL_DIR"
-  TARBALL="node-v${NODE_VERSION}-${NODE_OS}-${NODE_ARCH}.tar.gz"
-  URL="https://nodejs.org/dist/v${NODE_VERSION}/${TARBALL}"
-  echo "Downloading Node.js $NODE_VERSION from $URL"
+  # Verify the existing binary can actually execute (catches libc mismatch from prior install)
+  if "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
+    echo "Node.js $NODE_VERSION already installed"
+    exit 0
+  fi
+  echo "Existing Node.js binary cannot execute, re-downloading..."
+  rm -rf "$INSTALL_DIR"
+fi
+
+mkdir -p "$INSTALL_DIR"
+
+# Try unofficial musl build first if on musl, fall back to official build
+if [ -n "$NODE_VARIANT" ]; then
+  TARBALL="node-v${NODE_VERSION}-linux-${NODE_ARCH}-musl.tar.gz"
+  URL="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}/${TARBALL}"
+  echo "Downloading Node.js $NODE_VERSION (musl) from $URL"
   TMPFILE=$(mktemp)
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "$TMPFILE" "$URL"
+    curl -fsSL -o "$TMPFILE" "$URL" 2>/dev/null
   elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$TMPFILE" "$URL"
+    wget -q -O "$TMPFILE" "$URL" 2>/dev/null
+  fi
+  if [ -s "$TMPFILE" ]; then
+    tar xzf "$TMPFILE" --strip-components=1 -C "$INSTALL_DIR"
+    rm -f "$TMPFILE"
+    if [ -f "$INSTALL_DIR/bin/node" ] && "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
+      echo "Node.js $NODE_VERSION (musl) downloaded successfully"
+      exit 0
+    fi
+    echo "musl build failed verification, trying official build..." >&2
+    rm -rf "$INSTALL_DIR"
+    mkdir -p "$INSTALL_DIR"
   else
-    echo "Error: curl or wget is required" >&2; exit 1
+    rm -f "$TMPFILE"
+    echo "musl build not available, trying official build..." >&2
   fi
-  if [ ! -s "$TMPFILE" ]; then
-    echo "Error: failed to download $URL" >&2; rm -f "$TMPFILE"; exit 1
-  fi
-  tar xzf "$TMPFILE" --strip-components=1 -C "$INSTALL_DIR"
-  rm -f "$TMPFILE"
-  if [ ! -f "$INSTALL_DIR/bin/node" ]; then
-    echo "Error: node binary not found after extraction" >&2; exit 1
-  fi
-  echo "Node.js $NODE_VERSION downloaded successfully"
 fi
+
+# Official Node.js build (glibc)
+TARBALL="node-v${NODE_VERSION}-${NODE_OS}-${NODE_ARCH}.tar.gz"
+URL="https://nodejs.org/dist/v${NODE_VERSION}/${TARBALL}"
+echo "Downloading Node.js $NODE_VERSION from $URL"
+TMPFILE=$(mktemp)
+if command -v curl >/dev/null 2>&1; then
+  curl -fsSL -o "$TMPFILE" "$URL"
+elif command -v wget >/dev/null 2>&1; then
+  wget -q -O "$TMPFILE" "$URL"
+else
+  echo "Error: curl or wget is required" >&2; exit 1
+fi
+if [ ! -s "$TMPFILE" ]; then
+  echo "Error: failed to download $URL" >&2; rm -f "$TMPFILE"; exit 1
+fi
+tar xzf "$TMPFILE" --strip-components=1 -C "$INSTALL_DIR"
+rm -f "$TMPFILE"
+if [ ! -f "$INSTALL_DIR/bin/node" ]; then
+  echo "Error: node binary not found after extraction" >&2; exit 1
+fi
+# Verify the binary can actually execute (catches libc mismatch)
+if ! "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
+  echo "Error: node binary exists but cannot execute" >&2
+  echo "System: $(uname -a)" >&2
+  if command -v ldd >/dev/null 2>&1; then
+    echo "Binary linkage: $(ldd "$INSTALL_DIR/bin/node" 2>&1)" >&2
+  elif command -v file >/dev/null 2>&1; then
+    echo "Binary type: $(file "$INSTALL_DIR/bin/node" 2>&1)" >&2
+  fi
+  rm -rf "$INSTALL_DIR"
+  exit 1
+fi
+echo "Node.js $NODE_VERSION downloaded successfully"
 """
 
 [[step]]
@@ -78,7 +153,7 @@ INSTALL_DIR="$HOME/.dagryn/tools/node-$NODE_VERSION"
 if [ -d "$INSTALL_DIR/bin" ]; then
   export PATH="$INSTALL_DIR/bin:$PATH"
 fi
-echo "Node.js $(node --version) ready"
+echo "Node.js $(node --version 2>/dev/null || echo 'unknown') ready"
 """
 [step.env]
 PATH = "$HOME/.dagryn/tools/node-${inputs.node-version}/bin:$PATH"

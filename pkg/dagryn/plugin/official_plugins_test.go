@@ -69,7 +69,7 @@ func TestOfficialPlugins_AllValid(t *testing.T) {
 			// All should have metadata
 			assert.NotEmpty(t, manifest.Plugin.Name, "should have a name")
 			assert.NotEmpty(t, manifest.Plugin.Description, "should have a description")
-			assert.Equal(t, "1.0.0", manifest.Plugin.Version, "should be version 1.0.0")
+			assert.NotEmpty(t, manifest.Plugin.Version, "should have a version")
 			assert.Equal(t, "dagryn", manifest.Plugin.Author, "should have author dagryn")
 			assert.Equal(t, "MIT", manifest.Plugin.License, "should have MIT license")
 

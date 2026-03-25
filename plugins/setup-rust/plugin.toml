@@ -21,27 +21,32 @@ if command -v rustup >/dev/null 2>&1; then
   echo "rustup already installed"
 else
   echo "Installing rustup"
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none
-  export PATH="$HOME/.cargo/bin:$PATH"
+  if ! curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none; then
+    echo "Error: rustup installation failed" >&2
+    exit 1
+  fi
 fi
 """
+[step.env]
+PATH = "$HOME/.cargo/bin:$PATH"
 
 [[step]]
 name = "install-toolchain"
 command = """
-export PATH="$HOME/.cargo/bin:$PATH"
 TOOLCHAIN="${inputs.rust-version}"
 echo "Installing Rust toolchain: $TOOLCHAIN"
-rustup install "$TOOLCHAIN"
+if ! rustup install "$TOOLCHAIN"; then
+  echo "Error: failed to install Rust toolchain $TOOLCHAIN" >&2
+  exit 1
+fi
 rustup default "$TOOLCHAIN"
 """
 
 [[step]]
 name = "verify"
 command = """
-export PATH="$HOME/.cargo/bin:$PATH"
-echo "Rust: $(rustc --version)"
-echo "Cargo: $(cargo --version)"
+echo "Rust: $(rustc --version 2>/dev/null || echo 'unknown')"
+echo "Cargo: $(cargo --version 2>/dev/null || echo 'unknown')"
 """
 
 [[step]]

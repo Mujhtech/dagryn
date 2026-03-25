@@ -42,18 +42,31 @@ if echo "$CURRENT" | grep -q "^$WANTED"; then
 fi
 if command -v pyenv >/dev/null 2>&1; then
   echo "Installing Python $WANTED via pyenv"
-  pyenv install -s "$WANTED"
-  pyenv local "$WANTED"
-else
-  echo "pyenv not found, attempting system package manager"
-  if command -v apt-get >/dev/null 2>&1; then
-    sudo apt-get update && sudo apt-get install -y "python${WANTED}"
-  elif command -v brew >/dev/null 2>&1; then
-    brew install "python@${WANTED}"
-  else
-    echo "ERROR: No supported package manager found to install Python $WANTED"
+  if ! pyenv install -s "$WANTED"; then
+    echo "Error: pyenv install failed for Python $WANTED" >&2
     exit 1
   fi
+  pyenv local "$WANTED"
+elif command -v apk >/dev/null 2>&1; then
+  echo "Installing Python via apk (Alpine)"
+  if ! apk add --no-cache python3 py3-pip; then
+    echo "Error: apk install failed" >&2
+    exit 1
+  fi
+elif command -v apt-get >/dev/null 2>&1; then
+  echo "Installing Python via apt-get"
+  if ! (sudo apt-get update && sudo apt-get install -y "python${WANTED}"); then
+    echo "Error: apt-get install failed" >&2
+    exit 1
+  fi
+elif command -v brew >/dev/null 2>&1; then
+  if ! brew install "python@${WANTED}"; then
+    echo "Error: brew install failed" >&2
+    exit 1
+  fi
+else
+  echo "Error: no supported package manager found to install Python $WANTED" >&2
+  exit 1
 fi
 """
 

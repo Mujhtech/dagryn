@@ -123,11 +123,12 @@ func (e *ContainerExecutor) Execute(ctx context.Context, t *task.Task) *executor
 	}
 
 	// Prepend the setup script (composite plugin steps) to the task command
-	// so that tool installation runs inside the container. The setup script
-	// uses explicit error handling (exit 1), then set -e applies to the task.
+	// so that tool installation runs inside the container. set -e is placed
+	// before the setup script so failed steps (e.g., broken downloads) abort
+	// early instead of being silently swallowed.
 	command := t.Command
 	if e.setupScript != "" {
-		command = e.setupScript + "set -e\n" + command
+		command = "set -e\n" + e.setupScript + command
 	}
 
 	// Add plugin paths to PATH via the shell command rather than as an env

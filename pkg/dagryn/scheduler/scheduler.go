@@ -891,7 +891,12 @@ func (s *Scheduler) runCompositeSetup(ctx context.Context, t *task.Task, ce *plu
 		if err != nil {
 			slog.Warn("composite plugin setup failed",
 				"plugin", spec, "task", t.Name, "error", err)
-			continue
+			if setup == nil {
+				continue
+			}
+			// Still accumulate env and register cleanup from partial setup.
+			// ExecuteSetup returns accumulated env (e.g., PATH) even on error,
+			// so subsequent plugins can find tools from earlier steps.
 		}
 		cleanupTasks = append(cleanupTasks, compositeCleanupTask{
 			manifest: resolved.Manifest,
