@@ -149,11 +149,20 @@ if [ ! -f "$INSTALL_DIR/bin/node" ]; then
 fi
 # Verify the binary can actually execute (catches libc mismatch)
 if ! "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
+  # On musl systems (Alpine), install glibc compat libraries and retry
+  if [ -n "$NODE_VARIANT" ] && command -v apk >/dev/null 2>&1; then
+    echo "Node.js binary requires glibc libraries, installing compatibility packages..."
+    apk add --no-cache libstdc++ libgcc >/dev/null 2>&1 || true
+    if "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
+      echo "Node.js $NODE_VERSION ready (with glibc compat libraries)"
+      exit 0
+    fi
+  fi
   echo "Error: node binary exists but cannot execute on this system" >&2
   echo "System: $(uname -a)" >&2
   if [ -n "$NODE_VARIANT" ]; then
     echo "Hint: musl build was not available for Node.js v$NODE_VERSION" >&2
-    echo "Hint: install libstdc++ (apk add libstdc++) or use a Node.js version with musl support" >&2
+    echo "Hint: install libstdc++ (apk add libstdc++ libgcc) or use a Node.js version with musl support" >&2
   fi
   if command -v ldd >/dev/null 2>&1; then
     echo "Binary linkage:" >&2
