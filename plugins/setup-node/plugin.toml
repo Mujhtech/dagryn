@@ -1,7 +1,7 @@
 [plugin]
 name = "setup-node"
 description = "Install and configure Node.js"
-version = "1.1.0"
+version = "1.2.0"
 type = "composite"
 author = "dagryn"
 license = "MIT"
@@ -57,61 +57,79 @@ NODE_OS="${os}"
 NODE_ARCH="${arch}"
 if [ "$NODE_ARCH" = "amd64" ]; then NODE_ARCH="x64"; fi
 
-# Detect musl libc (Alpine, etc.) to download the correct binary variant
-NODE_VARIANT=""
+# Detect musl libc (Alpine, etc.)
+IS_MUSL=""
 if [ "$NODE_OS" = "linux" ]; then
   if command -v ldd >/dev/null 2>&1 && ldd --version 2>&1 | grep -qi musl; then
-    NODE_VARIANT="-musl"
+    IS_MUSL="true"
   elif [ -f /etc/alpine-release ]; then
-    NODE_VARIANT="-musl"
-  fi
-  if [ -n "$NODE_VARIANT" ]; then
-    echo "Detected musl libc, using unofficial Node.js musl build"
+    IS_MUSL="true"
   fi
 fi
 
 INSTALL_DIR="$HOME/.dagryn/tools/node-$NODE_VERSION"
-if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/bin/node" ]; then
-  # Verify the existing binary can actually execute (catches libc mismatch from prior install)
+LOCK_DIR="$HOME/.dagryn/tools/.node-${NODE_VERSION}.lock"
+
+# Acquire install lock (prevents parallel tasks from racing on the same directory).
+# mkdir is atomic on all POSIX filesystems.
+_lock_attempts=0
+while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+  _lock_attempts=$((_lock_attempts + 1))
+  if [ $_lock_attempts -gt 60 ]; then
+    echo "Error: timed out waiting for install lock" >&2
+    exit 1
+  fi
+  sleep 1
+done
+trap "rmdir '$LOCK_DIR' 2>/dev/null" EXIT
+
+# Re-check after acquiring lock (another task may have completed the install)
+if [ -d "$INSTALL_DIR/bin" ] && [ -f "$INSTALL_DIR/bin/node" ]; then
   if "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
     echo "Node.js $NODE_VERSION already installed"
     exit 0
   fi
-  echo "Existing Node.js binary cannot execute, re-downloading..."
   rm -rf "$INSTALL_DIR"
 fi
 
-# Helper: download a tarball and validate it's actually a gzip file
-download_tarball() {
-  _url="$1"; _dest="$2"
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "$_dest" "$_url" 2>/dev/null || return 1
-  elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$_dest" "$_url" 2>/dev/null || return 1
-  else
-    return 1
+# ── Strategy 1: Alpine apk (native musl package, most reliable) ──
+if [ -n "$IS_MUSL" ] && command -v apk >/dev/null 2>&1; then
+  echo "Installing Node.js via apk (Alpine native)..."
+  if apk add --no-cache "nodejs~=${REQUESTED_MAJOR}" npm 2>/dev/null; then
+    INSTALLED=$(node --version 2>/dev/null | sed 's/^v//')
+    if [ -n "$INSTALLED" ]; then
+      echo "Node.js v$INSTALLED installed via apk"
+      exit 0
+    fi
   fi
-  # Validate: must be non-empty and start with gzip magic bytes (1f 8b)
-  if [ ! -s "$_dest" ]; then return 1; fi
-  _magic=$(od -A n -t x1 -N 2 "$_dest" 2>/dev/null | tr -d ' ')
-  if [ "$_magic" != "1f8b" ]; then
-    echo "Downloaded file is not a valid gzip archive" >&2
-    rm -f "$_dest"
-    return 1
-  fi
-  return 0
-}
+  echo "apk install failed or version not available, trying binary download..." >&2
+fi
 
-# Try unofficial musl build first if on musl, fall back to official build
-if [ -n "$NODE_VARIANT" ]; then
+# ── Strategy 2: Unofficial musl binary build ──
+if [ -n "$IS_MUSL" ]; then
   TARBALL="node-v${NODE_VERSION}-linux-${NODE_ARCH}-musl.tar.gz"
   URL="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}/${TARBALL}"
   echo "Downloading Node.js $NODE_VERSION (musl) from $URL"
   TMPFILE=$(mktemp)
-  if download_tarball "$URL" "$TMPFILE"; then
+  DOWNLOAD_OK=""
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$TMPFILE" "$URL" 2>/dev/null && DOWNLOAD_OK="true"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$TMPFILE" "$URL" 2>/dev/null && DOWNLOAD_OK="true"
+  fi
+  # Validate it's actually a gzip file (servers may return HTML on 200)
+  if [ "$DOWNLOAD_OK" = "true" ] && [ -s "$TMPFILE" ]; then
+    _magic=$(od -A n -t x1 -N 2 "$TMPFILE" 2>/dev/null | tr -d ' ')
+    if [ "$_magic" != "1f8b" ]; then
+      DOWNLOAD_OK=""
+    fi
+  else
+    DOWNLOAD_OK=""
+  fi
+  if [ "$DOWNLOAD_OK" = "true" ]; then
     rm -rf "$INSTALL_DIR"
     mkdir -p "$INSTALL_DIR"
-    tar xzf "$TMPFILE" --strip-components=1 -C "$INSTALL_DIR"
+    tar xzf "$TMPFILE" --strip-components=1 -C "$INSTALL_DIR" 2>/dev/null
     rm -f "$TMPFILE"
     if [ -f "$INSTALL_DIR/bin/node" ] && "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
       echo "Node.js $NODE_VERSION (musl) downloaded successfully"
@@ -125,7 +143,7 @@ if [ -n "$NODE_VARIANT" ]; then
   fi
 fi
 
-# Official Node.js build (glibc)
+# ── Strategy 3: Official Node.js build (glibc) + compat libs on musl ──
 rm -rf "$INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
 TARBALL="node-v${NODE_VERSION}-${NODE_OS}-${NODE_ARCH}.tar.gz"
@@ -147,22 +165,23 @@ rm -f "$TMPFILE"
 if [ ! -f "$INSTALL_DIR/bin/node" ]; then
   echo "Error: node binary not found after extraction" >&2; exit 1
 fi
-# Verify the binary can actually execute (catches libc mismatch)
-if ! "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
-  # On musl systems (Alpine), install glibc compat libraries and retry
-  if [ -n "$NODE_VARIANT" ] && command -v apk >/dev/null 2>&1; then
-    echo "Node.js binary requires glibc libraries, installing compatibility packages..."
-    apk add --no-cache libstdc++ libgcc >/dev/null 2>&1 || true
-    if "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
-      echo "Node.js $NODE_VERSION ready (with glibc compat libraries)"
-      exit 0
-    fi
+
+# On musl, the glibc binary needs compat libraries
+if [ -n "$IS_MUSL" ] && ! "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
+  if command -v apk >/dev/null 2>&1; then
+    echo "Installing glibc compatibility libraries..."
+    apk add --no-cache libstdc++ libgcc gcompat 2>&1 || true
   fi
-  echo "Error: node binary exists but cannot execute on this system" >&2
+fi
+
+if ! "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
+  echo "Error: node binary cannot execute on this system" >&2
   echo "System: $(uname -a)" >&2
-  if [ -n "$NODE_VARIANT" ]; then
-    echo "Hint: musl build was not available for Node.js v$NODE_VERSION" >&2
-    echo "Hint: install libstdc++ (apk add libstdc++ libgcc) or use a Node.js version with musl support" >&2
+  if [ -n "$IS_MUSL" ]; then
+    echo "None of the following strategies worked:" >&2
+    echo "  1. apk add nodejs npm (Alpine native)" >&2
+    echo "  2. Unofficial musl build from unofficial-builds.nodejs.org" >&2
+    echo "  3. Official glibc build + compat libs (libstdc++ libgcc gcompat)" >&2
   fi
   if command -v ldd >/dev/null 2>&1; then
     echo "Binary linkage:" >&2
