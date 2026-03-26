@@ -55,7 +55,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 FROM alpine:latest
 
 # Install runtime dependencies
-RUN apk add --no-cache ca-certificates tzdata git docker-cli
+RUN apk add --no-cache ca-certificates tzdata git docker-cli \
+    nodejs npm
 
 # Create non-root user
 RUN addgroup -g 1000 dagryn && \

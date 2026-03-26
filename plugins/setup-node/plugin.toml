@@ -1,7 +1,7 @@
 [plugin]
 name = "setup-node"
 description = "Install and configure Node.js"
-version = "1.2.0"
+version = "1.3.0"
 type = "composite"
 author = "dagryn"
 license = "MIT"
@@ -21,7 +21,6 @@ NODE_OS="${os}"
 NODE_ARCH="${arch}"
 if [ "$NODE_ARCH" = "amd64" ]; then NODE_ARCH="x64"; fi
 
-# Detect C library (glibc vs musl) for correct binary variant
 NODE_LIBC=""
 if [ "$NODE_OS" = "linux" ]; then
   if command -v ldd >/dev/null 2>&1 && ldd --version 2>&1 | grep -qi musl; then
@@ -43,7 +42,7 @@ command = """
 NODE_VERSION="${inputs.node-version}"
 REQUESTED_MAJOR=$(echo "$NODE_VERSION" | cut -d. -f1)
 
-# Skip download if node is already available with matching major version
+# Skip if node is already available with matching major version
 if command -v node >/dev/null 2>&1; then
   EXISTING=$(node --version 2>/dev/null | sed 's/^v//')
   EXISTING_MAJOR=$(echo "$EXISTING" | cut -d. -f1)
@@ -57,7 +56,7 @@ NODE_OS="${os}"
 NODE_ARCH="${arch}"
 if [ "$NODE_ARCH" = "amd64" ]; then NODE_ARCH="x64"; fi
 
-# Detect musl libc (Alpine, etc.)
+# Detect musl libc
 IS_MUSL=""
 if [ "$NODE_OS" = "linux" ]; then
   if command -v ldd >/dev/null 2>&1 && ldd --version 2>&1 | grep -qi musl; then
@@ -68,28 +67,11 @@ if [ "$NODE_OS" = "linux" ]; then
 fi
 
 INSTALL_DIR="$HOME/.dagryn/tools/node-$NODE_VERSION"
-LOCK_DIR="$HOME/.dagryn/tools/.node-${NODE_VERSION}.lock"
 
-# Acquire install lock (prevents parallel tasks from racing on the same directory).
-# mkdir is atomic on all POSIX filesystems.
-_lock_attempts=0
-while ! mkdir "$LOCK_DIR" 2>/dev/null; do
-  _lock_attempts=$((_lock_attempts + 1))
-  if [ $_lock_attempts -gt 60 ]; then
-    echo "Error: timed out waiting for install lock" >&2
-    exit 1
-  fi
-  sleep 1
-done
-trap "rmdir '$LOCK_DIR' 2>/dev/null" EXIT
-
-# Re-check after acquiring lock (another task may have completed the install)
-if [ -d "$INSTALL_DIR/bin" ] && [ -f "$INSTALL_DIR/bin/node" ]; then
-  if "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
-    echo "Node.js $NODE_VERSION already installed"
-    exit 0
-  fi
-  rm -rf "$INSTALL_DIR"
+# Check existing install (another parallel task may have completed it)
+if [ -f "$INSTALL_DIR/bin/node" ] && "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
+  echo "Node.js $NODE_VERSION already installed"
+  exit 0
 fi
 
 # ── Strategy 1: Alpine apk (native musl package, most reliable) ──
@@ -105,92 +87,78 @@ if [ -n "$IS_MUSL" ] && command -v apk >/dev/null 2>&1; then
   echo "apk install failed or version not available, trying binary download..." >&2
 fi
 
+# Helper: download and extract a Node.js tarball to a temp dir, verify it works.
+# Returns 0 and prints the temp dir path on success.
+try_node_tarball() {
+  _url="$1"
+  _tmpdir=$(mktemp -d)
+  _tmpfile=$(mktemp)
+  # Download
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$_tmpfile" "$_url" 2>/dev/null || { rm -rf "$_tmpdir" "$_tmpfile"; return 1; }
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$_tmpfile" "$_url" 2>/dev/null || { rm -rf "$_tmpdir" "$_tmpfile"; return 1; }
+  else
+    rm -rf "$_tmpdir" "$_tmpfile"; return 1
+  fi
+  # Validate gzip magic bytes
+  if [ ! -s "$_tmpfile" ]; then rm -rf "$_tmpdir" "$_tmpfile"; return 1; fi
+  _magic=$(od -A n -t x1 -N 2 "$_tmpfile" 2>/dev/null | tr -d ' ')
+  if [ "$_magic" != "1f8b" ]; then rm -rf "$_tmpdir" "$_tmpfile"; return 1; fi
+  # Extract
+  tar xzf "$_tmpfile" --strip-components=1 -C "$_tmpdir" 2>/dev/null
+  rm -f "$_tmpfile"
+  # Verify
+  if [ -f "$_tmpdir/bin/node" ] && "$_tmpdir/bin/node" --version >/dev/null 2>&1; then
+    echo "$_tmpdir"
+    return 0
+  fi
+  rm -rf "$_tmpdir"
+  return 1
+}
+
 # ── Strategy 2: Unofficial musl binary build ──
 if [ -n "$IS_MUSL" ]; then
-  TARBALL="node-v${NODE_VERSION}-linux-${NODE_ARCH}-musl.tar.gz"
-  URL="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}/${TARBALL}"
+  URL="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}-musl.tar.gz"
   echo "Downloading Node.js $NODE_VERSION (musl) from $URL"
-  TMPFILE=$(mktemp)
-  DOWNLOAD_OK=""
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "$TMPFILE" "$URL" 2>/dev/null && DOWNLOAD_OK="true"
-  elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$TMPFILE" "$URL" 2>/dev/null && DOWNLOAD_OK="true"
-  fi
-  # Validate it's actually a gzip file (servers may return HTML on 200)
-  if [ "$DOWNLOAD_OK" = "true" ] && [ -s "$TMPFILE" ]; then
-    _magic=$(od -A n -t x1 -N 2 "$TMPFILE" 2>/dev/null | tr -d ' ')
-    if [ "$_magic" != "1f8b" ]; then
-      DOWNLOAD_OK=""
-    fi
-  else
-    DOWNLOAD_OK=""
-  fi
-  if [ "$DOWNLOAD_OK" = "true" ]; then
+  STAGE_DIR=$(try_node_tarball "$URL")
+  if [ -n "$STAGE_DIR" ]; then
     rm -rf "$INSTALL_DIR"
-    mkdir -p "$INSTALL_DIR"
-    tar xzf "$TMPFILE" --strip-components=1 -C "$INSTALL_DIR" 2>/dev/null
-    rm -f "$TMPFILE"
-    if [ -f "$INSTALL_DIR/bin/node" ] && "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
-      echo "Node.js $NODE_VERSION (musl) downloaded successfully"
-      exit 0
-    fi
-    echo "musl build failed verification, trying official build..." >&2
-    rm -rf "$INSTALL_DIR"
-  else
-    rm -f "$TMPFILE"
-    echo "musl build not available for v$NODE_VERSION, trying official build..." >&2
+    mv "$STAGE_DIR" "$INSTALL_DIR"
+    echo "Node.js $NODE_VERSION (musl) installed successfully"
+    exit 0
   fi
+  echo "musl build not available or failed" >&2
 fi
 
-# ── Strategy 3: Official Node.js build (glibc) + compat libs on musl ──
-rm -rf "$INSTALL_DIR"
-mkdir -p "$INSTALL_DIR"
-TARBALL="node-v${NODE_VERSION}-${NODE_OS}-${NODE_ARCH}.tar.gz"
-URL="https://nodejs.org/dist/v${NODE_VERSION}/${TARBALL}"
-echo "Downloading Node.js $NODE_VERSION from $URL"
-TMPFILE=$(mktemp)
-if command -v curl >/dev/null 2>&1; then
-  curl -fsSL -o "$TMPFILE" "$URL"
-elif command -v wget >/dev/null 2>&1; then
-  wget -q -O "$TMPFILE" "$URL"
-else
-  echo "Error: curl or wget is required" >&2; exit 1
-fi
-if [ ! -s "$TMPFILE" ]; then
-  echo "Error: failed to download $URL" >&2; rm -f "$TMPFILE"; exit 1
-fi
-tar xzf "$TMPFILE" --strip-components=1 -C "$INSTALL_DIR"
-rm -f "$TMPFILE"
-if [ ! -f "$INSTALL_DIR/bin/node" ]; then
-  echo "Error: node binary not found after extraction" >&2; exit 1
-fi
-
-# On musl, the glibc binary needs compat libraries
-if [ -n "$IS_MUSL" ] && ! "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
-  if command -v apk >/dev/null 2>&1; then
-    echo "Installing glibc compatibility libraries..."
-    apk add --no-cache libstdc++ libgcc gcompat 2>&1 || true
-  fi
-fi
-
-if ! "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
-  echo "Error: node binary cannot execute on this system" >&2
-  echo "System: $(uname -a)" >&2
-  if [ -n "$IS_MUSL" ]; then
-    echo "None of the following strategies worked:" >&2
-    echo "  1. apk add nodejs npm (Alpine native)" >&2
-    echo "  2. Unofficial musl build from unofficial-builds.nodejs.org" >&2
-    echo "  3. Official glibc build + compat libs (libstdc++ libgcc gcompat)" >&2
-  fi
-  if command -v ldd >/dev/null 2>&1; then
-    echo "Binary linkage:" >&2
-    ldd "$INSTALL_DIR/bin/node" 2>&1 | head -5 >&2
-  fi
-  rm -rf "$INSTALL_DIR"
+# On musl, glibc binaries cannot work (ABI mismatch, not just missing libs).
+# Do not attempt downloading them — fail fast with actionable guidance.
+if [ -n "$IS_MUSL" ]; then
+  echo "Error: cannot install Node.js $NODE_VERSION on this musl/Alpine system" >&2
+  echo "Strategies attempted:" >&2
+  echo "  1. apk add nodejs npm — package not available or install failed" >&2
+  echo "  2. Unofficial musl build — not available for v$NODE_VERSION" >&2
+  echo "" >&2
+  echo "To fix, choose one of:" >&2
+  echo "  - Use a Docker image with Node.js pre-installed (e.g. node:20-alpine)" >&2
+  echo "  - Pre-install Node.js in your cloud image: apk add nodejs npm" >&2
+  echo "  - Use a glibc-based image instead of Alpine" >&2
   exit 1
 fi
-echo "Node.js $NODE_VERSION downloaded successfully"
+
+# ── Strategy 3 (glibc systems only): Official Node.js build ──
+URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-${NODE_OS}-${NODE_ARCH}.tar.gz"
+echo "Downloading Node.js $NODE_VERSION from $URL"
+STAGE_DIR=$(try_node_tarball "$URL")
+if [ -z "$STAGE_DIR" ]; then
+  echo "Error: failed to download or verify Node.js $NODE_VERSION" >&2
+  exit 1
+fi
+
+# Atomically move staged install to final location
+rm -rf "$INSTALL_DIR"
+mv "$STAGE_DIR" "$INSTALL_DIR"
+echo "Node.js $NODE_VERSION installed successfully"
 """
 
 [[step]]
