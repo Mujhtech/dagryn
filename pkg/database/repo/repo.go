@@ -120,6 +120,7 @@ type RunStore interface {
 	UpdateTaskResult(ctx context.Context, result *models.TaskResult) error
 	GetTaskResult(ctx context.Context, runID uuid.UUID, taskName string) (*models.TaskResult, error)
 	ListTaskResults(ctx context.Context, runID uuid.UUID) ([]models.TaskResult, error)
+	CancelNonTerminalTasks(ctx context.Context, runID uuid.UUID) error
 	DeleteTaskResultsByRun(ctx context.Context, runID uuid.UUID) error
 	GetRunWithTasks(ctx context.Context, id uuid.UUID) (*models.RunWithTasks, error)
 	CleanupOldRuns(ctx context.Context, olderThan time.Duration, keepMinimum int) (int64, error)

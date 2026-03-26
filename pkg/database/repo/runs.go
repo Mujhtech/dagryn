@@ -550,6 +550,17 @@ func (r *RunRepo) ListTaskResults(ctx context.Context, runID uuid.UUID) ([]model
 	return results, rows.Err()
 }
 
+// CancelNonTerminalTasks marks all running/pending tasks for a run as cancelled.
+func (r *RunRepo) CancelNonTerminalTasks(ctx context.Context, runID uuid.UUID) error {
+	now := time.Now()
+	_, err := r.pool.Exec(ctx, `
+		UPDATE task_results
+		SET status = $1, finished_at = $2, error_message = 'Cancelled by user'
+		WHERE run_id = $3 AND status IN ($4, $5)
+	`, models.TaskStatusCancelled, now, runID, models.TaskStatusRunning, models.TaskStatusPending)
+	return err
+}
+
 // DeleteTaskResultsByRun removes all task results for a given run.
 func (r *RunRepo) DeleteTaskResultsByRun(ctx context.Context, runID uuid.UUID) error {
 	_, err := r.pool.Exec(ctx, "DELETE FROM task_results WHERE run_id = $1", runID)
