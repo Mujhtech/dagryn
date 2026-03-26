@@ -138,14 +138,16 @@ name = "set-path"
 command = """
 PNPM_VERSION="${inputs.pnpm-version}"
 INSTALL_DIR="$HOME/.dagryn/tools/pnpm-$PNPM_VERSION"
+NPM_GLOBAL="$HOME/.dagryn/tools/npm-global/bin"
 if [ -d "$INSTALL_DIR" ]; then
   export PATH="$INSTALL_DIR:$PATH"
+  export PNPM_HOME="$INSTALL_DIR"
+fi
+if [ -d "$NPM_GLOBAL" ]; then
+  export PATH="$NPM_GLOBAL:$PATH"
 fi
 echo "pnpm $(pnpm --version 2>/dev/null || echo 'unknown') ready"
 """
-[step.env]
-PATH = "$HOME/.dagryn/tools/pnpm-${inputs.pnpm-version}:$HOME/.dagryn/tools/npm-global/bin:$PATH"
-PNPM_HOME = "$HOME/.dagryn/tools/pnpm-${inputs.pnpm-version}"
 
 [[step]]
 name = "cache-pnpm-store"

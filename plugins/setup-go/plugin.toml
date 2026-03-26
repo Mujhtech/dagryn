@@ -71,15 +71,14 @@ name = "set-environment"
 command = """
 GO_VERSION="${inputs.go-version}"
 INSTALL_DIR="$HOME/.dagryn/tools/go-$GO_VERSION"
-if [ -d "$INSTALL_DIR/go" ]; then
+if [ -d "$INSTALL_DIR/go/bin" ]; then
   export GOROOT="$INSTALL_DIR/go"
   export PATH="$GOROOT/bin:$PATH"
+  echo "Go $(go version 2>/dev/null || echo 'unknown') ready (dagryn-managed)"
+else
+  echo "Go $(go version 2>/dev/null || echo 'unknown') ready (system)"
 fi
-echo "Go $(go version 2>/dev/null || echo 'unknown') ready"
 """
-[step.env]
-GOROOT = "$HOME/.dagryn/tools/go-${inputs.go-version}/go"
-PATH = "$HOME/.dagryn/tools/go-${inputs.go-version}/go/bin:$PATH"
 
 [[step]]
 name = "cache-modules"
