@@ -54,9 +54,11 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 # Stage 3: Final runtime image
 FROM alpine:latest
 
-# Install runtime dependencies
+# Install runtime dependencies including Node.js toolchain for web tasks.
+# These run as root so setup-node/setup-pnpm plugins skip downloads entirely.
 RUN apk add --no-cache ca-certificates tzdata git docker-cli \
-    nodejs npm
+    nodejs npm && \
+    npm install -g pnpm@10.30.3
 
 # Create non-root user
 RUN addgroup -g 1000 dagryn && \

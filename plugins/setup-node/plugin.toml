@@ -42,12 +42,14 @@ command = """
 NODE_VERSION="${inputs.node-version}"
 REQUESTED_MAJOR=$(echo "$NODE_VERSION" | cut -d. -f1)
 
-# Skip if node is already available with matching major version
+# Skip if node is already available with matching or higher major version.
+# Most web tooling (vite, tsc, pnpm) works across Node.js majors, so a
+# pre-installed system Node.js is preferred over downloading a specific version.
 if command -v node >/dev/null 2>&1; then
   EXISTING=$(node --version 2>/dev/null | sed 's/^v//')
   EXISTING_MAJOR=$(echo "$EXISTING" | cut -d. -f1)
-  if [ "$EXISTING_MAJOR" = "$REQUESTED_MAJOR" ]; then
-    echo "Node.js v$EXISTING already available, skipping download"
+  if [ "$EXISTING_MAJOR" -ge "$REQUESTED_MAJOR" ] 2>/dev/null; then
+    echo "Node.js v$EXISTING already available (>= $REQUESTED_MAJOR), skipping download"
     exit 0
   fi
 fi
