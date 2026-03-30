@@ -21,7 +21,15 @@ if command -v rustup >/dev/null 2>&1; then
   echo "rustup already installed"
 else
   echo "Installing rustup"
-  if ! curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none; then
+  if command -v curl >/dev/null 2>&1; then
+    INSTALLER_CMD='curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs'
+  elif command -v wget >/dev/null 2>&1; then
+    INSTALLER_CMD='wget -qO- https://sh.rustup.rs'
+  else
+    echo "Error: curl or wget is required to install rustup" >&2
+    exit 1
+  fi
+  if ! sh -c "$INSTALLER_CMD" | sh -s -- -y --default-toolchain none; then
     echo "Error: rustup installation failed" >&2
     exit 1
   fi

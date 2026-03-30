@@ -21,6 +21,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user } = useAuth();
   const navItems = useNavItems();
   const { data: health } = useHealth();
+  const rawVersion = health?.version?.trim() ?? "";
+  const normalizedVersion = rawVersion.replace(/^v/, "");
+  const withoutGitDescribeSuffix = normalizedVersion.replace(
+    /(?:\+\d+)?-\d+-g[0-9a-f]+(?:-dirty)?$/i,
+    "",
+  );
+  const releaseTagVersion = withoutGitDescribeSuffix.replace(/\+.*$/, "");
+  const releaseTagPattern = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+  const releaseHref =
+    releaseTagPattern.test(releaseTagVersion)
+      ? `https://github.com/mujhtech/dagryn/releases/tag/v${releaseTagVersion}`
+      : "https://github.com/mujhtech/dagryn/releases";
+  const versionLabel = normalizedVersion
+    ? `v${normalizedVersion}`
+    : rawVersion;
 
   const isActive = (url: string) => {
     if (url === "/") {
@@ -60,12 +75,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {health?.version && (
           <div className="px-3">
             <a
-              href={`https://github.com/mujhtech/dagryn/releases/tag/${health.version}`}
+              href={releaseHref}
               target="_blank"
               rel="noopener noreferrer"
               className="text-muted-foreground hover:text-foreground text-[0.5rem] transition-colors"
             >
-              v{health.version.replace(/^v/, "")}
+              {versionLabel}
             </a>
           </div>
         )}

@@ -7,7 +7,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
+
+	"github.com/mujhtech/dagryn/pkg/dagryn/toolchain"
 )
 
 // NPMResolver resolves plugins via npm.
@@ -91,7 +94,12 @@ func (r *NPMResolver) Install(ctx context.Context, plugin *Plugin, installDir st
 	}
 
 	// Run npm install
-	cmd := exec.CommandContext(ctx, "npm", "install", "--save", packageSpec)
+	cmd, err := r.newNPMCommand(ctx, "install", "--save", packageSpec)
+	if err != nil {
+		result.Status = StatusFailed
+		result.Error = err
+		return result, result.Error
+	}
 	cmd.Dir = installDir
 
 	output, err := cmd.CombinedOutput()
@@ -154,10 +162,54 @@ func (r *NPMResolver) Verify(ctx context.Context, plugin *Plugin) error {
 
 // getLatestVersion queries npm registry for the latest version.
 func (r *NPMResolver) getLatestVersion(ctx context.Context, packageName string) (string, error) {
-	cmd := exec.CommandContext(ctx, "npm", "view", packageName, "version")
+	cmd, err := r.newNPMCommand(ctx, "view", packageName, "version")
+	if err != nil {
+		return "", err
+	}
 	output, err := cmd.Output()
 	if err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(string(output)), nil
+}
+
+func (r *NPMResolver) newNPMCommand(ctx context.Context, args ...string) (*exec.Cmd, error) {
+	tc, err := toolchain.EnsureRuntime(ctx, toolchain.RuntimeNode)
+	if err != nil {
+		return nil, fmt.Errorf("node/npm runtime not available: %w", err)
+	}
+
+	cmd := exec.CommandContext(ctx, "npm", args...)
+	if tc == nil {
+		return cmd, nil
+	}
+
+	env := envSliceToMap(os.Environ())
+	if tc.BinDir != "" {
+		env["PATH"] = toolchain.PrependPath(tc.BinDir, env["PATH"])
+	}
+	for k, v := range tc.Env {
+		env[k] = v
+	}
+	cmd.Env = envMapToSlice(env)
+	return cmd, nil
+}
+
+func envSliceToMap(items []string) map[string]string {
+	out := make(map[string]string, len(items))
+	for _, item := range items {
+		if k, v, ok := strings.Cut(item, "="); ok {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+func envMapToSlice(env map[string]string) []string {
+	out := make([]string, 0, len(env))
+	for k, v := range env {
+		out = append(out, k+"="+v)
+	}
+	sort.Strings(out)
+	return out
 }

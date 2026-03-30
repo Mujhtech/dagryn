@@ -3,6 +3,7 @@ package plugin
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -89,6 +90,42 @@ func TestOfficialPlugins_AllValid(t *testing.T) {
 					assert.NotEmpty(t, step.Name, "step %d should have a name", i)
 					assert.NotEmpty(t, step.Command, "step %d (%s) should have a command", i, step.Name)
 				}
+			}
+		})
+	}
+}
+
+func TestOfficialPlugins_POSIXShCompatibility(t *testing.T) {
+	pluginsDir := filepath.Join("..", "..", "..", "plugins")
+
+	entries, err := os.ReadDir(pluginsDir)
+	require.NoError(t, err, "failed to read plugins directory")
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		t.Run(entry.Name(), func(t *testing.T) {
+			data, err := os.ReadFile(filepath.Join(pluginsDir, entry.Name(), "plugin.toml"))
+			require.NoError(t, err)
+
+			manifest, err := ParseManifest(data)
+			require.NoError(t, err)
+
+			// Dagryn executes plugin commands using `sh -c`; reject bash-only
+			// redirection forms that are known to break on POSIX sh.
+			for i, step := range manifest.Steps {
+				assert.False(t, strings.Contains(step.Command, "&>"),
+					"step %d (%s) in %s uses bash-only '&>' redirection", i, step.Name, entry.Name())
+			}
+			for i, step := range manifest.Cleanup {
+				assert.False(t, strings.Contains(step.Command, "&>"),
+					"cleanup step %d (%s) in %s uses bash-only '&>' redirection", i, step.Name, entry.Name())
+			}
+			for hookName, hook := range manifest.Hooks {
+				assert.False(t, strings.Contains(hook.Command, "&>"),
+					"hook %s in %s uses bash-only '&>' redirection", hookName, entry.Name())
 			}
 		})
 	}
