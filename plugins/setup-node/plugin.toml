@@ -129,7 +129,11 @@ try_node_tarball() {
   fi
   _verify_err=$("$_tmpdir/bin/node" --version 2>&1 || true)
   if [ -n "$_verify_err" ]; then
-    echo "Node binary downloaded but failed to execute: $_verify_err" >&2
+    echo "Node binary downloaded but failed to execute:" >&2
+    echo "$_verify_err" | sed -n '1,12p' >&2
+    if echo "$_verify_err" | grep -q -e "libstdc++.so.6" -e "libgcc_s.so.1"; then
+      echo "Detected missing runtime libraries (libstdc++/libgcc) [missing_dependency]" >&2
+    fi
   fi
   rm -rf "$_tmpdir"
   return 1
@@ -160,6 +164,7 @@ if [ -n "$IS_MUSL" ]; then
   echo "" >&2
   echo "To fix, choose one of:" >&2
   echo "  - Use a Docker image with Node.js pre-installed (e.g. node:20-alpine)" >&2
+  echo "  - Install runtime libs in your base image: apk add --no-cache libstdc++ libgcc" >&2
   echo "  - Pre-install Node.js in your cloud image: apk add nodejs npm" >&2
   echo "  - Use a glibc-based image instead of Alpine" >&2
   exit 1

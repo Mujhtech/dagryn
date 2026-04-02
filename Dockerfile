@@ -55,8 +55,9 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 FROM alpine:latest
 
 # Install runtime dependencies. Build tools (node, go, etc.) are NOT needed
-# here — tasks run inside their own containers via [container] enabled = true.
-RUN apk add --no-cache ca-certificates tzdata git docker-cli
+# here, but host-mode plugin installs require minimal runtime libs for
+# downloaded musl binaries (e.g. Node.js from unofficial builds).
+RUN apk add --no-cache ca-certificates tzdata git docker-cli libstdc++ libgcc
 
 # Create non-root user
 RUN addgroup -g 1000 dagryn && \

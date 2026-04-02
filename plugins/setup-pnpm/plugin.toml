@@ -36,7 +36,7 @@ PNPM_VERSION="${inputs.pnpm-version}"
 
 if ! command -v node >/dev/null 2>&1; then
   echo "Error: pnpm requires Node.js but 'node' is not available on PATH [missing_dependency]" >&2
-  echo "Hint: add 'setup-node' before 'setup-pnpm' in task uses" >&2
+  echo "Hint: add 'setup-node' before 'setup-pnpm' in task uses, or pre-install node" >&2
   exit 1
 fi
 
