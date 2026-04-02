@@ -1,7 +1,7 @@
 [plugin]
 name = "setup-rust"
 description = "Install and configure Rust toolchain"
-version = "1.0.0"
+version = "1.1.0"
 type = "composite"
 author = "dagryn"
 license = "MIT"
@@ -33,6 +33,20 @@ else
     echo "Error: rustup installation failed" >&2
     exit 1
   fi
+fi
+
+if ! command -v rustup >/dev/null 2>&1; then
+  echo "Error: rustup is not available after installation attempt" >&2
+  exit 1
+fi
+
+if ! rustup --version >/dev/null 2>&1; then
+  RUSTUP_ERR=$(rustup --version 2>&1 || true)
+  echo "Error: rustup is present but cannot execute [binary_not_executable]" >&2
+  if [ -n "$RUSTUP_ERR" ]; then
+    echo "$RUSTUP_ERR" >&2
+  fi
+  exit 1
 fi
 """
 [step.env]

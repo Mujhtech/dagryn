@@ -1,7 +1,7 @@
 [plugin]
 name = "setup-python"
 description = "Install and configure Python"
-version = "1.0.0"
+version = "1.1.0"
 type = "composite"
 author = "dagryn"
 license = "MIT"
@@ -49,12 +49,20 @@ if command -v pyenv >/dev/null 2>&1; then
   pyenv local "$WANTED"
 elif command -v apk >/dev/null 2>&1; then
   echo "Installing Python via apk (Alpine)"
+  if [ "$(id -u 2>/dev/null || echo 1)" != "0" ]; then
+    echo "Error: apk install requires root privileges [permission_denied]" >&2
+    exit 1
+  fi
   if ! apk add --no-cache python3 py3-pip; then
     echo "Error: apk install failed" >&2
     exit 1
   fi
 elif command -v apt-get >/dev/null 2>&1; then
   echo "Installing Python via apt-get"
+  if [ "$(id -u 2>/dev/null || echo 1)" != "0" ] && ! command -v sudo >/dev/null 2>&1; then
+    echo "Error: apt-get install requires root or sudo [permission_denied]" >&2
+    exit 1
+  fi
   APT_PREFIX=""
   if command -v sudo >/dev/null 2>&1; then
     APT_PREFIX="sudo"

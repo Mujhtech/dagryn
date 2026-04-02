@@ -38,7 +38,11 @@ func TestSubstituteVars(t *testing.T) {
 		},
 		{
 			input:    "${inputs.missing}",
-			expected: "${inputs.missing}", // not substituted
+			expected: "",
+		},
+		{
+			input:    "X${inputs.node-version}Y",
+			expected: "XY",
 		},
 	}
 
@@ -193,6 +197,21 @@ func TestCompositeExecutor_Execute(t *testing.T) {
 					Command: "echo $MY_VAR",
 					Env:     map[string]string{"MY_VAR": "${inputs.val}"},
 				},
+			},
+		}
+
+		err := e.Execute(ctx, manifest, nil, nil, "")
+		assert.NoError(t, err)
+	})
+
+	t.Run("missing optional hyphenated input does not break shell", func(t *testing.T) {
+		manifest := &Manifest{
+			Plugin: ManifestPlugin{Type: "composite"},
+			Inputs: map[string]InputDef{
+				"node-version": {Description: "optional"},
+			},
+			Steps: []CompositeStep{
+				{Name: "safe-optional", Command: "NODE_VERSION=\"${inputs.node-version}\"; [ -z \"$NODE_VERSION\" ]"},
 			},
 		}
 

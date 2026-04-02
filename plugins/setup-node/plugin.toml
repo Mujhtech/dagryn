@@ -1,7 +1,7 @@
 [plugin]
 name = "setup-node"
 description = "Install and configure Node.js"
-version = "1.3.0"
+version = "1.4.0"
 type = "composite"
 author = "dagryn"
 license = "MIT"
@@ -78,6 +78,9 @@ fi
 
 # ── Strategy 1: Alpine apk (native musl package, most reliable) ──
 if [ -n "$IS_MUSL" ] && command -v apk >/dev/null 2>&1; then
+  if [ "$(id -u 2>/dev/null || echo 1)" != "0" ]; then
+    echo "Non-root Alpine environment detected, skipping apk install strategy" >&2
+  else
   echo "Installing Node.js via apk (Alpine native)..."
   if apk add --no-cache "nodejs~=${REQUESTED_MAJOR}" npm 2>/dev/null; then
     INSTALLED=$(node --version 2>/dev/null | sed 's/^v//')
@@ -86,7 +89,16 @@ if [ -n "$IS_MUSL" ] && command -v apk >/dev/null 2>&1; then
       exit 0
     fi
   fi
-  echo "apk install failed or version not available, trying binary download..." >&2
+  echo "Pinned apk version not available, trying unpinned apk install..." >&2
+  if apk add --no-cache nodejs npm 2>/dev/null; then
+    INSTALLED=$(node --version 2>/dev/null | sed 's/^v//')
+    if [ -n "$INSTALLED" ]; then
+      echo "Node.js v$INSTALLED installed via apk (unpinned fallback)"
+      exit 0
+    fi
+  fi
+  echo "apk install failed or package not available, trying binary download..." >&2
+  fi
 fi
 
 # Helper: download and extract a Node.js tarball to a temp dir, verify it works.
@@ -115,6 +127,10 @@ try_node_tarball() {
     echo "$_tmpdir"
     return 0
   fi
+  _verify_err=$("$_tmpdir/bin/node" --version 2>&1 || true)
+  if [ -n "$_verify_err" ]; then
+    echo "Node binary downloaded but failed to execute: $_verify_err" >&2
+  fi
   rm -rf "$_tmpdir"
   return 1
 }
@@ -138,8 +154,9 @@ fi
 if [ -n "$IS_MUSL" ]; then
   echo "Error: cannot install Node.js $NODE_VERSION on this musl/Alpine system" >&2
   echo "Strategies attempted:" >&2
-  echo "  1. apk add nodejs npm — package not available or install failed" >&2
-  echo "  2. Unofficial musl build — not available for v$NODE_VERSION" >&2
+  echo "  1. apk add nodejs~=${REQUESTED_MAJOR} npm — version unavailable or non-root" >&2
+  echo "  2. apk add nodejs npm — package unavailable, install failed, or non-root" >&2
+  echo "  3. Unofficial musl build — unavailable or failed runtime verification for v$NODE_VERSION" >&2
   echo "" >&2
   echo "To fix, choose one of:" >&2
   echo "  - Use a Docker image with Node.js pre-installed (e.g. node:20-alpine)" >&2

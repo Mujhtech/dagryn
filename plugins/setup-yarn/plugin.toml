@@ -1,7 +1,7 @@
 [plugin]
 name = "setup-yarn"
 description = "Install and configure Yarn package manager"
-version = "1.1.0"
+version = "1.2.0"
 type = "composite"
 author = "dagryn"
 license = "MIT"
@@ -26,6 +26,25 @@ echo "Platform: $YARN_OS-$YARN_ARCH"
 name = "download-and-install"
 command = """
 YARN_VERSION="${inputs.yarn-version}"
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "Error: yarn requires Node.js but 'node' is not available [missing_dependency]" >&2
+  exit 1
+fi
+
+if ! node --version >/dev/null 2>&1; then
+  NODE_ERR=$(node --version 2>&1 || true)
+  echo "Error: Node.js is present but not executable [binary_not_executable]" >&2
+  if [ -n "$NODE_ERR" ]; then
+    echo "$NODE_ERR" >&2
+  fi
+  exit 1
+fi
+
+if ! command -v tar >/dev/null 2>&1; then
+  echo "Error: tar is required to extract Yarn archive [missing_dependency]" >&2
+  exit 1
+fi
 
 # Skip if yarn is already available on PATH
 if command -v yarn >/dev/null 2>&1; then

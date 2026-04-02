@@ -1,7 +1,7 @@
 [plugin]
 name = "setup-go"
 description = "Install and configure Go"
-version = "1.1.0"
+version = "1.2.0"
 type = "composite"
 author = "dagryn"
 license = "MIT"
@@ -29,6 +29,17 @@ fi
 GO_OS="${os}"
 GO_ARCH="${arch}"
 INSTALL_DIR="$HOME/.dagryn/tools/go-$GO_VERSION"
+
+if ! command -v tar >/dev/null 2>&1; then
+  echo "Error: tar is required to extract Go archive [missing_dependency]" >&2
+  exit 1
+fi
+
+if [ -e "$INSTALL_DIR" ] && [ ! -w "$INSTALL_DIR" ]; then
+  echo "Error: install directory is not writable: $INSTALL_DIR [permission_denied]" >&2
+  exit 1
+fi
+
 if [ -d "$INSTALL_DIR/go" ]; then
   if "$INSTALL_DIR/go/bin/go" version >/dev/null 2>&1; then
     echo "Go $GO_VERSION already installed"
@@ -54,12 +65,21 @@ if [ ! -s "$TMPFILE" ]; then
   echo "Error: failed to download $URL" >&2; rm -f "$TMPFILE"; exit 1
 fi
 tar xzf "$TMPFILE" -C "$INSTALL_DIR"
+if [ $? -ne 0 ]; then
+  echo "Error: failed to extract Go archive to $INSTALL_DIR" >&2
+  rm -f "$TMPFILE"
+  exit 1
+fi
 rm -f "$TMPFILE"
 if [ ! -f "$INSTALL_DIR/go/bin/go" ]; then
   echo "Error: go binary not found after extraction" >&2; exit 1
 fi
 if ! "$INSTALL_DIR/go/bin/go" version >/dev/null 2>&1; then
+  GO_ERR=$("$INSTALL_DIR/go/bin/go" version 2>&1 || true)
   echo "Error: go binary exists but cannot execute" >&2
+  if [ -n "$GO_ERR" ]; then
+    echo "$GO_ERR" >&2
+  fi
   rm -rf "$INSTALL_DIR"
   exit 1
 fi

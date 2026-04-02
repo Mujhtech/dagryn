@@ -6,12 +6,16 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
 )
 
 const compositeCleanupTimeout = 30 * time.Second
+
+var unresolvedInputVarPattern = regexp.MustCompile(`\$\{inputs\.[^}]+\}`)
 
 // CompositeExecutor executes composite plugin steps.
 type CompositeExecutor struct {
@@ -90,6 +94,9 @@ func (e *CompositeExecutor) ExecuteSetup(ctx context.Context, manifest *Manifest
 	}
 	if !manifest.IsComposite() {
 		return nil, fmt.Errorf("manifest is not a composite plugin")
+	}
+	if err := ensureCompositeHostPrereqs(); err != nil {
+		return nil, err
 	}
 
 	// Validate required inputs
@@ -185,6 +192,38 @@ func (e *CompositeExecutor) ExecuteSetup(ctx context.Context, manifest *Manifest
 		Inputs: mergedInputs,
 		Env:    cleanupEnv,
 	}, nil
+}
+
+func ensureCompositeHostPrereqs() error {
+	if _, err := exec.LookPath("sh"); err != nil {
+		return fmt.Errorf("plugin setup prerequisite failed [missing_dependency]: POSIX shell 'sh' not found in PATH")
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return fmt.Errorf("plugin setup prerequisite failed [permission_denied]: HOME directory is not available")
+	}
+
+	dagrynDir := filepath.Join(home, ".dagryn")
+	if err := os.MkdirAll(dagrynDir, 0755); err != nil {
+		if os.IsPermission(err) {
+			return fmt.Errorf("plugin setup prerequisite failed [permission_denied]: cannot write %s", dagrynDir)
+		}
+		return fmt.Errorf("plugin setup prerequisite failed: prepare %s: %w", dagrynDir, err)
+	}
+
+	checkFile, err := os.CreateTemp(dagrynDir, "preflight-*.tmp")
+	if err != nil {
+		if os.IsPermission(err) {
+			return fmt.Errorf("plugin setup prerequisite failed [permission_denied]: cannot create files in %s", dagrynDir)
+		}
+		return fmt.Errorf("plugin setup prerequisite failed: create temp file in %s: %w", dagrynDir, err)
+	}
+	path := checkFile.Name()
+	_ = checkFile.Close()
+	_ = os.Remove(path)
+
+	return nil
 }
 
 // RunCleanup executes cleanup steps for a previously completed setup.
@@ -417,6 +456,10 @@ func substituteVarsForPlatform(s string, inputs map[string]string, targetOS, tar
 	for k, v := range inputs {
 		s = strings.ReplaceAll(s, fmt.Sprintf("${inputs.%s}", k), v)
 	}
+
+	// Prevent shell "bad substitution" errors when optional inputs are unset.
+	// Any remaining ${inputs.*} placeholders are treated as empty values.
+	s = unresolvedInputVarPattern.ReplaceAllString(s, "")
 
 	// Replace built-in variables
 	s = strings.ReplaceAll(s, "${os}", targetOS)
