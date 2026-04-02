@@ -144,9 +144,13 @@ if [ -n "$IS_MUSL" ]; then
   URL="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}-musl.tar.gz"
   echo "Downloading Node.js $NODE_VERSION (musl) from $URL"
   STAGE_DIR=$(try_node_tarball "$URL")
-  if [ -n "$STAGE_DIR" ]; then
+  if [ -n "$STAGE_DIR" ] && [ -d "$STAGE_DIR" ]; then
     rm -rf "$INSTALL_DIR"
-    mv "$STAGE_DIR" "$INSTALL_DIR"
+    if ! mv "$STAGE_DIR" "$INSTALL_DIR"; then
+      echo "Error: failed to finalize Node.js install to $INSTALL_DIR" >&2
+      [ -d "$STAGE_DIR" ] && rm -rf "$STAGE_DIR"
+      exit 1
+    fi
     echo "Node.js $NODE_VERSION (musl) installed successfully"
     exit 0
   fi
@@ -174,14 +178,18 @@ fi
 URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-${NODE_OS}-${NODE_ARCH}.tar.gz"
 echo "Downloading Node.js $NODE_VERSION from $URL"
 STAGE_DIR=$(try_node_tarball "$URL")
-if [ -z "$STAGE_DIR" ]; then
+if [ -z "$STAGE_DIR" ] || [ ! -d "$STAGE_DIR" ]; then
   echo "Error: failed to download or verify Node.js $NODE_VERSION" >&2
   exit 1
 fi
 
 # Atomically move staged install to final location
 rm -rf "$INSTALL_DIR"
-mv "$STAGE_DIR" "$INSTALL_DIR"
+if ! mv "$STAGE_DIR" "$INSTALL_DIR"; then
+  echo "Error: failed to finalize Node.js install to $INSTALL_DIR" >&2
+  [ -d "$STAGE_DIR" ] && rm -rf "$STAGE_DIR"
+  exit 1
+fi
 echo "Node.js $NODE_VERSION installed successfully"
 """
 
@@ -192,11 +200,27 @@ NODE_VERSION="${inputs.node-version}"
 INSTALL_DIR="$HOME/.dagryn/tools/node-$NODE_VERSION"
 if [ -d "$INSTALL_DIR/bin" ]; then
   export PATH="$INSTALL_DIR/bin:$PATH"
-  echo "Node.js $(node --version 2>/dev/null || echo 'unknown') ready (dagryn-managed)"
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "Error: node is not available after setup [missing_dependency]" >&2
+  exit 1
+fi
+
+NODE_VER=$(node --version 2>/dev/null || true)
+if [ -z "$NODE_VER" ]; then
+  echo "Error: node is present but failed to run [binary_not_executable]" >&2
+  exit 1
+fi
+
+if [ -d "$INSTALL_DIR/bin" ]; then
+  echo "Node.js $NODE_VER ready (dagryn-managed)"
 else
-  echo "Node.js $(node --version 2>/dev/null || echo 'unknown') ready (system)"
+  echo "Node.js $NODE_VER ready (system)"
 fi
 """
+[step.env]
+PATH = "$HOME/.dagryn/tools/node-${inputs.node-version}/bin:$PATH"
 
 [[step]]
 name = "cache-node-modules"
