@@ -1,0 +1,168 @@
+---
+title: Caching
+description: Speed up builds with Dagryn's local and remote caching system.
+---
+
+Dagryn's caching system skips tasks when their inputs haven't changed. This can dramatically reduce build times, especially for large projects.
+
+## How It Works
+
+1. Before running a task, Dagryn computes a **cache key** from the task's `inputs` globs — a hash of the matched file contents.
+2. If a cache entry exists for that key, the task is **skipped** and cached `outputs` are restored.
+3. If no cache hit, the task runs normally and the result is stored for next time.
+
+## Local Cache
+
+Local caching is enabled by default. Cache data lives in `.dagryn/cache/` inside your project.
+
+```toml
+[cache]
+local = true           # Enable/disable (default: true)
+dir = ""               # Override cache directory
+```
+
+### Managing Local Cache
+
+```bash
+# Check cache status
+dagryn cache status
+
+# Clear all cached data
+dagryn cache clear
+
+# Clear cache for a specific task
+dagryn cache clear --task build
+```
+
+## Remote Cache
+
+Remote caching lets your team share build artifacts. When one developer builds a task, the cache is uploaded so others (and CI) can reuse it.
+
+### Dagryn Cloud (Easiest)
+
+```toml
+[cache.remote]
+enabled = true
+cloud = true
+```
+
+Requires authentication:
+
+```bash
+dagryn auth login
+```
+
+### Self-Hosted S3 / R2 / MinIO
+
+```toml
+[cache.remote]
+enabled = true
+cloud = false
+provider = "s3"
+bucket = "my-cache-bucket"
+region = "us-east-1"
+access_key_id = "AKIA..."
+secret_access_key = "..."
+```
+
+For S3-compatible services (Cloudflare R2, MinIO), set a custom endpoint:
+
+```toml
+[cache.remote]
+enabled = true
+cloud = false
+provider = "s3"
+bucket = "cache"
+endpoint = "https://your-r2-account.r2.cloudflarestorage.com"
+access_key_id = "..."
+secret_access_key = "..."
+```
+
+### gRPC Remote Cache (REAPI v2)
+
+For Bazel-compatible remote execution API caches:
+
+```toml
+[cache.remote]
+enabled = true
+cloud = false
+provider = "grpc"
+grpc_target = "cache.example.com:9092"
+instance_name = "default"
+tls = true
+tls_ca_cert = "/path/to/ca.crt"
+auth_token = "bearer-token"
+```
+
+## Cache Strategy
+
+The `strategy` field controls how local and remote caches interact:
+
+| Strategy | Behavior |
+|----------|----------|
+| `local-first` | Check local first, fall back to remote. Write to both. **(default)** |
+| `remote-first` | Check remote first, fall back to local. Write to both. |
+| `write-through` | Always write to both. Read from local, pull from remote on miss. |
+
+```toml
+[cache.remote]
+enabled = true
+cloud = true
+strategy = "local-first"
+fallback_on_error = true    # Fall back to local if remote is unreachable
+```
+
+## Syncing Cache Manually
+
+Push and pull cache entries between local and remote:
+
+```bash
+# Push all local cache to remote
+dagryn cache push
+
+# Push specific task cache
+dagryn cache push --task build
+
+# Pull remote cache to local
+dagryn cache pull
+
+# Pull specific task cache
+dagryn cache pull --task build
+```
+
+## Writing Effective Cache Keys
+
+Good `inputs` globs are key to cache effectiveness:
+
+```toml
+[tasks.build]
+command = "go build -v ./..."
+inputs = ["**/*.go", "go.mod", "go.sum"]    # Source files + dependency lock
+outputs = ["bin/**"]                         # Build artifacts
+```
+
+Tips:
+- Include **source files** and **lock files** (go.sum, pnpm-lock.yaml, etc.)
+- Include **config files** that affect output (tsconfig.json, .golangci.yml)
+- Use specific globs rather than `**/*` to avoid unnecessary cache invalidation
+- Always declare `outputs` so Dagryn knows what to cache and restore
+
+## Disabling Cache
+
+```bash
+# Disable for a single run
+dagryn run --no-cache
+
+# Disable remote cache only
+dagryn run --no-remote-cache
+```
+
+Or in config:
+
+```toml
+[cache]
+local = false
+
+[cache.remote]
+enabled = false
+```

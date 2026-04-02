@@ -1,0 +1,15 @@
+{
+  "pages": [
+    "index",
+    "getting-started",
+    "configuration",
+    "cli",
+    "caching",
+    "plugins",
+    "containers",
+    "self-hosting",
+    "multi-cluster",
+    "---API Reference---",
+    "...openapi"
+  ]
+}

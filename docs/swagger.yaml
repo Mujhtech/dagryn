@@ -16,6 +16,8 @@ definitions:
         example: GitHub
         type: string
     type: object
+  github_com_mujhtech_dagryn_pkg_http_response.Response:
+    type: object
   github_com_mujhtech_dagryn_pkg_http_response.ServerResponse:
     description: Standard API response wrapper
     properties:
@@ -84,6 +86,11 @@ definitions:
         type: string
       scope:
         example: user
+        type: string
+    type: object
+  pkg_api_handlers.ActivateLicenseRequest:
+    properties:
+      license_key:
         type: string
     type: object
   pkg_api_handlers.AddProjectMemberRequest:
@@ -170,6 +177,159 @@ definitions:
         example: build
         type: string
     type: object
+  pkg_api_handlers.AuditChainVerifyResponse:
+    description: Audit chain verification result
+    properties:
+      broken_entries:
+        items:
+          type: string
+        type: array
+      total_entries:
+        example: 1234
+        type: integer
+      valid:
+        example: true
+        type: boolean
+    type: object
+  pkg_api_handlers.AuditLogListResponse:
+    description: Cursor-paginated audit log list
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/pkg_api_handlers.AuditLogResponse'
+        type: array
+      has_next:
+        type: boolean
+      next_cursor:
+        type: string
+    type: object
+  pkg_api_handlers.AuditLogResponse:
+    description: Audit log entry
+    properties:
+      action:
+        example: project.created
+        type: string
+      actor_email:
+        example: user@example.com
+        type: string
+      actor_id:
+        type: string
+      actor_type:
+        example: user
+        type: string
+      category:
+        example: project
+        type: string
+      created_at:
+        example: "2024-01-15T10:30:00Z"
+        type: string
+      description:
+        example: Created project my-app
+        type: string
+      entry_hash:
+        type: string
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      ip_address:
+        type: string
+      metadata:
+        additionalProperties: true
+        type: object
+      prev_hash:
+        type: string
+      project_id:
+        type: string
+      resource_id:
+        type: string
+      resource_type:
+        example: project
+        type: string
+      sequence_num:
+        type: integer
+      team_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      user_agent:
+        type: string
+    type: object
+  pkg_api_handlers.AuditRetentionPolicyResponse:
+    description: Audit log retention policy
+    properties:
+      retention_days:
+        example: 90
+        type: integer
+      team_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      updated_at:
+        type: string
+    type: object
+  pkg_api_handlers.AuditWebhookCreatedResponse:
+    description: Audit webhook creation response (secret shown only once)
+    properties:
+      created_at:
+        example: "2024-01-15T10:30:00Z"
+        type: string
+      description:
+        example: Forward to Splunk
+        type: string
+      event_filter:
+        example:
+        - '[]'
+        items:
+          type: string
+        type: array
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      is_active:
+        example: true
+        type: boolean
+      secret:
+        example: base64-encoded-hmac-secret
+        type: string
+      team_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      updated_at:
+        example: "2024-01-15T10:30:00Z"
+        type: string
+      url:
+        example: https://siem.example.com/audit
+        type: string
+    type: object
+  pkg_api_handlers.AuditWebhookResponse:
+    description: Audit webhook configuration
+    properties:
+      created_at:
+        example: "2024-01-15T10:30:00Z"
+        type: string
+      description:
+        example: Forward to Splunk
+        type: string
+      event_filter:
+        example:
+        - '[]'
+        items:
+          type: string
+        type: array
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      is_active:
+        example: true
+        type: boolean
+      team_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      updated_at:
+        example: "2024-01-15T10:30:00Z"
+        type: string
+      url:
+        example: https://siem.example.com/audit
+        type: string
+    type: object
   pkg_api_handlers.BatchLogRequest:
     description: Batch log request
     properties:
@@ -199,9 +359,9 @@ definitions:
       edition:
         type: string
       features:
-        additionalProperties:
-          type: boolean
-        type: object
+        items:
+          $ref: '#/definitions/pkg_api_handlers.FeatureEntry'
+        type: array
       mode:
         type: string
       nav:
@@ -209,9 +369,50 @@ definitions:
           $ref: '#/definitions/pkg_api_handlers.NavItem'
         type: array
     type: object
+  pkg_api_handlers.ClusterResponse:
+    description: Cluster resource
+    properties:
+      created_at:
+        example: "2025-01-01T00:00:00Z"
+        type: string
+      description:
+        example: Production cluster
+        type: string
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      name:
+        example: production
+        type: string
+      owner_user_id:
+        example: 550e8400-e29b-41d4-a716-446655440002
+        type: string
+      scope_type:
+        example: team
+        type: string
+      slug:
+        example: production
+        type: string
+      system_default:
+        example: false
+        type: boolean
+      team_id:
+        example: 550e8400-e29b-41d4-a716-446655440001
+        type: string
+      updated_at:
+        example: "2025-01-01T00:00:00Z"
+        type: string
+    type: object
   pkg_api_handlers.ConnectGitHubRequest:
     description: Connect project to GitHub request
     properties:
+      default_branch:
+        example: main
+        type: string
       github_installation_id:
         example: 550e8400-e29b-41d4-a716-446655440000
         type: string
@@ -238,6 +439,39 @@ definitions:
     required:
     - name
     type: object
+  pkg_api_handlers.CreateAuditWebhookRequest:
+    description: Create audit webhook request
+    properties:
+      description:
+        example: Forward to Splunk
+        type: string
+      event_filter:
+        items:
+          type: string
+        type: array
+      url:
+        example: https://siem.example.com/audit
+        type: string
+    required:
+    - url
+    type: object
+  pkg_api_handlers.CreateClusterRequest:
+    description: Create cluster request
+    properties:
+      description:
+        example: Staging cluster for pre-production testing
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      name:
+        example: staging
+        type: string
+      team_id:
+        example: 550e8400-e29b-41d4-a716-446655440001
+        type: string
+    type: object
   pkg_api_handlers.CreateInvitationRequest:
     description: Create invitation request
     properties:
@@ -254,6 +488,11 @@ definitions:
   pkg_api_handlers.CreateProjectRequest:
     description: Create project request
     properties:
+      dagryn_config:
+        type: string
+      default_branch:
+        example: main
+        type: string
       description:
         example: Main API service
         type: string
@@ -432,6 +671,15 @@ definitions:
         example: Invalid request body
         type: string
     type: object
+  pkg_api_handlers.FeatureEntry:
+    properties:
+      enabled:
+        type: boolean
+      feature:
+        type: string
+      label:
+        type: string
+    type: object
   pkg_api_handlers.GitHubAppInstallation:
     properties:
       account_login:
@@ -453,6 +701,8 @@ definitions:
         type: string
       id:
         type: integer
+      language:
+        type: string
       private:
         type: boolean
     type: object
@@ -475,6 +725,9 @@ definitions:
       github_installation_id:
         example: 550e8400-e29b-41d4-a716-446655440000
         type: string
+      ref:
+        example: main
+        type: string
       repo_full_name:
         example: owner/repo
         type: string
@@ -484,8 +737,13 @@ definitions:
   pkg_api_handlers.GitHubWorkflowTranslateResponse:
     description: Translation result for GitHub Actions workflows
     properties:
+      dagryn_toml:
+        type: string
       detected:
         example: true
+        type: boolean
+      has_dagryn_toml:
+        example: false
         type: boolean
       plugins:
         additionalProperties:
@@ -621,9 +879,9 @@ definitions:
       expiring:
         type: boolean
       features:
-        additionalProperties:
-          type: boolean
-        type: object
+        items:
+          $ref: '#/definitions/pkg_api_handlers.FeatureEntry'
+        type: array
       grace_period:
         type: boolean
       licensed:
@@ -799,9 +1057,18 @@ definitions:
       created_at:
         example: "2024-01-15T10:30:00Z"
         type: string
+      default_branch:
+        example: main
+        type: string
       description:
         example: Main API service
         type: string
+      github_installation_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      github_repo_id:
+        example: 123456789
+        type: integer
       id:
         example: 550e8400-e29b-41d4-a716-446655440000
         type: string
@@ -930,6 +1197,9 @@ definitions:
       cache_hits:
         example: 2
         type: integer
+      commit_author_avatar_url:
+        example: https://avatars.githubusercontent.com/u/1234567
+        type: string
       commit_author_email:
         example: john@example.com
         type: string
@@ -947,6 +1217,9 @@ definitions:
         type: integer
       created_at:
         example: "2024-01-15T10:30:00Z"
+        type: string
+      description:
+        example: Build and test the application
         type: string
       duration_ms:
         example: 300000
@@ -1011,6 +1284,9 @@ definitions:
   pkg_api_handlers.RunResponse:
     description: Workflow run information
     properties:
+      commit_author_avatar_url:
+        example: https://avatars.githubusercontent.com/u/1234567
+        type: string
       commit_author_email:
         example: john@example.com
         type: string
@@ -1025,6 +1301,9 @@ definitions:
         type: string
       created_at:
         example: "2024-01-15T10:30:00Z"
+        type: string
+      description:
+        example: Build and test the application
         type: string
       duration_ms:
         example: 300000
@@ -1074,6 +1353,17 @@ definitions:
         description: User who triggered (for local/API runs)
       workflow_name:
         example: build
+        type: string
+    type: object
+  pkg_api_handlers.SampleTemplateResponse:
+    properties:
+      language:
+        example: Go
+        type: string
+      project_type:
+        example: go
+        type: string
+      template:
         type: string
     type: object
   pkg_api_handlers.StepInfo:
@@ -1194,6 +1484,46 @@ definitions:
     - command
     - name
     type: object
+  pkg_api_handlers.TaskAssignmentResponse:
+    description: Task assignment resource
+    properties:
+      assigned_at:
+        example: "2025-01-01T00:00:00Z"
+        type: string
+      cluster_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      completed_at:
+        example: "2025-01-01T00:00:30Z"
+        type: string
+      created_at:
+        example: "2025-01-01T00:00:00Z"
+        type: string
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440004
+        type: string
+      max_retries:
+        example: 3
+        type: integer
+      retry_count:
+        example: 0
+        type: integer
+      run_id:
+        example: 550e8400-e29b-41d4-a716-446655440005
+        type: string
+      started_at:
+        example: "2025-01-01T00:00:01Z"
+        type: string
+      status:
+        example: completed
+        type: string
+      task_name:
+        example: build
+        type: string
+      worker_id:
+        example: 550e8400-e29b-41d4-a716-446655440003
+        type: string
+    type: object
   pkg_api_handlers.TaskResultResponse:
     description: Task execution result
     properties:
@@ -1292,6 +1622,9 @@ definitions:
   pkg_api_handlers.TriggerRunRequest:
     description: Trigger run request
     properties:
+      description:
+        example: Retrying after infra fix
+        type: string
       force:
         example: false
         type: boolean
@@ -1343,6 +1676,37 @@ definitions:
         example: /api/v1/projects/{projectId}/runs/{runID}/events
         type: string
     type: object
+  pkg_api_handlers.UpdateAuditWebhookRequest:
+    description: Update audit webhook request
+    properties:
+      description:
+        example: Forward to Splunk
+        type: string
+      event_filter:
+        items:
+          type: string
+        type: array
+      is_active:
+        example: true
+        type: boolean
+      url:
+        example: https://siem.example.com/audit
+        type: string
+    type: object
+  pkg_api_handlers.UpdateClusterRequest:
+    description: Update cluster request
+    properties:
+      description:
+        example: Updated staging cluster
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      name:
+        example: staging-v2
+        type: string
+    type: object
   pkg_api_handlers.UpdateMemberRoleRequest:
     description: Update member role request
     properties:
@@ -1367,6 +1731,15 @@ definitions:
       visibility:
         example: private
         type: string
+    type: object
+  pkg_api_handlers.UpdateRetentionPolicyRequest:
+    description: Update retention policy request
+    properties:
+      retention_days:
+        example: 90
+        maximum: 3650
+        minimum: 1
+        type: integer
     type: object
   pkg_api_handlers.UpdateRunStatusRequest:
     description: Update run status request
@@ -1464,6 +1837,69 @@ definitions:
         type: string
       updated_at:
         example: "2024-01-15T10:30:00Z"
+        type: string
+    type: object
+  pkg_api_handlers.WebhookTestResponse:
+    description: Webhook test delivery result
+    properties:
+      duration_ms:
+        example: 142
+        type: integer
+      error:
+        type: string
+      status_code:
+        example: 200
+        type: integer
+      success:
+        example: true
+        type: boolean
+    type: object
+  pkg_api_handlers.WorkerResponse:
+    description: Worker resource
+    properties:
+      active_tasks:
+        example: 2
+        type: integer
+      arch:
+        example: amd64
+        type: string
+      capabilities:
+        example:
+        - docker
+        - gpu
+        items:
+          type: string
+        type: array
+      cluster_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      environment:
+        example: docker
+        type: string
+      hostname:
+        example: worker-01.example.com
+        type: string
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440003
+        type: string
+      labels: {}
+      last_heartbeat_at:
+        example: "2025-01-01T00:00:00Z"
+        type: string
+      max_concurrent_tasks:
+        example: 4
+        type: integer
+      os:
+        example: linux
+        type: string
+      registered_at:
+        example: "2025-01-01T00:00:00Z"
+        type: string
+      status:
+        example: online
+        type: string
+      version:
+        example: 0.1.0
         type: string
     type: object
   pkg_api_handlers.WorkflowAIConfig:
@@ -1675,6 +2111,47 @@ paths:
       summary: Revoke user API key
       tags:
       - api-keys
+  /api/v1/audit-logs/{auditLogId}:
+    get:
+      description: Returns a single audit log entry by ID
+      parameters:
+      - description: Audit Log ID
+        in: path
+        name: auditLogId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.AuditLogResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get audit log entry
+      tags:
+      - audit-logs
   /api/v1/auth/{provider}:
     get:
       description: Initiates OAuth authentication with the specified provider
@@ -1930,6 +2407,218 @@ paths:
       summary: Get server capabilities
       tags:
       - capabilities
+  /api/v1/clusters:
+    get:
+      description: Returns all clusters the current user has access to, optionally
+        filtered by team
+      parameters:
+      - description: Filter by team ID
+        format: uuid
+        in: query
+        name: team_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/pkg_api_handlers.ClusterResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - APIKeyAuth: []
+      summary: List clusters
+      tags:
+      - clusters
+    post:
+      consumes:
+      - application/json
+      description: Creates a new cluster for the current user or team
+      parameters:
+      - description: Create cluster request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/pkg_api_handlers.CreateClusterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ClusterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - APIKeyAuth: []
+      summary: Create a cluster
+      tags:
+      - clusters
+  /api/v1/clusters/{clusterId}:
+    delete:
+      description: Deletes a cluster by its ID
+      parameters:
+      - description: Cluster ID
+        format: uuid
+        in: path
+        name: clusterId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - APIKeyAuth: []
+      summary: Delete a cluster
+      tags:
+      - clusters
+    get:
+      description: Returns a cluster by its ID
+      parameters:
+      - description: Cluster ID
+        format: uuid
+        in: path
+        name: clusterId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ClusterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - APIKeyAuth: []
+      summary: Get a cluster
+      tags:
+      - clusters
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing cluster's name, description, or labels
+      parameters:
+      - description: Cluster ID
+        format: uuid
+        in: path
+        name: clusterId
+        required: true
+        type: string
+      - description: Update cluster request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/pkg_api_handlers.UpdateClusterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ClusterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - APIKeyAuth: []
+      summary: Update a cluster
+      tags:
+      - clusters
   /api/v1/dashboard/overview:
     get:
       description: Returns projects with inline stats and recent runs across all user
@@ -2055,6 +2744,36 @@ paths:
       - BearerAuth: []
       - APIKeyAuth: []
       summary: Get license status
+      tags:
+      - license
+  /api/v1/license/activate:
+    post:
+      consumes:
+      - application/json
+      description: Validates and activates a license key on this instance (self-hosted
+        only)
+      parameters:
+      - description: License key
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/pkg_api_handlers.ActivateLicenseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.LicenseStatusResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - APIKeyAuth: []
+      summary: Activate a license key
       tags:
       - license
   /api/v1/plugins:
@@ -2532,6 +3251,76 @@ paths:
       tags:
       - projects
       - api-keys
+  /api/v1/projects/{projectId}/audit-logs:
+    get:
+      description: Returns audit logs scoped to a specific project
+      parameters:
+      - description: Project ID
+        in: path
+        name: projectId
+        required: true
+        type: string
+      - description: Filter by actor ID
+        in: query
+        name: actor_id
+        type: string
+      - description: Filter by actor email
+        in: query
+        name: actor_email
+        type: string
+      - description: Filter by action
+        in: query
+        name: action
+        type: string
+      - description: Filter by category
+        in: query
+        name: category
+        type: string
+      - description: Filter entries after this time (RFC3339)
+        in: query
+        name: since
+        type: string
+      - description: Filter entries before this time (RFC3339)
+        in: query
+        name: until
+        type: string
+      - description: Cursor for pagination
+        in: query
+        name: cursor
+        type: string
+      - default: 50
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.AuditLogListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List project audit logs
+      tags:
+      - audit-logs
   /api/v1/projects/{projectId}/cache/{taskName}/{cacheKey}:
     delete:
       description: Removes a cache entry for the given task and key
@@ -3568,170 +4357,6 @@ paths:
       summary: Upload an artifact
       tags:
       - artifacts
-  /api/v1/projects/{projectId}/runs/{runID}/artifacts/{artifactID}:
-    delete:
-      description: Deletes an artifact and its stored content
-      parameters:
-      - description: Project ID
-        format: uuid
-        in: path
-        name: projectId
-        required: true
-        type: string
-      - description: Run ID
-        format: uuid
-        in: path
-        name: runID
-        required: true
-        type: string
-      - description: Artifact ID
-        format: uuid
-        in: path
-        name: artifactID
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-          schema:
-            $ref: '#/definitions/pkg_api_handlers.SuccessResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
-        "503":
-          description: Service Unavailable
-          schema:
-            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
-      security:
-      - BearerAuth: []
-      - APIKeyAuth: []
-      summary: Delete an artifact
-      tags:
-      - artifacts
-    get:
-      description: Returns artifact metadata for a run
-      parameters:
-      - description: Project ID
-        format: uuid
-        in: path
-        name: projectId
-        required: true
-        type: string
-      - description: Run ID
-        format: uuid
-        in: path
-        name: runID
-        required: true
-        type: string
-      - description: Artifact ID
-        format: uuid
-        in: path
-        name: artifactID
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/pkg_api_handlers.ArtifactResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
-        "503":
-          description: Service Unavailable
-          schema:
-            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
-      security:
-      - BearerAuth: []
-      - APIKeyAuth: []
-      summary: Get artifact metadata
-      tags:
-      - artifacts
-  /api/v1/projects/{projectId}/runs/{runID}/artifacts/{artifactID}/download:
-    get:
-      description: Downloads the artifact file content
-      parameters:
-      - description: Project ID
-        format: uuid
-        in: path
-        name: projectId
-        required: true
-        type: string
-      - description: Run ID
-        format: uuid
-        in: path
-        name: runID
-        required: true
-        type: string
-      - description: Artifact ID
-        format: uuid
-        in: path
-        name: artifactID
-        required: true
-        type: string
-      produces:
-      - application/octet-stream
-      responses:
-        "200":
-          description: Artifact content
-          schema:
-            type: string
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
-        "503":
-          description: Service Unavailable
-          schema:
-            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
-      security:
-      - BearerAuth: []
-      - APIKeyAuth: []
-      summary: Download artifact content
-      tags:
-      - artifacts
   /api/v1/projects/{projectId}/runs/{runID}/cancel:
     post:
       description: Cancels a running or pending workflow run
@@ -4410,6 +5035,170 @@ paths:
       summary: Publish AI suggestions
       tags:
       - ai
+  /api/v1/projects/{projectId}/runs/{runId}/artifacts/{artifactId}:
+    delete:
+      description: Deletes an artifact and its stored content
+      parameters:
+      - description: Project ID
+        format: uuid
+        in: path
+        name: projectId
+        required: true
+        type: string
+      - description: Run ID
+        format: uuid
+        in: path
+        name: runId
+        required: true
+        type: string
+      - description: Artifact ID
+        format: uuid
+        in: path
+        name: artifactId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - APIKeyAuth: []
+      summary: Delete an artifact
+      tags:
+      - artifacts
+    get:
+      description: Returns artifact metadata for a run
+      parameters:
+      - description: Project ID
+        format: uuid
+        in: path
+        name: projectId
+        required: true
+        type: string
+      - description: Run ID
+        format: uuid
+        in: path
+        name: runId
+        required: true
+        type: string
+      - description: Artifact ID
+        format: uuid
+        in: path
+        name: artifactId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ArtifactResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - APIKeyAuth: []
+      summary: Get artifact metadata
+      tags:
+      - artifacts
+  /api/v1/projects/{projectId}/runs/{runId}/artifacts/{artifactId}/download:
+    get:
+      description: Downloads the artifact file content
+      parameters:
+      - description: Project ID
+        format: uuid
+        in: path
+        name: projectId
+        required: true
+        type: string
+      - description: Run ID
+        format: uuid
+        in: path
+        name: runId
+        required: true
+        type: string
+      - description: Artifact ID
+        format: uuid
+        in: path
+        name: artifactId
+        required: true
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: Artifact content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - APIKeyAuth: []
+      summary: Download artifact content
+      tags:
+      - artifacts
   /api/v1/projects/{projectId}/runs/{runId}/tasks/{taskName}:
     patch:
       consumes:
@@ -4981,6 +5770,52 @@ paths:
       summary: List trending plugins
       tags:
       - registry
+  /api/v1/runs/{runId}/assignments:
+    get:
+      description: Returns all task assignments for a specific run, showing which
+        workers executed which tasks
+      parameters:
+      - description: Run ID
+        format: uuid
+        in: path
+        name: runId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/pkg_api_handlers.TaskAssignmentResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - APIKeyAuth: []
+      summary: List run task assignments
+      tags:
+      - task-assignments
   /api/v1/teams:
     get:
       description: Returns all teams the current user is a member of
@@ -5052,14 +5887,85 @@ paths:
       summary: Create a team
       tags:
       - teams
-  /api/v1/teams/{teamID}:
+  /api/v1/teams/{teamID}/audit-logs:
+    get:
+      description: Returns audit logs for a team with cursor-based pagination and
+        optional filters
+      parameters:
+      - description: Team ID
+        in: path
+        name: teamID
+        required: true
+        type: string
+      - description: Filter by actor ID
+        in: query
+        name: actor_id
+        type: string
+      - description: Filter by actor email
+        in: query
+        name: actor_email
+        type: string
+      - description: Filter by action
+        in: query
+        name: action
+        type: string
+      - description: Filter by category
+        in: query
+        name: category
+        type: string
+      - description: Filter entries after this time (RFC3339)
+        in: query
+        name: since
+        type: string
+      - description: Filter entries before this time (RFC3339)
+        in: query
+        name: until
+        type: string
+      - description: Cursor for pagination
+        in: query
+        name: cursor
+        type: string
+      - default: 50
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.AuditLogListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List team audit logs
+      tags:
+      - audit-logs
+  /api/v1/teams/{teamId}:
     delete:
       description: Deletes a team (requires owner role)
       parameters:
       - description: Team ID
         format: uuid
         in: path
-        name: teamID
+        name: teamId
         required: true
         type: string
       responses:
@@ -5089,7 +5995,7 @@ paths:
       - description: Team ID
         format: uuid
         in: path
-        name: teamID
+        name: teamId
         required: true
         type: string
       produces:
@@ -5125,7 +6031,7 @@ paths:
       - description: Team ID
         format: uuid
         in: path
-        name: teamID
+        name: teamId
         required: true
         type: string
       - description: Update team request
@@ -5163,14 +6069,440 @@ paths:
       summary: Update a team
       tags:
       - teams
-  /api/v1/teams/{teamID}/invitations:
+  /api/v1/teams/{teamId}/audit-logs/export:
+    get:
+      description: Exports audit logs as CSV or JSON file download
+      parameters:
+      - description: Team ID
+        in: path
+        name: teamId
+        required: true
+        type: string
+      - default: json
+        description: Export format (csv or json)
+        enum:
+        - csv
+        - json
+        in: query
+        name: format
+        type: string
+      - description: Filter by actor ID
+        in: query
+        name: actor_id
+        type: string
+      - description: Filter by actor email
+        in: query
+        name: actor_email
+        type: string
+      - description: Filter by action
+        in: query
+        name: action
+        type: string
+      - description: Filter by category
+        in: query
+        name: category
+        type: string
+      - description: Filter entries after this time (RFC3339)
+        in: query
+        name: since
+        type: string
+      - description: Filter entries before this time (RFC3339)
+        in: query
+        name: until
+        type: string
+      produces:
+      - application/json
+      - text/csv
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Export team audit logs
+      tags:
+      - audit-logs
+  /api/v1/teams/{teamId}/audit-logs/retention:
+    get:
+      description: Returns the audit log retention policy for a team
+      parameters:
+      - description: Team ID
+        in: path
+        name: teamId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.AuditRetentionPolicyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get retention policy
+      tags:
+      - audit-logs
+    put:
+      consumes:
+      - application/json
+      description: Updates the audit log retention policy for a team
+      parameters:
+      - description: Team ID
+        in: path
+        name: teamId
+        required: true
+        type: string
+      - description: Retention policy update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/pkg_api_handlers.UpdateRetentionPolicyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.AuditRetentionPolicyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update retention policy
+      tags:
+      - audit-logs
+  /api/v1/teams/{teamId}/audit-logs/verify:
+    get:
+      description: Verifies the hash chain integrity of audit log entries for a team
+      parameters:
+      - description: Team ID
+        in: path
+        name: teamId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.AuditChainVerifyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Verify audit chain integrity
+      tags:
+      - audit-logs
+  /api/v1/teams/{teamId}/audit-logs/webhooks:
+    get:
+      description: Returns all configured audit webhooks for a team
+      parameters:
+      - description: Team ID
+        in: path
+        name: teamId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/pkg_api_handlers.AuditWebhookResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List audit webhooks
+      tags:
+      - audit-webhooks
+    post:
+      consumes:
+      - application/json
+      description: Creates a new audit webhook with HMAC-SHA256 signing
+      parameters:
+      - description: Team ID
+        in: path
+        name: teamId
+        required: true
+        type: string
+      - description: Webhook configuration
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/pkg_api_handlers.CreateAuditWebhookRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.AuditWebhookCreatedResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create audit webhook
+      tags:
+      - audit-webhooks
+  /api/v1/teams/{teamId}/audit-logs/webhooks/{webhookId}:
+    delete:
+      description: Deletes an audit webhook
+      parameters:
+      - description: Team ID
+        in: path
+        name: teamId
+        required: true
+        type: string
+      - description: Webhook ID
+        in: path
+        name: webhookId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete audit webhook
+      tags:
+      - audit-webhooks
+    get:
+      description: Returns a single audit webhook by ID
+      parameters:
+      - description: Team ID
+        in: path
+        name: teamId
+        required: true
+        type: string
+      - description: Webhook ID
+        in: path
+        name: webhookId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.AuditWebhookResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get audit webhook
+      tags:
+      - audit-webhooks
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing audit webhook
+      parameters:
+      - description: Team ID
+        in: path
+        name: teamId
+        required: true
+        type: string
+      - description: Webhook ID
+        in: path
+        name: webhookId
+        required: true
+        type: string
+      - description: Webhook update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/pkg_api_handlers.UpdateAuditWebhookRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.AuditWebhookResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update audit webhook
+      tags:
+      - audit-webhooks
+  /api/v1/teams/{teamId}/audit-logs/webhooks/{webhookId}/test:
+    post:
+      description: Sends a test ping payload to the webhook and returns the delivery
+        result
+      parameters:
+      - description: Team ID
+        in: path
+        name: teamId
+        required: true
+        type: string
+      - description: Webhook ID
+        in: path
+        name: webhookId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.WebhookTestResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Test audit webhook
+      tags:
+      - audit-webhooks
+  /api/v1/teams/{teamId}/invitations:
     get:
       description: Returns all pending invitations for a team
       parameters:
       - description: Team ID
         format: uuid
         in: path
-        name: teamID
+        name: teamId
         required: true
         type: string
       produces:
@@ -5208,7 +6540,7 @@ paths:
       - description: Team ID
         format: uuid
         in: path
-        name: teamID
+        name: teamId
         required: true
         type: string
       - description: Create invitation request
@@ -5246,20 +6578,20 @@ paths:
       summary: Create team invitation
       tags:
       - teams
-  /api/v1/teams/{teamID}/invitations/{invitationID}:
+  /api/v1/teams/{teamId}/invitations/{invitationId}:
     delete:
       description: Revokes a pending team invitation
       parameters:
       - description: Team ID
         format: uuid
         in: path
-        name: teamID
+        name: teamId
         required: true
         type: string
       - description: Invitation ID
         format: uuid
         in: path
-        name: invitationID
+        name: invitationId
         required: true
         type: string
       responses:
@@ -5283,14 +6615,14 @@ paths:
       summary: Revoke team invitation
       tags:
       - teams
-  /api/v1/teams/{teamID}/members:
+  /api/v1/teams/{teamId}/members:
     get:
       description: Returns all members of a team
       parameters:
       - description: Team ID
         format: uuid
         in: path
-        name: teamID
+        name: teamId
         required: true
         type: string
       produces:
@@ -5328,7 +6660,7 @@ paths:
       - description: Team ID
         format: uuid
         in: path
-        name: teamID
+        name: teamId
         required: true
         type: string
       - description: Add member request
@@ -5366,14 +6698,14 @@ paths:
       summary: Add team member
       tags:
       - teams
-  /api/v1/teams/{teamID}/members/{userID}:
+  /api/v1/teams/{teamId}/members/{userID}:
     delete:
       description: Removes a user from a team
       parameters:
       - description: Team ID
         format: uuid
         in: path
-        name: teamID
+        name: teamId
         required: true
         type: string
       - description: User ID
@@ -5403,7 +6735,7 @@ paths:
       summary: Remove team member
       tags:
       - teams
-  /api/v1/teams/{teamID}/members/{userID}/role:
+  /api/v1/teams/{teamId}/members/{userID}/role:
     patch:
       consumes:
       - application/json
@@ -5412,7 +6744,7 @@ paths:
       - description: Team ID
         format: uuid
         in: path
-        name: teamID
+        name: teamId
         required: true
         type: string
       - description: User ID
@@ -5456,6 +6788,29 @@ paths:
       summary: Update team member role
       tags:
       - teams
+  /api/v1/templates/sample:
+    get:
+      description: Returns a sample dagryn.toml template based on the repository language
+      parameters:
+      - description: Repository language (e.g. Go, Python, JavaScript)
+        in: query
+        name: language
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.SampleTemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mujhtech_dagryn_pkg_http_response.Response'
+      summary: Get a sample dagryn.toml template
+      tags:
+      - templates
   /api/v1/users/me:
     get:
       description: Returns the currently authenticated user's profile
@@ -5538,6 +6893,185 @@ paths:
       summary: Handle GitHub webhook
       tags:
       - webhooks
+  /api/v1/workers:
+    get:
+      description: Returns all workers the current user has access to, optionally
+        filtered by cluster, team, and status
+      parameters:
+      - description: Filter by cluster ID
+        format: uuid
+        in: query
+        name: cluster_id
+        type: string
+      - description: Filter by team ID
+        format: uuid
+        in: query
+        name: team_id
+        type: string
+      - description: Filter by status
+        enum:
+        - online
+        - draining
+        - offline
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/pkg_api_handlers.WorkerResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - APIKeyAuth: []
+      summary: List workers
+      tags:
+      - workers
+  /api/v1/workers/{workerId}:
+    delete:
+      description: Deregisters a worker by its ID
+      parameters:
+      - description: Worker ID
+        format: uuid
+        in: path
+        name: workerId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - APIKeyAuth: []
+      summary: Delete a worker
+      tags:
+      - workers
+    get:
+      description: Returns a worker by its ID
+      parameters:
+      - description: Worker ID
+        format: uuid
+        in: path
+        name: workerId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.WorkerResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - APIKeyAuth: []
+      summary: Get a worker
+      tags:
+      - workers
+  /api/v1/workers/{workerId}/drain:
+    post:
+      description: Sets a worker to draining status, preventing new task assignments
+        while allowing in-progress tasks to complete
+      parameters:
+      - description: Worker ID
+        format: uuid
+        in: path
+        name: workerId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - APIKeyAuth: []
+      summary: Drain a worker
+      tags:
+      - workers
   /api/v1/workflows/translate:
     post:
       description: Converts a GitHub Actions workflow YAML string into a Dagryn TOML

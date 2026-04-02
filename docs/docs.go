@@ -148,6 +148,70 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/audit-logs/{auditLogId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a single audit log entry by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "audit-logs"
+                ],
+                "summary": "Get audit log entry",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Audit Log ID",
+                        "name": "auditLogId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.AuditLogResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/auth/device": {
             "post": {
                 "description": "Initiates device code flow for CLI authentication",
@@ -544,6 +608,340 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/clusters": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Returns all clusters the current user has access to, optionally filtered by team",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clusters"
+                ],
+                "summary": "List clusters",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter by team ID",
+                        "name": "team_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/pkg_api_handlers.ClusterResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Creates a new cluster for the current user or team",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clusters"
+                ],
+                "summary": "Create a cluster",
+                "parameters": [
+                    {
+                        "description": "Create cluster request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.CreateClusterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ClusterResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/clusters/{clusterId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Returns a cluster by its ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clusters"
+                ],
+                "summary": "Get a cluster",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Cluster ID",
+                        "name": "clusterId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ClusterResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Updates an existing cluster's name, description, or labels",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clusters"
+                ],
+                "summary": "Update a cluster",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Cluster ID",
+                        "name": "clusterId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update cluster request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.UpdateClusterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ClusterResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Deletes a cluster by its ID",
+                "tags": [
+                    "clusters"
+                ],
+                "summary": "Delete a cluster",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Cluster ID",
+                        "name": "clusterId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/dashboard/overview": {
             "get": {
                 "security": [
@@ -740,6 +1138,54 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/license/activate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Validates and activates a license key on this instance (self-hosted only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "license"
+                ],
+                "summary": "Activate a license key",
+                "parameters": [
+                    {
+                        "description": "License key",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ActivateLicenseRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.LicenseStatusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
                         }
@@ -1495,6 +1941,113 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/projects/{projectId}/audit-logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns audit logs scoped to a specific project",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "audit-logs"
+                ],
+                "summary": "List project audit logs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Project ID",
+                        "name": "projectId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by actor ID",
+                        "name": "actor_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by actor email",
+                        "name": "actor_email",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by action",
+                        "name": "action",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by category",
+                        "name": "category",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter entries after this time (RFC3339)",
+                        "name": "since",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter entries before this time (RFC3339)",
+                        "name": "until",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor for pagination",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.AuditLogListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
                         "schema": {
                             "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
                         }
@@ -3182,256 +3735,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/projects/{projectId}/runs/{runID}/artifacts/{artifactID}": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    },
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Returns artifact metadata for a run",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "artifacts"
-                ],
-                "summary": "Get artifact metadata",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Project ID",
-                        "name": "projectId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Run ID",
-                        "name": "runID",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Artifact ID",
-                        "name": "artifactID",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/pkg_api_handlers.ArtifactResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
-                        }
-                    },
-                    "503": {
-                        "description": "Service Unavailable",
-                        "schema": {
-                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    },
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Deletes an artifact and its stored content",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "artifacts"
-                ],
-                "summary": "Delete an artifact",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Project ID",
-                        "name": "projectId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Run ID",
-                        "name": "runID",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Artifact ID",
-                        "name": "artifactID",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content",
-                        "schema": {
-                            "$ref": "#/definitions/pkg_api_handlers.SuccessResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
-                        }
-                    },
-                    "503": {
-                        "description": "Service Unavailable",
-                        "schema": {
-                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/projects/{projectId}/runs/{runID}/artifacts/{artifactID}/download": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    },
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Downloads the artifact file content",
-                "produces": [
-                    "application/octet-stream"
-                ],
-                "tags": [
-                    "artifacts"
-                ],
-                "summary": "Download artifact content",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Project ID",
-                        "name": "projectId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Run ID",
-                        "name": "runID",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Artifact ID",
-                        "name": "artifactID",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Artifact content",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
-                        }
-                    },
-                    "503": {
-                        "description": "Service Unavailable",
-                        "schema": {
-                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/projects/{projectId}/runs/{runID}/cancel": {
             "post": {
                 "security": [
@@ -4483,6 +4786,256 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/projects/{projectId}/runs/{runId}/artifacts/{artifactId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Returns artifact metadata for a run",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "artifacts"
+                ],
+                "summary": "Get artifact metadata",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Project ID",
+                        "name": "projectId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Run ID",
+                        "name": "runId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Artifact ID",
+                        "name": "artifactId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ArtifactResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Deletes an artifact and its stored content",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "artifacts"
+                ],
+                "summary": "Delete an artifact",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Project ID",
+                        "name": "projectId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Run ID",
+                        "name": "runId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Artifact ID",
+                        "name": "artifactId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/projects/{projectId}/runs/{runId}/artifacts/{artifactId}/download": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Downloads the artifact file content",
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "artifacts"
+                ],
+                "summary": "Download artifact content",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Project ID",
+                        "name": "projectId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Run ID",
+                        "name": "runId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Artifact ID",
+                        "name": "artifactId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Artifact content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/projects/{projectId}/runs/{runId}/tasks/{taskName}": {
             "patch": {
                 "security": [
@@ -5304,6 +5857,77 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/runs/{runId}/assignments": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Returns all task assignments for a specific run, showing which workers executed which tasks",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "task-assignments"
+                ],
+                "summary": "List run task assignments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Run ID",
+                        "name": "runId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/pkg_api_handlers.TaskAssignmentResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/teams": {
             "get": {
                 "security": [
@@ -5422,7 +6046,114 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/teams/{teamID}": {
+        "/api/v1/teams/{teamID}/audit-logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns audit logs for a team with cursor-based pagination and optional filters",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "audit-logs"
+                ],
+                "summary": "List team audit logs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Team ID",
+                        "name": "teamID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by actor ID",
+                        "name": "actor_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by actor email",
+                        "name": "actor_email",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by action",
+                        "name": "action",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by category",
+                        "name": "category",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter entries after this time (RFC3339)",
+                        "name": "since",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter entries before this time (RFC3339)",
+                        "name": "until",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor for pagination",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.AuditLogListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/teams/{teamId}": {
             "get": {
                 "security": [
                     {
@@ -5445,7 +6176,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Team ID",
-                        "name": "teamID",
+                        "name": "teamId",
                         "in": "path",
                         "required": true
                     }
@@ -5496,7 +6227,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Team ID",
-                        "name": "teamID",
+                        "name": "teamId",
                         "in": "path",
                         "required": true
                     }
@@ -5550,7 +6281,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Team ID",
-                        "name": "teamID",
+                        "name": "teamId",
                         "in": "path",
                         "required": true
                     },
@@ -5598,7 +6329,664 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/teams/{teamID}/invitations": {
+        "/api/v1/teams/{teamId}/audit-logs/export": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Exports audit logs as CSV or JSON file download",
+                "produces": [
+                    "application/json",
+                    "text/csv"
+                ],
+                "tags": [
+                    "audit-logs"
+                ],
+                "summary": "Export team audit logs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Team ID",
+                        "name": "teamId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "csv",
+                            "json"
+                        ],
+                        "type": "string",
+                        "default": "json",
+                        "description": "Export format (csv or json)",
+                        "name": "format",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by actor ID",
+                        "name": "actor_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by actor email",
+                        "name": "actor_email",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by action",
+                        "name": "action",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by category",
+                        "name": "category",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter entries after this time (RFC3339)",
+                        "name": "since",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter entries before this time (RFC3339)",
+                        "name": "until",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/teams/{teamId}/audit-logs/retention": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the audit log retention policy for a team",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "audit-logs"
+                ],
+                "summary": "Get retention policy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Team ID",
+                        "name": "teamId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.AuditRetentionPolicyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates the audit log retention policy for a team",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "audit-logs"
+                ],
+                "summary": "Update retention policy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Team ID",
+                        "name": "teamId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Retention policy update",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.UpdateRetentionPolicyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.AuditRetentionPolicyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/teams/{teamId}/audit-logs/verify": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Verifies the hash chain integrity of audit log entries for a team",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "audit-logs"
+                ],
+                "summary": "Verify audit chain integrity",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Team ID",
+                        "name": "teamId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.AuditChainVerifyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/teams/{teamId}/audit-logs/webhooks": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all configured audit webhooks for a team",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "audit-webhooks"
+                ],
+                "summary": "List audit webhooks",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Team ID",
+                        "name": "teamId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/pkg_api_handlers.AuditWebhookResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new audit webhook with HMAC-SHA256 signing",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "audit-webhooks"
+                ],
+                "summary": "Create audit webhook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Team ID",
+                        "name": "teamId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Webhook configuration",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.CreateAuditWebhookRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.AuditWebhookCreatedResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/teams/{teamId}/audit-logs/webhooks/{webhookId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a single audit webhook by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "audit-webhooks"
+                ],
+                "summary": "Get audit webhook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Team ID",
+                        "name": "teamId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Webhook ID",
+                        "name": "webhookId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.AuditWebhookResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates an existing audit webhook",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "audit-webhooks"
+                ],
+                "summary": "Update audit webhook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Team ID",
+                        "name": "teamId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Webhook ID",
+                        "name": "webhookId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Webhook update",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.UpdateAuditWebhookRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.AuditWebhookResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deletes an audit webhook",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "audit-webhooks"
+                ],
+                "summary": "Delete audit webhook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Team ID",
+                        "name": "teamId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Webhook ID",
+                        "name": "webhookId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.SuccessResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/teams/{teamId}/audit-logs/webhooks/{webhookId}/test": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Sends a test ping payload to the webhook and returns the delivery result",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "audit-webhooks"
+                ],
+                "summary": "Test audit webhook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Team ID",
+                        "name": "teamId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Webhook ID",
+                        "name": "webhookId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.WebhookTestResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/teams/{teamId}/invitations": {
             "get": {
                 "security": [
                     {
@@ -5621,7 +7009,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Team ID",
-                        "name": "teamID",
+                        "name": "teamId",
                         "in": "path",
                         "required": true
                     }
@@ -5681,7 +7069,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Team ID",
-                        "name": "teamID",
+                        "name": "teamId",
                         "in": "path",
                         "required": true
                     },
@@ -5729,7 +7117,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/teams/{teamID}/invitations/{invitationID}": {
+        "/api/v1/teams/{teamId}/invitations/{invitationId}": {
             "delete": {
                 "security": [
                     {
@@ -5749,7 +7137,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Team ID",
-                        "name": "teamID",
+                        "name": "teamId",
                         "in": "path",
                         "required": true
                     },
@@ -5757,7 +7145,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Invitation ID",
-                        "name": "invitationID",
+                        "name": "invitationId",
                         "in": "path",
                         "required": true
                     }
@@ -5787,7 +7175,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/teams/{teamID}/members": {
+        "/api/v1/teams/{teamId}/members": {
             "get": {
                 "security": [
                     {
@@ -5810,7 +7198,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Team ID",
-                        "name": "teamID",
+                        "name": "teamId",
                         "in": "path",
                         "required": true
                     }
@@ -5870,7 +7258,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Team ID",
-                        "name": "teamID",
+                        "name": "teamId",
                         "in": "path",
                         "required": true
                     },
@@ -5918,7 +7306,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/teams/{teamID}/members/{userID}": {
+        "/api/v1/teams/{teamId}/members/{userID}": {
             "delete": {
                 "security": [
                     {
@@ -5938,7 +7326,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Team ID",
-                        "name": "teamID",
+                        "name": "teamId",
                         "in": "path",
                         "required": true
                     },
@@ -5976,7 +7364,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/teams/{teamID}/members/{userID}/role": {
+        "/api/v1/teams/{teamId}/members/{userID}/role": {
             "patch": {
                 "security": [
                     {
@@ -6002,7 +7390,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Team ID",
-                        "name": "teamID",
+                        "name": "teamId",
                         "in": "path",
                         "required": true
                     },
@@ -6053,6 +7441,41 @@ const docTemplate = `{
                         "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/templates/sample": {
+            "get": {
+                "description": "Returns a sample dagryn.toml template based on the repository language",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "templates"
+                ],
+                "summary": "Get a sample dagryn.toml template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Repository language (e.g. Go, Python, JavaScript)",
+                        "name": "language",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.SampleTemplateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mujhtech_dagryn_pkg_http_response.Response"
                         }
                     }
                 }
@@ -6183,6 +7606,284 @@ const docTemplate = `{
                         "description": "Service unavailable",
                         "schema": {
                             "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/workers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Returns all workers the current user has access to, optionally filtered by cluster, team, and status",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workers"
+                ],
+                "summary": "List workers",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter by cluster ID",
+                        "name": "cluster_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter by team ID",
+                        "name": "team_id",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "online",
+                            "draining",
+                            "offline"
+                        ],
+                        "type": "string",
+                        "description": "Filter by status",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/pkg_api_handlers.WorkerResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/workers/{workerId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Returns a worker by its ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workers"
+                ],
+                "summary": "Get a worker",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Worker ID",
+                        "name": "workerId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.WorkerResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Deregisters a worker by its ID",
+                "tags": [
+                    "workers"
+                ],
+                "summary": "Delete a worker",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Worker ID",
+                        "name": "workerId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/workers/{workerId}/drain": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Sets a worker to draining status, preventing new task assignments while allowing in-progress tasks to complete",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workers"
+                ],
+                "summary": "Drain a worker",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Worker ID",
+                        "name": "workerId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg_api_handlers.ErrorResponse"
                         }
                     }
                 }
@@ -6534,6 +8235,9 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_mujhtech_dagryn_pkg_http_response.Response": {
+            "type": "object"
+        },
         "github_com_mujhtech_dagryn_pkg_http_response.ServerResponse": {
             "description": "Standard API response wrapper",
             "type": "object",
@@ -6626,6 +8330,14 @@ const docTemplate = `{
                 "scope": {
                     "type": "string",
                     "example": "user"
+                }
+            }
+        },
+        "pkg_api_handlers.ActivateLicenseRequest": {
+            "type": "object",
+            "properties": {
+                "license_key": {
+                    "type": "string"
                 }
             }
         },
@@ -6745,6 +8457,221 @@ const docTemplate = `{
                 }
             }
         },
+        "pkg_api_handlers.AuditChainVerifyResponse": {
+            "description": "Audit chain verification result",
+            "type": "object",
+            "properties": {
+                "broken_entries": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "total_entries": {
+                    "type": "integer",
+                    "example": 1234
+                },
+                "valid": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "pkg_api_handlers.AuditLogListResponse": {
+            "description": "Cursor-paginated audit log list",
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/pkg_api_handlers.AuditLogResponse"
+                    }
+                },
+                "has_next": {
+                    "type": "boolean"
+                },
+                "next_cursor": {
+                    "type": "string"
+                }
+            }
+        },
+        "pkg_api_handlers.AuditLogResponse": {
+            "description": "Audit log entry",
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "example": "project.created"
+                },
+                "actor_email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "actor_id": {
+                    "type": "string"
+                },
+                "actor_type": {
+                    "type": "string",
+                    "example": "user"
+                },
+                "category": {
+                    "type": "string",
+                    "example": "project"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Created project my-app"
+                },
+                "entry_hash": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "ip_address": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "prev_hash": {
+                    "type": "string"
+                },
+                "project_id": {
+                    "type": "string"
+                },
+                "resource_id": {
+                    "type": "string"
+                },
+                "resource_type": {
+                    "type": "string",
+                    "example": "project"
+                },
+                "sequence_num": {
+                    "type": "integer"
+                },
+                "team_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "user_agent": {
+                    "type": "string"
+                }
+            }
+        },
+        "pkg_api_handlers.AuditRetentionPolicyResponse": {
+            "description": "Audit log retention policy",
+            "type": "object",
+            "properties": {
+                "retention_days": {
+                    "type": "integer",
+                    "example": 90
+                },
+                "team_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "pkg_api_handlers.AuditWebhookCreatedResponse": {
+            "description": "Audit webhook creation response (secret shown only once)",
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Forward to Splunk"
+                },
+                "event_filter": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[]"
+                    ]
+                },
+                "id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "is_active": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "secret": {
+                    "type": "string",
+                    "example": "base64-encoded-hmac-secret"
+                },
+                "team_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
+                },
+                "url": {
+                    "type": "string",
+                    "example": "https://siem.example.com/audit"
+                }
+            }
+        },
+        "pkg_api_handlers.AuditWebhookResponse": {
+            "description": "Audit webhook configuration",
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Forward to Splunk"
+                },
+                "event_filter": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[]"
+                    ]
+                },
+                "id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "is_active": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "team_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
+                },
+                "url": {
+                    "type": "string",
+                    "example": "https://siem.example.com/audit"
+                }
+            }
+        },
         "pkg_api_handlers.BatchLogRequest": {
             "description": "Batch log request",
             "type": "object",
@@ -6786,9 +8713,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "features": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "boolean"
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/pkg_api_handlers.FeatureEntry"
                     }
                 },
                 "mode": {
@@ -6802,6 +8729,58 @@ const docTemplate = `{
                 }
             }
         },
+        "pkg_api_handlers.ClusterResponse": {
+            "description": "Cluster resource",
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Production cluster"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string",
+                    "example": "production"
+                },
+                "owner_user_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440002"
+                },
+                "scope_type": {
+                    "type": "string",
+                    "example": "team"
+                },
+                "slug": {
+                    "type": "string",
+                    "example": "production"
+                },
+                "system_default": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "team_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440001"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                }
+            }
+        },
         "pkg_api_handlers.ConnectGitHubRequest": {
             "description": "Connect project to GitHub request",
             "type": "object",
@@ -6811,6 +8790,10 @@ const docTemplate = `{
                 "repo_url"
             ],
             "properties": {
+                "default_branch": {
+                    "type": "string",
+                    "example": "main"
+                },
                 "github_installation_id": {
                     "type": "string",
                     "example": "550e8400-e29b-41d4-a716-446655440000"
@@ -6842,6 +8825,53 @@ const docTemplate = `{
                 }
             }
         },
+        "pkg_api_handlers.CreateAuditWebhookRequest": {
+            "description": "Create audit webhook request",
+            "type": "object",
+            "required": [
+                "url"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Forward to Splunk"
+                },
+                "event_filter": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "url": {
+                    "type": "string",
+                    "example": "https://siem.example.com/audit"
+                }
+            }
+        },
+        "pkg_api_handlers.CreateClusterRequest": {
+            "description": "Create cluster request",
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Staging cluster for pre-production testing"
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string",
+                    "example": "staging"
+                },
+                "team_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440001"
+                }
+            }
+        },
         "pkg_api_handlers.CreateInvitationRequest": {
             "description": "Create invitation request",
             "type": "object",
@@ -6868,6 +8898,13 @@ const docTemplate = `{
                 "team_id"
             ],
             "properties": {
+                "dagryn_config": {
+                    "type": "string"
+                },
+                "default_branch": {
+                    "type": "string",
+                    "example": "main"
+                },
                 "description": {
                     "type": "string",
                     "example": "Main API service"
@@ -7119,6 +9156,20 @@ const docTemplate = `{
                 }
             }
         },
+        "pkg_api_handlers.FeatureEntry": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "feature": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                }
+            }
+        },
         "pkg_api_handlers.GitHubAppInstallation": {
             "type": "object",
             "properties": {
@@ -7150,6 +9201,9 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "language": {
+                    "type": "string"
                 },
                 "private": {
                     "type": "boolean"
@@ -7185,6 +9239,10 @@ const docTemplate = `{
                     "type": "string",
                     "example": "550e8400-e29b-41d4-a716-446655440000"
                 },
+                "ref": {
+                    "type": "string",
+                    "example": "main"
+                },
                 "repo_full_name": {
                     "type": "string",
                     "example": "owner/repo"
@@ -7195,9 +9253,16 @@ const docTemplate = `{
             "description": "Translation result for GitHub Actions workflows",
             "type": "object",
             "properties": {
+                "dagryn_toml": {
+                    "type": "string"
+                },
                 "detected": {
                     "type": "boolean",
                     "example": true
+                },
+                "has_dagryn_toml": {
+                    "type": "boolean",
+                    "example": false
                 },
                 "plugins": {
                     "type": "object",
@@ -7376,9 +9441,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "features": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "boolean"
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/pkg_api_handlers.FeatureEntry"
                     }
                 },
                 "grace_period": {
@@ -7636,9 +9701,21 @@ const docTemplate = `{
                     "type": "string",
                     "example": "2024-01-15T10:30:00Z"
                 },
+                "default_branch": {
+                    "type": "string",
+                    "example": "main"
+                },
                 "description": {
                     "type": "string",
                     "example": "Main API service"
+                },
+                "github_installation_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "github_repo_id": {
+                    "type": "integer",
+                    "example": 123456789
                 },
                 "id": {
                     "type": "string",
@@ -7822,6 +9899,10 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 2
                 },
+                "commit_author_avatar_url": {
+                    "type": "string",
+                    "example": "https://avatars.githubusercontent.com/u/1234567"
+                },
                 "commit_author_email": {
                     "type": "string",
                     "example": "john@example.com"
@@ -7845,6 +9926,10 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string",
                     "example": "2024-01-15T10:30:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Build and test the application"
                 },
                 "duration_ms": {
                     "type": "integer",
@@ -7934,6 +10019,10 @@ const docTemplate = `{
             "description": "Workflow run information",
             "type": "object",
             "properties": {
+                "commit_author_avatar_url": {
+                    "type": "string",
+                    "example": "https://avatars.githubusercontent.com/u/1234567"
+                },
                 "commit_author_email": {
                     "type": "string",
                     "example": "john@example.com"
@@ -7953,6 +10042,10 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string",
                     "example": "2024-01-15T10:30:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Build and test the application"
                 },
                 "duration_ms": {
                     "type": "integer",
@@ -8021,6 +10114,22 @@ const docTemplate = `{
                 "workflow_name": {
                     "type": "string",
                     "example": "build"
+                }
+            }
+        },
+        "pkg_api_handlers.SampleTemplateResponse": {
+            "type": "object",
+            "properties": {
+                "language": {
+                    "type": "string",
+                    "example": "Go"
+                },
+                "project_type": {
+                    "type": "string",
+                    "example": "go"
+                },
+                "template": {
+                    "type": "string"
                 }
             }
         },
@@ -8193,6 +10302,60 @@ const docTemplate = `{
                 }
             }
         },
+        "pkg_api_handlers.TaskAssignmentResponse": {
+            "description": "Task assignment resource",
+            "type": "object",
+            "properties": {
+                "assigned_at": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "cluster_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "completed_at": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:30Z"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440004"
+                },
+                "max_retries": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "retry_count": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "run_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440005"
+                },
+                "started_at": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:01Z"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "completed"
+                },
+                "task_name": {
+                    "type": "string",
+                    "example": "build"
+                },
+                "worker_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440003"
+                }
+            }
+        },
         "pkg_api_handlers.TaskResultResponse": {
             "description": "Task execution result",
             "type": "object",
@@ -8327,6 +10490,10 @@ const docTemplate = `{
             "description": "Trigger run request",
             "type": "object",
             "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Retrying after infra fix"
+                },
                 "force": {
                     "type": "boolean",
                     "example": false
@@ -8394,6 +10561,50 @@ const docTemplate = `{
                 }
             }
         },
+        "pkg_api_handlers.UpdateAuditWebhookRequest": {
+            "description": "Update audit webhook request",
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Forward to Splunk"
+                },
+                "event_filter": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "is_active": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "url": {
+                    "type": "string",
+                    "example": "https://siem.example.com/audit"
+                }
+            }
+        },
+        "pkg_api_handlers.UpdateClusterRequest": {
+            "description": "Update cluster request",
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Updated staging cluster"
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string",
+                    "example": "staging-v2"
+                }
+            }
+        },
         "pkg_api_handlers.UpdateMemberRoleRequest": {
             "description": "Update member role request",
             "type": "object",
@@ -8426,6 +10637,18 @@ const docTemplate = `{
                 "visibility": {
                     "type": "string",
                     "example": "private"
+                }
+            }
+        },
+        "pkg_api_handlers.UpdateRetentionPolicyRequest": {
+            "description": "Update retention policy request",
+            "type": "object",
+            "properties": {
+                "retention_days": {
+                    "type": "integer",
+                    "maximum": 3650,
+                    "minimum": 1,
+                    "example": 90
                 }
             }
         },
@@ -8562,6 +10785,92 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "example": "2024-01-15T10:30:00Z"
+                }
+            }
+        },
+        "pkg_api_handlers.WebhookTestResponse": {
+            "description": "Webhook test delivery result",
+            "type": "object",
+            "properties": {
+                "duration_ms": {
+                    "type": "integer",
+                    "example": 142
+                },
+                "error": {
+                    "type": "string"
+                },
+                "status_code": {
+                    "type": "integer",
+                    "example": 200
+                },
+                "success": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "pkg_api_handlers.WorkerResponse": {
+            "description": "Worker resource",
+            "type": "object",
+            "properties": {
+                "active_tasks": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "arch": {
+                    "type": "string",
+                    "example": "amd64"
+                },
+                "capabilities": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "docker",
+                        "gpu"
+                    ]
+                },
+                "cluster_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "environment": {
+                    "type": "string",
+                    "example": "docker"
+                },
+                "hostname": {
+                    "type": "string",
+                    "example": "worker-01.example.com"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440003"
+                },
+                "labels": {},
+                "last_heartbeat_at": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "max_concurrent_tasks": {
+                    "type": "integer",
+                    "example": 4
+                },
+                "os": {
+                    "type": "string",
+                    "example": "linux"
+                },
+                "registered_at": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "online"
+                },
+                "version": {
+                    "type": "string",
+                    "example": "0.1.0"
                 }
             }
         },
