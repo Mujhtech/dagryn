@@ -69,6 +69,13 @@ if [ "$NODE_OS" = "linux" ]; then
 fi
 
 INSTALL_DIR="$HOME/.dagryn/tools/node-$NODE_VERSION"
+INSTALL_PARENT=$(dirname "$INSTALL_DIR")
+
+mkdir -p "$INSTALL_PARENT"
+if [ ! -d "$INSTALL_PARENT" ] || [ ! -w "$INSTALL_PARENT" ]; then
+  echo "Error: install parent directory is not writable: $INSTALL_PARENT [permission_denied]" >&2
+  exit 1
+fi
 
 # Check existing install (another parallel task may have completed it)
 if [ -f "$INSTALL_DIR/bin/node" ] && "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
@@ -139,14 +146,32 @@ try_node_tarball() {
   return 1
 }
 
+finalize_node_install() {
+  _stage="$1"
+  _dest="$2"
+  if [ -z "$_stage" ] || [ ! -d "$_stage" ]; then
+    echo "Error: staging directory missing before finalize: $_stage" >&2
+    return 1
+  fi
+  rm -rf "$_dest"
+  if mv "$_stage" "$_dest" 2>/dev/null; then
+    return 0
+  fi
+  mkdir -p "$_dest" || return 1
+  if cp -a "$_stage/." "$_dest/" 2>/dev/null; then
+    rm -rf "$_stage"
+    return 0
+  fi
+  return 1
+}
+
 # ── Strategy 2: Unofficial musl binary build ──
 if [ -n "$IS_MUSL" ]; then
   URL="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}-musl.tar.gz"
   echo "Downloading Node.js $NODE_VERSION (musl) from $URL"
   STAGE_DIR=$(try_node_tarball "$URL")
   if [ -n "$STAGE_DIR" ] && [ -d "$STAGE_DIR" ]; then
-    rm -rf "$INSTALL_DIR"
-    if ! mv "$STAGE_DIR" "$INSTALL_DIR"; then
+    if ! finalize_node_install "$STAGE_DIR" "$INSTALL_DIR"; then
       echo "Error: failed to finalize Node.js install to $INSTALL_DIR" >&2
       [ -d "$STAGE_DIR" ] && rm -rf "$STAGE_DIR"
       exit 1
@@ -184,8 +209,7 @@ if [ -z "$STAGE_DIR" ] || [ ! -d "$STAGE_DIR" ]; then
 fi
 
 # Atomically move staged install to final location
-rm -rf "$INSTALL_DIR"
-if ! mv "$STAGE_DIR" "$INSTALL_DIR"; then
+if ! finalize_node_install "$STAGE_DIR" "$INSTALL_DIR"; then
   echo "Error: failed to finalize Node.js install to $INSTALL_DIR" >&2
   [ -d "$STAGE_DIR" ] && rm -rf "$STAGE_DIR"
   exit 1
