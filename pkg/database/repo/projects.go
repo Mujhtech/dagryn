@@ -425,9 +425,13 @@ func (r *ProjectRepo) ListAll(ctx context.Context, limit, offset int) ([]models.
 	return projects, total, rows.Err()
 }
 
-// CountAll returns the total number of projects.
-func (r *ProjectRepo) CountAll(ctx context.Context) (int64, error) {
+// CountByUser returns the number of projects the user is a member of.
+func (r *ProjectRepo) CountByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
 	var count int64
-	err := r.pool.QueryRow(ctx, "SELECT COUNT(*) FROM projects").Scan(&count)
+	err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM projects p
+		JOIN project_members pm ON p.id = pm.project_id
+		WHERE pm.user_id = $1
+	`, userID).Scan(&count)
 	return count, err
 }

@@ -935,6 +935,18 @@ func (s *Scheduler) runCompositeSetup(ctx context.Context, t *task.Task, ce *plu
 
 		key := compositeSetupKey(spec, t.With)
 
+		// Reuse completed setup from this run. singleflight only deduplicates
+		// concurrent calls; this cache avoids rerunning setup for later tasks.
+		s.setupCache.mu.Lock()
+		cached, ok := s.setupCache.entries[key]
+		s.setupCache.mu.Unlock()
+		if ok && cached != nil {
+			for k, v := range cached.env {
+				env[k] = v
+			}
+			continue
+		}
+
 		// Use singleflight to ensure setup runs exactly once per (plugin, inputs).
 		// Parallel tasks calling Do with the same key will block and receive the
 		// same result without re-running the setup.

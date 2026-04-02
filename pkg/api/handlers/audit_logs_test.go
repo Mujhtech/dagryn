@@ -196,6 +196,9 @@ func (m *mockTeamStore) GetMember(_ context.Context, teamID, userID uuid.UUID) (
 func (m *mockTeamStore) ListMembers(_ context.Context, _ uuid.UUID) ([]models.TeamMemberWithUser, error) {
 	return nil, nil
 }
+func (m *mockTeamStore) CountMembersByUser(_ context.Context, _ uuid.UUID) (int64, error) {
+	return 0, nil
+}
 func (m *mockTeamStore) SlugExists(_ context.Context, _ string) (bool, error) {
 	return false, nil
 }
