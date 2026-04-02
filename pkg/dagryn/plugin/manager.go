@@ -168,12 +168,14 @@ func (m *Manager) Install(ctx context.Context, spec string) (*InstallResult, err
 	// Check if already installed
 	m.mu.RLock()
 	if plugin, ok := m.installed[spec]; ok {
-		m.mu.RUnlock()
-		return &InstallResult{
-			Plugin:  plugin,
-			Status:  StatusCached,
-			Message: fmt.Sprintf("Plugin %s already installed", plugin.Name),
-		}, nil
+		if m.isPluginReady(plugin) {
+			m.mu.RUnlock()
+			return &InstallResult{
+				Plugin:  plugin,
+				Status:  StatusCached,
+				Message: fmt.Sprintf("Plugin %s already installed", plugin.Name),
+			}, nil
+		}
 	}
 	m.mu.RUnlock()
 
@@ -249,6 +251,26 @@ func (m *Manager) Install(ctx context.Context, spec string) (*InstallResult, err
 	m.saveLockFile()
 
 	return result, nil
+}
+
+func (m *Manager) isPluginReady(plugin *Plugin) bool {
+	if plugin == nil {
+		return false
+	}
+
+	if plugin.Manifest != nil {
+		if plugin.Manifest.IsComposite() || plugin.Manifest.IsIntegration() {
+			return plugin.InstallPath != ""
+		}
+	}
+
+	if plugin.BinaryPath == "" {
+		return false
+	}
+	if _, err := os.Stat(plugin.BinaryPath); err != nil {
+		return false
+	}
+	return true
 }
 
 // Register adds a resolved plugin to the installed cache and persists it to the lock file.
