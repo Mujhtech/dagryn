@@ -57,7 +57,7 @@ FROM alpine:latest
 # Install runtime dependencies. Build tools (node, go, etc.) are NOT needed
 # here, but host-mode plugin installs require minimal runtime libs for
 # downloaded musl binaries (e.g. Node.js from unofficial builds).
-RUN apk add --no-cache ca-certificates tzdata git docker-cli libstdc++ libgcc
+RUN apk add --no-cache ca-certificates tzdata git docker-cli libstdc++ libgcc gcc musl-dev
 
 # Create non-root user
 RUN addgroup -g 1000 dagryn && \

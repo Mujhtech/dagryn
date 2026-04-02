@@ -8,7 +8,7 @@ license = "MIT"
 
 [inputs.go-version]
 description = "Go version to install"
-default = "1.25.1"
+default = "1.25.5"
 
 [inputs.cache]
 description = "Cache Go module cache"

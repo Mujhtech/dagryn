@@ -212,7 +212,7 @@ func TestOfficialPlugins_DefaultInputs(t *testing.T) {
 		{"setup-pnpm", "pnpm-version", "10.30.3"},
 		{"setup-yarn", "yarn-version", "1.22.22"},
 		{"setup-bun", "bun-version", "1.2.5"},
-		{"setup-go", "go-version", "1.25.1"},
+		{"setup-go", "go-version", "1.25.5"},
 		{"setup-python", "python-version", "3.12"},
 		{"setup-rust", "rust-version", "stable"},
 		{"eslint", "args", "."},
