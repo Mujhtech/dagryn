@@ -15,12 +15,12 @@ import (
 
 // ConnectedWorker represents an in-memory view of a live worker connection.
 type ConnectedWorker struct {
-	ID              string
-	Info            *WorkerInfo
-	ActiveTasks     int32
-	LastSeen        time.Time
-	TaskCh          chan *TaskDispatch  // Channel to send task assignments
-	ControlCh       chan *ControlAction // Channel to send control messages
+	ID          string
+	Info        *WorkerInfo
+	ActiveTasks int32
+	LastSeen    time.Time
+	TaskCh      chan *TaskDispatch  // Channel to send task assignments
+	ControlCh   chan *ControlAction // Channel to send control messages
 }
 
 // WorkerInfo holds worker metadata (mirrors protobuf WorkerInfo).
@@ -115,10 +115,10 @@ func (r *WorkerRegistry) Register(ctx context.Context, info *WorkerInfo, tokenHa
 	}
 
 	cw := &ConnectedWorker{
-		ID:       worker.ID.String(),
-		Info:     info,
-		LastSeen: time.Now(),
-		TaskCh:   make(chan *TaskDispatch, 16),
+		ID:        worker.ID.String(),
+		Info:      info,
+		LastSeen:  time.Now(),
+		TaskCh:    make(chan *TaskDispatch, 16),
 		ControlCh: make(chan *ControlAction, 4),
 	}
 

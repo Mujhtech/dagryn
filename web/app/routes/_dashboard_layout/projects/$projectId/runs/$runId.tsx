@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import {
   useRunArtifacts,
+  useRunAssignments,
   useRunDetail,
   useRunLogs,
   useRunWorkflow,
@@ -66,6 +67,8 @@ function RunDetailPage() {
     isLoading: artifactsLoading,
     refetch: refetchArtifacts,
   } = useRunArtifacts(projectId, runId);
+
+  const { data: assignments } = useRunAssignments(runId);
 
   const { data: workflow } = useRunWorkflow(projectId, runId);
 
@@ -430,6 +433,9 @@ function RunDetailPage() {
         taskStatusMap={taskStatusMap}
         logsEndRef={logsEndRef}
         runStatus={currentStatus}
+        assignmentByTaskName={Object.fromEntries(
+          (assignments ?? []).map((a) => [a.task_name, a]),
+        )}
       />
     </div>
   );

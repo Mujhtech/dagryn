@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	clusterauth "github.com/mujhtech/dagryn/pkg/cluster"
 	v1 "github.com/mujhtech/dagryn/pkg/cluster/v1"
 	"github.com/mujhtech/dagryn/pkg/dagryn/executor"
 	"github.com/mujhtech/dagryn/pkg/dagryn/task"
@@ -36,16 +37,16 @@ type Config struct {
 
 // Agent is a worker agent that connects to a Dagryn control plane.
 type Agent struct {
-	config     Config
-	grpcConn   *grpc.ClientConn
-	client     v1.ClusterServiceClient
-	workerID   string
-	env        *DetectedEnvironment
-	workspace  *WorkspaceManager
-	cancelFunc context.CancelFunc
-	draining   atomic.Bool
+	config      Config
+	grpcConn    *grpc.ClientConn
+	client      v1.ClusterServiceClient
+	workerID    string
+	env         *DetectedEnvironment
+	workspace   *WorkspaceManager
+	cancelFunc  context.CancelFunc
+	draining    atomic.Bool
 	activeTasks atomic.Int32
-	wg         sync.WaitGroup
+	wg          sync.WaitGroup
 }
 
 // New creates a new agent with the given configuration.
@@ -75,8 +76,16 @@ func (a *Agent) Start(ctx context.Context) error {
 	// Connect to gRPC server
 	var dialOpts []grpc.DialOption
 	if a.config.TLSCertFile != "" {
-		// mTLS not yet wired - will use LoadClientTLSCredentials from cluster package
-		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		creds, err := clusterauth.LoadClientTLSCredentials(
+			a.config.TLSCertFile,
+			a.config.TLSKeyFile,
+			a.config.TLSCAFile,
+		)
+		if err != nil {
+			cancel()
+			return fmt.Errorf("load client TLS credentials: %w", err)
+		}
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(creds))
 	} else {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
@@ -96,6 +105,9 @@ func (a *Agent) Start(ctx context.Context) error {
 	}
 	for k, v := range a.config.Labels {
 		labels[k] = v
+	}
+	if a.config.ClusterName != "" {
+		labels["cluster"] = a.config.ClusterName
 	}
 
 	log.Info().

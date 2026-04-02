@@ -6,6 +6,7 @@ import { useCapabilities } from "./queries/use-capabilities";
 const baseNavItems = [
   { title: "Dashboard", url: "/dashboard", icon: Icons.Dashboard },
   { title: "Analytics", url: "/analytics", icon: Icons.TrendUp },
+  { title: "Clusters", url: "/clusters", icon: Icons.Network },
   { title: "Projects", url: "/projects", icon: Icons.Folder },
   { title: "Teams", url: "/teams", icon: Icons.Users },
   { title: "Invitations", url: "/invitations", icon: Icons.ListDetails },

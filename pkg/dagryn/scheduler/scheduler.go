@@ -26,16 +26,16 @@ import (
 
 // Options configures the scheduler behavior.
 type Options struct {
-	Parallelism      int                // Max concurrent tasks (default: NumCPU)
-	NoCache          bool               // Disable caching
-	NoPlugins        bool               // Disable plugin installation
-	FailFast         bool               // Stop on first failure
-	DryRun           bool               // Show plan without executing
-	CacheBackend     cache.Backend      // Optional custom cache backend
-	ContainerConfig  *container.Config  // Optional container isolation config
-	ConditionContext *condition.Context  // Optional context for evaluating task conditions
-	GlobalPlugins    map[string]string   // Global plugins (name -> spec) from config [plugins] section
-	DistributedMode  bool               // Enable remote task dispatch
+	Parallelism      int                   // Max concurrent tasks (default: NumCPU)
+	NoCache          bool                  // Disable caching
+	NoPlugins        bool                  // Disable plugin installation
+	FailFast         bool                  // Stop on first failure
+	DryRun           bool                  // Show plan without executing
+	CacheBackend     cache.Backend         // Optional custom cache backend
+	ContainerConfig  *container.Config     // Optional container isolation config
+	ConditionContext *condition.Context    // Optional context for evaluating task conditions
+	GlobalPlugins    map[string]string     // Global plugins (name -> spec) from config [plugins] section
+	DistributedMode  bool                  // Enable remote task dispatch
 	RemoteExecutor   executor.TaskExecutor // RemoteTaskExecutor from cluster package
 }
 

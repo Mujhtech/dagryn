@@ -129,8 +129,8 @@ func (m *mockTeamRepo) GetBySlug(ctx context.Context, slug string) (*models.Team
 	return nil, repo.ErrNotFound
 }
 
-func (m *mockTeamRepo) Update(ctx context.Context, team *models.Team) error     { return nil }
-func (m *mockTeamRepo) Delete(ctx context.Context, id uuid.UUID) error          { return nil }
+func (m *mockTeamRepo) Update(ctx context.Context, team *models.Team) error       { return nil }
+func (m *mockTeamRepo) Delete(ctx context.Context, id uuid.UUID) error            { return nil }
 func (m *mockTeamRepo) SlugExists(ctx context.Context, slug string) (bool, error) { return false, nil }
 
 func (m *mockTeamRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]models.TeamWithMember, error) {
@@ -167,6 +167,10 @@ func (m *mockTeamRepo) GetMember(ctx context.Context, teamID, userID uuid.UUID) 
 
 func (m *mockTeamRepo) ListMembers(ctx context.Context, teamID uuid.UUID) ([]models.TeamMemberWithUser, error) {
 	return nil, nil
+}
+
+func (m *mockTeamRepo) CountMembersByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+	return 0, nil
 }
 
 // Compile-time interface checks

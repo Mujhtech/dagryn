@@ -1,13 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "~/lib/auth";
 import { useDashboardOverview } from "~/hooks/queries";
+import { useTeams, useWorkersForAccessibleScopes } from "~/hooks/queries";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Icons } from "~/components/icons";
 import { RecentRunsSection } from "~/components/dashboard/recent-runs";
 import { ProjectStatsCard } from "~/components/dashboard/project-stats-card";
 import { generateMetadata } from "~/lib/metadata";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { Badge } from "~/components/ui/badge";
 
 export const Route = createFileRoute("/_dashboard_layout/dashboard")({
   component: IndexPage,
@@ -16,9 +19,16 @@ export const Route = createFileRoute("/_dashboard_layout/dashboard")({
   },
 });
 
-function IndexPage() {
+export function IndexPage() {
   const { isAuthenticated } = useAuth();
   const { data: overview, isLoading } = useDashboardOverview(isAuthenticated);
+  const { data: teamsResp } = useTeams();
+  const teamIds = useMemo(
+    () => (teamsResp?.data ?? []).map((team) => team.id),
+    [teamsResp?.data],
+  );
+  const { data: workers, isLoading: workersLoading } =
+    useWorkersForAccessibleScopes(teamIds, isAuthenticated);
   const [copiedStep, setCopiedStep] = useState<number | null>(null);
 
   if (isLoading) {
@@ -78,6 +88,18 @@ function IndexPage() {
     )
     .slice(0, 8);
 
+  const totalWorkers = workers?.length ?? 0;
+  const onlineWorkers =
+    workers?.filter((worker) => worker.status === "online").length ?? 0;
+  const workerHealth =
+    totalWorkers === 0
+      ? "none"
+      : onlineWorkers === totalWorkers
+        ? "healthy"
+        : onlineWorkers > 0
+          ? "degraded"
+          : "offline";
+
   return (
     <div className="flex flex-1 flex-col p-6">
       <div className="mx-auto w-full space-y-6">
@@ -103,6 +125,46 @@ function IndexPage() {
             </Button>
           </div>
         </div>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Cluster Health</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground">Total Workers</p>
+                <p className="text-2xl font-semibold">{totalWorkers}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Online</p>
+                <p className="text-2xl font-semibold">{onlineWorkers}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {workersLoading ? (
+                <Icons.Loader className="h-4 w-4 animate-spin text-muted-foreground" />
+              ) : (
+                <Badge
+                  variant={
+                    workerHealth === "healthy"
+                      ? "default"
+                      : workerHealth === "degraded"
+                        ? "secondary"
+                        : "outline"
+                  }
+                >
+                  {workerHealth}
+                </Badge>
+              )}
+              <Button variant="outline" asChild>
+                <Link to="/clusters" search={{ teamId: undefined }}>
+                  View Clusters
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {recentProjects.length === 0 ? (
           <SetupGuide

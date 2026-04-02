@@ -54,6 +54,57 @@ export interface TeamMember {
   joined_at: string;
 }
 
+export interface Cluster {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  labels?: Record<string, string>;
+  scope_type: "global" | "team" | "personal";
+  team_id?: string;
+  owner_user_id?: string;
+  system_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Worker {
+  id: string;
+  hostname: string;
+  os: string;
+  arch: string;
+  environment: string;
+  labels?: Record<string, string>;
+  capabilities: string[];
+  max_concurrent_tasks: number;
+  version: string;
+  status: "online" | "draining" | "offline";
+  cluster_id?: string;
+  active_tasks: number;
+  last_heartbeat_at: string;
+}
+
+export interface TaskAssignment {
+  id: string;
+  run_id: string;
+  task_name: string;
+  worker_id?: string;
+  cluster_id?: string;
+  status:
+    | "pending"
+    | "assigned"
+    | "running"
+    | "completed"
+    | "failed"
+    | "reassigned";
+  assigned_at?: string;
+  started_at?: string;
+  completed_at?: string;
+  retry_count: number;
+  max_retries: number;
+  created_at: string;
+}
+
 export interface Invitation {
   id: string;
   email: string;
@@ -1094,6 +1145,53 @@ class ApiClient {
   // Teams
   async listTeams() {
     return this.fetch<PaginatedResponse<Team>>("/teams");
+  }
+
+  // Clusters
+  async listClusters(teamId?: string) {
+    const q = teamId ? `?team_id=${encodeURIComponent(teamId)}` : "";
+    return this.fetch<Cluster[]>(`/clusters${q}`);
+  }
+
+  async getCluster(clusterId: string) {
+    return this.fetch<Cluster>(`/clusters/${clusterId}`);
+  }
+
+  async createCluster(data: {
+    name: string;
+    description?: string;
+    labels?: Record<string, string>;
+    team_id?: string;
+  }) {
+    return this.fetch<Cluster>("/clusters", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteCluster(clusterId: string) {
+    return this.fetch<void>(`/clusters/${clusterId}`, { method: "DELETE" });
+  }
+
+  async listWorkers(
+    clusterId?: string,
+    status?: Worker["status"],
+    teamId?: string,
+  ) {
+    const params = new URLSearchParams();
+    if (clusterId) params.set("cluster_id", clusterId);
+    if (status) params.set("status", status);
+    if (teamId) params.set("team_id", teamId);
+    const q = params.toString();
+    return this.fetch<Worker[]>(`/workers${q ? `?${q}` : ""}`);
+  }
+
+  async getWorker(workerId: string) {
+    return this.fetch<Worker>(`/workers/${workerId}`);
+  }
+
+  async listRunAssignments(runId: string) {
+    return this.fetch<TaskAssignment[]>(`/runs/${runId}/assignments`);
   }
 
   async getTeam(id: string) {

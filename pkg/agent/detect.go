@@ -10,7 +10,7 @@ import (
 
 // DetectedEnvironment holds auto-detected information about the worker's environment.
 type DetectedEnvironment struct {
-	Type         string            // "kubernetes", "docker", "bare-metal"
+	Type         string // "kubernetes", "docker", "bare-metal"
 	OS           string
 	Arch         string
 	Hostname     string

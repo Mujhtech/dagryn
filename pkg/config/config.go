@@ -95,10 +95,10 @@ type SSOConfig struct {
 // ClusterConfig holds multi-cluster / distributed worker pool configuration.
 type ClusterConfig struct {
 	Enabled           bool   `toml:"enabled" envconfig:"ENABLED"`
-	GRPCAddress       string `toml:"grpc_address" envconfig:"GRPC_ADDRESS"`          // default ":9001"
-	HeartbeatSec      int    `toml:"heartbeat_interval" envconfig:"HEARTBEAT_SEC"`   // default 10
-	StaleTimeoutSec   int    `toml:"stale_timeout" envconfig:"STALE_TIMEOUT_SEC"`    // default 30
-	MaxRetries        int    `toml:"max_retries" envconfig:"MAX_RETRIES"`            // default 2
+	GRPCAddress       string `toml:"grpc_address" envconfig:"GRPC_ADDRESS"`        // default ":9001"
+	HeartbeatSec      int    `toml:"heartbeat_interval" envconfig:"HEARTBEAT_SEC"` // default 10
+	StaleTimeoutSec   int    `toml:"stale_timeout" envconfig:"STALE_TIMEOUT_SEC"`  // default 30
+	MaxRetries        int    `toml:"max_retries" envconfig:"MAX_RETRIES"`          // default 2
 	RegistrationToken string `toml:"registration_token" envconfig:"REGISTRATION_TOKEN"`
 	DefaultRouter     string `toml:"default_router" envconfig:"DEFAULT_ROUTER"` // "least-loaded", "round-robin", "label-affinity"
 

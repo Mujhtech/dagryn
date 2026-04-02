@@ -26,16 +26,16 @@ func NewCmd(_ *cli.Flags) *cobra.Command {
 
 func newStartCmd() *cobra.Command {
 	var (
-		serverAddr    string
-		token         string
-		labelsRaw     string
-		maxTasks      int
-		heartbeatSec  int
-		workDir       string
-		clusterName   string
-		tlsCertFile   string
-		tlsKeyFile    string
-		tlsCAFile     string
+		serverAddr   string
+		token        string
+		labelsRaw    string
+		maxTasks     int
+		heartbeatSec int
+		workDir      string
+		clusterName  string
+		tlsCertFile  string
+		tlsKeyFile   string
+		tlsCAFile    string
 	)
 
 	cmd := &cobra.Command{

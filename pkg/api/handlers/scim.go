@@ -33,9 +33,9 @@ func (h *SCIMHandler) writeSCIMJSON(w http.ResponseWriter, status int, data inte
 
 func (h *SCIMHandler) writeSCIMError(w http.ResponseWriter, status int, detail string) {
 	h.writeSCIMJSON(w, status, scim.SCIMError{
-		Schemas:  []string{scim.SchemaError},
-		Detail:   detail,
-		Status:   status,
+		Schemas: []string{scim.SchemaError},
+		Detail:  detail,
+		Status:  status,
 	})
 }
 

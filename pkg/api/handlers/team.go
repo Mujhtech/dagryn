@@ -120,6 +120,13 @@ func (h *Handler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 		_ = response.InternalServerError(w, r, errors.New("failed to create team"))
 		return
 	}
+	if h.store.Clusters != nil {
+		if _, err := h.store.Clusters.EnsureDefaultClusterForScope(ctx, &team.ID, nil); err != nil {
+			_ = h.store.Teams.Delete(ctx, team.ID)
+			_ = response.InternalServerError(w, r, errors.New("failed to create default cluster for team"))
+			return
+		}
+	}
 
 	// Audit log: team created
 	if h.auditService != nil {

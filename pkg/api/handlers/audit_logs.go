@@ -396,7 +396,7 @@ func (h *Handler) GetAuditRetentionPolicy(w http.ResponseWriter, r *http.Request
 //	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
-//	@Param			teamId	path		string						true	"Team ID"
+//	@Param			teamId	path		string							true	"Team ID"
 //	@Param			body	body		UpdateRetentionPolicyRequest	true	"Retention policy update"
 //	@Success		200		{object}	AuditRetentionPolicyResponse
 //	@Failure		400		{object}	ErrorResponse

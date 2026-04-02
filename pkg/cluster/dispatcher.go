@@ -7,18 +7,28 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mujhtech/dagryn/pkg/database/models"
-	"github.com/mujhtech/dagryn/pkg/database/repo"
 	"github.com/mujhtech/dagryn/pkg/dagryn/executor"
 	"github.com/mujhtech/dagryn/pkg/dagryn/task"
+	"github.com/mujhtech/dagryn/pkg/database/models"
+	"github.com/mujhtech/dagryn/pkg/database/repo"
 	"github.com/rs/zerolog/log"
 )
 
 // Dispatcher decides which worker executes a task and manages the dispatch lifecycle.
 type Dispatcher struct {
-	registry  *WorkerRegistry
-	store     repo.ClusterStore
-	router    TaskRouter
+	registry *WorkerRegistry
+	store    repo.ClusterStore
+	router   TaskRouter
+}
+
+// CreateRemoteExecutor creates a task executor that dispatches to workers.
+// gitSource is currently optional and expected to be *GitSourceConfig when provided.
+func (d *Dispatcher) CreateRemoteExecutor(runID, projectID string, teamID *uuid.UUID, ownerUserID *uuid.UUID, gitSource interface{}, maxRetries int) executor.TaskExecutor {
+	var src *GitSourceConfig
+	if gs, ok := gitSource.(*GitSourceConfig); ok {
+		src = gs
+	}
+	return NewRemoteTaskExecutorWithScope(d, runID, projectID, teamID, ownerUserID, src, maxRetries)
 }
 
 // NewDispatcher creates a new task dispatcher.
@@ -32,11 +42,13 @@ func NewDispatcher(registry *WorkerRegistry, store repo.ClusterStore, routerStra
 
 // RemoteTaskExecutor implements executor.TaskExecutor for distributed dispatch.
 type RemoteTaskExecutor struct {
-	dispatcher *Dispatcher
-	runID      string
-	projectID  string
-	gitSource  *GitSourceConfig
-	maxRetries int
+	dispatcher  *Dispatcher
+	runID       string
+	projectID   string
+	teamID      *uuid.UUID
+	ownerUserID *uuid.UUID
+	gitSource   *GitSourceConfig
+	maxRetries  int
 }
 
 // GitSourceConfig holds git clone information for remote workers.
@@ -61,17 +73,111 @@ func NewRemoteTaskExecutor(dispatcher *Dispatcher, runID, projectID string, gitS
 	}
 }
 
+// NewRemoteTaskExecutorWithScope creates a remote executor with tenant scope
+// for cluster resolution.
+func NewRemoteTaskExecutorWithScope(dispatcher *Dispatcher, runID, projectID string, teamID *uuid.UUID, ownerUserID *uuid.UUID, gitSource *GitSourceConfig, maxRetries int) *RemoteTaskExecutor {
+	e := NewRemoteTaskExecutor(dispatcher, runID, projectID, gitSource, maxRetries)
+	e.teamID = teamID
+	e.ownerUserID = ownerUserID
+	return e
+}
+
 // Execute dispatches a task to a remote worker and waits for the result.
 func (e *RemoteTaskExecutor) Execute(ctx context.Context, t *task.Task) *executor.Result {
 	startTime := time.Now()
 
+	routing := t.Routing
+	if routing == nil {
+		routing = &task.TaskRoutingConfig{}
+	}
+
 	// Find eligible workers
 	var available []*ConnectedWorker
-	if t.Routing != nil && t.Routing.Cluster != "" {
-		// Filter by cluster - in this implementation we filter by label matching
-		available = e.dispatcher.registry.FindWorkers(t.Routing.Labels, nil)
+	if routing.Cluster != "" {
+		cluster, err := e.dispatcher.store.GetClusterByNameInScope(ctx, routing.Cluster, e.teamID, e.ownerUserID)
+		if err != nil {
+			return &executor.Result{
+				Task:      t.Name,
+				Status:    executor.Failed,
+				Error:     fmt.Errorf("target cluster %q not found: %w", routing.Cluster, err),
+				StartTime: startTime,
+				EndTime:   time.Now(),
+				Duration:  time.Since(startTime),
+			}
+		}
+
+		workers, err := e.dispatcher.store.ListWorkers(ctx, &cluster.ID, nil)
+		if err != nil {
+			return &executor.Result{
+				Task:      t.Name,
+				Status:    executor.Failed,
+				Error:     fmt.Errorf("list workers for cluster %q: %w", routing.Cluster, err),
+				StartTime: startTime,
+				EndTime:   time.Now(),
+				Duration:  time.Since(startTime),
+			}
+		}
+
+		for _, dbw := range workers {
+			cw, ok := e.dispatcher.registry.GetWorker(dbw.ID.String())
+			if !ok {
+				continue
+			}
+			if dbw.Status != models.WorkerStatusOnline {
+				continue
+			}
+			if matchLabels(cw.Info.Labels, routing.Labels) {
+				available = append(available, cw)
+			}
+		}
 	} else {
-		available = e.dispatcher.registry.ListOnline()
+		if !routing.PreferLocal {
+			cluster, err := e.dispatcher.store.EnsureDefaultClusterForScope(ctx, e.teamID, e.ownerUserID)
+			if err != nil {
+				return &executor.Result{
+					Task:      t.Name,
+					Status:    executor.Failed,
+					Error:     fmt.Errorf("resolve default cluster: %w", err),
+					StartTime: startTime,
+					EndTime:   time.Now(),
+					Duration:  time.Since(startTime),
+				}
+			}
+			workers, err := e.dispatcher.store.ListWorkers(ctx, &cluster.ID, nil)
+			if err != nil {
+				return &executor.Result{
+					Task:      t.Name,
+					Status:    executor.Failed,
+					Error:     fmt.Errorf("list workers for default cluster: %w", err),
+					StartTime: startTime,
+					EndTime:   time.Now(),
+					Duration:  time.Since(startTime),
+				}
+			}
+			for _, dbw := range workers {
+				cw, ok := e.dispatcher.registry.GetWorker(dbw.ID.String())
+				if !ok {
+					continue
+				}
+				if dbw.Status != models.WorkerStatusOnline {
+					continue
+				}
+				if matchLabels(cw.Info.Labels, routing.Labels) {
+					available = append(available, cw)
+				}
+			}
+		} else {
+			available = e.dispatcher.registry.ListOnline()
+			if len(routing.Labels) > 0 {
+				filtered := make([]*ConnectedWorker, 0, len(available))
+				for _, cw := range available {
+					if matchLabels(cw.Info.Labels, routing.Labels) {
+						filtered = append(filtered, cw)
+					}
+				}
+				available = filtered
+			}
+		}
 	}
 
 	// Filter workers that have capacity
@@ -117,6 +223,9 @@ func (e *RemoteTaskExecutor) Execute(ctx context.Context, t *task.Task) *executo
 		Status:     models.TaskAssignmentAssigned,
 		AssignedAt: &now,
 		MaxRetries: e.maxRetries,
+	}
+	if w, getErr := e.dispatcher.store.GetWorker(ctx, workerID); getErr == nil {
+		assignment.ClusterID = w.ClusterID
 	}
 
 	if err := e.dispatcher.store.CreateTaskAssignment(ctx, assignment); err != nil {
@@ -215,6 +324,7 @@ func (e *RemoteTaskExecutor) DryRun(t *task.Task) *executor.Result {
 func (e *RemoteTaskExecutor) waitForResult(ctx context.Context, assignmentID uuid.UUID, taskName string, startTime time.Time) *executor.Result {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
+	deadline := time.Now().Add(30 * time.Minute)
 
 	for {
 		select {
@@ -228,6 +338,16 @@ func (e *RemoteTaskExecutor) waitForResult(ctx context.Context, assignmentID uui
 				Duration:  time.Since(startTime),
 			}
 		case <-ticker.C:
+			if time.Now().After(deadline) {
+				return &executor.Result{
+					Task:      taskName,
+					Status:    executor.Failed,
+					Error:     fmt.Errorf("timed out waiting for remote worker result"),
+					StartTime: startTime,
+					EndTime:   time.Now(),
+					Duration:  time.Since(startTime),
+				}
+			}
 			a, err := e.dispatcher.store.GetTaskAssignment(ctx, assignmentID)
 			if err != nil {
 				continue

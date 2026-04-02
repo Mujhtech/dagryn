@@ -9,12 +9,17 @@ import (
 
 // Cluster represents a logical grouping of workers.
 type Cluster struct {
-	ID          uuid.UUID       `json:"id"`
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Labels      json.RawMessage `json:"labels"`
-	CreatedAt   time.Time       `json:"created_at"`
-	UpdatedAt   time.Time       `json:"updated_at"`
+	ID            uuid.UUID       `json:"id"`
+	Name          string          `json:"name"`
+	Slug          string          `json:"slug"`
+	Description   string          `json:"description"`
+	Labels        json.RawMessage `json:"labels"`
+	ScopeType     string          `json:"scope_type"`
+	TeamID        *uuid.UUID      `json:"team_id,omitempty"`
+	OwnerUserID   *uuid.UUID      `json:"owner_user_id,omitempty"`
+	SystemDefault bool            `json:"system_default"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
 }
 
 // WorkerStatus represents the lifecycle status of a worker.
@@ -28,27 +33,27 @@ const (
 
 // Worker represents a registered agent node.
 type Worker struct {
-	ID                   uuid.UUID       `json:"id"`
-	Hostname             string          `json:"hostname"`
-	OS                   string          `json:"os"`
-	Arch                 string          `json:"arch"`
-	Environment          string          `json:"environment"`
-	Labels               json.RawMessage `json:"labels"`
-	Capabilities         []string        `json:"capabilities"`
-	MaxConcurrentTasks   int             `json:"max_concurrent_tasks"`
-	Version              string          `json:"version"`
-	Status               WorkerStatus    `json:"status"`
-	LastHeartbeatAt      time.Time       `json:"last_heartbeat_at"`
-	RegisteredAt         time.Time       `json:"registered_at"`
-	AuthTokenHash        string          `json:"-"`
-	ClusterID            *uuid.UUID      `json:"cluster_id,omitempty"`
-	CPUMillicoresAvail   int64           `json:"cpu_millicores_available"`
-	MemoryBytesAvail     int64           `json:"memory_bytes_available"`
-	DiskBytesAvail       int64           `json:"disk_bytes_available"`
-	CPUUsagePercent      float64         `json:"cpu_usage_percent"`
-	MemoryUsagePercent   float64         `json:"memory_usage_percent"`
-	ActiveTasks          int             `json:"active_tasks"`
-	ResourcesUpdatedAt   time.Time       `json:"resources_updated_at"`
+	ID                 uuid.UUID       `json:"id"`
+	Hostname           string          `json:"hostname"`
+	OS                 string          `json:"os"`
+	Arch               string          `json:"arch"`
+	Environment        string          `json:"environment"`
+	Labels             json.RawMessage `json:"labels"`
+	Capabilities       []string        `json:"capabilities"`
+	MaxConcurrentTasks int             `json:"max_concurrent_tasks"`
+	Version            string          `json:"version"`
+	Status             WorkerStatus    `json:"status"`
+	LastHeartbeatAt    time.Time       `json:"last_heartbeat_at"`
+	RegisteredAt       time.Time       `json:"registered_at"`
+	AuthTokenHash      string          `json:"-"`
+	ClusterID          *uuid.UUID      `json:"cluster_id,omitempty"`
+	CPUMillicoresAvail int64           `json:"cpu_millicores_available"`
+	MemoryBytesAvail   int64           `json:"memory_bytes_available"`
+	DiskBytesAvail     int64           `json:"disk_bytes_available"`
+	CPUUsagePercent    float64         `json:"cpu_usage_percent"`
+	MemoryUsagePercent float64         `json:"memory_usage_percent"`
+	ActiveTasks        int             `json:"active_tasks"`
+	ResourcesUpdatedAt time.Time       `json:"resources_updated_at"`
 }
 
 // TaskAssignmentStatus represents the status of a task assignment.

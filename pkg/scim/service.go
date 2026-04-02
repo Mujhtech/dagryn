@@ -410,10 +410,10 @@ func userToSCIM(u models.User, baseURL string) SCIMUser {
 	}
 
 	return SCIMUser{
-		Schemas:    []string{SchemaUser},
-		ID:         u.ID.String(),
-		ExternalID: externalID,
-		UserName:   u.Email,
+		Schemas:     []string{SchemaUser},
+		ID:          u.ID.String(),
+		ExternalID:  externalID,
+		UserName:    u.Email,
 		DisplayName: name,
 		Name: &SCIMName{
 			Formatted: name,

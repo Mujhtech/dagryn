@@ -16,15 +16,15 @@ import (
 
 type mockSSORepo struct {
 	connections map[uuid.UUID]*models.SSOConnection
-	byTeamID   map[uuid.UUID]*models.SSOConnection
-	states     map[string]*models.SSOState
+	byTeamID    map[uuid.UUID]*models.SSOConnection
+	states      map[string]*models.SSOState
 }
 
 func newMockSSORepo() *mockSSORepo {
 	return &mockSSORepo{
 		connections: make(map[uuid.UUID]*models.SSOConnection),
-		byTeamID:   make(map[uuid.UUID]*models.SSOConnection),
-		states:     make(map[string]*models.SSOState),
+		byTeamID:    make(map[uuid.UUID]*models.SSOConnection),
+		states:      make(map[string]*models.SSOState),
 	}
 }
 
@@ -148,8 +148,8 @@ func (m *mockTeamRepo) GetBySlug(ctx context.Context, slug string) (*models.Team
 	return team, nil
 }
 
-func (m *mockTeamRepo) Update(ctx context.Context, team *models.Team) error     { return nil }
-func (m *mockTeamRepo) Delete(ctx context.Context, id uuid.UUID) error          { return nil }
+func (m *mockTeamRepo) Update(ctx context.Context, team *models.Team) error       { return nil }
+func (m *mockTeamRepo) Delete(ctx context.Context, id uuid.UUID) error            { return nil }
 func (m *mockTeamRepo) SlugExists(ctx context.Context, slug string) (bool, error) { return false, nil }
 
 func (m *mockTeamRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]models.TeamWithMember, error) {
@@ -188,10 +188,14 @@ func (m *mockTeamRepo) ListMembers(ctx context.Context, teamID uuid.UUID) ([]mod
 	return nil, nil
 }
 
+func (m *mockTeamRepo) CountMembersByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
 type mockUserRepo struct {
-	users      map[uuid.UUID]*models.User
-	byEmail    map[string]*models.User
-	bySCIMID   map[string]*models.User
+	users       map[uuid.UUID]*models.User
+	byEmail     map[string]*models.User
+	bySCIMID    map[string]*models.User
 	createCalls int
 }
 

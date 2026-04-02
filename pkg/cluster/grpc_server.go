@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mujhtech/dagryn/pkg/config"
+	serverconfig "github.com/mujhtech/dagryn/pkg/config"
+	"github.com/mujhtech/dagryn/pkg/dagryn/executor"
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
-	"github.com/mujhtech/dagryn/pkg/dagryn/executor"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
@@ -30,11 +30,11 @@ type GRPCServer struct {
 	registry  *WorkerRegistry
 	store     repo.ClusterStore
 	logBridge *LogBridge
-	cfg       config.ClusterConfig
+	cfg       serverconfig.ClusterConfig
 }
 
 // NewGRPCServer creates and configures a new gRPC server for cluster operations.
-func NewGRPCServer(registry *WorkerRegistry, store repo.ClusterStore, logBridge *LogBridge, cfg config.ClusterConfig) *GRPCServer {
+func NewGRPCServer(registry *WorkerRegistry, store repo.ClusterStore, logBridge *LogBridge, cfg serverconfig.ClusterConfig) *GRPCServer {
 	var opts []grpc.ServerOption
 
 	// mTLS if configured (moved earlier per review recommendation)
@@ -114,8 +114,13 @@ func (s *GRPCServer) RegisterWorker(stream v1.ClusterService_RegisterWorkerServe
 			tokenHash := HashToken(s.cfg.RegistrationToken)
 
 			var clusterID *uuid.UUID
-			// Look up cluster by name if worker provides labels with cluster info
-			// For now, cluster assignment happens via API
+			cluster, clusterErr := s.resolveWorkerCluster(stream.Context(), hb.Info)
+			if clusterErr != nil {
+				return clusterErr
+			}
+			if cluster != nil {
+				clusterID = &cluster.ID
+			}
 
 			info := &WorkerInfo{
 				Hostname:           hb.Info.Hostname,
@@ -166,6 +171,37 @@ func (s *GRPCServer) RegisterWorker(stream v1.ClusterService_RegisterWorkerServe
 			return err
 		}
 	}
+}
+
+func (s *GRPCServer) resolveWorkerCluster(ctx context.Context, info *v1.WorkerInfo) (*models.Cluster, error) {
+	if info == nil {
+		return s.store.EnsureDefaultCluster(ctx)
+	}
+
+	if info.Labels != nil {
+		if _, ok := info.Labels["team_id"]; ok {
+			return nil, fmt.Errorf("team_id label is not allowed for worker registration")
+		}
+		if _, ok := info.Labels["owner_user_id"]; ok {
+			return nil, fmt.Errorf("owner_user_id label is not allowed for worker registration")
+		}
+
+		if preferredScope, ok := info.Labels["scope"]; ok && preferredScope == "global" {
+			if clusterName, ok := info.Labels["cluster"]; ok && clusterName != "" {
+				return s.store.GetClusterByName(ctx, clusterName)
+			}
+			return s.store.EnsureDefaultCluster(ctx)
+		}
+		if clusterName, ok := info.Labels["cluster"]; ok && clusterName != "" {
+			c, err := s.store.GetClusterByName(ctx, clusterName)
+			if err != nil {
+				return nil, fmt.Errorf("cluster %q not found", clusterName)
+			}
+			return c, nil
+		}
+	}
+
+	return s.store.EnsureDefaultCluster(ctx)
 }
 
 // TaskStream implements the bidirectional task dispatch/result stream.

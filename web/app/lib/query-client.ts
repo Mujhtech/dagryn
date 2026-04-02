@@ -28,6 +28,10 @@ export const queryKeys = {
   project: (id: string) => ["project", id] as const,
   projectApiKeys: (projectId: string) => ["projectApiKeys", projectId] as const,
   teams: ["teams"] as const,
+  clusters: (teamId?: string) => ["clusters", teamId ?? "personal"] as const,
+  workers: (clusterId?: string, status?: string, teamId?: string) =>
+    ["workers", clusterId ?? "all", status ?? "all", teamId ?? "all"] as const,
+  runAssignments: (runId: string) => ["runAssignments", runId] as const,
   team: (id: string) => ["team", id] as const,
   teamMembers: (teamId: string) => ["teamMembers", teamId] as const,
   teamInvitations: (teamId: string) => ["teamInvitations", teamId] as const,

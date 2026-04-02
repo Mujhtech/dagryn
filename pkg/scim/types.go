@@ -6,15 +6,15 @@ import "time"
 
 // SCIMUser represents a SCIM 2.0 User resource.
 type SCIMUser struct {
-	Schemas    []string  `json:"schemas"`
-	ID         string    `json:"id"`
-	ExternalID string    `json:"externalId,omitempty"`
-	UserName   string    `json:"userName"`
-	Name       *SCIMName `json:"name,omitempty"`
-	Emails     []SCIMEmail `json:"emails,omitempty"`
-	Active     bool      `json:"active"`
-	DisplayName string   `json:"displayName,omitempty"`
-	Meta       SCIMMeta  `json:"meta"`
+	Schemas     []string    `json:"schemas"`
+	ID          string      `json:"id"`
+	ExternalID  string      `json:"externalId,omitempty"`
+	UserName    string      `json:"userName"`
+	Name        *SCIMName   `json:"name,omitempty"`
+	Emails      []SCIMEmail `json:"emails,omitempty"`
+	Active      bool        `json:"active"`
+	DisplayName string      `json:"displayName,omitempty"`
+	Meta        SCIMMeta    `json:"meta"`
 }
 
 // SCIMName represents a SCIM name.
@@ -33,11 +33,11 @@ type SCIMEmail struct {
 
 // SCIMGroup represents a SCIM 2.0 Group resource.
 type SCIMGroup struct {
-	Schemas     []string       `json:"schemas"`
-	ID          string         `json:"id"`
-	DisplayName string         `json:"displayName"`
-	Members     []SCIMMember   `json:"members,omitempty"`
-	Meta        SCIMMeta       `json:"meta"`
+	Schemas     []string     `json:"schemas"`
+	ID          string       `json:"id"`
+	DisplayName string       `json:"displayName"`
+	Members     []SCIMMember `json:"members,omitempty"`
+	Meta        SCIMMeta     `json:"meta"`
 }
 
 // SCIMMember represents a SCIM group member reference.
@@ -87,9 +87,9 @@ type SCIMError struct {
 
 const (
 	// SCIM schemas
-	SchemaUser          = "urn:ietf:params:scim:schemas:core:2.0:User"
-	SchemaGroup         = "urn:ietf:params:scim:schemas:core:2.0:Group"
-	SchemaListResponse  = "urn:ietf:params:scim:api:messages:2.0:ListResponse"
-	SchemaPatchOp       = "urn:ietf:params:scim:api:messages:2.0:PatchOp"
-	SchemaError         = "urn:ietf:params:scim:api:messages:2.0:Error"
+	SchemaUser         = "urn:ietf:params:scim:schemas:core:2.0:User"
+	SchemaGroup        = "urn:ietf:params:scim:schemas:core:2.0:Group"
+	SchemaListResponse = "urn:ietf:params:scim:api:messages:2.0:ListResponse"
+	SchemaPatchOp      = "urn:ietf:params:scim:api:messages:2.0:PatchOp"
+	SchemaError        = "urn:ietf:params:scim:api:messages:2.0:Error"
 )
