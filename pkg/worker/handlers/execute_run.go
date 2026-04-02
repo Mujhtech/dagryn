@@ -933,6 +933,9 @@ func (h *ExecuteRunHandler) markRunCancelled(runID, projectID uuid.UUID, project
 		slog.Warn("execute_run: failed to mark run cancelled", "run_id", runID, "error", err)
 		return
 	}
+	if err := h.runs.CancelNonTerminalTasks(ctx, runID); err != nil {
+		slog.Warn("execute_run: failed to cancel running tasks", "run_id", runID, "error", err)
+	}
 	h.eventPublisher.PublishRunEvent(ctx, sse.EventRunCancelled, runID, projectID, string(models.RunStatusCancelled), reason)
 	h.notifyGitHub(ctx, run, project, models.RunStatusCancelled)
 }

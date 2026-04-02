@@ -158,6 +158,20 @@ func (e *Executor) Execute(ctx context.Context, t *task.Task) *Result {
 		mergedEnv[k] = v
 	}
 
+	// Auto-bootstrap common runtimes (e.g. go/node) when commands reference
+	// them and they are missing from the current execution environment.
+	toolchainEnv, err := ensureToolchainsForCommand(ctx, t.Command, mergedEnv, e.pluginPaths)
+	if err != nil {
+		result.EndTime = time.Now()
+		result.Duration = result.EndTime.Sub(result.StartTime)
+		result.Status = Failed
+		result.Error = err
+		return result
+	}
+	for k, v := range toolchainEnv {
+		mergedEnv[k] = v
+	}
+
 	// Create command
 	cmd := exec.CommandContext(ctx, "sh", "-c", t.Command)
 	cmd.Dir = workdir
@@ -166,7 +180,7 @@ func (e *Executor) Execute(ctx context.Context, t *task.Task) *Result {
 	cmd.Stderr = capture.StderrWriter()
 
 	// Execute command
-	err := cmd.Run()
+	err = cmd.Run()
 	result.EndTime = time.Now()
 	result.Duration = result.EndTime.Sub(result.StartTime)
 	result.Output = capture.Combined()

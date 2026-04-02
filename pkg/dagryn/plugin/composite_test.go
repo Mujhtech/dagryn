@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"os"
 	"runtime"
 	"testing"
 
@@ -37,7 +38,11 @@ func TestSubstituteVars(t *testing.T) {
 		},
 		{
 			input:    "${inputs.missing}",
-			expected: "${inputs.missing}", // not substituted
+			expected: "",
+		},
+		{
+			input:    "X${inputs.node-version}Y",
+			expected: "XY",
 		},
 	}
 
@@ -198,4 +203,69 @@ func TestCompositeExecutor_Execute(t *testing.T) {
 		err := e.Execute(ctx, manifest, nil, nil, "")
 		assert.NoError(t, err)
 	})
+
+	t.Run("missing optional hyphenated input does not break shell", func(t *testing.T) {
+		manifest := &Manifest{
+			Plugin: ManifestPlugin{Type: "composite"},
+			Inputs: map[string]InputDef{
+				"node-version": {Description: "optional"},
+			},
+			Steps: []CompositeStep{
+				{Name: "safe-optional", Command: "NODE_VERSION=\"${inputs.node-version}\"; [ -z \"$NODE_VERSION\" ]"},
+			},
+		}
+
+		err := e.Execute(ctx, manifest, nil, nil, "")
+		assert.NoError(t, err)
+	})
+}
+
+func TestExpandWithEnv(t *testing.T) {
+	env := map[string]string{"HOME": "/test", "PATH": "/usr/bin"}
+
+	assert.Equal(t, "/test/.tools/bin:/usr/bin",
+		expandWithEnv("$HOME/.tools/bin:$PATH", env))
+
+	assert.Equal(t, "hello",
+		expandWithEnv("hello", env))
+
+	// Falls back to os.Getenv for keys not in env map
+	assert.Equal(t, os.Getenv("USER"),
+		expandWithEnv("$USER", map[string]string{}))
+}
+
+func TestExecuteSetup_EnvAccumulation(t *testing.T) {
+	e := NewCompositeExecutor(t.TempDir(), nil)
+	manifest := &Manifest{
+		Plugin: ManifestPlugin{Type: "composite"},
+		Steps: []CompositeStep{
+			{
+				Name:    "set-tool-path",
+				Command: "true",
+				Env:     map[string]string{"PATH": "/custom/bin:$PATH"},
+			},
+			{
+				Name:    "verify-path",
+				Command: "echo $PATH | grep -q /custom/bin",
+			},
+		},
+	}
+	setup, err := e.ExecuteSetup(context.Background(), manifest, nil, nil, "")
+	require.NoError(t, err)
+	assert.Contains(t, setup.Env["PATH"], "/custom/bin")
+	assert.NotContains(t, setup.Env["PATH"], "$PATH") // must be expanded
+}
+
+func TestCollectStepEnv_Accumulated(t *testing.T) {
+	e := NewCompositeExecutor(t.TempDir(), nil)
+	manifest := &Manifest{
+		Plugin: ManifestPlugin{Type: "composite"},
+		Steps: []CompositeStep{
+			{Name: "s1", Command: "true", Env: map[string]string{"PATH": "/a:$PATH"}},
+			{Name: "s2", Command: "true", Env: map[string]string{"PATH": "/b:$PATH"}},
+		},
+	}
+	env := e.CollectStepEnv(manifest, nil)
+	assert.Contains(t, env["PATH"], "/b:")
+	assert.Contains(t, env["PATH"], "/a:") // must include step 1's addition
 }

@@ -228,12 +228,10 @@ func (r *CacheRepo) DeleteBlob(ctx context.Context, digestHash string) error {
 func (r *CacheRepo) GetQuota(ctx context.Context, projectID uuid.UUID) (*models.CacheQuota, error) {
 	var q models.CacheQuota
 	err := r.pool.QueryRow(ctx, `
-		SELECT project_id, max_size_bytes, current_size_bytes, max_entries, current_entries,
-		       billing_account_id, max_bandwidth_bytes, current_bandwidth_bytes, bandwidth_reset_at, updated_at
+		SELECT project_id, max_size_bytes, current_size_bytes, max_entries, current_entries, updated_at
 		FROM cache_quotas WHERE project_id = $1
 	`, projectID).Scan(
-		&q.ProjectID, &q.MaxSizeBytes, &q.CurrentSizeBytes, &q.MaxEntries, &q.CurrentEntries,
-		&q.BillingAccountID, &q.MaxBandwidthBytes, &q.CurrentBandwidthBytes, &q.BandwidthResetAt, &q.UpdatedAt,
+		&q.ProjectID, &q.MaxSizeBytes, &q.CurrentSizeBytes, &q.MaxEntries, &q.CurrentEntries, &q.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -244,14 +242,11 @@ func (r *CacheRepo) GetQuota(ctx context.Context, projectID uuid.UUID) (*models.
 	return &q, nil
 }
 
-// EnsureQuota creates a default quota record if one doesn't exist, linking the billing account.
+// EnsureQuota creates a default quota record if one doesn't exist.
 func (r *CacheRepo) EnsureQuota(ctx context.Context, projectID uuid.UUID) error {
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO cache_quotas (project_id, billing_account_id)
-		VALUES ($1, (SELECT billing_account_id FROM projects WHERE id = $1))
-		ON CONFLICT (project_id) DO UPDATE
-		SET billing_account_id = COALESCE(cache_quotas.billing_account_id,
-			(SELECT billing_account_id FROM projects WHERE id = $1))
+		INSERT INTO cache_quotas (project_id) VALUES ($1)
+		ON CONFLICT (project_id) DO NOTHING
 	`, projectID)
 	return err
 }
@@ -265,17 +260,6 @@ func (r *CacheRepo) UpdateQuotaUsage(ctx context.Context, projectID uuid.UUID, s
 		    updated_at = NOW()
 		WHERE project_id = $1
 	`, projectID, sizeDelta, entryDelta)
-	return err
-}
-
-// IncrementBandwidthUsage adds to the bandwidth counter on the project's cache quota.
-func (r *CacheRepo) IncrementBandwidthUsage(ctx context.Context, projectID uuid.UUID, bytes int64) error {
-	_, err := r.pool.Exec(ctx, `
-		UPDATE cache_quotas
-		SET current_bandwidth_bytes = current_bandwidth_bytes + $2,
-		    updated_at = NOW()
-		WHERE project_id = $1
-	`, projectID, bytes)
 	return err
 }
 

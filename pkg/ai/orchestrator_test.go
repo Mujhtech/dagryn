@@ -42,6 +42,18 @@ func (m *mockWorkflowDS) GetByID(_ context.Context, _ uuid.UUID) (*models.Workfl
 	return nil, m.err
 }
 
+type mockProjectDS struct {
+	project *models.Project
+	err     error
+}
+
+func (m *mockProjectDS) GetByID(_ context.Context, _ uuid.UUID) (*models.Project, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.project, nil
+}
+
 type mockProvider struct {
 	output *aitypes.AnalysisOutput
 	err    error
@@ -82,7 +94,8 @@ func ptrInt64(i int64) *int64 { return &i }
 func setupOrchestrator(runDS *mockRunDS, prov *mockProvider, guardrails config.AIGuardrailConfig) (*Orchestrator, *mockAIDataStore) {
 	logger := zerolog.Nop()
 	wfDS := &mockWorkflowDS{err: errors.New("no workflow")}
-	eb := evidence.NewEvidenceBuilder(runDS, wfDS, logger)
+	projDS := &mockProjectDS{project: &models.Project{ConfigPath: "dagryn.toml"}}
+	eb := evidence.NewEvidenceBuilder(runDS, wfDS, projDS, logger)
 	policy := NewPolicyChecker(guardrails, config.AIRateLimitConfig{}, logger)
 	aiRepo := &mockAIDataStore{}
 	orch := NewOrchestrator(eb, prov, policy, aiRepo, logger)

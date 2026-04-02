@@ -7,7 +7,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
+
+	"github.com/mujhtech/dagryn/pkg/dagryn/toolchain"
 )
 
 // GoResolver resolves plugins via go install.
@@ -47,6 +50,30 @@ func (r *GoResolver) Install(ctx context.Context, plugin *Plugin, installDir str
 		Status: StatusInstalling,
 	}
 
+	tc, err := toolchain.EnsureRuntime(ctx, toolchain.RuntimeGo)
+	if err != nil {
+		result.Status = StatusFailed
+		result.Error = fmt.Errorf("go runtime not available: %w", err)
+		return result, result.Error
+	}
+	baseEnv := envToMap(os.Environ())
+	goCmd := "go"
+	if tc != nil {
+		if tc.BinDir != "" {
+			baseEnv["PATH"] = toolchain.PrependPath(tc.BinDir, baseEnv["PATH"])
+			candidate := filepath.Join(tc.BinDir, "go")
+			if runtime.GOOS == "windows" {
+				candidate += ".exe"
+			}
+			if info, statErr := os.Stat(candidate); statErr == nil && !info.IsDir() {
+				goCmd = candidate
+			}
+		}
+		for k, v := range tc.Env {
+			baseEnv[k] = v
+		}
+	}
+
 	crossCompile := r.platform.OS != runtime.GOOS || r.platform.Arch != runtime.GOARCH
 
 	// Create bin directory (final destination for the binary)
@@ -69,8 +96,8 @@ func (r *GoResolver) Install(ctx context.Context, plugin *Plugin, installDir str
 	// When cross-compiling, Go refuses GOBIN ("cannot install cross-compiled
 	// binaries when GOBIN is set"). Use a temporary GOPATH instead; Go places
 	// cross-compiled binaries in $GOPATH/bin/$GOOS_$GOARCH/.
-	cmd := exec.CommandContext(ctx, "go", "install", modulePath)
-	var env []string
+	cmd := exec.CommandContext(ctx, goCmd, "install", modulePath)
+	var env map[string]string
 
 	if crossCompile {
 		gopath, err := os.MkdirTemp("", "dagryn-gopath-*")
@@ -83,13 +110,12 @@ func (r *GoResolver) Install(ctx context.Context, plugin *Plugin, installDir str
 			_ = os.RemoveAll(gopath)
 		}()
 
-		env = append(os.Environ(),
-			fmt.Sprintf("GOPATH=%s", gopath),
-			fmt.Sprintf("GOOS=%s", r.platform.OS),
-			fmt.Sprintf("GOARCH=%s", r.platform.Arch),
-			"CGO_ENABLED=0",
-		)
-		cmd.Env = env
+		env = cloneEnvMap(baseEnv)
+		env["GOPATH"] = gopath
+		env["GOOS"] = r.platform.OS
+		env["GOARCH"] = r.platform.Arch
+		env["CGO_ENABLED"] = "0"
+		cmd.Env = mapToEnv(env)
 
 		output, err := cmd.CombinedOutput()
 		if err != nil {
@@ -109,8 +135,9 @@ func (r *GoResolver) Install(ctx context.Context, plugin *Plugin, installDir str
 			return result, result.Error
 		}
 	} else {
-		env = append(os.Environ(), fmt.Sprintf("GOBIN=%s", binDir))
-		cmd.Env = env
+		env = cloneEnvMap(baseEnv)
+		env["GOBIN"] = binDir
+		cmd.Env = mapToEnv(env)
 
 		output, err := cmd.CombinedOutput()
 		if err != nil {
@@ -196,4 +223,31 @@ func (r *GoResolver) Verify(ctx context.Context, plugin *Plugin) error {
 	}
 
 	return nil
+}
+
+func envToMap(env []string) map[string]string {
+	out := make(map[string]string, len(env))
+	for _, item := range env {
+		if k, v, ok := strings.Cut(item, "="); ok {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+func cloneEnvMap(src map[string]string) map[string]string {
+	out := make(map[string]string, len(src))
+	for k, v := range src {
+		out[k] = v
+	}
+	return out
+}
+
+func mapToEnv(env map[string]string) []string {
+	out := make([]string, 0, len(env))
+	for k, v := range env {
+		out = append(out, k+"="+v)
+	}
+	sort.Strings(out)
+	return out
 }

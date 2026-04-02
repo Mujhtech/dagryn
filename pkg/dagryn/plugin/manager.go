@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -167,12 +168,14 @@ func (m *Manager) Install(ctx context.Context, spec string) (*InstallResult, err
 	// Check if already installed
 	m.mu.RLock()
 	if plugin, ok := m.installed[spec]; ok {
-		m.mu.RUnlock()
-		return &InstallResult{
-			Plugin:  plugin,
-			Status:  StatusCached,
-			Message: fmt.Sprintf("Plugin %s already installed", plugin.Name),
-		}, nil
+		if m.isPluginReady(plugin) {
+			m.mu.RUnlock()
+			return &InstallResult{
+				Plugin:  plugin,
+				Status:  StatusCached,
+				Message: fmt.Sprintf("Plugin %s already installed", plugin.Name),
+			}, nil
+		}
 	}
 	m.mu.RUnlock()
 
@@ -232,6 +235,10 @@ func (m *Manager) Install(ctx context.Context, spec string) (*InstallResult, err
 
 	result, err := resolver.Install(ctx, plugin, installDir)
 	if err != nil {
+		if result != nil && result.Error != nil {
+			result.Error = classifyInstallError(result.Error)
+		}
+		err = classifyInstallError(err)
 		return result, err
 	}
 
@@ -244,6 +251,26 @@ func (m *Manager) Install(ctx context.Context, spec string) (*InstallResult, err
 	m.saveLockFile()
 
 	return result, nil
+}
+
+func (m *Manager) isPluginReady(plugin *Plugin) bool {
+	if plugin == nil {
+		return false
+	}
+
+	if plugin.Manifest != nil {
+		if plugin.Manifest.IsComposite() || plugin.Manifest.IsIntegration() {
+			return plugin.InstallPath != ""
+		}
+	}
+
+	if plugin.BinaryPath == "" {
+		return false
+	}
+	if _, err := os.Stat(plugin.BinaryPath); err != nil {
+		return false
+	}
+	return true
 }
 
 // Register adds a resolved plugin to the installed cache and persists it to the lock file.
@@ -524,6 +551,10 @@ func (m *Manager) InstallForPlatform(ctx context.Context, spec string, target Pl
 
 	result, err := resolver.Install(ctx, &platformPlugin, installDir)
 	if err != nil {
+		if result != nil && result.Error != nil {
+			result.Error = classifyInstallError(result.Error)
+		}
+		err = classifyInstallError(err)
 		return result, err
 	}
 
@@ -533,6 +564,42 @@ func (m *Manager) InstallForPlatform(ctx context.Context, spec string, target Pl
 	m.mu.Unlock()
 
 	return result, nil
+}
+
+func classifyInstallError(err error) error {
+	if err == nil {
+		return nil
+	}
+	msg := strings.ToLower(err.Error())
+	category := "install_failed"
+
+	switch {
+	case strings.Contains(msg, "permission denied") || strings.Contains(msg, "eacces"):
+		category = "permission_denied"
+	case strings.Contains(msg, "no such file or directory") ||
+		strings.Contains(msg, "command not found") ||
+		strings.Contains(msg, "is required"):
+		category = "missing_dependency"
+	case strings.Contains(msg, "status 404") ||
+		strings.Contains(msg, "status 429") ||
+		strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "no route to host") ||
+		strings.Contains(msg, "timeout") ||
+		strings.Contains(msg, "tls") ||
+		strings.Contains(msg, "temporary failure"):
+		category = "network_error"
+	case strings.Contains(msg, "unsupported") || strings.Contains(msg, "no suitable asset"):
+		category = "unsupported_platform"
+	case strings.Contains(msg, "cannot execute") ||
+		strings.Contains(msg, "exec format") ||
+		strings.Contains(msg, "not executable"):
+		category = "binary_not_executable"
+	}
+
+	if strings.Contains(msg, "[") && strings.Contains(msg, "]") {
+		return err
+	}
+	return fmt.Errorf("[%s] %w", category, err)
 }
 
 // GetBinPathsForPlatform returns binary directories for installed plugins

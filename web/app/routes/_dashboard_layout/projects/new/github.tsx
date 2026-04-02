@@ -5,6 +5,7 @@ import {
   useGitHubAppInstallations,
   useGitHubAppRepos,
   useGitHubWorkflowTranslation,
+  useTeams,
 } from "~/hooks/queries";
 import { useCreateProject } from "~/hooks/mutations";
 import { api } from "~/lib/api";
@@ -26,7 +27,14 @@ import { Icons } from "~/components/icons";
 import Editor from "@monaco-editor/react";
 import type { MonacoInstance } from "~/lib/monaco";
 import "~/lib/monaco";
-import type { GitHubAppInstallation, GitHubRepo } from "~/lib/api";
+import type { GitHubAppInstallation, GitHubRepo, Team } from "~/lib/api";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
 import {
   Command,
   CommandEmpty,
@@ -195,6 +203,54 @@ function buildTriggerToml(config: TriggerConfig): string {
   }
 
   return lines.join("\n");
+}
+
+// Parse a TriggerConfig from a TOML config string by reading [workflow.trigger*] sections.
+function parseTriggerFromToml(config: string): TriggerConfig {
+  const lines = config.split("\n");
+  const result: TriggerConfig = { ...DEFAULT_TRIGGER_CONFIG };
+
+  let currentSection = "";
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed === "[workflow.trigger]") {
+      result.enabled = true;
+      currentSection = "trigger";
+      continue;
+    }
+    if (trimmed === "[workflow.trigger.push]") {
+      result.push = true;
+      currentSection = "push";
+      continue;
+    }
+    if (trimmed === "[workflow.trigger.pull_request]") {
+      result.pullRequest = true;
+      currentSection = "pr";
+      continue;
+    }
+    if (trimmed.startsWith("[")) {
+      currentSection = "";
+      continue;
+    }
+
+    const arrayMatch = trimmed.match(/^(\w+)\s*=\s*\[([^\]]*)\]/);
+    if (!arrayMatch) continue;
+
+    const key = arrayMatch[1];
+    const values = [...arrayMatch[2].matchAll(/"([^"]*)"/g)].map((m) => m[1]);
+
+    if (currentSection === "push" && key === "branches") {
+      result.pushBranches = values;
+    } else if (currentSection === "pr" && key === "branches") {
+      result.prBranches = values;
+    } else if (currentSection === "pr" && key === "types") {
+      result.prTypes = values;
+    }
+  }
+
+  return result;
 }
 
 // Inject the trigger section into a TOML config, replacing any existing trigger block.
@@ -810,6 +866,8 @@ function WorkflowDetectionSection({
   workflowTranslation:
     | {
         detected: boolean;
+        has_dagryn_toml: boolean;
+        dagryn_toml?: string;
         workflows: { file: string; name: string; task_count: number }[];
         tasks_toml: string;
       }
@@ -829,10 +887,34 @@ function WorkflowDetectionSection({
       {workflowTranslationLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Icons.Loader className="h-4 w-4 animate-spin" />
-          Checking .github/workflows...
+          Checking repository...
         </div>
       ) : workflowTranslationError ? (
-        <p className="text-sm text-destructive">Failed to inspect workflows.</p>
+        <p className="text-sm text-destructive">Failed to inspect repository.</p>
+      ) : workflowTranslation?.has_dagryn_toml ? (
+        <div className="rounded-none border bg-muted/40 p-3 space-y-3">
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="text-xs">
+              dagryn.toml found
+            </Badge>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            This repository already contains a <code className="font-mono text-foreground">dagryn.toml</code> configuration
+            file. The project will use the existing configuration.
+          </p>
+
+          <div className="rounded-none border overflow-hidden">
+            <Editor
+              height="320px"
+              language="toml"
+              theme="dagryn-import"
+              beforeMount={setupEditorTheme}
+              value={workflowDraft}
+              options={{ ...tomlEditorOptions, readOnly: true }}
+            />
+          </div>
+        </div>
       ) : workflowTranslation?.detected ? (
         <div className="rounded-none border bg-muted/40 p-3 space-y-3">
           <div className="flex items-center gap-2">
@@ -922,6 +1004,9 @@ function ProjectDetailsSection({
   setImportSlugEdited,
   branch,
   onBranchChange,
+  teamId,
+  setTeamId,
+  teams,
   disabled,
 }: {
   importName: string;
@@ -931,6 +1016,9 @@ function ProjectDetailsSection({
   setImportSlugEdited: (v: boolean) => void;
   branch: string;
   onBranchChange: (v: string) => void;
+  teamId: string;
+  setTeamId: (v: string) => void;
+  teams: Team[];
   disabled?: boolean;
 }) {
   return (
@@ -978,6 +1066,28 @@ function ProjectDetailsSection({
           Change the branch to detect workflows from a different branch.
         </p>
       </div>
+
+      {teams.length > 0 && (
+        <div className="grid gap-2">
+          <Label htmlFor="import-team">Team (optional)</Label>
+          <Select value={teamId} onValueChange={setTeamId} disabled={disabled}>
+            <SelectTrigger id="import-team">
+              <SelectValue placeholder="No team" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No team</SelectItem>
+              {teams.map((team) => (
+                <SelectItem key={team.id} value={team.id}>
+                  {team.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Assign this project to a team
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -985,6 +1095,8 @@ function ProjectDetailsSection({
 function ImportFromGitHubPage() {
   const navigate = useNavigate();
   const createProjectMutation = useCreateProject();
+  const { data: teamsData } = useTeams();
+  const teams = teamsData?.data ?? [];
 
   const [gitScope, setGitScope] = useState<GitScope | null>(null);
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
@@ -997,6 +1109,7 @@ function ImportFromGitHubPage() {
   const [importName, setImportName] = useState("");
   const [importSlug, setImportSlug] = useState("");
   const [importSlugEdited, setImportSlugEdited] = useState(false);
+  const [importTeamId, setImportTeamId] = useState("");
 
   const [useDetectedWorkflow, setUseDetectedWorkflow] = useState(true);
   const [workflowDraft, setWorkflowDraft] = useState("");
@@ -1072,6 +1185,7 @@ function ImportFromGitHubPage() {
     setImportName("");
     setImportSlug("");
     setImportSlugEdited(false);
+    setImportTeamId("");
     setWorkflowDraft("");
     setUseDetectedWorkflow(true);
     setWorkflowSyncError("");
@@ -1115,7 +1229,14 @@ function ImportFromGitHubPage() {
       return;
     }
 
-    if (workflowTranslation?.detected) {
+    if (workflowTranslation?.has_dagryn_toml) {
+      // Repo already has dagryn.toml — use it directly, no translation needed
+      const tomlContent = workflowTranslation.dagryn_toml?.trim() ?? "";
+      setWorkflowDraft(tomlContent);
+      setUseDetectedWorkflow(false);
+      // Parse trigger config from the existing dagryn.toml
+      setTriggerConfig(parseTriggerFromToml(tomlContent));
+    } else if (workflowTranslation?.detected) {
       setWorkflowDraft(workflowTranslation.tasks_toml.trim());
       setUseDetectedWorkflow(true);
       // Auto-enable push trigger when workflows are detected
@@ -1139,12 +1260,14 @@ function ImportFromGitHubPage() {
   }, [selectedRepo, workflowTranslation, effectiveBranch, sampleTemplateData]);
 
   // Inject trigger config into editor whenever triggers change
+  // Skip when repo has dagryn.toml — the config is read-only from the repo.
   useEffect(() => {
+    if (workflowTranslation?.has_dagryn_toml) return;
     setWorkflowDraft((prev) => {
       if (!prev) return prev;
       return injectTriggerSection(prev, triggerConfig);
     });
-  }, [triggerConfig]);
+  }, [triggerConfig, workflowTranslation?.has_dagryn_toml]);
 
   const canCreate =
     gitScope?.kind === "manual_url"
@@ -1168,6 +1291,7 @@ function ImportFromGitHubPage() {
       const project = await createProjectMutation.mutateAsync({
         name: importName.trim(),
         slug: importSlug.trim(),
+        team_id: importTeamId && importTeamId !== "none" ? importTeamId : undefined,
         repo_url: repoUrl,
         github_installation_id:
           gitScope?.kind === "installation" ? (gitScope.id ?? "") : "",
@@ -1305,9 +1429,15 @@ function ImportFromGitHubPage() {
         <RunTriggersSection
           triggerConfig={triggerConfig}
           onTriggerChange={setTriggerConfig}
-          autoDetected={Boolean(workflowTranslation?.detected)}
+          autoDetected={Boolean(
+            workflowTranslation?.detected ||
+              workflowTranslation?.has_dagryn_toml,
+          )}
           defaultBranch={selectedRepo?.default_branch}
-          disabled={createProjectMutation.isPending}
+          disabled={
+            createProjectMutation.isPending ||
+            Boolean(workflowTranslation?.has_dagryn_toml)
+          }
         />
       )}
 
@@ -1315,10 +1445,15 @@ function ImportFromGitHubPage() {
       {selectedRepo && gitScope?.kind !== "manual_url" && (
         <Card>
           <CardHeader>
-            <CardTitle>Workflow Detection</CardTitle>
+            <CardTitle>
+              {workflowTranslation?.has_dagryn_toml
+                ? "Configuration"
+                : "Workflow Detection"}
+            </CardTitle>
             <CardDescription>
-              Automatically translate GitHub Actions workflows to Dagryn
-              configuration
+              {workflowTranslation?.has_dagryn_toml
+                ? "This repository already has a Dagryn configuration file"
+                : "Automatically translate GitHub Actions workflows to Dagryn configuration"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -1354,6 +1489,9 @@ function ImportFromGitHubPage() {
               setImportSlugEdited={setImportSlugEdited}
               branch={effectiveBranch}
               onBranchChange={setBranchOverride}
+              teamId={importTeamId}
+              setTeamId={setImportTeamId}
+              teams={teams}
               disabled={createProjectMutation.isPending}
             />
 

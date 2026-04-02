@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	apiCtx "github.com/mujhtech/dagryn/pkg/api/context"
 	"github.com/mujhtech/dagryn/pkg/http/response"
 	"github.com/mujhtech/dagryn/pkg/licensing"
 	"github.com/rs/zerolog/log"
@@ -105,6 +106,11 @@ func (h *Handler) GetLicenseStatus(w http.ResponseWriter, r *http.Request) {
 			// Limits from claims
 			resp.Limits = buildLicenseLimits(claims)
 		}
+	}
+
+	// Populate current usage scoped to the authenticated user
+	if user := apiCtx.GetUser(r.Context()); user != nil {
+		h.populateCurrentUsage(r.Context(), user.ID, &resp.Limits)
 	}
 
 	_ = response.Ok(w, r, "License status retrieved", resp)
@@ -239,7 +245,25 @@ func (h *Handler) ActivateLicense(w http.ResponseWriter, r *http.Request) {
 	statusResp.GracePeriod = gate.InGracePeriod()
 	statusResp.Expiring = gate.IsExpiring()
 
+	// Populate current usage scoped to the authenticated user
+	if user := apiCtx.GetUser(r.Context()); user != nil {
+		h.populateCurrentUsage(r.Context(), user.ID, &statusResp.Limits)
+	}
+
 	_ = response.Ok(w, r, "License activated successfully", statusResp)
+}
+
+// populateCurrentUsage queries the database for resource counts scoped to the authenticated user.
+func (h *Handler) populateCurrentUsage(ctx context.Context, userID uuid.UUID, usage *LicenseUsage) {
+	if projectCount, err := h.store.Projects.CountByUser(ctx, userID); err == nil {
+		usage.Projects.Current = projectCount
+	}
+	if memberCount, err := h.store.Teams.CountMembersByUser(ctx, userID); err == nil {
+		usage.TeamMembers.Current = memberCount
+	}
+	if activeRuns, err := h.store.Runs.CountActiveByUser(ctx, userID); err == nil {
+		usage.ConcurrentRuns.Current = activeRuns
+	}
 }
 
 func buildFeatureList(gate *licensing.FeatureGate) []FeatureEntry {

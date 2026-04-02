@@ -228,10 +228,12 @@ type GitHubWorkflowSummary struct {
 //
 //	@Description	Translation result for GitHub Actions workflows
 type GitHubWorkflowTranslateResponse struct {
-	Detected  bool                    `json:"detected" example:"true"`
-	Workflows []GitHubWorkflowSummary `json:"workflows"`
-	Plugins   map[string]string       `json:"plugins"`
-	TasksToml string                  `json:"tasks_toml"`
+	Detected      bool                    `json:"detected" example:"true"`
+	Workflows     []GitHubWorkflowSummary `json:"workflows"`
+	Plugins       map[string]string       `json:"plugins"`
+	TasksToml     string                  `json:"tasks_toml"`
+	HasDagrynToml bool                    `json:"has_dagryn_toml" example:"false"`
+	DagrynToml    string                  `json:"dagryn_toml,omitempty"`
 }
 
 // ProjectMemberResponse represents a project member in API responses.

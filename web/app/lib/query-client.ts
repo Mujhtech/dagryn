@@ -44,8 +44,17 @@ export const queryKeys = {
   githubAppInstallations: ["githubAppInstallations"] as const,
   githubAppRepos: (installationId: string) =>
     ["githubAppRepos", installationId] as const,
-  githubWorkflowTranslation: (repoFullName: string, installationId?: string, ref?: string) =>
-    ["githubWorkflowTranslation", repoFullName, installationId ?? "none", ref ?? "default"] as const,
+  githubWorkflowTranslation: (
+    repoFullName: string,
+    installationId?: string,
+    ref?: string,
+  ) =>
+    [
+      "githubWorkflowTranslation",
+      repoFullName,
+      installationId ?? "none",
+      ref ?? "default",
+    ] as const,
   projectWorkflows: (projectId: string) =>
     ["projectWorkflows", projectId] as const,
   runWorkflow: (projectId: string, runId: string) =>
@@ -83,11 +92,10 @@ export const queryKeys = {
     ["projectAuditLogs", projectId, cursor ?? ""] as const,
   teamAuditRetention: (teamId: string) =>
     ["teamAuditRetention", teamId] as const,
-  teamAuditWebhooks: (teamId: string) =>
-    ["teamAuditWebhooks", teamId] as const,
+  teamAuditWebhooks: (teamId: string) => ["teamAuditWebhooks", teamId] as const,
   ssoConnection: (teamId: string) => ["ssoConnection", teamId] as const,
-  sampleTemplate: (language: string) =>
-    ["sampleTemplate", language] as const,
+  health: ["health"] as const,
+  sampleTemplate: (language: string) => ["sampleTemplate", language] as const,
   teamAnalytics: (teamId: string, days: number) =>
     ["teamAnalytics", teamId, days] as const,
   userAnalytics: (days: number) => ["userAnalytics", days] as const,

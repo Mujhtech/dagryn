@@ -29,9 +29,17 @@ MESSAGE="${inputs.message}"
 CHANNEL="${inputs.channel}"
 USERNAME="${inputs.username}"
 
-PAYLOAD="{\"text\": \"$MESSAGE\", \"username\": \"$USERNAME\""
+json_escape() {
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e ':a;N;$!ba;s/\n/\\n/g' -e 's/\r/\\r/g' -e 's/\t/\\t/g'
+}
+
+MESSAGE_ESCAPED=$(json_escape "$MESSAGE")
+USERNAME_ESCAPED=$(json_escape "$USERNAME")
+CHANNEL_ESCAPED=$(json_escape "$CHANNEL")
+
+PAYLOAD="{\"text\": \"$MESSAGE_ESCAPED\", \"username\": \"$USERNAME_ESCAPED\""
 if [ -n "$CHANNEL" ]; then
-  PAYLOAD="$PAYLOAD, \"channel\": \"$CHANNEL\""
+  PAYLOAD="$PAYLOAD, \"channel\": \"$CHANNEL_ESCAPED\""
 fi
 PAYLOAD="$PAYLOAD}"
 

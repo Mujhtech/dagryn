@@ -1,7 +1,7 @@
 [plugin]
 name = "setup-yarn"
 description = "Install and configure Yarn package manager"
-version = "1.0.0"
+version = "1.2.0"
 type = "composite"
 author = "dagryn"
 license = "MIT"
@@ -27,6 +27,25 @@ name = "download-and-install"
 command = """
 YARN_VERSION="${inputs.yarn-version}"
 
+if ! command -v node >/dev/null 2>&1; then
+  echo "Error: yarn requires Node.js but 'node' is not available [missing_dependency]" >&2
+  exit 1
+fi
+
+if ! node --version >/dev/null 2>&1; then
+  NODE_ERR=$(node --version 2>&1 || true)
+  echo "Error: Node.js is present but not executable [binary_not_executable]" >&2
+  if [ -n "$NODE_ERR" ]; then
+    echo "$NODE_ERR" >&2
+  fi
+  exit 1
+fi
+
+if ! command -v tar >/dev/null 2>&1; then
+  echo "Error: tar is required to extract Yarn archive [missing_dependency]" >&2
+  exit 1
+fi
+
 # Skip if yarn is already available on PATH
 if command -v yarn >/dev/null 2>&1; then
   echo "Yarn $(yarn --version) already available, skipping install"
@@ -35,30 +54,35 @@ fi
 
 INSTALL_DIR="$HOME/.dagryn/tools/yarn-$YARN_VERSION"
 if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/bin/yarn" ]; then
-  echo "Yarn $YARN_VERSION already installed"
-else
-  mkdir -p "$INSTALL_DIR"
-  TARBALL="yarn-v${YARN_VERSION}.tar.gz"
-  URL="https://github.com/yarnpkg/yarn/releases/download/v${YARN_VERSION}/${TARBALL}"
-  echo "Downloading Yarn $YARN_VERSION from $URL"
-  TMPFILE=$(mktemp)
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "$TMPFILE" "$URL"
-  elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$TMPFILE" "$URL"
-  else
-    echo "Error: curl or wget is required" >&2; exit 1
+  if "$INSTALL_DIR/bin/yarn" --version >/dev/null 2>&1; then
+    echo "Yarn $YARN_VERSION already installed"
+    exit 0
   fi
-  if [ ! -s "$TMPFILE" ]; then
-    echo "Error: failed to download $URL" >&2; rm -f "$TMPFILE"; exit 1
-  fi
-  tar xzf "$TMPFILE" --strip-components=1 -C "$INSTALL_DIR"
-  rm -f "$TMPFILE"
-  if [ ! -f "$INSTALL_DIR/bin/yarn" ]; then
-    echo "Error: yarn binary not found after extraction" >&2; exit 1
-  fi
-  echo "Yarn $YARN_VERSION downloaded successfully"
+  echo "Existing Yarn installation broken, re-downloading..."
+  rm -rf "$INSTALL_DIR"
 fi
+
+mkdir -p "$INSTALL_DIR"
+TARBALL="yarn-v${YARN_VERSION}.tar.gz"
+URL="https://github.com/yarnpkg/yarn/releases/download/v${YARN_VERSION}/${TARBALL}"
+echo "Downloading Yarn $YARN_VERSION from $URL"
+TMPFILE=$(mktemp)
+if command -v curl >/dev/null 2>&1; then
+  curl -fsSL -o "$TMPFILE" "$URL"
+elif command -v wget >/dev/null 2>&1; then
+  wget -q -O "$TMPFILE" "$URL"
+else
+  echo "Error: curl or wget is required" >&2; exit 1
+fi
+if [ ! -s "$TMPFILE" ]; then
+  echo "Error: failed to download $URL" >&2; rm -f "$TMPFILE"; exit 1
+fi
+tar xzf "$TMPFILE" --strip-components=1 -C "$INSTALL_DIR"
+rm -f "$TMPFILE"
+if [ ! -f "$INSTALL_DIR/bin/yarn" ]; then
+  echo "Error: yarn binary not found after extraction" >&2; exit 1
+fi
+echo "Yarn $YARN_VERSION downloaded successfully"
 """
 
 [[step]]
@@ -69,7 +93,7 @@ INSTALL_DIR="$HOME/.dagryn/tools/yarn-$YARN_VERSION"
 if [ -d "$INSTALL_DIR/bin" ]; then
   export PATH="$INSTALL_DIR/bin:$PATH"
 fi
-echo "Yarn $(yarn --version) ready"
+echo "Yarn $(yarn --version 2>/dev/null || echo 'unknown') ready"
 """
 [step.env]
 PATH = "$HOME/.dagryn/tools/yarn-${inputs.yarn-version}/bin:$PATH"

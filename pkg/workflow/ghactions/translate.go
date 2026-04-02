@@ -62,6 +62,11 @@ func TranslateWorkflows(files map[string][]byte) (TranslationResult, error) {
 
 			for _, step := range job.Steps {
 				if strings.TrimSpace(step.Uses) != "" {
+					if isCheckoutAction(step.Uses) {
+						// actions/checkout is handled automatically by Dagryn
+						// (clone + checkout happens before task execution)
+						continue
+					}
 					if key, spec := pluginFromUses(step.Uses); key != "" && spec != "" {
 						if _, exists := result.Plugins[key]; !exists {
 							result.Plugins[key] = spec
@@ -115,6 +120,9 @@ func TranslateWorkflows(files map[string][]byte) (TranslationResult, error) {
 	b.WriteString("\n# -----------------------------------------------------------------------------\n")
 	b.WriteString("# Tasks generated from existing GitHub Actions workflows\n")
 	b.WriteString("# You can tweak commands / dependencies to better fit Dagryn.\n")
+	b.WriteString("#\n")
+	b.WriteString("# Note: actions/checkout is not included as a plugin because Dagryn\n")
+	b.WriteString("# automatically clones and checks out the repository before execution.\n")
 	b.WriteString("# -----------------------------------------------------------------------------\n")
 
 	if len(result.Plugins) > 0 {
@@ -173,6 +181,16 @@ func sanitizeWorkflowName(name string) string {
 		}
 	}
 	return strings.Trim(b.String(), "_")
+}
+
+// isCheckoutAction returns true if the uses value refers to actions/checkout
+// (any version). Dagryn handles repository cloning automatically, so this
+// action should be skipped during translation.
+func isCheckoutAction(uses string) bool {
+	uses = strings.TrimSpace(uses)
+	name := strings.Split(uses, "@")[0]
+	name = strings.TrimSpace(name)
+	return strings.EqualFold(name, "actions/checkout")
 }
 
 // pluginFromUses converts a GitHub Actions "uses:" value into a Dagryn plugin

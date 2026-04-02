@@ -68,18 +68,18 @@ export function TasksWaterfall({ tasks }: TasksWaterfallProps) {
   return (
     <div className="space-y-1">
       {/* Header */}
-      <div className="grid grid-cols-[180px_70px_1fr_70px] gap-2 px-2 py-1 text-xs text-muted-foreground font-medium border-b">
+      <div className="grid grid-cols-[1fr_minmax(0,2fr)] md:grid-cols-[180px_70px_1fr_70px] gap-2 px-2 py-1 text-xs text-muted-foreground font-medium border-b">
         <span>Task</span>
-        <span>Status</span>
+        <span className="hidden md:inline">Status</span>
         <span>Timeline</span>
-        <span className="text-right">Duration</span>
+        <span className="hidden md:inline text-right">Duration</span>
       </div>
 
       {/* Rows */}
       {timeline.bars.map(({ task, left, width, hasTiming }) => (
         <div
           key={task.id}
-          className="grid grid-cols-[180px_70px_1fr_70px] gap-2 items-center px-2 py-1.5 rounded-none hover:bg-muted/50"
+          className="grid grid-cols-[1fr_minmax(0,2fr)] md:grid-cols-[180px_70px_1fr_70px] gap-2 items-center px-2 py-1.5 rounded-none hover:bg-muted/50"
         >
           {/* Task name */}
           <div className="flex items-center gap-2 min-w-0">
@@ -90,7 +90,9 @@ export function TasksWaterfall({ tasks }: TasksWaterfallProps) {
           </div>
 
           {/* Status badge */}
-          <StatusBadge status={task.status} />
+          <div className="hidden md:block">
+            <StatusBadge status={task.status} />
+          </div>
 
           {/* Timeline bar */}
           <div className="relative h-6 bg-muted/30 rounded-none overflow-hidden">
@@ -110,7 +112,7 @@ export function TasksWaterfall({ tasks }: TasksWaterfallProps) {
           </div>
 
           {/* Duration */}
-          <span className="text-xs text-muted-foreground text-right tabular-nums">
+          <span className="hidden md:inline text-xs text-muted-foreground text-right tabular-nums">
             {task.duration_ms != null ? formatDuration(task.duration_ms) : "--"}
           </span>
         </div>

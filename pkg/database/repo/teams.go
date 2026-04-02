@@ -226,6 +226,18 @@ func (r *TeamRepo) ListMembers(ctx context.Context, teamID uuid.UUID) ([]models.
 	return members, rows.Err()
 }
 
+// CountMembersByUser returns the total number of distinct team members across all teams the user belongs to.
+func (r *TeamRepo) CountMembersByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+	var count int64
+	err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(DISTINCT tm2.user_id)
+		FROM team_members tm1
+		JOIN team_members tm2 ON tm1.team_id = tm2.team_id
+		WHERE tm1.user_id = $1
+	`, userID).Scan(&count)
+	return count, err
+}
+
 // SlugExists checks if a team slug already exists.
 func (r *TeamRepo) SlugExists(ctx context.Context, slug string) (bool, error) {
 	var exists bool

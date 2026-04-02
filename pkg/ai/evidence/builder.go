@@ -24,18 +24,25 @@ type WorkflowDataSource interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*models.WorkflowWithTasks, error)
 }
 
+// ProjectDataSource provides project metadata for evidence enrichment.
+type ProjectDataSource interface {
+	GetByID(ctx context.Context, id uuid.UUID) (*models.Project, error)
+}
+
 // EvidenceBuilder extracts and assembles analysis evidence from run data.
 type EvidenceBuilder struct {
 	runs      RunDataSource
 	workflows WorkflowDataSource
+	projects  ProjectDataSource
 	logger    zerolog.Logger
 }
 
 // NewEvidenceBuilder creates a new EvidenceBuilder.
-func NewEvidenceBuilder(runs RunDataSource, workflows WorkflowDataSource, logger zerolog.Logger) *EvidenceBuilder {
+func NewEvidenceBuilder(runs RunDataSource, workflows WorkflowDataSource, projects ProjectDataSource, logger zerolog.Logger) *EvidenceBuilder {
 	return &EvidenceBuilder{
 		runs:      runs,
 		workflows: workflows,
+		projects:  projects,
 		logger:    logger.With().Str("component", "evidence_builder").Logger(),
 	}
 }
@@ -99,9 +106,21 @@ func (b *EvidenceBuilder) Build(ctx context.Context, runID uuid.UUID) (*aitypes.
 		failedTasks = append(failedTasks, fte)
 	}
 
+	// Fetch the project's config path for AI context.
+	configPath := "dagryn.toml" // sensible default
+	if b.projects != nil {
+		project, err := b.projects.GetByID(ctx, run.ProjectID)
+		if err != nil {
+			b.logger.Warn().Err(err).Msg("failed to fetch project for config path")
+		} else if project.ConfigPath != "" {
+			configPath = project.ConfigPath
+		}
+	}
+
 	input := &aitypes.AnalysisInput{
 		RunID:           runID.String(),
 		ProjectID:       run.ProjectID.String(),
+		ConfigPath:      configPath,
 		TaskGraph:       taskGraph,
 		FailedTasks:     failedTasks,
 		TotalTasks:      run.TotalTasks,

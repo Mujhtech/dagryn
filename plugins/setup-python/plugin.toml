@@ -1,7 +1,7 @@
 [plugin]
 name = "setup-python"
 description = "Install and configure Python"
-version = "1.0.0"
+version = "1.1.0"
 type = "composite"
 author = "dagryn"
 license = "MIT"
@@ -42,18 +42,58 @@ if echo "$CURRENT" | grep -q "^$WANTED"; then
 fi
 if command -v pyenv >/dev/null 2>&1; then
   echo "Installing Python $WANTED via pyenv"
-  pyenv install -s "$WANTED"
-  pyenv local "$WANTED"
-else
-  echo "pyenv not found, attempting system package manager"
-  if command -v apt-get >/dev/null 2>&1; then
-    sudo apt-get update && sudo apt-get install -y "python${WANTED}"
-  elif command -v brew >/dev/null 2>&1; then
-    brew install "python@${WANTED}"
-  else
-    echo "ERROR: No supported package manager found to install Python $WANTED"
+  if ! pyenv install -s "$WANTED"; then
+    echo "Error: pyenv install failed for Python $WANTED" >&2
     exit 1
   fi
+  pyenv local "$WANTED"
+elif command -v apk >/dev/null 2>&1; then
+  echo "Installing Python via apk (Alpine)"
+  if [ "$(id -u 2>/dev/null || echo 1)" != "0" ]; then
+    echo "Error: apk install requires root privileges [permission_denied]" >&2
+    exit 1
+  fi
+  if ! apk add --no-cache python3 py3-pip; then
+    echo "Error: apk install failed" >&2
+    exit 1
+  fi
+elif command -v apt-get >/dev/null 2>&1; then
+  echo "Installing Python via apt-get"
+  if [ "$(id -u 2>/dev/null || echo 1)" != "0" ] && ! command -v sudo >/dev/null 2>&1; then
+    echo "Error: apt-get install requires root or sudo [permission_denied]" >&2
+    exit 1
+  fi
+  APT_PREFIX=""
+  if command -v sudo >/dev/null 2>&1; then
+    APT_PREFIX="sudo"
+  fi
+  if ! ($APT_PREFIX apt-get update && $APT_PREFIX apt-get install -y "python${WANTED}"); then
+    echo "Falling back to distro default python3 packages"
+    if ! ($APT_PREFIX apt-get install -y python3 python3-pip python3-venv); then
+      echo "Error: apt-get install failed" >&2
+      exit 1
+    fi
+  fi
+elif command -v dnf >/dev/null 2>&1; then
+  echo "Installing Python via dnf"
+  if ! dnf install -y python3 python3-pip; then
+    echo "Error: dnf install failed" >&2
+    exit 1
+  fi
+elif command -v yum >/dev/null 2>&1; then
+  echo "Installing Python via yum"
+  if ! yum install -y python3 python3-pip; then
+    echo "Error: yum install failed" >&2
+    exit 1
+  fi
+elif command -v brew >/dev/null 2>&1; then
+  if ! brew install "python@${WANTED}"; then
+    echo "Error: brew install failed" >&2
+    exit 1
+  fi
+else
+  echo "Error: no supported package manager found to install Python $WANTED" >&2
+  exit 1
 fi
 """
 

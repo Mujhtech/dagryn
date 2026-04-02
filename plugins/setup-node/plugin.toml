@@ -1,7 +1,7 @@
 [plugin]
 name = "setup-node"
 description = "Install and configure Node.js"
-version = "1.0.0"
+version = "1.4.0"
 type = "composite"
 author = "dagryn"
 license = "MIT"
@@ -20,7 +20,20 @@ command = """
 NODE_OS="${os}"
 NODE_ARCH="${arch}"
 if [ "$NODE_ARCH" = "amd64" ]; then NODE_ARCH="x64"; fi
-echo "Platform: $NODE_OS-$NODE_ARCH"
+
+NODE_LIBC=""
+if [ "$NODE_OS" = "linux" ]; then
+  if command -v ldd >/dev/null 2>&1 && ldd --version 2>&1 | grep -qi musl; then
+    NODE_LIBC="musl"
+  elif [ -f /etc/alpine-release ]; then
+    NODE_LIBC="musl"
+  else
+    NODE_LIBC="glibc"
+  fi
+  echo "Platform: $NODE_OS-$NODE_ARCH ($NODE_LIBC)"
+else
+  echo "Platform: $NODE_OS-$NODE_ARCH"
+fi
 """
 
 [[step]]
@@ -29,12 +42,14 @@ command = """
 NODE_VERSION="${inputs.node-version}"
 REQUESTED_MAJOR=$(echo "$NODE_VERSION" | cut -d. -f1)
 
-# Skip download if node is already available with matching major version
+# Skip if node is already available with matching or higher major version.
+# Most web tooling (vite, tsc, pnpm) works across Node.js majors, so a
+# pre-installed system Node.js is preferred over downloading a specific version.
 if command -v node >/dev/null 2>&1; then
   EXISTING=$(node --version 2>/dev/null | sed 's/^v//')
   EXISTING_MAJOR=$(echo "$EXISTING" | cut -d. -f1)
-  if [ "$EXISTING_MAJOR" = "$REQUESTED_MAJOR" ]; then
-    echo "Node.js v$EXISTING already available, skipping download"
+  if [ "$EXISTING_MAJOR" -ge "$REQUESTED_MAJOR" ] 2>/dev/null; then
+    echo "Node.js v$EXISTING already available (>= $REQUESTED_MAJOR), skipping download"
     exit 0
   fi
 fi
@@ -42,32 +57,164 @@ fi
 NODE_OS="${os}"
 NODE_ARCH="${arch}"
 if [ "$NODE_ARCH" = "amd64" ]; then NODE_ARCH="x64"; fi
-INSTALL_DIR="$HOME/.dagryn/tools/node-$NODE_VERSION"
-if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/bin/node" ]; then
-  echo "Node.js $NODE_VERSION already installed"
-else
-  mkdir -p "$INSTALL_DIR"
-  TARBALL="node-v${NODE_VERSION}-${NODE_OS}-${NODE_ARCH}.tar.gz"
-  URL="https://nodejs.org/dist/v${NODE_VERSION}/${TARBALL}"
-  echo "Downloading Node.js $NODE_VERSION from $URL"
-  TMPFILE=$(mktemp)
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "$TMPFILE" "$URL"
-  elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$TMPFILE" "$URL"
-  else
-    echo "Error: curl or wget is required" >&2; exit 1
+
+# Detect musl libc
+IS_MUSL=""
+if [ "$NODE_OS" = "linux" ]; then
+  if command -v ldd >/dev/null 2>&1 && ldd --version 2>&1 | grep -qi musl; then
+    IS_MUSL="true"
+  elif [ -f /etc/alpine-release ]; then
+    IS_MUSL="true"
   fi
-  if [ ! -s "$TMPFILE" ]; then
-    echo "Error: failed to download $URL" >&2; rm -f "$TMPFILE"; exit 1
-  fi
-  tar xzf "$TMPFILE" --strip-components=1 -C "$INSTALL_DIR"
-  rm -f "$TMPFILE"
-  if [ ! -f "$INSTALL_DIR/bin/node" ]; then
-    echo "Error: node binary not found after extraction" >&2; exit 1
-  fi
-  echo "Node.js $NODE_VERSION downloaded successfully"
 fi
+
+INSTALL_DIR="$HOME/.dagryn/tools/node-$NODE_VERSION"
+INSTALL_PARENT=$(dirname "$INSTALL_DIR")
+
+mkdir -p "$INSTALL_PARENT"
+if [ ! -d "$INSTALL_PARENT" ] || [ ! -w "$INSTALL_PARENT" ]; then
+  echo "Error: install parent directory is not writable: $INSTALL_PARENT [permission_denied]" >&2
+  exit 1
+fi
+
+# Check existing install (another parallel task may have completed it)
+if [ -f "$INSTALL_DIR/bin/node" ] && "$INSTALL_DIR/bin/node" --version >/dev/null 2>&1; then
+  echo "Node.js $NODE_VERSION already installed"
+  exit 0
+fi
+
+# ── Strategy 1: Alpine apk (native musl package, most reliable) ──
+if [ -n "$IS_MUSL" ] && command -v apk >/dev/null 2>&1; then
+  if [ "$(id -u 2>/dev/null || echo 1)" != "0" ]; then
+    echo "Non-root Alpine environment detected, skipping apk install strategy" >&2
+  else
+  echo "Installing Node.js via apk (Alpine native)..."
+  if apk add --no-cache "nodejs~=${REQUESTED_MAJOR}" npm 2>/dev/null; then
+    INSTALLED=$(node --version 2>/dev/null | sed 's/^v//')
+    if [ -n "$INSTALLED" ]; then
+      echo "Node.js v$INSTALLED installed via apk"
+      exit 0
+    fi
+  fi
+  echo "Pinned apk version not available, trying unpinned apk install..." >&2
+  if apk add --no-cache nodejs npm 2>/dev/null; then
+    INSTALLED=$(node --version 2>/dev/null | sed 's/^v//')
+    if [ -n "$INSTALLED" ]; then
+      echo "Node.js v$INSTALLED installed via apk (unpinned fallback)"
+      exit 0
+    fi
+  fi
+  echo "apk install failed or package not available, trying binary download..." >&2
+  fi
+fi
+
+# Helper: download and extract a Node.js tarball to a temp dir, verify it works.
+# Returns 0 and prints the temp dir path on success.
+try_node_tarball() {
+  _url="$1"
+  _tmpdir=$(mktemp -d)
+  _tmpfile=$(mktemp)
+  # Download
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$_tmpfile" "$_url" 2>/dev/null || { rm -rf "$_tmpdir" "$_tmpfile"; return 1; }
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$_tmpfile" "$_url" 2>/dev/null || { rm -rf "$_tmpdir" "$_tmpfile"; return 1; }
+  else
+    rm -rf "$_tmpdir" "$_tmpfile"; return 1
+  fi
+  # Validate gzip magic bytes
+  if [ ! -s "$_tmpfile" ]; then rm -rf "$_tmpdir" "$_tmpfile"; return 1; fi
+  _magic=$(od -A n -t x1 -N 2 "$_tmpfile" 2>/dev/null | tr -d ' ')
+  if [ "$_magic" != "1f8b" ]; then rm -rf "$_tmpdir" "$_tmpfile"; return 1; fi
+  # Extract
+  tar xzf "$_tmpfile" --strip-components=1 -C "$_tmpdir" 2>/dev/null
+  rm -f "$_tmpfile"
+  # Verify
+  if [ -f "$_tmpdir/bin/node" ] && "$_tmpdir/bin/node" --version >/dev/null 2>&1; then
+    echo "$_tmpdir"
+    return 0
+  fi
+  _verify_err=$("$_tmpdir/bin/node" --version 2>&1 || true)
+  if [ -n "$_verify_err" ]; then
+    echo "Node binary downloaded but failed to execute:" >&2
+    echo "$_verify_err" | sed -n '1,12p' >&2
+    if echo "$_verify_err" | grep -q -e "libstdc++.so.6" -e "libgcc_s.so.1"; then
+      echo "Detected missing runtime libraries (libstdc++/libgcc) [missing_dependency]" >&2
+    fi
+  fi
+  rm -rf "$_tmpdir"
+  return 1
+}
+
+finalize_node_install() {
+  _stage="$1"
+  _dest="$2"
+  if [ -z "$_stage" ] || [ ! -d "$_stage" ]; then
+    echo "Error: staging directory missing before finalize: $_stage" >&2
+    return 1
+  fi
+  rm -rf "$_dest"
+  if mv "$_stage" "$_dest" 2>/dev/null; then
+    return 0
+  fi
+  mkdir -p "$_dest" || return 1
+  if cp -a "$_stage/." "$_dest/" 2>/dev/null; then
+    rm -rf "$_stage"
+    return 0
+  fi
+  return 1
+}
+
+# ── Strategy 2: Unofficial musl binary build ──
+if [ -n "$IS_MUSL" ]; then
+  URL="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}-musl.tar.gz"
+  echo "Downloading Node.js $NODE_VERSION (musl) from $URL"
+  STAGE_DIR=$(try_node_tarball "$URL")
+  if [ -n "$STAGE_DIR" ] && [ -d "$STAGE_DIR" ]; then
+    if ! finalize_node_install "$STAGE_DIR" "$INSTALL_DIR"; then
+      echo "Error: failed to finalize Node.js install to $INSTALL_DIR" >&2
+      [ -d "$STAGE_DIR" ] && rm -rf "$STAGE_DIR"
+      exit 1
+    fi
+    echo "Node.js $NODE_VERSION (musl) installed successfully"
+    exit 0
+  fi
+  echo "musl build not available or failed" >&2
+fi
+
+# On musl, glibc binaries cannot work (ABI mismatch, not just missing libs).
+# Do not attempt downloading them — fail fast with actionable guidance.
+if [ -n "$IS_MUSL" ]; then
+  echo "Error: cannot install Node.js $NODE_VERSION on this musl/Alpine system" >&2
+  echo "Strategies attempted:" >&2
+  echo "  1. apk add nodejs~=${REQUESTED_MAJOR} npm — version unavailable or non-root" >&2
+  echo "  2. apk add nodejs npm — package unavailable, install failed, or non-root" >&2
+  echo "  3. Unofficial musl build — unavailable or failed runtime verification for v$NODE_VERSION" >&2
+  echo "" >&2
+  echo "To fix, choose one of:" >&2
+  echo "  - Use a Docker image with Node.js pre-installed (e.g. node:20-alpine)" >&2
+  echo "  - Install runtime libs in your base image: apk add --no-cache libstdc++ libgcc" >&2
+  echo "  - Pre-install Node.js in your cloud image: apk add nodejs npm" >&2
+  echo "  - Use a glibc-based image instead of Alpine" >&2
+  exit 1
+fi
+
+# ── Strategy 3 (glibc systems only): Official Node.js build ──
+URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-${NODE_OS}-${NODE_ARCH}.tar.gz"
+echo "Downloading Node.js $NODE_VERSION from $URL"
+STAGE_DIR=$(try_node_tarball "$URL")
+if [ -z "$STAGE_DIR" ] || [ ! -d "$STAGE_DIR" ]; then
+  echo "Error: failed to download or verify Node.js $NODE_VERSION" >&2
+  exit 1
+fi
+
+# Atomically move staged install to final location
+if ! finalize_node_install "$STAGE_DIR" "$INSTALL_DIR"; then
+  echo "Error: failed to finalize Node.js install to $INSTALL_DIR" >&2
+  [ -d "$STAGE_DIR" ] && rm -rf "$STAGE_DIR"
+  exit 1
+fi
+echo "Node.js $NODE_VERSION installed successfully"
 """
 
 [[step]]
@@ -78,7 +225,23 @@ INSTALL_DIR="$HOME/.dagryn/tools/node-$NODE_VERSION"
 if [ -d "$INSTALL_DIR/bin" ]; then
   export PATH="$INSTALL_DIR/bin:$PATH"
 fi
-echo "Node.js $(node --version) ready"
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "Error: node is not available after setup [missing_dependency]" >&2
+  exit 1
+fi
+
+NODE_VER=$(node --version 2>/dev/null || true)
+if [ -z "$NODE_VER" ]; then
+  echo "Error: node is present but failed to run [binary_not_executable]" >&2
+  exit 1
+fi
+
+if [ -d "$INSTALL_DIR/bin" ]; then
+  echo "Node.js $NODE_VER ready (dagryn-managed)"
+else
+  echo "Node.js $NODE_VER ready (system)"
+fi
 """
 [step.env]
 PATH = "$HOME/.dagryn/tools/node-${inputs.node-version}/bin:$PATH"

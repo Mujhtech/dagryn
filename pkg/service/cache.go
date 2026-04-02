@@ -276,8 +276,10 @@ func (s *CacheService) Upload(ctx context.Context, projectID uuid.UUID, taskName
 		s.logger.Warn().Err(err).Msg("failed to update quota usage")
 	}
 
-	// Update bandwidth quota (uploads count towards bandwidth)
-	_ = s.repo.IncrementBandwidthUsage(ctx, projectID, size)
+	// Record bandwidth usage via entitlements (cloud handles DB update)
+	if s.entitlements != nil {
+		s.entitlements.RecordUsage(ctx, "bandwidth", projectID, size)
+	}
 
 	// Record upload usage in analytics
 	_ = s.repo.IncrementUsage(ctx, projectID, size, 0, 0, 0)
@@ -320,7 +322,6 @@ func (s *CacheService) Download(ctx context.Context, projectID uuid.UUID, taskNa
 			s.logger.Warn().Err(err).Str("entry_id", entry.ID.String()).Msg("failed to increment hit count")
 		}
 		_ = s.repo.IncrementUsage(bgCtx, projectID, 0, entry.SizeBytes, 0, 0)
-		_ = s.repo.IncrementBandwidthUsage(bgCtx, projectID, entry.SizeBytes)
 		if s.entitlements != nil {
 			s.entitlements.RecordUsage(bgCtx, "bandwidth", projectID, entry.SizeBytes)
 		}

@@ -98,6 +98,8 @@ export interface GitHubWorkflowTranslateResponse {
   workflows: GitHubWorkflowSummary[];
   plugins: Record<string, string>;
   tasks_toml: string;
+  has_dagryn_toml: boolean;
+  dagryn_toml?: string;
 }
 
 // Project types
@@ -1798,6 +1800,25 @@ class ApiClient {
     }>(`/teams/${teamId}/audit-logs/webhooks/${webhookId}/test`, {
       method: "POST",
     });
+  }
+
+  // Health
+  async getHealth() {
+    const response = await fetch("/health", {
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      throw new ApiError(response.status, "unknown", "Health check failed");
+    }
+    const json = await response.json();
+    return json.data as {
+      status: string;
+      version: string;
+      mode: string;
+      edition: string;
+      licensed: boolean;
+      timestamp: string;
+    };
   }
 
   // Analytics

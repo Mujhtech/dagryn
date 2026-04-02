@@ -56,42 +56,54 @@ types = ["opened", "synchronize"] # PR event types to match
 golangci-lint = "github:golangci/golangci-lint@v2.8.0"
 golang-vul = "go:golang.org/x/vuln/cmd/govulncheck@latest"
 setup-node = "local:./plugins/setup-node"
+setup-pnpm = "local:./plugins/setup-pnpm"
 setup-go = "local:./plugins/setup-go"
 
 # Install dependencies
 [tasks.web-install]
 workdir = "web"
 command = "pnpm install --frozen-lockfile"
-uses = ["setup-node"]
+uses = ["setup-node", "setup-pnpm"]
 inputs = ["package.json", "pnpm-lock.yaml"]
 outputs = ["node_modules/**"]
 timeout = "5m"
+[tasks.web-install.container]
+image = "node:20-bookworm-slim"
 
 # Build the web
 [tasks.web-build]
 workdir = "web"
 command = "pnpm build"
+uses = ["setup-node", "setup-pnpm"]
 needs = ["web-install"]
 inputs = ["src/**", "package.json", "tsconfig.json"]
 outputs = ["dist/**", "build/**", "../pkg/server/dashboard/dist/**"]
 timeout = "10m"
-
+env = { NODE_OPTIONS = "--max-old-space-size=4096" }
+[tasks.web-build.container]
+image = "node:20-bookworm-slim"
 
 # Run tests
 [tasks.web-test]
 workdir = "web"
 command = "pnpm test:run"
+uses = ["setup-node", "setup-pnpm"]
 needs = ["web-build"]
 inputs = ["src/**", "test/**", "tests/**", "__tests__/**", "package.json"]
 timeout = "5m"
+[tasks.web-test.container]
+image = "node:20-bookworm-slim"
 
 # Run linter (configured in package.json scripts)
 [tasks.web-lint]
 workdir = "web"
 command = "pnpm typecheck"
+uses = ["setup-node", "setup-pnpm"]
 needs = ["web-install"]
 inputs = ["src/**", ".eslintrc*", "eslint.config.*", "package.json"]
 timeout = "2m"
+[tasks.web-lint.container]
+image = "node:20-bookworm-slim"
 
 # Build the Go application
 [tasks.go-build]
@@ -105,6 +117,7 @@ timeout = "10m"
 # Run tests with coverage
 [tasks.go-test]
 command = "go test -v -race -coverprofile=coverage.out ./..."
+uses = ["setup-go"]
 needs = ["go-build"]
 inputs = ["**/*.go", "go.mod", "go.sum"]
 outputs = ["coverage.out"]
@@ -112,7 +125,7 @@ timeout = "5m"
 
 # Run linter (auto-installed via plugin)
 [tasks.go-lint]
-uses = ["golangci-lint"]
+uses = ["setup-go", "golangci-lint"]
 needs = ["go-build"]
 command = "golangci-lint run ./..."
 inputs = ["**/*.go", ".golangci.yml", ".golangci.yaml"]
@@ -120,7 +133,7 @@ timeout = "2m"
 
 [tasks.go-vulnerability-scan]
 command = "govulncheck -C ./... -json > gosec-report.json"
-uses = ["golang-vul"]
+uses = ["setup-go", "golang-vul"]
 needs = ["go-build"]
 inputs = ["**/*.go", "go.mod", "go.sum"]
 outputs = ["gosec-report.json"]
@@ -129,6 +142,7 @@ timeout = "5m"
 # Check code formatting (fails if files need formatting)
 [tasks.go-fmt]
 command = "test -z \"$(gofmt -l .)\""
+uses = ["setup-go"]
 needs = ["go-build"]
 inputs = ["**/*.go"]
 timeout = "1m"
@@ -166,3 +180,4 @@ github_suggestions = true # Post inline code suggestions
 
 [container]
 enabled = false
+image = "golang:1.25-bookworm"

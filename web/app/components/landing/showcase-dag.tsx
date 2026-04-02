@@ -11,10 +11,11 @@ export default function ShowcaseDag() {
       gradient="bottom"
       maxHeight="32rem"
     >
-      <div className="min-h-112">
+      <div className="min-h-112 w-full">
         <WorkflowDag
           workflow={SHOWCASE_WORKFLOW}
           taskStatuses={SHOWCASE_TASK_STATUSES}
+          className="w-full"
         />
       </div>
     </ShowcaseFrame>

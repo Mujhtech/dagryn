@@ -15,8 +15,6 @@ export const Route = createFileRoute(
 function APIKeysSettingsPage() {
   const { projectId } = Route.useParams();
 
-  const [apiKeyName, setApiKeyName] = useState("");
-  const [apiKeyExpiry, setApiKeyExpiry] = useState<string>("90d");
   const [createdKey, setCreatedKey] = useState<string | null>(null);
 
   const {
@@ -28,17 +26,14 @@ function APIKeysSettingsPage() {
   const createAPIKeyMutation = useCreateProjectAPIKey(projectId);
   const revokeAPIKeyMutation = useRevokeProjectAPIKey(projectId);
 
-  const handleCreateAPIKey = () => {
-    if (!apiKeyName.trim()) return;
-
+  const handleCreateAPIKey = (values: { name: string; expires_in?: string }) => {
     createAPIKeyMutation.mutate(
       {
-        name: apiKeyName.trim(),
-        expires_in: apiKeyExpiry === "no" ? undefined : apiKeyExpiry,
+        name: values.name,
+        expires_in: values.expires_in,
       },
       {
         onSuccess: (data) => {
-          setApiKeyName("");
           setCreatedKey(data.key);
         },
       },
@@ -60,10 +55,6 @@ function APIKeysSettingsPage() {
         apiKeys={apiKeys}
         apiKeysLoading={apiKeysLoading}
         apiKeysError={apiKeysError?.message}
-        apiKeyName={apiKeyName}
-        setApiKeyName={setApiKeyName}
-        apiKeyExpiry={apiKeyExpiry}
-        setApiKeyExpiry={setApiKeyExpiry}
         createdKey={createdKey}
         onCopyKey={handleCopyKey}
         onCreateToken={handleCreateAPIKey}

@@ -69,33 +69,39 @@ export function ShowcaseFrame({
 }: ShowcaseFrameProps) {
   return (
     <motion.div
-      className={cn("border border-border/70 bg-card/25 p-6 md:p-8", className)}
+      className={cn(
+        "border border-border/70 bg-card/25 py-6 md:py-8 w-full",
+        className,
+      )}
       variants={containerVariants}
       initial="hidden"
       whileInView="visible"
       viewport={{ once: true, amount: 0.15 }}
     >
       <motion.p
-        className="text-xs uppercase tracking-[0.16em] text-muted-foreground"
+        className="text-xs uppercase tracking-[0.16em] text-muted-foreground px-6 md:px-8"
         variants={textVariants}
       >
         {label}
       </motion.p>
       <motion.h2
-        className="mt-3 text-2xl font-semibold tracking-tight md:text-3xl"
+        className="mt-3 text-2xl font-semibold tracking-tight md:text-3xl px-6 md:px-8"
         variants={textVariants}
       >
         {title}
       </motion.h2>
       <motion.p
-        className="mt-2 max-w-2xl text-sm text-muted-foreground md:text-base"
+        className="mt-2 max-w-2xl text-sm text-muted-foreground md:text-base px-6 md:px-8"
         variants={textVariants}
       >
         {description}
       </motion.p>
 
       <motion.div
-        className={cn("mt-6 overflow-hidden", perspective && "landing-showcase-perspective")}
+        className={cn(
+          "mt-6 overflow-hidden",
+          perspective && "landing-showcase-perspective",
+        )}
         style={{
           maxHeight,
           maskImage: GRADIENT_MASKS[gradient],
@@ -103,10 +109,7 @@ export function ShowcaseFrame({
         }}
         variants={previewVariants}
       >
-        <div
-          className="pointer-events-none select-none"
-          aria-hidden="true"
-        >
+        <div className="pointer-events-none select-none" aria-hidden="true">
           {children}
         </div>
       </motion.div>

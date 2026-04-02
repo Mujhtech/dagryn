@@ -1,7 +1,7 @@
 [plugin]
 name = "setup-pnpm"
 description = "Install and configure pnpm package manager"
-version = "1.0.0"
+version = "1.2.0"
 type = "composite"
 author = "dagryn"
 license = "MIT"
@@ -34,18 +34,53 @@ name = "download-and-install"
 command = """
 PNPM_VERSION="${inputs.pnpm-version}"
 
+if ! command -v node >/dev/null 2>&1; then
+  echo "Error: pnpm requires Node.js but 'node' is not available on PATH [missing_dependency]" >&2
+  echo "Hint: add 'setup-node' before 'setup-pnpm' in task uses, or pre-install node" >&2
+  exit 1
+fi
+
+if ! node --version >/dev/null 2>&1; then
+  NODE_ERR=$(node --version 2>&1 || true)
+  echo "Error: Node.js is present but not executable [binary_not_executable]" >&2
+  if [ -n "$NODE_ERR" ]; then
+    echo "$NODE_ERR" >&2
+  fi
+  exit 1
+fi
+
 # Skip if pnpm is already available on PATH
 if command -v pnpm >/dev/null 2>&1; then
   echo "pnpm $(pnpm --version) already available, skipping install"
   exit 0
 fi
 
-# Prefer npm install when npm is available (e.g. node:*-bookworm-slim containers)
+# Prefer npm install when npm is available (e.g. node:*-bookworm-slim containers).
+# Try global install first; fall back to user-local if permission denied (non-root).
 if command -v npm >/dev/null 2>&1; then
   echo "Installing pnpm via npm..."
-  npm install -g "pnpm@${PNPM_VERSION}"
-  echo "pnpm $(pnpm --version) installed via npm"
-  exit 0
+  if npm install -g "pnpm@${PNPM_VERSION}" 2>/dev/null; then
+    INSTALLED_VERSION=$(pnpm --version 2>/dev/null)
+    if [ -n "$INSTALLED_VERSION" ]; then
+      echo "pnpm $INSTALLED_VERSION installed via npm"
+      exit 0
+    fi
+  fi
+  # Global install failed (likely EACCES), try user-local prefix
+  NPM_PREFIX="$HOME/.dagryn/tools/npm-global"
+  mkdir -p "$NPM_PREFIX"
+  echo "Global npm install failed, installing to $NPM_PREFIX..."
+  if npm install --prefix "$NPM_PREFIX" -g "pnpm@${PNPM_VERSION}" 2>/dev/null; then
+    if [ -f "$NPM_PREFIX/bin/pnpm" ]; then
+      export PATH="$NPM_PREFIX/bin:$PATH"
+      INSTALLED_VERSION=$("$NPM_PREFIX/bin/pnpm" --version 2>/dev/null)
+      if [ -n "$INSTALLED_VERSION" ]; then
+        echo "pnpm $INSTALLED_VERSION installed via npm (user-local)"
+        exit 0
+      fi
+    fi
+  fi
+  echo "npm install failed, trying standalone binary download..." >&2
 fi
 
 # Fallback: standalone binary download
@@ -54,41 +89,93 @@ PNPM_ARCH="${arch}"
 if [ "$PNPM_OS" = "darwin" ]; then PNPM_OS="macos"; fi
 if [ "$PNPM_OS" = "windows" ]; then PNPM_OS="win"; fi
 if [ "$PNPM_ARCH" = "amd64" ]; then PNPM_ARCH="x64"; fi
+
+# Detect musl libc — pnpm ships "linuxstatic" binaries for musl/Alpine
+PNPM_PLATFORM="${PNPM_OS}"
+if [ "$PNPM_OS" = "linux" ]; then
+  if command -v ldd >/dev/null 2>&1 && ldd --version 2>&1 | grep -qi musl; then
+    PNPM_PLATFORM="linuxstatic"
+  elif [ -f /etc/alpine-release ]; then
+    PNPM_PLATFORM="linuxstatic"
+  fi
+fi
+
 INSTALL_DIR="$HOME/.dagryn/tools/pnpm-$PNPM_VERSION"
 if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/pnpm" ]; then
-  echo "pnpm $PNPM_VERSION already installed"
+  if "$INSTALL_DIR/pnpm" --version >/dev/null 2>&1; then
+    echo "pnpm $PNPM_VERSION already installed"
+    exit 0
+  fi
+  PNPM_ERR=$("$INSTALL_DIR/pnpm" --version 2>&1 || true)
+  if [ -n "$PNPM_ERR" ]; then
+    echo "Existing pnpm binary check failed: $PNPM_ERR" >&2
+  fi
+  echo "Existing pnpm binary cannot execute, re-downloading..."
+  rm -rf "$INSTALL_DIR"
+fi
+
+mkdir -p "$INSTALL_DIR"
+URL="https://github.com/pnpm/pnpm/releases/download/v${PNPM_VERSION}/pnpm-${PNPM_PLATFORM}-${PNPM_ARCH}"
+echo "Downloading pnpm $PNPM_VERSION from $URL"
+if command -v curl >/dev/null 2>&1; then
+  curl -fsSL -o "$INSTALL_DIR/pnpm" "$URL"
+elif command -v wget >/dev/null 2>&1; then
+  wget -q -O "$INSTALL_DIR/pnpm" "$URL"
 else
-  mkdir -p "$INSTALL_DIR"
-  URL="https://github.com/pnpm/pnpm/releases/download/v${PNPM_VERSION}/pnpm-${PNPM_OS}-${PNPM_ARCH}"
-  echo "Downloading pnpm $PNPM_VERSION from $URL"
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "$INSTALL_DIR/pnpm" "$URL"
-  elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$INSTALL_DIR/pnpm" "$URL"
-  else
-    echo "Error: curl or wget is required" >&2; exit 1
+  echo "Error: curl or wget is required" >&2; exit 1
+fi
+if [ ! -s "$INSTALL_DIR/pnpm" ]; then
+  # Retry with standard linux platform name if linuxstatic failed
+  if [ "$PNPM_PLATFORM" = "linuxstatic" ]; then
+    echo "linuxstatic build not available, trying linux build..." >&2
+    URL="https://github.com/pnpm/pnpm/releases/download/v${PNPM_VERSION}/pnpm-linux-${PNPM_ARCH}"
+    echo "Downloading pnpm $PNPM_VERSION from $URL"
+    if command -v curl >/dev/null 2>&1; then
+      curl -fsSL -o "$INSTALL_DIR/pnpm" "$URL"
+    elif command -v wget >/dev/null 2>&1; then
+      wget -q -O "$INSTALL_DIR/pnpm" "$URL"
+    fi
   fi
   if [ ! -s "$INSTALL_DIR/pnpm" ]; then
     echo "Error: failed to download pnpm from $URL" >&2; exit 1
   fi
-  chmod +x "$INSTALL_DIR/pnpm"
-  echo "pnpm $PNPM_VERSION downloaded successfully"
 fi
+chmod +x "$INSTALL_DIR/pnpm"
+if ! "$INSTALL_DIR/pnpm" --version >/dev/null 2>&1; then
+  PNPM_EXEC_ERR=$("$INSTALL_DIR/pnpm" --version 2>&1 || true)
+  echo "Error: pnpm binary cannot execute on this system" >&2
+  if [ -n "$PNPM_EXEC_ERR" ]; then
+    echo "$PNPM_EXEC_ERR" >&2
+  fi
+  if [ "$PNPM_PLATFORM" != "linuxstatic" ] && [ "$PNPM_OS" = "linux" ]; then
+    echo "Hint: on Alpine/musl, the linuxstatic variant should have been used" >&2
+  fi
+  rm -rf "$INSTALL_DIR"
+  exit 1
+fi
+echo "pnpm $PNPM_VERSION downloaded successfully"
 """
 
 [[step]]
 name = "set-path"
 command = """
 PNPM_VERSION="${inputs.pnpm-version}"
+NODE_VERSION="${inputs.node-version}"
 INSTALL_DIR="$HOME/.dagryn/tools/pnpm-$PNPM_VERSION"
+NPM_GLOBAL="$HOME/.dagryn/tools/npm-global/bin"
+NODE_INSTALL_DIR="$HOME/.dagryn/tools/node-$NODE_VERSION"
 if [ -d "$INSTALL_DIR" ]; then
   export PATH="$INSTALL_DIR:$PATH"
+  export PNPM_HOME="$INSTALL_DIR"
 fi
-echo "pnpm $(pnpm --version) ready"
+if [ -d "$NPM_GLOBAL" ]; then
+  export PATH="$NPM_GLOBAL:$PATH"
+fi
+if [ -n "$NODE_VERSION" ] && [ -d "$NODE_INSTALL_DIR/bin" ]; then
+  export PATH="$NODE_INSTALL_DIR/bin:$PATH"
+fi
+echo "pnpm $(pnpm --version 2>/dev/null || echo 'unknown') ready"
 """
-[step.env]
-PATH = "$HOME/.dagryn/tools/pnpm-${inputs.pnpm-version}:$PATH"
-PNPM_HOME = "$HOME/.dagryn/tools/pnpm-${inputs.pnpm-version}"
 
 [[step]]
 name = "cache-pnpm-store"

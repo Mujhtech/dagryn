@@ -121,7 +121,21 @@ func (h *Handler) TranslateGitHubWorkflows(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	files, err := fetchGitHubWorkflowFiles(ctx, accessToken, owner, repoName, strings.TrimSpace(req.Ref))
+	ref := strings.TrimSpace(req.Ref)
+
+	// Check if dagryn.toml already exists in the repo — if so, return it
+	// and skip workflow translation entirely.
+	dagrynContent, err := fetchGitHubFile(ctx, accessToken, owner, repoName, githubContentsPath, ref)
+	if err == nil && len(dagrynContent) > 0 {
+		resp := GitHubWorkflowTranslateResponse{
+			HasDagrynToml: true,
+			DagrynToml:    string(dagrynContent),
+		}
+		_ = response.Ok(w, r, "Success", resp)
+		return
+	}
+
+	files, err := fetchGitHubWorkflowFiles(ctx, accessToken, owner, repoName, ref)
 	if err != nil {
 		_ = response.InternalServerError(w, r, err)
 		return

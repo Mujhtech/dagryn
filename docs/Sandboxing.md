@@ -10,11 +10,11 @@ The core CI pipeline already works (webhook -> job queue -> clone -> execute -> 
 
 ## Implementation Order
 
-| Phase | Feature | Scope | Notes |
-|-------|---------|-------|-------|
-| 1 | Run Cancellation | Smallest | Highest standalone value |
-| 2 | Artifact Storage | Moderate | Reuses existing storage patterns |
-| 3 | Container Isolation | Largest | Requires Docker SDK dependency |
+| Phase | Feature             | Scope    | Notes                            |
+| ----- | ------------------- | -------- | -------------------------------- |
+| 1     | Run Cancellation    | Smallest | Highest standalone value         |
+| 2     | Artifact Storage    | Moderate | Reuses existing storage patterns |
+| 3     | Container Isolation | Largest  | Requires Docker SDK dependency   |
 
 ---
 
@@ -105,7 +105,7 @@ No way to collect, store, or download build artifacts from server-side runs. Tas
 
 Mirror the existing cache storage pattern: metadata in PostgreSQL, blobs in object storage via `pkg/storage.Bucket`. Artifacts scoped to run + optional task.
 
-**Storage key pattern**: `artifacts/{projectID}/{runID}/{taskName}/{artifactID}/{fileName}`
+**Storage key pattern**: `artifacts/{projectId}/{runID}/{taskName}/{artifactID}/{fileName}`
 
 ### Database Migration
 
@@ -187,13 +187,13 @@ Unit tests for artifact service operations.
 
 HTTP handlers:
 
-| Method | Route | Handler | Description |
-|--------|-------|---------|-------------|
-| GET | `.../runs/{runID}/artifacts` | `ListRunArtifacts` | List artifacts for a run |
-| POST | `.../runs/{runID}/artifacts` | `UploadArtifact` | Upload artifact (multipart form) |
-| GET | `.../runs/{runID}/artifacts/{artifactID}` | `GetArtifact` | Get artifact metadata |
-| GET | `.../runs/{runID}/artifacts/{artifactID}/download` | `DownloadArtifact` | Download artifact content |
-| DELETE | `.../runs/{runID}/artifacts/{artifactID}` | `DeleteArtifact` | Delete artifact |
+| Method | Route                                              | Handler            | Description                      |
+| ------ | -------------------------------------------------- | ------------------ | -------------------------------- |
+| GET    | `.../runs/{runID}/artifacts`                       | `ListRunArtifacts` | List artifacts for a run         |
+| POST   | `.../runs/{runID}/artifacts`                       | `UploadArtifact`   | Upload artifact (multipart form) |
+| GET    | `.../runs/{runID}/artifacts/{artifactID}`          | `GetArtifact`      | Get artifact metadata            |
+| GET    | `.../runs/{runID}/artifacts/{artifactID}/download` | `DownloadArtifact` | Download artifact content        |
+| DELETE | `.../runs/{runID}/artifacts/{artifactID}`          | `DeleteArtifact`   | Delete artifact                  |
 
 > **Security/limits**: Validate the authenticated user has access to the project/run, enforce upload size limits, and reject unexpected content types.
 
@@ -349,7 +349,7 @@ func (e *ContainerExecutor) cleanup(containerID string) {
     ctx := context.Background()
     ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
     defer cancel()
-    
+
     _ = e.runtime.Stop(ctx, containerID, 10*time.Second)
     _ = e.runtime.Remove(ctx, containerID)
 }
@@ -474,23 +474,27 @@ Add environment variable overrides:
 ### Phase 1: Run Cancellation
 
 #### Build Verification
+
 ```bash
 go build ./...
 ```
 
 #### Unit Tests
+
 ```bash
 go test ./internal/job/...
 ```
 
 #### Integration Test
+
 1. Trigger a long-running server-side run (e.g., `sleep 60`)
-2. POST to `/api/v1/projects/{projectID}/runs/{runID}/cancel`
+2. POST to `/api/v1/projects/{projectId}/runs/{runID}/cancel`
 3. Verify the running process is killed
 4. Verify run status becomes `cancelled` in DB
 5. Verify Redis cancel key is cleared after completion
 
 #### Rollback Procedure
+
 1. Revert changes to `runs.go`, `execute_run.go`, `job.go`, `server.go`, `handler.go`
 2. Remove `internal/job/cancel.go` and `internal/job/cancel_test.go`
 3. No DB migration to rollback
@@ -500,24 +504,28 @@ go test ./internal/job/...
 ### Phase 2: Artifact Storage
 
 #### Build Verification
+
 ```bash
 go build ./...
 ```
 
 #### Unit Tests
+
 ```bash
 go test ./internal/db/repo/...   # artifact repo
 go test ./internal/service/...    # artifact service
 ```
 
 #### Integration Test
-1. POST multipart upload to `/api/v1/projects/{projectID}/runs/{runID}/artifacts`
+
+1. POST multipart upload to `/api/v1/projects/{projectId}/runs/{runID}/artifacts`
 2. GET list of artifacts for run
 3. GET download and verify content integrity (SHA256 match)
 4. DELETE artifact and verify removal from both DB and storage
 5. Test expired artifact cleanup job
 
 #### Rollback Procedure
+
 1. Run down migration: `DROP TABLE artifacts;`
 2. Revert changes to config, server, handlers, routes
 3. Remove created files in `db/models`, `db/repo`, `service`, `handlers`
@@ -527,17 +535,20 @@ go test ./internal/service/...    # artifact service
 ### Phase 3: Container Isolation
 
 #### Build Verification
+
 ```bash
 go build ./...
 ```
 
 #### Unit Tests
+
 ```bash
 go test ./internal/container/...  # mock Docker
 go test ./internal/executor/...   # interface compatibility
 ```
 
 #### Integration Test (Docker Available)
+
 1. Set `[container] enabled = true` in `dagryn.toml`
 2. Run a task and verify it executes inside a container
 3. Verify resource limits are applied (`docker stats`)
@@ -546,6 +557,7 @@ go test ./internal/executor/...   # interface compatibility
 6. Test cancellation cleans up container
 
 #### Integration Test (Docker Unavailable)
+
 1. Stop Docker daemon or run on machine without Docker
 2. Set `[container] enabled = true`
 3. Verify warning is logged
@@ -553,6 +565,7 @@ go test ./internal/executor/...   # interface compatibility
 5. Verify tasks still complete successfully
 
 #### Rollback Procedure
+
 1. Revert `internal/executor/executor.go` interface extraction
 2. Revert `internal/scheduler/scheduler.go` to use concrete executor
 3. Revert config changes
@@ -575,10 +588,10 @@ Phase 2 (Artifacts) ─────┘
 
 ## Estimated Effort
 
-| Phase | Effort | Risk |
-|-------|--------|------|
-| 1 - Run Cancellation | 2-3 days | Low - Redis patterns well-established |
-| 2 - Artifact Storage | 3-4 days | Low - Mirrors existing cache implementation |
-| 3 - Container Isolation | 5-7 days | Medium - Docker SDK complexity, edge cases |
+| Phase                   | Effort   | Risk                                        |
+| ----------------------- | -------- | ------------------------------------------- |
+| 1 - Run Cancellation    | 2-3 days | Low - Redis patterns well-established       |
+| 2 - Artifact Storage    | 3-4 days | Low - Mirrors existing cache implementation |
+| 3 - Container Isolation | 5-7 days | Medium - Docker SDK complexity, edge cases  |
 
 **Total**: ~10-14 days for all three phases
