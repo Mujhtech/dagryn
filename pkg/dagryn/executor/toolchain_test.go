@@ -69,3 +69,29 @@ func TestEnsureToolchainsForCommand_UsesPluginPathForDetection(t *testing.T) {
 		t.Fatalf("expected no env updates when runtime is available from plugin path, got: %v", got)
 	}
 }
+
+func TestEnsureToolchainsForCommand_SetsCGOForGoRace(t *testing.T) {
+	env := map[string]string{"PATH": "/usr/bin"}
+
+	got, err := ensureToolchainsForCommand(context.Background(), "go test -race ./...", env, nil)
+	if err != nil {
+		t.Fatalf("ensureToolchainsForCommand returned error: %v", err)
+	}
+	if got == nil || got["CGO_ENABLED"] != "1" {
+		t.Fatalf("expected CGO_ENABLED=1 for go test -race, got: %v", got)
+	}
+}
+
+func TestEnsureToolchainsForCommand_RespectsExistingCGO(t *testing.T) {
+	env := map[string]string{"PATH": "/usr/bin", "CGO_ENABLED": "0"}
+
+	got, err := ensureToolchainsForCommand(context.Background(), "go test -race ./...", env, nil)
+	if err != nil {
+		t.Fatalf("ensureToolchainsForCommand returned error: %v", err)
+	}
+	if got != nil {
+		if _, ok := got["CGO_ENABLED"]; ok {
+			t.Fatalf("expected existing CGO_ENABLED to be respected, got: %v", got)
+		}
+	}
+}

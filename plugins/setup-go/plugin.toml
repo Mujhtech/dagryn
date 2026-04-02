@@ -1,14 +1,14 @@
 [plugin]
 name = "setup-go"
 description = "Install and configure Go"
-version = "1.2.0"
+version = "1.3.0"
 type = "composite"
 author = "dagryn"
 license = "MIT"
 
 [inputs.go-version]
 description = "Go version to install"
-default = "1.22"
+default = "1.25.1"
 
 [inputs.cache]
 description = "Cache Go module cache"
@@ -18,6 +18,17 @@ default = "true"
 name = "download-and-install"
 command = """
 GO_VERSION="${inputs.go-version}"
+
+# go.dev tarballs require full semver (e.g. 1.25.1). If users provide a
+# major.minor value, fall back to .0 for compatibility.
+DOWNLOAD_VERSION="$GO_VERSION"
+case "$GO_VERSION" in
+  *.*.*) ;;
+  *.*)
+    DOWNLOAD_VERSION="${GO_VERSION}.0"
+    echo "Go version '$GO_VERSION' is not full semver; trying '$DOWNLOAD_VERSION'"
+    ;;
+esac
 
 # Skip download if go is already available on PATH
 if command -v go >/dev/null 2>&1; then
@@ -50,7 +61,7 @@ if [ -d "$INSTALL_DIR/go" ]; then
 fi
 
 mkdir -p "$INSTALL_DIR"
-TARBALL="go${GO_VERSION}.${GO_OS}-${GO_ARCH}.tar.gz"
+TARBALL="go${DOWNLOAD_VERSION}.${GO_OS}-${GO_ARCH}.tar.gz"
 URL="https://go.dev/dl/${TARBALL}"
 echo "Downloading Go $GO_VERSION from $URL"
 TMPFILE=$(mktemp)

@@ -40,6 +40,12 @@ func ensureToolchainsForCommand(ctx context.Context, command string, env map[str
 	effectivePath := basePath
 	out := make(map[string]string)
 
+	if requiresCGOForRace(command) {
+		if _, ok := env["CGO_ENABLED"]; !ok {
+			out["CGO_ENABLED"] = "1"
+		}
+	}
+
 	for _, rt := range required {
 		if runtimeAvailable(rt, lookupPath) {
 			continue
@@ -69,6 +75,11 @@ func ensureToolchainsForCommand(ctx context.Context, command string, env map[str
 		return nil, nil
 	}
 	return out, nil
+}
+
+func requiresCGOForRace(command string) bool {
+	cmd := strings.ToLower(command)
+	return strings.Contains(cmd, "go test") && strings.Contains(cmd, "-race")
 }
 
 func runtimeAvailable(rt toolchain.Runtime, path string) bool {

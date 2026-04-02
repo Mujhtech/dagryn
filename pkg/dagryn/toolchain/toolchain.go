@@ -405,7 +405,7 @@ func downloadFile(ctx context.Context, url, destPath string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected HTTP status %s", resp.Status)
@@ -415,7 +415,7 @@ func downloadFile(ctx context.Context, url, destPath string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if _, err := io.Copy(f, resp.Body); err != nil {
 		return err
@@ -428,13 +428,13 @@ func extractTarGz(archivePath, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	gz, err := gzip.NewReader(f)
 	if err != nil {
 		return err
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 
 	tr := tar.NewReader(gz)
 	for {
@@ -458,7 +458,7 @@ func extractTarGz(archivePath, dest string) error {
 			if err := os.MkdirAll(cleanTarget, os.FileMode(hdr.Mode)); err != nil {
 				return err
 			}
-		case tar.TypeReg, tar.TypeRegA:
+		case tar.TypeReg:
 			if err := os.MkdirAll(filepath.Dir(cleanTarget), 0755); err != nil {
 				return err
 			}
@@ -467,7 +467,7 @@ func extractTarGz(archivePath, dest string) error {
 				return err
 			}
 			if _, err := io.Copy(out, tr); err != nil {
-				out.Close()
+				defer func() { _ = out.Close() }()
 				return err
 			}
 			if err := out.Close(); err != nil {
@@ -546,8 +546,8 @@ func isWordBoundary(s string, idx int) bool {
 		return true
 	}
 	c := s[idx]
-	return !((c >= 'a' && c <= 'z') ||
-		(c >= 'A' && c <= 'Z') ||
-		(c >= '0' && c <= '9') ||
-		c == '_' || c == '-')
+	return (c < 'a' || c > 'z') &&
+		(c < 'A' || c > 'Z') &&
+		(c < '0' || c > '9') &&
+		c != '_' && c != '-'
 }
