@@ -57,9 +57,17 @@ func (r *GoResolver) Install(ctx context.Context, plugin *Plugin, installDir str
 		return result, result.Error
 	}
 	baseEnv := envToMap(os.Environ())
+	goCmd := "go"
 	if tc != nil {
 		if tc.BinDir != "" {
 			baseEnv["PATH"] = toolchain.PrependPath(tc.BinDir, baseEnv["PATH"])
+			candidate := filepath.Join(tc.BinDir, "go")
+			if runtime.GOOS == "windows" {
+				candidate += ".exe"
+			}
+			if info, statErr := os.Stat(candidate); statErr == nil && !info.IsDir() {
+				goCmd = candidate
+			}
 		}
 		for k, v := range tc.Env {
 			baseEnv[k] = v
@@ -88,7 +96,7 @@ func (r *GoResolver) Install(ctx context.Context, plugin *Plugin, installDir str
 	// When cross-compiling, Go refuses GOBIN ("cannot install cross-compiled
 	// binaries when GOBIN is set"). Use a temporary GOPATH instead; Go places
 	// cross-compiled binaries in $GOPATH/bin/$GOOS_$GOARCH/.
-	cmd := exec.CommandContext(ctx, "go", "install", modulePath)
+	cmd := exec.CommandContext(ctx, goCmd, "install", modulePath)
 	var env map[string]string
 
 	if crossCompile {
