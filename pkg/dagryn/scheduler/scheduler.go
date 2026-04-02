@@ -464,6 +464,18 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 				"task", taskName, "key", cacheKey, "error", err)
 			// Fall through to execution instead of returning Cached
 		} else {
+			// Even when task output is restored from cache, run composite plugin
+			// setup for host execution so downstream tasks can reuse toolchains
+			// (e.g. setup-node/setup-pnpm) without paying setup cost again.
+			useContainer := s.containerRuntime != nil && s.containerConfig != nil
+			if useContainer && t.Container != nil && t.Container.Enabled != nil && !*t.Container.Enabled {
+				useContainer = false
+			}
+			if !useContainer {
+				taskCE := s.compositeExecutor.WithOutput(s.stdout, s.stderr)
+				_ = s.runCompositeSetup(ctx, t, taskCE)
+			}
+
 			// Emit a synthetic log line so remote dashboards show feedback
 			// for cached tasks (they produce no real output).
 			if s.onLogLine != nil {

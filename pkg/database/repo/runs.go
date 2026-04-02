@@ -1002,3 +1002,10 @@ func (r *RunRepo) GetProjectStats(ctx context.Context, projectIDs []uuid.UUID, d
 	}
 	return result, latestRows.Err()
 }
+
+// CountActiveRuns returns the total number of currently active (pending/running) runs across all projects.
+func (r *RunRepo) CountActiveRuns(ctx context.Context) (int64, error) {
+	var count int64
+	err := r.pool.QueryRow(ctx, "SELECT COUNT(*) FROM runs WHERE status IN ('pending', 'running')").Scan(&count)
+	return count, err
+}

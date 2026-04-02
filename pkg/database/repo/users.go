@@ -140,3 +140,10 @@ func (r *UserRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	}
 	return nil
 }
+
+// CountAll returns the total number of users.
+func (r *UserRepo) CountAll(ctx context.Context) (int64, error) {
+	var count int64
+	err := r.pool.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&count)
+	return count, err
+}

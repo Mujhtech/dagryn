@@ -17,6 +17,7 @@ type UserStore interface {
 	Update(ctx context.Context, user *models.User) error
 	UpsertByProvider(ctx context.Context, user *models.User) error
 	Delete(ctx context.Context, id uuid.UUID) error
+	CountAll(ctx context.Context) (int64, error)
 }
 
 // TokenStore defines the interface for token repository operations.
@@ -70,6 +71,7 @@ type ProjectStore interface {
 	SlugExists(ctx context.Context, teamID *uuid.UUID, slug string) (bool, error)
 	ListPublic(ctx context.Context, limit, offset int) ([]models.Project, error)
 	ListAll(ctx context.Context, limit, offset int) ([]models.Project, int, error)
+	CountAll(ctx context.Context) (int64, error)
 }
 
 // APIKeyStore defines the interface for API key repository operations.
@@ -115,6 +117,7 @@ type RunStore interface {
 	GetDashboardChartByProject(ctx context.Context, projectID uuid.UUID, days int) ([]RunDashboardChartPoint, error)
 	GetDashboardFacetsByProject(ctx context.Context, projectID uuid.UUID) (*RunDashboardFacets, error)
 	GetActiveByProject(ctx context.Context, projectID uuid.UUID) ([]models.Run, error)
+	CountActiveRuns(ctx context.Context) (int64, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	CreateTaskResult(ctx context.Context, result *models.TaskResult) error
 	UpdateTaskResult(ctx context.Context, result *models.TaskResult) error

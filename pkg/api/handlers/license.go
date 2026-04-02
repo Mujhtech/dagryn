@@ -107,6 +107,9 @@ func (h *Handler) GetLicenseStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Populate current usage from database
+	h.populateCurrentUsage(r.Context(), &resp.Limits)
+
 	_ = response.Ok(w, r, "License status retrieved", resp)
 }
 
@@ -239,7 +242,23 @@ func (h *Handler) ActivateLicense(w http.ResponseWriter, r *http.Request) {
 	statusResp.GracePeriod = gate.InGracePeriod()
 	statusResp.Expiring = gate.IsExpiring()
 
+	// Populate current usage from database
+	h.populateCurrentUsage(r.Context(), &statusResp.Limits)
+
 	_ = response.Ok(w, r, "License activated successfully", statusResp)
+}
+
+// populateCurrentUsage queries the database for real resource counts.
+func (h *Handler) populateCurrentUsage(ctx context.Context, usage *LicenseUsage) {
+	if projectCount, err := h.store.Projects.CountAll(ctx); err == nil {
+		usage.Projects.Current = projectCount
+	}
+	if userCount, err := h.store.Users.CountAll(ctx); err == nil {
+		usage.TeamMembers.Current = userCount
+	}
+	if activeRuns, err := h.store.Runs.CountActiveRuns(ctx); err == nil {
+		usage.ConcurrentRuns.Current = activeRuns
+	}
 }
 
 func buildFeatureList(gate *licensing.FeatureGate) []FeatureEntry {
