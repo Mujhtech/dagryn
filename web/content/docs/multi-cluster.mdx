@@ -1,0 +1,200 @@
+---
+title: Multi-Cluster
+description: Distribute task execution across multiple worker pools and clusters.
+---
+
+Dagryn's multi-cluster support lets you distribute task execution across remote worker pools. Run GPU-intensive tasks on dedicated hardware, scale horizontally with multiple clusters, and keep local execution as the default.
+
+## Concepts
+
+- **Cluster** — A named group of workers (e.g., "gpu-cluster", "arm64-pool")
+- **Worker/Agent** — A process that connects to the control plane and executes tasks
+- **Control Plane** — The gRPC server that manages worker registration, task dispatch, and health monitoring
+- **Labels** — Key-value pairs on workers used for task routing
+
+## Setting Up
+
+### 1. Start the Control Plane
+
+The gRPC control plane runs alongside the API server (default port 9001):
+
+```bash
+dagryn server --config dagryn.server.toml
+```
+
+Configure the cluster in your server config:
+
+```toml
+[cluster]
+enabled = true
+grpc_port = 9001
+```
+
+Or via environment variables:
+
+```bash
+export DAGRYN_CLUSTER_ENABLED=true
+export DAGRYN_CLUSTER_GRPC_PORT=9001
+```
+
+### 2. Create a Cluster
+
+```bash
+dagryn cluster create gpu-cluster --description "GPU worker pool"
+dagryn cluster create arm64-pool --description "ARM64 build agents"
+```
+
+### 3. Start Worker Agents
+
+On each worker machine, start an agent:
+
+```bash
+dagryn agent start \
+  --server control-plane.example.com:9001 \
+  --token <auth-token> \
+  --cluster gpu-cluster \
+  --labels "gpu=true,vram=24gb" \
+  --max-tasks 4
+```
+
+The agent:
+- Registers with the control plane via gRPC
+- Sends periodic heartbeats
+- Pulls and executes assigned tasks
+- Streams logs back to the control plane
+
+### 4. Route Tasks to Workers
+
+In your `dagryn.toml`, use the `[tasks.<name>.routing]` section:
+
+```toml
+[tasks.train-model]
+command = "python train.py"
+timeout = "1h"
+
+[tasks.train-model.routing]
+labels = { gpu = "true" }        # Only dispatch to workers with gpu=true
+cluster = "gpu-cluster"          # Target specific cluster
+prefer_local = false             # Always dispatch remotely
+```
+
+## Task Routing
+
+### Labels
+
+Workers advertise labels when they register. Tasks can require specific labels:
+
+```toml
+[tasks.build-arm64.routing]
+labels = { arch = "arm64", os = "linux" }
+```
+
+The dispatcher only assigns the task to workers that match **all** required labels.
+
+### Prefer Local
+
+By default, `prefer_local = true` — Dagryn tries to run the task locally first and only dispatches remotely if local execution isn't possible. Set `prefer_local = false` to always dispatch remotely.
+
+```toml
+[tasks.heavy-build.routing]
+prefer_local = false             # Always use remote workers
+```
+
+### Cluster Targeting
+
+Route tasks to a specific cluster:
+
+```toml
+[tasks.deploy.routing]
+cluster = "production-agents"
+```
+
+## Managing Workers
+
+### List Workers
+
+```bash
+# All workers
+dagryn nodes list
+
+# Workers in a specific cluster
+dagryn nodes list --cluster gpu-cluster
+```
+
+### Drain a Worker
+
+Stop a worker from accepting new tasks while it finishes current ones:
+
+```bash
+dagryn nodes drain <worker-id>
+```
+
+### Remove a Worker
+
+Deregister a worker completely:
+
+```bash
+dagryn nodes remove <worker-id>
+```
+
+### Check Agent Status
+
+On the worker machine:
+
+```bash
+dagryn agent status
+```
+
+## Managing Clusters
+
+```bash
+# List all clusters
+dagryn cluster list
+
+# Create a cluster
+dagryn cluster create <name> --description "..."
+
+# Delete a cluster
+dagryn cluster delete <cluster-id>
+```
+
+## TLS Configuration
+
+For production deployments, secure the gRPC connection with TLS:
+
+```bash
+dagryn agent start \
+  --server control-plane.example.com:9001 \
+  --token <auth-token> \
+  --tls-cert /path/to/client.crt \
+  --tls-key /path/to/client.key \
+  --tls-ca /path/to/ca.crt
+```
+
+## Example: Multi-Architecture Build
+
+```toml
+[tasks.build-amd64]
+command = "GOARCH=amd64 go build -o bin/app-amd64"
+inputs = ["**/*.go", "go.mod"]
+outputs = ["bin/app-amd64"]
+
+[tasks.build-amd64.routing]
+labels = { arch = "amd64" }
+prefer_local = false
+
+[tasks.build-arm64]
+command = "GOARCH=arm64 go build -o bin/app-arm64"
+inputs = ["**/*.go", "go.mod"]
+outputs = ["bin/app-arm64"]
+
+[tasks.build-arm64.routing]
+labels = { arch = "arm64" }
+prefer_local = false
+
+[tasks.release]
+command = "make release"
+needs = ["build-amd64", "build-arm64"]
+```
+
+Both builds run in parallel on their respective architectures, and the release step waits for both to complete.

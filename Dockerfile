@@ -8,7 +8,7 @@ WORKDIR /app/web
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Copy frontend package files
-COPY web/package.json web/pnpm-lock.yaml ./
+COPY web/package.json web/pnpm-lock.yaml web/source.config.ts ./
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
@@ -45,10 +45,10 @@ ARG GIT_COMMIT=unknown
 ARG BUILD_DATE=unknown
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s \
-      -X github.com/mujhtech/dagryn/internal/version.Version=${GIT_VERSION} \
-      -X github.com/mujhtech/dagryn/internal/version.Commit=${GIT_COMMIT} \
-      -X github.com/mujhtech/dagryn/internal/version.BuildDate=${BUILD_DATE} \
-      -X github.com/mujhtech/dagryn/pkg/api/handlers.Version=${GIT_VERSION}" \
+    -X github.com/mujhtech/dagryn/internal/version.Version=${GIT_VERSION} \
+    -X github.com/mujhtech/dagryn/internal/version.Commit=${GIT_COMMIT} \
+    -X github.com/mujhtech/dagryn/internal/version.BuildDate=${BUILD_DATE} \
+    -X github.com/mujhtech/dagryn/pkg/api/handlers.Version=${GIT_VERSION}" \
     -o /bin/dagryn ./cmd/dagryn
 
 # Stage 3: Final runtime image

@@ -1,4 +1,5 @@
 .trigger
+.source
 
 # Playwright
 playwright-report/

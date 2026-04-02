@@ -1,0 +1,141 @@
+---
+title: Plugins
+description: Extend Dagryn with plugins that auto-install tools and compose build steps.
+---
+
+Dagryn's plugin system lets you declare tool dependencies that are automatically installed before tasks run. No more manual setup scripts or "install X first" instructions.
+
+## Using Plugins
+
+### 1. Declare Plugins
+
+Add plugins to the global `[plugins]` section in `dagryn.toml`:
+
+```toml
+[plugins]
+golangci-lint = "github:golangci/golangci-lint@v2.8.0"
+govulncheck = "go:golang.org/x/vuln/cmd/govulncheck@latest"
+prettier = "npm:prettier@3.0.0"
+```
+
+### 2. Reference in Tasks
+
+Use the `uses` field to attach plugins to tasks:
+
+```toml
+[tasks.lint]
+command = "golangci-lint run ./..."
+uses = ["golangci-lint"]
+inputs = ["**/*.go"]
+```
+
+When the task runs, Dagryn ensures the plugin is installed and available on the PATH.
+
+### 3. Plugin Inputs
+
+Some plugins accept configuration via the `with` field:
+
+```toml
+[tasks.lint]
+command = "golangci-lint run ./..."
+uses = ["golangci-lint"]
+with = { config_path = ".golangci.yml" }
+```
+
+## Plugin Sources
+
+| Source | Format | Example |
+|--------|--------|---------|
+| GitHub Release | `github:owner/repo@version` | `github:golangci/golangci-lint@v2.8.0` |
+| Go Install | `go:package@version` | `go:golang.org/x/vuln/cmd/govulncheck@latest` |
+| npm | `npm:package@version` | `npm:prettier@3.0.0` |
+| pip | `pip:package@version` | `pip:black@24.0.0` |
+| Cargo | `cargo:package@version` | `cargo:ripgrep@14.0.0` |
+| Local | `local:./path` | `local:./plugins/setup-node` |
+
+## Managing Plugins
+
+```bash
+# List installed plugins
+dagryn plugin list
+
+# Install a plugin manually
+dagryn plugin install github:golangci/golangci-lint@v2.8.0
+
+# Update all plugins to latest
+dagryn plugin update
+
+# Show plugin info and available inputs
+dagryn plugin info golangci-lint
+
+# Remove a plugin
+dagryn plugin clean golangci-lint
+
+# Remove all plugins
+dagryn plugin clean --all
+```
+
+## Creating Plugins
+
+Dagryn supports native plugins defined by a `plugin.toml` manifest.
+
+### Scaffold a Plugin
+
+```bash
+dagryn plugin init my-plugin
+dagryn plugin init my-plugin --type composite
+```
+
+Plugin types:
+
+| Type | Description |
+|------|-------------|
+| `tool` | Installs a single binary tool |
+| `composite` | Runs a sequence of shell steps |
+| `integration` | Connects to external services |
+
+### Plugin Manifest
+
+A `plugin.toml` defines the plugin's metadata, inputs, and steps:
+
+```toml
+[plugin]
+name = "setup-node"
+version = "1.0.0"
+description = "Install and configure Node.js"
+type = "composite"
+
+[[inputs]]
+name = "node_version"
+description = "Node.js version to install"
+default = "20"
+required = false
+
+[[step]]
+name = "install"
+command = "curl -fsSL https://fnm.vercel.app/install | bash"
+
+[[step]]
+name = "use"
+command = "fnm use {{.node_version}}"
+```
+
+### Validate Your Plugin
+
+```bash
+dagryn plugin validate
+```
+
+Checks the `plugin.toml` manifest for errors and reports any issues.
+
+## Inline Plugin Specs
+
+You can also specify plugins inline in tasks without declaring them globally:
+
+```toml
+[tasks.lint]
+command = "golangci-lint run ./..."
+uses = ["github:golangci/golangci-lint@v2.8.0"]
+```
+
+This is convenient for one-off usage but global declarations are recommended for reuse across tasks.

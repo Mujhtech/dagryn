@@ -1,5 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "fumadocs-ui/css/shadcn.css";
+@import "fumadocs-ui/css/preset.css";
+@import "fumadocs-openapi/css/preset.css";
 @plugin "tailwind-scrollbar";
 
 @custom-variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
@@ -49,7 +52,7 @@
 }
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0rem;
   --color-background: hsl(240 10% 3.9%);
   --color-foreground: hsl(0 0% 98%);
   --color-card: hsl(240 10% 3.9%);

@@ -1,0 +1,59 @@
+---
+title: Introduction
+description: Dagryn is a local-first workflow orchestrator with DAG-based task execution, smart caching, and distributed worker pools.
+---
+
+## What is Dagryn?
+
+Dagryn is a local-first workflow orchestrator that runs your CI/CD tasks as a directed acyclic graph (DAG). Define your build, test, and deploy steps in a single `dagryn.toml` file, and Dagryn figures out the optimal execution order — running independent tasks in parallel while respecting dependencies.
+
+Unlike traditional CI systems that lock you into a cloud provider, Dagryn works locally on your machine first, then optionally scales to remote workers and distributed clusters.
+
+## Why Dagryn?
+
+- **Local-first** — Run your entire CI pipeline on your laptop. No YAML, no waiting for cloud runners.
+- **DAG scheduling** — Tasks run in parallel when they can, sequentially when they must.
+- **Smart caching** — Skip tasks when inputs haven't changed. Share cache across your team with remote caching.
+- **Container isolation** — Run tasks in Docker or Podman containers for reproducible builds.
+- **Plugin system** — Install tools automatically. No more "install Go, install Node, install linter" boilerplate.
+- **Multi-cluster** — Scale out to distributed worker pools when local execution isn't enough.
+- **Self-hostable** — Run the Dagryn server on your own infrastructure with full control.
+
+## Quick Start
+
+### 1. Install
+
+```bash
+# Homebrew
+brew install mujhtech/tap/dagryn
+
+# Or install script
+curl -fsSL https://raw.githubusercontent.com/mujhtech/dagryn/main/install.sh | bash
+
+# Or from source
+go install github.com/mujhtech/dagryn@latest
+```
+
+### 2. Initialize
+
+```bash
+cd your-project
+dagryn init
+```
+
+This auto-detects your project type and generates a `dagryn.toml` with sensible defaults.
+
+### 3. Run
+
+```bash
+dagryn run
+```
+
+That's it. Dagryn reads `dagryn.toml`, resolves the task graph, and executes everything in the right order.
+
+## What's Next?
+
+- [Getting Started](/docs/getting-started) — Detailed setup and your first workflow
+- [Configuration](/docs/configuration) — Full `dagryn.toml` reference
+- [CLI Reference](/docs/cli) — All available commands
+- [Self-Hosting](/docs/self-hosting) — Run the Dagryn server on your infrastructure

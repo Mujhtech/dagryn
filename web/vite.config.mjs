@@ -3,9 +3,12 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import viteTsConfigPaths from "vite-tsconfig-paths";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
+import mdx from "fumadocs-mdx/vite";
+import * as MdxConfig from "./source.config";
 
 export default defineConfig({
   plugins: [
+    mdx(MdxConfig),
     tanstackRouter({
       routesDirectory: "./app/routes",
       generatedRouteTree: "./app/routeTree.gen.ts",
@@ -54,6 +57,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "~": "/app",
+      "node:path": "path-browserify",
     },
   },
 });

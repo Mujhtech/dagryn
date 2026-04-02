@@ -1,0 +1,262 @@
+---
+title: Self-Hosting
+description: Deploy the Dagryn server on your own infrastructure.
+---
+
+Dagryn can be self-hosted for teams that want full control over their CI infrastructure. The server provides a REST API, dashboard, OAuth authentication, real-time log streaming, and remote cache.
+
+## Architecture
+
+A self-hosted Dagryn deployment consists of:
+
+- **API Server** — HTTP API + dashboard (port 9000)
+- **Background Worker** — Processes webhooks, scheduled tasks, async jobs
+- **PostgreSQL** — Primary database
+- **Redis** — Job queue and caching
+
+Optional:
+- **gRPC Control Plane** — For multi-cluster worker orchestration (port 9001)
+- **Object Storage** — S3/GCS/R2 for cache and artifact storage
+
+## Quick Start with Docker
+
+### 1. Pull the Image
+
+```bash
+docker pull ghcr.io/mujhtech/dagryn:latest
+```
+
+### 2. Create a Config File
+
+Create `dagryn.server.toml`:
+
+```toml
+[server]
+host = "0.0.0.0"
+port = 9000
+
+[database]
+url = "postgres://dagryn:password@db:5432/dagryn?sslmode=disable"
+
+[redis]
+host = "redis"
+port = 6379
+
+[auth]
+jwt_secret = "your-secret-key-at-least-32-characters-long"
+
+[oauth.github]
+client_id = "your-github-client-id"
+client_secret = "your-github-client-secret"
+
+[oauth.google]
+client_id = "your-google-client-id"
+client_secret = "your-google-client-secret"
+```
+
+### 3. Run with Docker Compose
+
+```yaml
+# docker-compose.yml
+services:
+  dagryn:
+    image: ghcr.io/mujhtech/dagryn:latest
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./dagryn.server.toml:/app/dagryn.server.toml
+      - dagryn-data:/app/data
+    depends_on:
+      - db
+      - redis
+    environment:
+      - DATABASE_URL=postgres://dagryn:password@db:5432/dagryn?sslmode=disable
+      - JWT_SECRET=your-secret-key-at-least-32-characters-long
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    image: ghcr.io/mujhtech/dagryn:latest
+    command: dagryn worker --config /app/dagryn.server.toml
+    volumes:
+      - ./dagryn.server.toml:/app/dagryn.server.toml
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: dagryn
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: dagryn
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redisdata:/data
+
+volumes:
+  dagryn-data:
+  pgdata:
+  redisdata:
+```
+
+### 4. Run Migrations
+
+```bash
+docker compose exec dagryn dagryn migrate up
+```
+
+### 5. Start
+
+```bash
+docker compose up -d
+```
+
+The dashboard is now available at `http://localhost:9000`.
+
+## Manual Deployment
+
+### Start the Server
+
+```bash
+dagryn server \
+  --port 9000 \
+  --database "postgres://localhost/dagryn" \
+  --jwt-secret "your-secret-key-at-least-32-characters-long"
+```
+
+Or use environment variables:
+
+```bash
+export DATABASE_URL="postgres://localhost/dagryn"
+export JWT_SECRET="your-secret-key"
+export GITHUB_CLIENT_ID="..."
+export GITHUB_CLIENT_SECRET="..."
+
+dagryn server
+```
+
+### Start the Worker
+
+The background worker processes webhooks, scheduled tasks, and async operations:
+
+```bash
+dagryn worker \
+  --redis-host localhost \
+  --redis-port 6379 \
+  --concurrency 10
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--redis-host` | Redis host | `localhost` |
+| `--redis-port` | Redis port | `6379` |
+| `--redis-password` | Redis password | (none) |
+| `--concurrency` | Concurrent job workers | `10` |
+| `--encryption-key` | Job payload encryption key (32 bytes, AES-256) | (none) |
+
+### Run Migrations
+
+```bash
+# Apply all pending migrations
+dagryn migrate up --database "postgres://localhost/dagryn"
+
+# Check migration status
+dagryn migrate status --database "postgres://localhost/dagryn"
+
+# Rollback
+dagryn migrate down --database "postgres://localhost/dagryn"
+```
+
+## Environment Variables
+
+All configuration can be set via environment variables with the `DAGRYN_` prefix:
+
+### Core
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `DATABASE_URL` | PostgreSQL connection string | Yes |
+| `JWT_SECRET` | JWT signing secret (min 32 chars) | Yes |
+| `REDIS_HOST` | Redis host | No (default: localhost) |
+| `REDIS_PORT` | Redis port | No (default: 6379) |
+| `REDIS_PASSWORD` | Redis password | No |
+
+### OAuth
+
+| Variable | Description |
+|----------|-------------|
+| `GITHUB_CLIENT_ID` | GitHub OAuth app client ID |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth app client secret |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+
+### GitHub App
+
+| Variable | Description |
+|----------|-------------|
+| `GITHUB_APP_ID` | GitHub App ID |
+| `GITHUB_APP_PRIVATE_KEY` | GitHub App private key (PEM) |
+| `GITHUB_APP_WEBHOOK_SECRET` | Webhook secret |
+
+### Worker
+
+| Variable | Description |
+|----------|-------------|
+| `JOB_ENCRYPTION_KEY` | Job payload encryption key (32 bytes for AES-256) |
+| `JOB_CONCURRENCY` | Background job concurrency |
+
+### Storage
+
+Cache and artifact storage can be configured separately:
+
+| Variable | Description |
+|----------|-------------|
+| `DAGRYN_CACHE_STORAGE_PROVIDER` | Cache storage provider (s3, gcs, filesystem) |
+| `DAGRYN_CACHE_STORAGE_BUCKET` | Cache storage bucket |
+| `DAGRYN_CACHE_STORAGE_REGION` | Cache storage region |
+| `DAGRYN_ARTIFACT_STORAGE_PROVIDER` | Artifact storage provider |
+| `DAGRYN_ARTIFACT_STORAGE_BUCKET` | Artifact storage bucket |
+
+## Configuration Precedence
+
+Settings are resolved in this order (highest priority first):
+
+1. CLI flags (`--port 3000`)
+2. Environment variables (`DAGRYN_SERVER_PORT=3000`)
+3. Config file (`dagryn.server.toml`)
+4. Defaults
+
+## Licensing
+
+For production self-hosted deployments, activate a license:
+
+```bash
+dagryn license activate <key> --name "production"
+dagryn license status
+```
+
+## Health Checks
+
+The server exposes a health endpoint:
+
+```
+GET /health
+```
+
+Use this for load balancer health checks and container orchestration.
+
+## Swagger API Docs
+
+The server serves interactive API documentation at:
+
+```
+GET /swagger/
+```

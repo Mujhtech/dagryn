@@ -1,0 +1,150 @@
+---
+title: Getting Started
+description: Install Dagryn and create your first workflow in under 5 minutes.
+---
+
+## Installation
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew install mujhtech/tap/dagryn
+```
+
+### Install Script
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mujhtech/dagryn/main/install.sh | bash
+```
+
+### From Source (Go)
+
+```bash
+go install github.com/mujhtech/dagryn@latest
+```
+
+Requires Go 1.25 or later.
+
+### Verify Installation
+
+```bash
+dagryn version
+```
+
+## Your First Workflow
+
+### 1. Initialize a Project
+
+Navigate to your project directory and run:
+
+```bash
+dagryn init
+```
+
+Dagryn auto-detects your project type (Go, Node.js, Python, Rust, Java, Ruby, PHP, etc.) and generates a `dagryn.toml` tailored to your stack.
+
+You can also specify a template explicitly:
+
+```bash
+dagryn init --template go
+dagryn init --template node
+dagryn init --template python
+```
+
+Use `dagryn init --list-templates` to see all available templates.
+
+### 2. Understand the Config
+
+Here's a minimal `dagryn.toml`:
+
+```toml
+[workflow]
+name = "ci"
+default = true
+
+[tasks.build]
+command = "go build -v ./..."
+inputs = ["**/*.go", "go.mod", "go.sum"]
+outputs = ["bin/**"]
+timeout = "10m"
+
+[tasks.test]
+command = "go test -v ./..."
+needs = ["build"]
+inputs = ["**/*.go", "go.mod", "go.sum"]
+timeout = "5m"
+
+[tasks.lint]
+command = "golangci-lint run ./..."
+uses = ["golangci-lint"]
+needs = ["build"]
+inputs = ["**/*.go", ".golangci.yml"]
+timeout = "2m"
+
+[plugins]
+golangci-lint = "github:golangci/golangci-lint@v2.8.0"
+
+[cache]
+local = true
+```
+
+Key concepts:
+- **Tasks** define what to run. Each task has a `command` and optional `inputs`, `outputs`, and `needs`.
+- **`needs`** declares dependencies. `test` waits for `build`; `lint` runs in parallel with `test` since both only depend on `build`.
+- **`inputs`/`outputs`** enable smart caching. If inputs haven't changed, the task is skipped.
+- **`uses`** references plugins that are auto-installed before the task runs.
+
+### 3. Run Your Workflow
+
+```bash
+# Run all tasks (when workflow.default = true)
+dagryn run
+
+# Run specific tasks (and their dependencies)
+dagryn run test
+dagryn run test lint
+
+# Dry run — see what would execute without running anything
+dagryn run --dry-run
+
+# Control parallelism
+dagryn run --parallel 4
+```
+
+### 4. Visualize the Graph
+
+```bash
+dagryn graph
+```
+
+This prints an ASCII representation of your task DAG showing execution levels and dependencies.
+
+### 5. Check Your Setup
+
+```bash
+dagryn doctor
+```
+
+Runs diagnostic checks on your config, Docker/Podman availability, Git setup, and plugin health.
+
+## Connecting to a Remote Server
+
+If you're using the Dagryn server (self-hosted or cloud), authenticate and link your project:
+
+```bash
+# Login via device code flow
+dagryn auth login --server https://dagryn.example.com
+
+# Initialize with remote sync
+dagryn init --remote
+
+# Run and sync results to server
+dagryn run --sync
+```
+
+## Next Steps
+
+- [Configuration Reference](/docs/configuration) — All `dagryn.toml` options
+- [Caching](/docs/caching) — Local and remote cache setup
+- [Plugins](/docs/plugins) — Auto-install tools and extend Dagryn
+- [Container Isolation](/docs/containers) — Run tasks in Docker/Podman

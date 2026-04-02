@@ -1,0 +1,130 @@
+---
+title: Container Isolation
+description: Run tasks in Docker or Podman containers for reproducible, isolated builds.
+---
+
+Dagryn can execute tasks inside Docker or Podman containers, giving you reproducible builds that don't depend on your host machine's setup.
+
+## Enabling Containers
+
+### Project-Level Defaults
+
+Set default container settings for all tasks:
+
+```toml
+[container]
+enabled = true
+image = "golang:1.25-bookworm"
+memory_limit = "2g"
+cpu_limit = "2.0"
+network = "bridge"
+```
+
+### Per-Task Overrides
+
+Override the defaults for specific tasks:
+
+```toml
+[tasks.frontend-build]
+command = "pnpm build"
+needs = ["frontend-install"]
+
+[tasks.frontend-build.container]
+image = "node:20-bookworm-slim"
+memory_limit = "4g"
+cpu_limit = "2.0"
+```
+
+### Mixed Execution
+
+You can run some tasks in containers and others on the host. If `[container]` is enabled at the project level, all tasks use containers by default. Tasks without a `[tasks.<name>.container]` section inherit the project defaults.
+
+If `[container]` is disabled at the project level, only tasks with explicit container config run in containers.
+
+## Configuration Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `image` | Container image to use | (required) |
+| `memory_limit` | Memory limit (e.g., `"2g"`, `"512m"`) | unlimited |
+| `cpu_limit` | CPU limit (e.g., `"2.0"` for 2 cores) | unlimited |
+| `network` | Network mode (`"bridge"`, `"host"`, `"none"`) | `"bridge"` |
+
+## Runtime Support
+
+Dagryn supports both Docker and Podman. It automatically detects which is available:
+
+- **Docker** — Uses the Docker SDK and daemon socket
+- **Podman** — Uses Podman's Docker-compatible socket
+
+### Checking Availability
+
+```bash
+dagryn doctor
+```
+
+The doctor command reports whether Docker or Podman is available and functional.
+
+## How It Works
+
+1. Dagryn pulls the specified image (if not cached locally)
+2. Creates a container with the configured limits
+3. Mounts your project directory into the container
+4. Runs the task command inside the container
+5. Captures outputs after execution
+6. Cleans up the container
+
+### Graceful Degradation
+
+If Docker/Podman is not available and container execution is configured, Dagryn warns and falls back to host execution. This prevents builds from failing entirely just because Docker isn't installed.
+
+### Cleanup
+
+Dagryn uses a background context for container cleanup to prevent orphaned containers, even if the task is cancelled or times out.
+
+## Example: Multi-Language Project
+
+```toml
+[container]
+enabled = true
+image = "golang:1.25-bookworm"
+
+[tasks.go-build]
+command = "go build -v ./..."
+inputs = ["**/*.go", "go.mod"]
+# Uses project default: golang:1.25-bookworm
+
+[tasks.go-test]
+command = "go test -v ./..."
+needs = ["go-build"]
+inputs = ["**/*.go"]
+# Uses project default: golang:1.25-bookworm
+
+[tasks.web-install]
+command = "pnpm install --frozen-lockfile"
+workdir = "web"
+inputs = ["web/package.json", "web/pnpm-lock.yaml"]
+[tasks.web-install.container]
+image = "node:20-bookworm-slim"
+
+[tasks.web-build]
+command = "pnpm build"
+workdir = "web"
+needs = ["web-install"]
+[tasks.web-build.container]
+image = "node:20-bookworm-slim"
+memory_limit = "4g"
+```
+
+## Server-Side Container Config
+
+When running the Dagryn server, container defaults can be set via environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `DAGRYN_CONTAINER_ENABLED` | Enable container execution |
+| `DAGRYN_CONTAINER_IMAGE` | Default container image |
+| `DAGRYN_CONTAINER_MEMORY_LIMIT` | Default memory limit |
+| `DAGRYN_CONTAINER_CPU_LIMIT` | Default CPU limit |
+
+The precedence order is: **server defaults < project `[container]` < task `[tasks.X.container]`**
