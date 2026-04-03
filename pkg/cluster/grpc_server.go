@@ -16,6 +16,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -29,12 +30,13 @@ type GRPCServer struct {
 	server    *grpc.Server
 	registry  *WorkerRegistry
 	store     repo.ClusterStore
+	tokens    repo.ClusterWorkerTokenStore
 	logBridge *LogBridge
 	cfg       serverconfig.ClusterConfig
 }
 
 // NewGRPCServer creates and configures a new gRPC server for cluster operations.
-func NewGRPCServer(registry *WorkerRegistry, store repo.ClusterStore, logBridge *LogBridge, cfg serverconfig.ClusterConfig) *GRPCServer {
+func NewGRPCServer(registry *WorkerRegistry, store repo.ClusterStore, tokenStore repo.ClusterWorkerTokenStore, logBridge *LogBridge, cfg serverconfig.ClusterConfig) *GRPCServer {
 	var opts []grpc.ServerOption
 
 	// mTLS if configured (moved earlier per review recommendation)
@@ -48,10 +50,10 @@ func NewGRPCServer(registry *WorkerRegistry, store repo.ClusterStore, logBridge 
 	}
 
 	// Token auth interceptors
-	if cfg.RegistrationToken != "" {
+	if tokenStore != nil {
 		opts = append(opts,
-			grpc.ChainStreamInterceptor(TokenAuthStreamInterceptor(cfg.RegistrationToken)),
-			grpc.ChainUnaryInterceptor(TokenAuthUnaryInterceptor(cfg.RegistrationToken)),
+			grpc.ChainStreamInterceptor(TokenAuthStreamInterceptorWithStore(tokenStore)),
+			grpc.ChainUnaryInterceptor(TokenAuthUnaryInterceptorWithStore(tokenStore)),
 		)
 	}
 
@@ -68,6 +70,7 @@ func NewGRPCServer(registry *WorkerRegistry, store repo.ClusterStore, logBridge 
 		server:    srv,
 		registry:  registry,
 		store:     store,
+		tokens:    tokenStore,
 		logBridge: logBridge,
 		cfg:       cfg,
 	}
@@ -111,10 +114,23 @@ func (s *GRPCServer) RegisterWorker(stream v1.ClusterService_RegisterWorkerServe
 
 		if workerID == "" && hb.Info != nil {
 			// First heartbeat: register the worker
-			tokenHash := HashToken(s.cfg.RegistrationToken)
+			md, ok := metadata.FromIncomingContext(stream.Context())
+			if !ok {
+				return fmt.Errorf("missing metadata")
+			}
+			scope, scopeErr := ResolveWorkerScope(stream.Context(), md, s.tokens)
+			if scopeErr != nil {
+				return scopeErr
+			}
+
+			tokens := md.Get(tokenMetadataKey)
+			if len(tokens) == 0 {
+				return fmt.Errorf("missing registration token")
+			}
+			tokenHash := HashToken(tokens[0])
 
 			var clusterID *uuid.UUID
-			cluster, clusterErr := s.resolveWorkerCluster(stream.Context(), hb.Info)
+			cluster, clusterErr := s.resolveWorkerCluster(stream.Context(), hb.Info, scope)
 			if clusterErr != nil {
 				return clusterErr
 			}
@@ -173,35 +189,47 @@ func (s *GRPCServer) RegisterWorker(stream v1.ClusterService_RegisterWorkerServe
 	}
 }
 
-func (s *GRPCServer) resolveWorkerCluster(ctx context.Context, info *v1.WorkerInfo) (*models.Cluster, error) {
-	if info == nil {
-		return s.store.EnsureDefaultCluster(ctx)
+func (s *GRPCServer) resolveWorkerCluster(ctx context.Context, info *v1.WorkerInfo, scope *WorkerScope) (*models.Cluster, error) {
+	if scope == nil {
+		return nil, fmt.Errorf("worker scope is required")
 	}
 
-	if info.Labels != nil {
+	if scope.Type == "team" {
+		if info != nil && info.Labels != nil {
+			if clusterName, ok := info.Labels["cluster"]; ok && clusterName != "" {
+				cluster, err := s.store.GetClusterByNameInScope(ctx, clusterName, scope.TeamID, nil)
+				if err != nil {
+					return nil, fmt.Errorf("team cluster %q not found", clusterName)
+				}
+				return cluster, nil
+			}
+		}
+		return s.store.EnsureDefaultClusterForScope(ctx, scope.TeamID, nil)
+	}
+
+	if scope.Type == "personal" {
+		if info != nil && info.Labels != nil {
+			if clusterName, ok := info.Labels["cluster"]; ok && clusterName != "" {
+				cluster, err := s.store.GetClusterByNameInScope(ctx, clusterName, nil, scope.OwnerUserID)
+				if err != nil {
+					return nil, fmt.Errorf("personal cluster %q not found", clusterName)
+				}
+				return cluster, nil
+			}
+		}
+		return s.store.EnsureDefaultClusterForScope(ctx, nil, scope.OwnerUserID)
+	}
+
+	if info != nil && info.Labels != nil {
 		if _, ok := info.Labels["team_id"]; ok {
 			return nil, fmt.Errorf("team_id label is not allowed for worker registration")
 		}
 		if _, ok := info.Labels["owner_user_id"]; ok {
 			return nil, fmt.Errorf("owner_user_id label is not allowed for worker registration")
 		}
-
-		if preferredScope, ok := info.Labels["scope"]; ok && preferredScope == "global" {
-			if clusterName, ok := info.Labels["cluster"]; ok && clusterName != "" {
-				return s.store.GetClusterByName(ctx, clusterName)
-			}
-			return s.store.EnsureDefaultCluster(ctx)
-		}
-		if clusterName, ok := info.Labels["cluster"]; ok && clusterName != "" {
-			c, err := s.store.GetClusterByName(ctx, clusterName)
-			if err != nil {
-				return nil, fmt.Errorf("cluster %q not found", clusterName)
-			}
-			return c, nil
-		}
 	}
 
-	return s.store.EnsureDefaultCluster(ctx)
+	return nil, fmt.Errorf("unsupported worker scope: %q", scope.Type)
 }
 
 // TaskStream implements the bidirectional task dispatch/result stream.

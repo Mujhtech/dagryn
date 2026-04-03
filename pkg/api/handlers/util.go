@@ -28,6 +28,7 @@ const (
 	WebhookIDParam      = "webhookId"
 	ClusterIDParam      = "clusterId"
 	WorkerIDParam       = "workerId"
+	WorkerTokenIDParam  = "workerTokenId"
 )
 
 func pathParamOrError(r *http.Request, paramName string) (string, error) {

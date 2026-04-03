@@ -58,3 +58,14 @@ export function useRunAssignments(runId?: string) {
     enabled: !!runId,
   });
 }
+
+export function useWorkerTokens(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.workerTokens,
+    queryFn: async () => {
+      const { data } = await api.listWorkerTokens();
+      return data;
+    },
+    enabled,
+  });
+}

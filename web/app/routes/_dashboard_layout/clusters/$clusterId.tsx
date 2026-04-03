@@ -35,6 +35,23 @@ function ClusterDetailPage() {
     [workers],
   );
 
+  const formatBytes = (bytes?: number) => {
+    if (!bytes || bytes <= 0) return "-";
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    let value = bytes;
+    let idx = 0;
+    while (value >= 1024 && idx < units.length - 1) {
+      value /= 1024;
+      idx++;
+    }
+    return `${value.toFixed(idx < 2 ? 0 : 1)} ${units[idx]}`;
+  };
+
+  const formatVCpu = (millicores?: number) => {
+    if (!millicores || millicores <= 0) return "-";
+    return `${(millicores / 1000).toFixed(2)}`;
+  };
+
   if (clusterLoading || workersLoading) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -90,14 +107,16 @@ function ClusterDetailPage() {
         <CardContent>
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Worker</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Environment</TableHead>
-                <TableHead>OS/Arch</TableHead>
-                <TableHead>Active Tasks</TableHead>
-                <TableHead>Last Heartbeat</TableHead>
-              </TableRow>
+                <TableRow>
+                  <TableHead>Worker</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Environment</TableHead>
+                  <TableHead>OS/Arch</TableHead>
+                  <TableHead>vCPU</TableHead>
+                  <TableHead>Memory</TableHead>
+                  <TableHead>Active Tasks</TableHead>
+                  <TableHead>Last Heartbeat</TableHead>
+                </TableRow>
             </TableHeader>
             <TableBody>
               {(workers ?? []).map((w) => (
@@ -122,13 +141,15 @@ function ClusterDetailPage() {
                   <TableCell>
                     {w.os}/{w.arch}
                   </TableCell>
+                  <TableCell>{formatVCpu(w.cpu_millicores_available)}</TableCell>
+                  <TableCell>{formatBytes(w.memory_bytes_available)}</TableCell>
                   <TableCell>{w.active_tasks}</TableCell>
                   <TableCell>{new Date(w.last_heartbeat_at).toLocaleString()}</TableCell>
                 </TableRow>
               ))}
               {(workers ?? []).length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-muted-foreground">
+                  <TableCell colSpan={8} className="text-muted-foreground">
                     No workers registered in this cluster.
                   </TableCell>
                 </TableRow>

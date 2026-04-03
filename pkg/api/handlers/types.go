@@ -994,6 +994,35 @@ type WorkerResponse struct {
 	ActiveTasks        int      `json:"active_tasks" example:"2"`
 }
 
+// ClusterWorkerTokenResponse represents a cluster worker token.
+type ClusterWorkerTokenResponse struct {
+	ID          string  `json:"id" example:"550e8400-e29b-41d4-a716-446655440010"`
+	Name        string  `json:"name" example:"my-personal-mbp"`
+	KeyPrefix   string  `json:"key_prefix" example:"dg_wkr_abc123def"`
+	ScopeType   string  `json:"scope_type" example:"personal"`
+	TeamID      *string `json:"team_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440001"`
+	OwnerUserID *string `json:"owner_user_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440002"`
+	ClusterID   *string `json:"cluster_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
+	LastUsedAt  *string `json:"last_used_at,omitempty" example:"2026-04-03T09:00:00Z"`
+	ExpiresAt   *string `json:"expires_at,omitempty" example:"2026-07-01T00:00:00Z"`
+	CreatedAt   string  `json:"created_at" example:"2026-04-03T08:00:00Z"`
+	RevokedAt   *string `json:"revoked_at,omitempty" example:"2026-04-04T08:00:00Z"`
+}
+
+// CreateClusterWorkerTokenRequest creates a scoped worker token.
+type CreateClusterWorkerTokenRequest struct {
+	Name      string  `json:"name" example:"team-runner-1"`
+	TeamID    *string `json:"team_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440001"`
+	ClusterID *string `json:"cluster_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ExpiresIn string  `json:"expires_in,omitempty" example:"90d"`
+}
+
+// ClusterWorkerTokenCreatedResponse contains metadata and one-time token secret.
+type ClusterWorkerTokenCreatedResponse struct {
+	Token ClusterWorkerTokenResponse `json:"token"`
+	Key   string                     `json:"key" example:"dg_wkr_..."`
+}
+
 // TaskAssignmentResponse represents a task assignment in API responses.
 //
 //	@Description	Task assignment resource

@@ -3,6 +3,8 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/mujhtech/dagryn/pkg/http/response"
 	"github.com/mujhtech/dagryn/pkg/licensing"
@@ -11,10 +13,11 @@ import (
 // CapabilitiesResponse describes the server's mode, available features, and
 // visible navigation sections. The dashboard uses this to show/hide UI.
 type CapabilitiesResponse struct {
-	Mode     string         `json:"mode"`
-	Edition  string         `json:"edition"`
-	Features []FeatureEntry `json:"features"`
-	Nav      []NavItem      `json:"nav"`
+	Mode              string         `json:"mode"`
+	Edition           string         `json:"edition"`
+	Features          []FeatureEntry `json:"features"`
+	Nav               []NavItem      `json:"nav"`
+	GRPCPublicAddress string         `json:"grpc_public_address"`
 }
 
 // NavItem represents a top-level navigation entry in the dashboard.
@@ -36,13 +39,35 @@ func (h *Handler) GetCapabilities(w http.ResponseWriter, r *http.Request) {
 	mode, edition := h.modeAndEdition()
 	features := h.buildEntitlementFeatures(r.Context())
 	nav := buildNav(mode, features)
+	grpcAddr := inferGRPCPublicAddress(r)
 
 	_ = response.Ok(w, r, "Capabilities retrieved", CapabilitiesResponse{
-		Mode:     mode,
-		Edition:  edition,
-		Features: features,
-		Nav:      nav,
+		Mode:              mode,
+		Edition:           edition,
+		Features:          features,
+		Nav:               nav,
+		GRPCPublicAddress: grpcAddr,
 	})
+}
+
+func inferGRPCPublicAddress(r *http.Request) string {
+	host := r.Host
+	if host == "" {
+		return "localhost:9001"
+	}
+	if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
+		u, err := url.Parse(host)
+		if err == nil && u.Host != "" {
+			host = u.Host
+		}
+	}
+	if strings.Contains(host, ":") {
+		host = strings.Split(host, ":")[0]
+	}
+	if strings.Contains(host, "localhost") || strings.HasPrefix(host, "127.") {
+		return host + ":9001"
+	}
+	return host + ":443"
 }
 
 // modeAndEdition returns the deployment mode and edition from the

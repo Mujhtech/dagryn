@@ -586,6 +586,11 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 			// Worker management routes
 			r.Route("/workers", func(r chi.Router) {
 				r.Get("/", a.h.ListWorkers)
+				r.Route("/tokens", func(r chi.Router) {
+					r.Get("/", a.h.ListClusterWorkerTokens)
+					r.Post("/", a.h.CreateClusterWorkerToken)
+					r.Delete(fmt.Sprintf("/{%s}", handlers.WorkerTokenIDParam), a.h.RevokeClusterWorkerToken)
+				})
 				r.Route(fmt.Sprintf("/{%s}", handlers.WorkerIDParam), func(r chi.Router) {
 					r.Get("/", a.h.GetWorker)
 					r.Delete("/", a.h.DeleteWorker)

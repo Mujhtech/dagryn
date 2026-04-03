@@ -386,6 +386,7 @@ func (s *Server) Initialize(ctx context.Context) error {
 		s.grpcServer = cluster.NewGRPCServer(
 			s.workerRegistry,
 			s.store.Clusters,
+			s.store.ClusterWorkerTokens,
 			logBridge,
 			s.config.Cluster,
 		)

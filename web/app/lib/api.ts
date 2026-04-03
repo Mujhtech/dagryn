@@ -82,6 +82,11 @@ export interface Worker {
   cluster_id?: string;
   active_tasks: number;
   last_heartbeat_at: string;
+  cpu_millicores_available?: number;
+  memory_bytes_available?: number;
+  disk_bytes_available?: number;
+  cpu_usage_percent?: number;
+  memory_usage_percent?: number;
 }
 
 export interface TaskAssignment {
@@ -103,6 +108,25 @@ export interface TaskAssignment {
   retry_count: number;
   max_retries: number;
   created_at: string;
+}
+
+export interface WorkerToken {
+  id: string;
+  name: string;
+  key_prefix: string;
+  scope_type: "team" | "personal";
+  team_id?: string;
+  owner_user_id?: string;
+  cluster_id?: string;
+  last_used_at?: string;
+  expires_at?: string;
+  created_at: string;
+  revoked_at?: string;
+}
+
+export interface WorkerTokenCreated {
+  token: WorkerToken;
+  key: string;
 }
 
 export interface Invitation {
@@ -705,6 +729,7 @@ export interface CapabilitiesResponse {
   edition: "community" | "pro" | "enterprise" | "cloud";
   features: FeatureEntry[];
   nav: CapabilitiesNavItem[];
+  grpc_public_address: string;
 }
 
 // Audit log types
@@ -1188,6 +1213,28 @@ class ApiClient {
 
   async getWorker(workerId: string) {
     return this.fetch<Worker>(`/workers/${workerId}`);
+  }
+
+  async listWorkerTokens() {
+    return this.fetch<WorkerToken[]>("/workers/tokens");
+  }
+
+  async createWorkerToken(data: {
+    name: string;
+    team_id?: string;
+    cluster_id?: string;
+    expires_in?: string;
+  }) {
+    return this.fetch<WorkerTokenCreated>("/workers/tokens", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async revokeWorkerToken(workerTokenId: string) {
+    return this.fetch<void>(`/workers/tokens/${workerTokenId}`, {
+      method: "DELETE",
+    });
   }
 
   async listRunAssignments(runId: string) {

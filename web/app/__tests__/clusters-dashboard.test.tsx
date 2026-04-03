@@ -39,6 +39,17 @@ vi.mock("~/hooks/queries", () => ({
     data: workersState.items,
     isLoading: workersState.isLoading,
   }),
+  useWorkerTokens: () => ({ data: [], isLoading: false }),
+  useCapabilities: () => ({
+    data: {
+      mode: "cloud",
+      edition: "cloud",
+      features: [],
+      nav: [],
+      grpc_public_address: "dagryn.mujhtech.xyz:443",
+    },
+    isLoading: false,
+  }),
   useDashboardOverview: () => ({ data: overviewState.data, isLoading: false }),
 }));
 
@@ -48,11 +59,18 @@ vi.mock("@tanstack/react-query", async () => {
   );
   return {
     ...actual,
+    useQueryClient: () => ({
+      invalidateQueries: vi.fn().mockResolvedValue(undefined),
+    }),
     useQueries: ({ queries }: { queries: Array<{ queryKey: readonly unknown[] }> }) =>
       queries.map((query) => {
         const teamId = String(query.queryKey[1] ?? "");
         return { data: clustersState.byTeam[teamId] ?? [], isLoading: false };
       }),
+    useMutation: () => ({
+      mutate: vi.fn(),
+      isPending: false,
+    }),
   };
 });
 
@@ -72,8 +90,8 @@ vi.mock("@tanstack/react-router", async () => {
   };
 });
 
-import { ClustersPage } from "../clusters";
-import { IndexPage } from "../dashboard";
+import { ClustersPage } from "../routes/_dashboard_layout/clusters/index";
+import { IndexPage } from "../routes/_dashboard_layout/dashboard";
 
 describe("clusters and dashboard routing surfaces", () => {
   beforeEach(() => {

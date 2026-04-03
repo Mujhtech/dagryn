@@ -45,5 +45,6 @@ export {
   useWorkers,
   useWorkersForAccessibleScopes,
   useRunAssignments,
+  useWorkerTokens,
 } from "./use-cluster-data";
 export { useCluster } from "./use-cluster-detail";

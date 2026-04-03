@@ -12,6 +12,7 @@ type Store struct {
 	Teams               repo.TeamStore
 	Projects            repo.ProjectStore
 	APIKeys             repo.APIKeyStore
+	ClusterWorkerTokens repo.ClusterWorkerTokenStore
 	Invitations         repo.InvitationStore
 	Runs                repo.RunStore
 	Artifacts           repo.ArtifactStore
@@ -37,6 +38,7 @@ func New(
 		Teams:               repo.NewTeamRepo(db.Pool()),
 		Projects:            repo.NewProjectRepo(db.Pool()),
 		APIKeys:             repo.NewAPIKeyRepo(db.Pool()),
+		ClusterWorkerTokens: repo.NewClusterWorkerTokenRepo(db.Pool()),
 		Invitations:         repo.NewInvitationRepo(db.Pool()),
 		Runs:                repo.NewRunRepo(db.Pool()),
 		Artifacts:           repo.NewArtifactRepo(db.Pool()),

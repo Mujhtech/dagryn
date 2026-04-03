@@ -12,6 +12,23 @@ import {
 import { Badge } from "~/components/ui/badge";
 import { Icons } from "~/components/icons";
 
+function formatBytes(bytes?: number) {
+  if (!bytes || bytes <= 0) return "-";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let idx = 0;
+  while (value >= 1024 && idx < units.length - 1) {
+    value /= 1024;
+    idx++;
+  }
+  return `${value.toFixed(idx < 2 ? 0 : 1)} ${units[idx]}`;
+}
+
+function formatVCpu(millicores?: number) {
+  if (!millicores || millicores <= 0) return "-";
+  return `${(millicores / 1000).toFixed(2)} vCPU`;
+}
+
 export const Route = createFileRoute("/_dashboard_layout/workers/$workerId")({
   component: WorkerDetailPage,
   head: () => generateMetadata({ title: "Worker Detail" }),
@@ -63,6 +80,24 @@ function WorkerDetailPage() {
           </CardHeader>
           <CardContent className="text-3xl font-semibold">{data.active_tasks}</CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>vCPU Available</CardTitle>
+          </CardHeader>
+          <CardContent className="text-3xl font-semibold">
+            {formatVCpu(data.cpu_millicores_available)}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Memory Available</CardTitle>
+          </CardHeader>
+          <CardContent className="text-3xl font-semibold">
+            {formatBytes(data.memory_bytes_available)}
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -77,6 +112,13 @@ function WorkerDetailPage() {
           <div>Environment: {data.environment}</div>
           <div>Version: {data.version}</div>
           <div>Last heartbeat: {new Date(data.last_heartbeat_at).toLocaleString()}</div>
+          <div>Disk available: {formatBytes(data.disk_bytes_available)}</div>
+          <div>
+            CPU usage: {data.cpu_usage_percent != null ? `${data.cpu_usage_percent.toFixed(1)}%` : "-"}
+          </div>
+          <div>
+            Memory usage: {data.memory_usage_percent != null ? `${data.memory_usage_percent.toFixed(1)}%` : "-"}
+          </div>
           <div>
             Capabilities: {data.capabilities?.length ? data.capabilities.join(", ") : "none"}
           </div>

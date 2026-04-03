@@ -31,6 +31,7 @@ export const queryKeys = {
   clusters: (teamId?: string) => ["clusters", teamId ?? "personal"] as const,
   workers: (clusterId?: string, status?: string, teamId?: string) =>
     ["workers", clusterId ?? "all", status ?? "all", teamId ?? "all"] as const,
+  workerTokens: ["workerTokens"] as const,
   runAssignments: (runId: string) => ["runAssignments", runId] as const,
   team: (id: string) => ["team", id] as const,
   teamMembers: (teamId: string) => ["teamMembers", teamId] as const,

@@ -407,13 +407,5 @@ func (a *Agent) Shutdown(_ context.Context) error {
 }
 
 func (a *Agent) collectResources() *v1.ResourceSnapshot {
-	// Basic resource collection; a production implementation would use
-	// cgroups or system APIs for accurate values.
-	return &v1.ResourceSnapshot{
-		CpuMillicoresAvailable: 0,
-		MemoryBytesAvailable:   0,
-		DiskBytesAvailable:     0,
-		CpuUsagePercent:        0,
-		MemoryUsagePercent:     0,
-	}
+	return collectResourceSnapshot(a.config.WorkDir)
 }

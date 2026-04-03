@@ -89,6 +89,14 @@ type APIKeyStore interface {
 	ListActive(ctx context.Context, userID uuid.UUID) ([]models.APIKeyWithProject, error)
 }
 
+type ClusterWorkerTokenStore interface {
+	Create(ctx context.Context, token *models.ClusterWorkerToken) (string, error)
+	Validate(ctx context.Context, rawToken string) (*models.ClusterWorkerToken, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*models.ClusterWorkerToken, error)
+	ListByUser(ctx context.Context, userID uuid.UUID) ([]models.ClusterWorkerToken, error)
+	Revoke(ctx context.Context, id uuid.UUID) error
+}
+
 // InvitationStore defines the interface for invitation repository operations.
 type InvitationStore interface {
 	Create(ctx context.Context, inv *models.Invitation) error
