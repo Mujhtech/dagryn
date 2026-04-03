@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --config vite.config.mjs",
-    "build": "vite build --config vite.config.mjs --debug && pnpm copy-dist",
+    "generate:api-docs": "pnpm dlx tsx scripts/generate-openapi-docs.ts",
+    "build": "pnpm generate:api-docs && vite build --config vite.config.mjs --debug && pnpm copy-dist",
     "copy-dist": "rm -rf ../pkg/server/dashboard/dist && cp -r dist ../pkg/server/dashboard/dist",
     "preview": "vite preview --config vite.config.mjs",
     "typecheck": "tsc --noEmit",
