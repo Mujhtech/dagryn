@@ -16,8 +16,8 @@ RUN pnpm install --frozen-lockfile
 # Copy frontend source
 COPY web/ ./
 
-# Build frontend (only vite build, skip the copy-dist step)
-RUN pnpm exec vite build --config vite.config.mjs
+# Generate OpenAPI docs and build frontend (skip copy-dist, handled in next stage)
+RUN pnpm dlx tsx scripts/generate-openapi-docs.ts && pnpm exec vite build --config vite.config.mjs
 
 # Stage 2: Build Go application
 FROM golang:1.25-alpine AS go-builder
