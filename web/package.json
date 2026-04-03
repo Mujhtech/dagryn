@@ -9,7 +9,7 @@
     "build": "pnpm generate:api-docs && vite build --config vite.config.mjs --debug && pnpm copy-dist",
     "copy-dist": "rm -rf ../pkg/server/dashboard/dist && cp -r dist ../pkg/server/dashboard/dist",
     "preview": "vite preview --config vite.config.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "fumadocs-mdx && tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
