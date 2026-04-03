@@ -359,10 +359,12 @@ func loadMigrations() ([]Migration, error) {
 				return nil, fmt.Errorf("failed to read migration %s: %w", name, err)
 			}
 
+			sql := extractUpSQL(string(content))
+
 			migrations = append(migrations, Migration{
 				Version: version,
 				Name:    migrationName,
-				SQL:     string(content),
+				SQL:     sql,
 			})
 		}
 	}
@@ -375,8 +377,24 @@ func loadMigrations() ([]Migration, error) {
 	return migrations, nil
 }
 
+// extractUpSQL extracts only the "up" portion of a migration file that may
+// contain sql-migrate markers (-- +migrate Up / -- +migrate Down). If no
+// markers are present the full content is returned unchanged.
+func extractUpSQL(content string) string {
+	downIdx := strings.Index(content, "-- +migrate Down")
+	if downIdx == -1 {
+		// No down section — use the whole file.
+		// Strip the optional Up marker if present.
+		return strings.Replace(content, "-- +migrate Up\n", "", 1)
+	}
+	upSQL := content[:downIdx]
+	return strings.Replace(upSQL, "-- +migrate Up\n", "", 1)
+}
+
 // loadDownMigration loads a down migration file, searching the core
 // embedded filesystem first and then any registered extra sources.
+// It first looks for a dedicated .down.sql file. If none exists, it
+// extracts the "-- +migrate Down" section from the combined .sql file.
 func loadDownMigration(version int) (string, error) {
 	sources := append([]fs.FS{migrationsFS}, extraMigrationSources...)
 	prefix := fmt.Sprintf("%03d_", version)
@@ -387,6 +405,7 @@ func loadDownMigration(version int) (string, error) {
 			continue
 		}
 
+		// First pass: look for a dedicated .down.sql file.
 		for _, entry := range entries {
 			name := entry.Name()
 			if strings.HasPrefix(name, prefix) && strings.HasSuffix(name, ".down.sql") {
@@ -397,7 +416,32 @@ func loadDownMigration(version int) (string, error) {
 				return string(content), nil
 			}
 		}
+
+		// Second pass: extract from combined file with -- +migrate Down marker.
+		for _, entry := range entries {
+			name := entry.Name()
+			if strings.HasPrefix(name, prefix) && strings.HasSuffix(name, ".sql") && !strings.HasSuffix(name, ".down.sql") {
+				content, err := fs.ReadFile(source, "migrations/"+name)
+				if err != nil {
+					return "", err
+				}
+				if downSQL := extractDownSQL(string(content)); downSQL != "" {
+					return downSQL, nil
+				}
+			}
+		}
 	}
 
 	return "", fmt.Errorf("down migration not found for version %d", version)
+}
+
+// extractDownSQL extracts the "down" portion from a migration file containing
+// a "-- +migrate Down" marker. Returns empty string if no marker is found.
+func extractDownSQL(content string) string {
+	const marker = "-- +migrate Down"
+	idx := strings.Index(content, marker)
+	if idx == -1 {
+		return ""
+	}
+	return strings.TrimSpace(content[idx+len(marker):])
 }
