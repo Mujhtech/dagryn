@@ -154,6 +154,11 @@ func (a *API) SetEncrypter(e encrypt.Encrypt) {
 	a.h.SetEncrypter(e)
 }
 
+// SetLicenseServerURL delegates to the handler for license server URL.
+func (a *API) SetLicenseServerURL(url string) {
+	a.h.SetLicenseServerURL(url)
+}
+
 // SetFeatureGate delegates to the handler for detailed license info.
 func (a *API) SetFeatureGate(gate *licensing.FeatureGate) {
 	a.featureGate = gate
@@ -248,7 +253,7 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 		// Public SAML SP endpoints (no auth required)
 		if a.ssoService != nil {
 			ssoHandler := handlers.NewSSOHandler(a.ssoService, a.jwtService, a.store, a.cfg.Server.BaseURL)
-			r.Route("/sso/{teamSlug}", func(r chi.Router) {
+			r.Route(fmt.Sprintf("/sso/{%s}", handlers.TeamSlugParam), func(r chi.Router) {
 				r.Get("/metadata", ssoHandler.SSOMetadata)
 				r.Get("/login", ssoHandler.SSOLogin)
 				r.Post("/acs", ssoHandler.SSOACS)
@@ -258,23 +263,23 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 		// SCIM 2.0 provisioning endpoints (SCIM token auth, no JWT)
 		if a.scimService != nil {
 			scimHandler := handlers.NewSCIMHandler(a.scimService)
-			r.Route("/scim/{teamSlug}", func(r chi.Router) {
+			r.Route(fmt.Sprintf("/scim/{%s}", handlers.TeamSlugParam), func(r chi.Router) {
 				r.Use(middleware.RequireFeature(a.entitlements, string(licensing.FeatureSSO)))
 				r.Use(middleware.SCIMAuth(a.store.SSO, a.store.Teams))
 
 				// Users
 				r.Get("/Users", scimHandler.ListSCIMUsers)
 				r.Post("/Users", scimHandler.CreateSCIMUser)
-				r.Get("/Users/{id}", scimHandler.GetSCIMUser)
-				r.Put("/Users/{id}", scimHandler.UpdateSCIMUser)
-				r.Patch("/Users/{id}", scimHandler.PatchSCIMUser)
-				r.Delete("/Users/{id}", scimHandler.DeleteSCIMUser)
+				r.Get(fmt.Sprintf("/Users/{%s}", handlers.SCIMUserIDParam), scimHandler.GetSCIMUser)
+				r.Put(fmt.Sprintf("/Users/{%s}", handlers.SCIMUserIDParam), scimHandler.UpdateSCIMUser)
+				r.Patch(fmt.Sprintf("/Users/{%s}", handlers.SCIMUserIDParam), scimHandler.PatchSCIMUser)
+				r.Delete(fmt.Sprintf("/Users/{%s}", handlers.SCIMUserIDParam), scimHandler.DeleteSCIMUser)
 
 				// Groups
 				r.Get("/Groups", scimHandler.ListSCIMGroups)
-				r.Get("/Groups/{id}", scimHandler.GetSCIMGroup)
-				r.Patch("/Groups/{id}", scimHandler.PatchSCIMGroup)
-				r.Delete("/Groups/{id}", scimHandler.DeleteSCIMGroup)
+				r.Get(fmt.Sprintf("/Groups/{%s}", handlers.SCIMGroupIDParam), scimHandler.GetSCIMGroup)
+				r.Patch(fmt.Sprintf("/Groups/{%s}", handlers.SCIMGroupIDParam), scimHandler.PatchSCIMGroup)
+				r.Delete(fmt.Sprintf("/Groups/{%s}", handlers.SCIMGroupIDParam), scimHandler.DeleteSCIMGroup)
 			})
 		}
 
@@ -282,8 +287,8 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 		r.Route("/auth", func(r chi.Router) {
 			// Public auth endpoints
 			r.Get("/providers", authHandler.ListProviders)
-			r.Get("/{provider}", authHandler.StartOAuth)
-			r.Post("/{provider}/callback", authHandler.OAuthCallback)
+			r.Get(fmt.Sprintf("/{%s}", handlers.ProviderParam), authHandler.StartOAuth)
+			r.Post(fmt.Sprintf("/{%s}/callback", handlers.ProviderParam), authHandler.OAuthCallback)
 			r.Post("/refresh", authHandler.RefreshToken)
 
 			// Device code flow (for CLI) - public
@@ -478,7 +483,7 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 					r.Route("/api-keys", func(r chi.Router) {
 						r.Get("/", a.h.ListProjectAPIKeys)
 						r.Post("/", a.h.CreateProjectAPIKey)
-						r.Delete("/{keyID}", a.h.RevokeProjectAPIKey)
+						r.Delete(fmt.Sprintf("/{%s}", handlers.KeyIDParam), a.h.RevokeProjectAPIKey)
 					})
 
 					// Project workflows
@@ -568,12 +573,13 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 			// Invitations (for accepting)
 			r.Route("/invitations", func(r chi.Router) {
 				r.Get("/", a.h.ListPendingInvitations)
-				r.Post("/{token}/accept", a.h.AcceptInvitation)
-				r.Post("/{token}/decline", a.h.DeclineInvitation)
+				r.Post(fmt.Sprintf("/{%s}/accept", handlers.InvitationTokenParam), a.h.AcceptInvitation)
+				r.Post(fmt.Sprintf("/{%s}/decline", handlers.InvitationTokenParam), a.h.DeclineInvitation)
 			})
 
 			// Cluster management routes
 			r.Route("/clusters", func(r chi.Router) {
+				r.Use(middleware.RequireFeature(a.entitlements, string(licensing.FeatureMultiCluster)))
 				r.Get("/", a.h.ListClusters)
 				r.Post("/", a.h.CreateCluster)
 				r.Route(fmt.Sprintf("/{%s}", handlers.ClusterIDParam), func(r chi.Router) {
@@ -585,6 +591,7 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 
 			// Worker management routes
 			r.Route("/workers", func(r chi.Router) {
+				r.Use(middleware.RequireFeature(a.entitlements, string(licensing.FeatureMultiCluster)))
 				r.Get("/", a.h.ListWorkers)
 				r.Route("/tokens", func(r chi.Router) {
 					r.Get("/", a.h.ListClusterWorkerTokens)
@@ -601,6 +608,7 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 			// Task assignment routes (per run)
 			r.Route("/runs", func(r chi.Router) {
 				r.Route(fmt.Sprintf("/{%s}", handlers.RunIDParam), func(r chi.Router) {
+					r.Use(middleware.RequireFeature(a.entitlements, string(licensing.FeatureMultiCluster)))
 					r.Get("/assignments", a.h.ListRunAssignments)
 				})
 			})

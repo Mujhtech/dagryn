@@ -9,6 +9,9 @@ import (
 	"time"
 )
 
+// DefaultServerURL is the canonical license server URL used when none is configured.
+const DefaultServerURL = "https://license.mujhtech.xyz"
+
 // ServerConfig holds the license server connection settings.
 type ServerConfig struct {
 	BaseURL         string        // https://license.dagryn.dev

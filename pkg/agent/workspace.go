@@ -85,7 +85,9 @@ func (w *WorkspaceManager) PrepareArtifact(ctx context.Context, signedURL string
 	if err != nil {
 		return "", fmt.Errorf("download workspace: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("download failed with status %d", resp.StatusCode)
@@ -98,11 +100,13 @@ func (w *WorkspaceManager) PrepareArtifact(ctx context.Context, signedURL string
 		return "", fmt.Errorf("create temp file: %w", err)
 	}
 	if _, err := io.Copy(f, resp.Body); err != nil {
-		f.Close()
+		_ = f.Close()
 		return "", fmt.Errorf("write temp file: %w", err)
 	}
-	f.Close()
-	defer os.Remove(tmpFile)
+	_ = f.Close()
+	defer func() {
+		_ = os.Remove(tmpFile)
+	}()
 
 	// Extract
 	cmd := exec.CommandContext(ctx, "tar", "xzf", tmpFile, "-C", workdir)

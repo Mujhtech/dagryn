@@ -208,7 +208,7 @@ func (h *Handler) RevokeProjectAPIKey(w http.ResponseWriter, r *http.Request) {
 		_ = response.BadRequest(w, r, err)
 		return
 	}
-	keyID, err := uuid.Parse(chi.URLParam(r, "keyID"))
+	keyID, err := uuid.Parse(chi.URLParam(r, KeyIDParam))
 	if err != nil {
 		_ = response.BadRequest(w, r, errors.New("invalid API key ID"))
 		return

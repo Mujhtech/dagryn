@@ -44,8 +44,8 @@ vi.mock("~/hooks/queries", () => ({
     data: {
       mode: "cloud",
       edition: "cloud",
-      features: [],
-      nav: [],
+      features: [{ feature: "multi_cluster", label: "Multi-Cluster", enabled: true }],
+      nav: [{ key: "clusters", label: "Clusters", enabled: true }],
       grpc_public_address: "dagryn.mujhtech.xyz:443",
     },
     isLoading: false,

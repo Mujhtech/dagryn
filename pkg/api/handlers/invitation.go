@@ -68,7 +68,7 @@ func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := chi.URLParam(r, "token")
+	token := chi.URLParam(r, InvitationTokenParam)
 	if token == "" {
 		_ = response.BadRequest(w, r, errors.New("invitation token is required"))
 		return
@@ -161,7 +161,7 @@ func (h *Handler) DeclineInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := chi.URLParam(r, "token")
+	token := chi.URLParam(r, InvitationTokenParam)
 	if token == "" {
 		_ = response.BadRequest(w, r, errors.New("invitation token is required"))
 		return

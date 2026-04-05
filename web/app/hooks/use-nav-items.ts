@@ -19,6 +19,7 @@ const dynamicNavMap: Record<
 > = {
   license: { title: "License", url: "/license", icon: Icons.Key },
   billing: { title: "Billing", url: "/billing", icon: Icons.CreditCard },
+  clusters: { title: "Clusters", url: "/clusters", icon: Icons.Network },
 };
 
 export function useNavItems() {
@@ -28,5 +29,13 @@ export function useNavItems() {
     .filter((item) => item.enabled && dynamicNavMap[item.key])
     .map((item) => dynamicNavMap[item.key]);
 
-  return [...baseNavItems, ...dynamicItems];
+  const clusterEnabled = (capabilities?.nav ?? []).some(
+    (item) => item.key === "clusters" && item.enabled,
+  );
+
+  const staticItems = clusterEnabled
+    ? baseNavItems
+    : baseNavItems.filter((item) => item.url !== "/clusters");
+
+  return [...staticItems, ...dynamicItems];
 }

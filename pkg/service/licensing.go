@@ -11,6 +11,14 @@ func NewLicensingService(licenseKey string, entitlement entitlement.Checker) *li
 		return nil // If an external entitlement checker is provided, we don't use a license-based FeatureGate
 	}
 
+	// If no key in config/env, check the stored license (written by dashboard or CLI activation).
+	if licenseKey == "" {
+		if stored, err := licensing.LoadStoredLicense(); err == nil && stored.Key != "" {
+			licenseKey = stored.Key
+			log.Info().Msg("Loaded license key from stored activation")
+		}
+	}
+
 	if licenseKey == "" {
 		log.Info().Msg("No license key configured -- running as Community edition")
 		return licensing.NewFeatureGate(nil, log.Logger)

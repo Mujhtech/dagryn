@@ -48,6 +48,7 @@ import (
 	"github.com/mujhtech/dagryn/pkg/encrypt"
 	"github.com/mujhtech/dagryn/pkg/entitlement"
 	"github.com/mujhtech/dagryn/pkg/githubapp"
+	"github.com/mujhtech/dagryn/pkg/licensing"
 	"github.com/mujhtech/dagryn/pkg/redis"
 	"github.com/mujhtech/dagryn/pkg/scim"
 	"github.com/mujhtech/dagryn/pkg/server/sse"
@@ -304,6 +305,13 @@ func (s *Server) Initialize(ctx context.Context) error {
 	}
 
 	apiHandler.SetFeatureGate(featureGate)
+
+	// Wire the license server URL from config (single source of truth).
+	licenseServerURL := s.config.License.ServerURL
+	if licenseServerURL == "" {
+		licenseServerURL = licensing.DefaultServerURL
+	}
+	apiHandler.SetLicenseServerURL(licenseServerURL)
 
 	// Wire the unified entitlement checker.
 	// If the cloud binary has already injected one via SetEntitlementChecker,

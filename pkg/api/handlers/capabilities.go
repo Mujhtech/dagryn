@@ -118,6 +118,7 @@ func buildNav(mode string, features []FeatureEntry) []NavItem {
 		{Key: "projects", Label: "Projects", Enabled: true},
 		{Key: "runs", Label: "Runs", Enabled: true},
 		{Key: "plugins", Label: "Plugins", Enabled: true},
+		{Key: "clusters", Label: "Clusters", Enabled: hasFeature(string(licensing.FeatureMultiCluster))},
 		{Key: "cache", Label: "Cache", Enabled: hasFeature(string(licensing.FeatureCloudCache))},
 		{Key: "billing", Label: "Billing", Enabled: isCloud},
 		{Key: "license", Label: "License", Enabled: !isCloud},

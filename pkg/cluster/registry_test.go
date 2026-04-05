@@ -33,17 +33,17 @@ func TestFindWorkers(t *testing.T) {
 	r := &WorkerRegistry{
 		workers: map[string]*ConnectedWorker{
 			"w1": {
-				ID:       "w1",
-				Info:     &WorkerInfo{Labels: map[string]string{"arch": "arm64", "zone": "us"}, Capabilities: []string{"docker"}},
-				LastSeen: time.Now(),
-				TaskCh:   make(chan *TaskDispatch, 1),
+				ID:        "w1",
+				Info:      &WorkerInfo{Labels: map[string]string{"arch": "arm64", "zone": "us"}, Capabilities: []string{"docker"}},
+				LastSeen:  time.Now(),
+				TaskCh:    make(chan *TaskDispatch, 1),
 				ControlCh: make(chan *ControlAction, 1),
 			},
 			"w2": {
-				ID:       "w2",
-				Info:     &WorkerInfo{Labels: map[string]string{"arch": "x86", "zone": "eu"}, Capabilities: []string{"docker", "gpu"}},
-				LastSeen: time.Now(),
-				TaskCh:   make(chan *TaskDispatch, 1),
+				ID:        "w2",
+				Info:      &WorkerInfo{Labels: map[string]string{"arch": "x86", "zone": "eu"}, Capabilities: []string{"docker", "gpu"}},
+				LastSeen:  time.Now(),
+				TaskCh:    make(chan *TaskDispatch, 1),
 				ControlCh: make(chan *ControlAction, 1),
 			},
 		},

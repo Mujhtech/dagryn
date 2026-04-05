@@ -351,7 +351,9 @@ func (a *Agent) executeTask(ctx context.Context, assignment *v1.TaskAssignment) 
 		}
 	}
 	if workdir != a.config.WorkDir {
-		defer a.workspace.Cleanup(workdir)
+		defer func() {
+			_ = a.workspace.Cleanup(workdir)
+		}()
 	}
 
 	// Build task

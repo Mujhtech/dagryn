@@ -92,7 +92,7 @@ func (h *SCIMHandler) CreateSCIMUser(w http.ResponseWriter, r *http.Request) {
 
 // GetSCIMUser returns a user by ID via SCIM.
 func (h *SCIMHandler) GetSCIMUser(w http.ResponseWriter, r *http.Request) {
-	userID, err := uuid.Parse(chi.URLParam(r, "id"))
+	userID, err := uuid.Parse(chi.URLParam(r, SCIMUserIDParam))
 	if err != nil {
 		h.writeSCIMError(w, http.StatusBadRequest, "invalid user ID")
 		return
@@ -113,7 +113,7 @@ func (h *SCIMHandler) GetSCIMUser(w http.ResponseWriter, r *http.Request) {
 
 // UpdateSCIMUser replaces a user via SCIM (PUT).
 func (h *SCIMHandler) UpdateSCIMUser(w http.ResponseWriter, r *http.Request) {
-	userID, err := uuid.Parse(chi.URLParam(r, "id"))
+	userID, err := uuid.Parse(chi.URLParam(r, SCIMUserIDParam))
 	if err != nil {
 		h.writeSCIMError(w, http.StatusBadRequest, "invalid user ID")
 		return
@@ -140,7 +140,7 @@ func (h *SCIMHandler) UpdateSCIMUser(w http.ResponseWriter, r *http.Request) {
 
 // PatchSCIMUser applies a SCIM PATCH operation to a user.
 func (h *SCIMHandler) PatchSCIMUser(w http.ResponseWriter, r *http.Request) {
-	userID, err := uuid.Parse(chi.URLParam(r, "id"))
+	userID, err := uuid.Parse(chi.URLParam(r, SCIMUserIDParam))
 	if err != nil {
 		h.writeSCIMError(w, http.StatusBadRequest, "invalid user ID")
 		return
@@ -167,7 +167,7 @@ func (h *SCIMHandler) PatchSCIMUser(w http.ResponseWriter, r *http.Request) {
 
 // DeleteSCIMUser soft-deletes (deactivates) a user via SCIM.
 func (h *SCIMHandler) DeleteSCIMUser(w http.ResponseWriter, r *http.Request) {
-	userID, err := uuid.Parse(chi.URLParam(r, "id"))
+	userID, err := uuid.Parse(chi.URLParam(r, SCIMUserIDParam))
 	if err != nil {
 		h.writeSCIMError(w, http.StatusBadRequest, "invalid user ID")
 		return
@@ -206,7 +206,7 @@ func (h *SCIMHandler) ListSCIMGroups(w http.ResponseWriter, r *http.Request) {
 
 // GetSCIMGroup returns a group (team) by ID.
 func (h *SCIMHandler) GetSCIMGroup(w http.ResponseWriter, r *http.Request) {
-	groupID, err := uuid.Parse(chi.URLParam(r, "id"))
+	groupID, err := uuid.Parse(chi.URLParam(r, SCIMGroupIDParam))
 	if err != nil {
 		h.writeSCIMError(w, http.StatusBadRequest, "invalid group ID")
 		return
@@ -227,7 +227,7 @@ func (h *SCIMHandler) GetSCIMGroup(w http.ResponseWriter, r *http.Request) {
 
 // PatchSCIMGroup applies SCIM PATCH operations to a group (team).
 func (h *SCIMHandler) PatchSCIMGroup(w http.ResponseWriter, r *http.Request) {
-	groupID, err := uuid.Parse(chi.URLParam(r, "id"))
+	groupID, err := uuid.Parse(chi.URLParam(r, SCIMGroupIDParam))
 	if err != nil {
 		h.writeSCIMError(w, http.StatusBadRequest, "invalid group ID")
 		return

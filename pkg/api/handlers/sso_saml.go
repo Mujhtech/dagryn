@@ -32,7 +32,7 @@ func NewSSOHandler(ssoService *sso.Service, jwtService *authz.JWTService, store 
 
 // SSOMetadata returns the SP metadata XML for a team.
 func (h *SSOHandler) SSOMetadata(w http.ResponseWriter, r *http.Request) {
-	teamSlug := chi.URLParam(r, "teamSlug")
+	teamSlug := chi.URLParam(r, TeamSlugParam)
 	if teamSlug == "" {
 		_ = response.BadRequest(w, r, fmt.Errorf("missing team slug"))
 		return
@@ -51,7 +51,7 @@ func (h *SSOHandler) SSOMetadata(w http.ResponseWriter, r *http.Request) {
 
 // SSOLogin initiates a SAML login by redirecting to the IdP.
 func (h *SSOHandler) SSOLogin(w http.ResponseWriter, r *http.Request) {
-	teamSlug := chi.URLParam(r, "teamSlug")
+	teamSlug := chi.URLParam(r, TeamSlugParam)
 	if teamSlug == "" {
 		_ = response.BadRequest(w, r, fmt.Errorf("missing team slug"))
 		return
@@ -73,7 +73,7 @@ func (h *SSOHandler) SSOLogin(w http.ResponseWriter, r *http.Request) {
 
 // SSOACS processes the SAML assertion consumer service callback.
 func (h *SSOHandler) SSOACS(w http.ResponseWriter, r *http.Request) {
-	teamSlug := chi.URLParam(r, "teamSlug")
+	teamSlug := chi.URLParam(r, TeamSlugParam)
 	if teamSlug == "" {
 		_ = response.BadRequest(w, r, fmt.Errorf("missing team slug"))
 		return
@@ -111,7 +111,7 @@ func (h *SSOHandler) SSOACS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	callbackURL := fmt.Sprintf("%s/sso-callback#access_token=%s&refresh_token=%s&expires_in=%d",
-		h.baseURL,
+		redirectURL,
 		url.QueryEscape(tokenPair.AccessToken),
 		url.QueryEscape(tokenPair.RefreshToken),
 		tokenPair.ExpiresIn,

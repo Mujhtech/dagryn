@@ -368,19 +368,73 @@ func (r *ClusterRepo) RegisterWorker(ctx context.Context, worker *models.Worker)
 		worker.Labels = json.RawMessage(`{}`)
 	}
 
-	_, err := r.pool.Exec(ctx,
+	if worker.ClusterID != nil {
+		return r.pool.QueryRow(ctx,
+			`INSERT INTO workers (id, hostname, os, arch, environment, labels, capabilities,
+			 max_concurrent_tasks, version, status, last_heartbeat_at, registered_at, auth_token_hash,
+			 cluster_id, cpu_millicores_available, memory_bytes_available, disk_bytes_available,
+			 cpu_usage_percent, memory_usage_percent, active_tasks, resources_updated_at)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+			 ON CONFLICT (hostname, cluster_id) WHERE cluster_id IS NOT NULL
+			 DO UPDATE SET
+			   os = EXCLUDED.os,
+			   arch = EXCLUDED.arch,
+			   environment = EXCLUDED.environment,
+			   labels = EXCLUDED.labels,
+			   capabilities = EXCLUDED.capabilities,
+			   max_concurrent_tasks = EXCLUDED.max_concurrent_tasks,
+			   version = EXCLUDED.version,
+			   status = EXCLUDED.status,
+			   last_heartbeat_at = EXCLUDED.last_heartbeat_at,
+			   auth_token_hash = EXCLUDED.auth_token_hash,
+			   cpu_millicores_available = EXCLUDED.cpu_millicores_available,
+			   memory_bytes_available = EXCLUDED.memory_bytes_available,
+			   disk_bytes_available = EXCLUDED.disk_bytes_available,
+			   cpu_usage_percent = EXCLUDED.cpu_usage_percent,
+			   memory_usage_percent = EXCLUDED.memory_usage_percent,
+			   active_tasks = EXCLUDED.active_tasks,
+			   resources_updated_at = EXCLUDED.resources_updated_at
+			 RETURNING id, registered_at`,
+			worker.ID, worker.Hostname, worker.OS, worker.Arch, worker.Environment,
+			worker.Labels, worker.Capabilities, worker.MaxConcurrentTasks, worker.Version,
+			worker.Status, worker.LastHeartbeatAt, worker.RegisteredAt, worker.AuthTokenHash,
+			worker.ClusterID, worker.CPUMillicoresAvail, worker.MemoryBytesAvail, worker.DiskBytesAvail,
+			worker.CPUUsagePercent, worker.MemoryUsagePercent, worker.ActiveTasks, worker.ResourcesUpdatedAt,
+		).Scan(&worker.ID, &worker.RegisteredAt)
+	}
+
+	return r.pool.QueryRow(ctx,
 		`INSERT INTO workers (id, hostname, os, arch, environment, labels, capabilities,
 		 max_concurrent_tasks, version, status, last_heartbeat_at, registered_at, auth_token_hash,
 		 cluster_id, cpu_millicores_available, memory_bytes_available, disk_bytes_available,
 		 cpu_usage_percent, memory_usage_percent, active_tasks, resources_updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+		 ON CONFLICT (hostname) WHERE cluster_id IS NULL
+		 DO UPDATE SET
+		   os = EXCLUDED.os,
+		   arch = EXCLUDED.arch,
+		   environment = EXCLUDED.environment,
+		   labels = EXCLUDED.labels,
+		   capabilities = EXCLUDED.capabilities,
+		   max_concurrent_tasks = EXCLUDED.max_concurrent_tasks,
+		   version = EXCLUDED.version,
+		   status = EXCLUDED.status,
+		   last_heartbeat_at = EXCLUDED.last_heartbeat_at,
+		   auth_token_hash = EXCLUDED.auth_token_hash,
+		   cpu_millicores_available = EXCLUDED.cpu_millicores_available,
+		   memory_bytes_available = EXCLUDED.memory_bytes_available,
+		   disk_bytes_available = EXCLUDED.disk_bytes_available,
+		   cpu_usage_percent = EXCLUDED.cpu_usage_percent,
+		   memory_usage_percent = EXCLUDED.memory_usage_percent,
+		   active_tasks = EXCLUDED.active_tasks,
+		   resources_updated_at = EXCLUDED.resources_updated_at
+		 RETURNING id, registered_at`,
 		worker.ID, worker.Hostname, worker.OS, worker.Arch, worker.Environment,
 		worker.Labels, worker.Capabilities, worker.MaxConcurrentTasks, worker.Version,
 		worker.Status, worker.LastHeartbeatAt, worker.RegisteredAt, worker.AuthTokenHash,
 		worker.ClusterID, worker.CPUMillicoresAvail, worker.MemoryBytesAvail, worker.DiskBytesAvail,
 		worker.CPUUsagePercent, worker.MemoryUsagePercent, worker.ActiveTasks, worker.ResourcesUpdatedAt,
-	)
-	return err
+	).Scan(&worker.ID, &worker.RegisteredAt)
 }
 
 var workerColumns = `id, hostname, os, arch, environment, labels, capabilities,
@@ -439,7 +493,6 @@ func (r *ClusterRepo) ListWorkers(ctx context.Context, clusterID *uuid.UUID, sta
 	if status != nil {
 		query += fmt.Sprintf(` AND status = $%d`, argIdx)
 		args = append(args, *status)
-		argIdx++
 	}
 	query += ` ORDER BY hostname`
 

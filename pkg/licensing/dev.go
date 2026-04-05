@@ -24,10 +24,12 @@ func init() {
 	devPrivateKey = ed25519.NewKeyFromSeed(seed)
 	devPublicKey = devPrivateKey.Public().(ed25519.PublicKey)
 
-	// Ensure non-release builds always have a compile-safe default keyring.
-	raw, _ := json.Marshal(map[string]string{
-		"dev": hex.EncodeToString(devPublicKey),
-	})
+	// Merge the dev key into the embedded keyring (from license_keys.json)
+	// so that both production keys and the dev key are available in dev builds.
+	existing := make(map[string]string)
+	_ = json.Unmarshal([]byte(publicKeysJSON), &existing)
+	existing["dev"] = hex.EncodeToString(devPublicKey)
+	raw, _ := json.Marshal(existing)
 	publicKeysJSON = string(raw)
 }
 

@@ -311,7 +311,7 @@ func TestListTeamAuditLogs_Success(t *testing.T) {
 	h.SetAuditService(auditSvc)
 
 	router := chi.NewRouter()
-	router.Get("/api/v1/teams/{teamID}/audit-logs", h.ListTeamAuditLogs)
+	router.Get("/api/v1/teams/{teamId}/audit-logs", h.ListTeamAuditLogs)
 
 	req := makeRequest(t, http.MethodGet, "/api/v1/teams/"+teamID.String()+"/audit-logs", nil)
 	ctx := apiCtx.WithUser(req.Context(), user)
@@ -336,7 +336,7 @@ func TestListTeamAuditLogs_Unauthorized(t *testing.T) {
 	h.SetAuditService(auditSvc)
 
 	router := chi.NewRouter()
-	router.Get("/api/v1/teams/{teamID}/audit-logs", h.ListTeamAuditLogs)
+	router.Get("/api/v1/teams/{teamId}/audit-logs", h.ListTeamAuditLogs)
 
 	// No user in context => unauthorized.
 	req := makeRequest(t, http.MethodGet, "/api/v1/teams/"+teamID.String()+"/audit-logs", nil)
@@ -362,7 +362,7 @@ func TestListTeamAuditLogs_Forbidden_NotMember(t *testing.T) {
 	h.SetAuditService(auditSvc)
 
 	router := chi.NewRouter()
-	router.Get("/api/v1/teams/{teamID}/audit-logs", h.ListTeamAuditLogs)
+	router.Get("/api/v1/teams/{teamId}/audit-logs", h.ListTeamAuditLogs)
 
 	req := makeRequest(t, http.MethodGet, "/api/v1/teams/"+teamID.String()+"/audit-logs", nil)
 	ctx := apiCtx.WithUser(req.Context(), user)
@@ -391,7 +391,7 @@ func TestListTeamAuditLogs_Forbidden_NoPermission(t *testing.T) {
 	h.SetAuditService(auditSvc)
 
 	router := chi.NewRouter()
-	router.Get("/api/v1/teams/{teamID}/audit-logs", h.ListTeamAuditLogs)
+	router.Get("/api/v1/teams/{teamId}/audit-logs", h.ListTeamAuditLogs)
 
 	req := makeRequest(t, http.MethodGet, "/api/v1/teams/"+teamID.String()+"/audit-logs", nil)
 	ctx := apiCtx.WithUser(req.Context(), user)
@@ -418,7 +418,7 @@ func TestListTeamAuditLogs_ServiceUnavailable(t *testing.T) {
 	// Do NOT set auditService => h.auditService is nil.
 
 	router := chi.NewRouter()
-	router.Get("/api/v1/teams/{teamID}/audit-logs", h.ListTeamAuditLogs)
+	router.Get("/api/v1/teams/{teamId}/audit-logs", h.ListTeamAuditLogs)
 
 	req := makeRequest(t, http.MethodGet, "/api/v1/teams/"+teamID.String()+"/audit-logs", nil)
 	ctx := apiCtx.WithUser(req.Context(), user)
@@ -876,7 +876,7 @@ func TestListTeamAuditLogs_MemberWithPermission(t *testing.T) {
 	h.SetAuditService(auditSvc)
 
 	router := chi.NewRouter()
-	router.Get("/api/v1/teams/{teamID}/audit-logs", h.ListTeamAuditLogs)
+	router.Get("/api/v1/teams/{teamId}/audit-logs", h.ListTeamAuditLogs)
 
 	req := makeRequest(t, http.MethodGet, "/api/v1/teams/"+teamID.String()+"/audit-logs", nil)
 	ctx := apiCtx.WithUser(req.Context(), user)
@@ -1093,7 +1093,7 @@ func TestListTeamAuditLogs_OwnerRole(t *testing.T) {
 	h.SetAuditService(auditSvc)
 
 	router := chi.NewRouter()
-	router.Get("/api/v1/teams/{teamID}/audit-logs", h.ListTeamAuditLogs)
+	router.Get("/api/v1/teams/{teamId}/audit-logs", h.ListTeamAuditLogs)
 
 	req := makeRequest(t, http.MethodGet, "/api/v1/teams/"+teamID.String()+"/audit-logs", nil)
 	ctx := apiCtx.WithUser(req.Context(), user)

@@ -66,6 +66,9 @@ type Handler struct {
 	// baseURL is the public-facing dashboard URL for links in GitHub check runs.
 	baseURL string
 
+	// licenseServerURL is the license server URL for activation/deactivation.
+	licenseServerURL string
+
 	// SSO service (optional; nil when SSO is not configured)
 	ssoService *sso.Service
 
@@ -121,6 +124,11 @@ func (h *Handler) SetEntitlementChecker(c entitlement.Checker) {
 // Entitlements returns the entitlement checker (may be nil during startup).
 func (h *Handler) Entitlements() entitlement.Checker {
 	return h.entitlements
+}
+
+// SetLicenseServerURL sets the license server URL for activation/deactivation.
+func (h *Handler) SetLicenseServerURL(url string) {
+	h.licenseServerURL = url
 }
 
 // SetFeatureGate sets the license feature gate for detailed license info.

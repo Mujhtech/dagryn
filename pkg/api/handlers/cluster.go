@@ -112,7 +112,7 @@ func (h *Handler) CreateCluster(w http.ResponseWriter, r *http.Request) {
 	labelsJSON, _ := json.Marshal(req.Labels)
 	scopeType := "personal"
 	var teamID *uuid.UUID
-	var ownerUserID *uuid.UUID = &user.ID
+	ownerUserID := &user.ID
 	if req.TeamID != nil {
 		if _, err := h.store.Teams.GetMember(ctx, *req.TeamID, user.ID); err != nil {
 			if errors.Is(err, repo.ErrNotFound) {

@@ -216,10 +216,7 @@ func (h *Handler) RevokeClusterWorkerToken(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	allowed := false
-	if tok.OwnerUserID != nil && *tok.OwnerUserID == user.ID {
-		allowed = true
-	}
+	allowed := tok.OwnerUserID != nil && *tok.OwnerUserID == user.ID
 	if tok.TeamID != nil {
 		if _, err := h.store.Teams.GetMember(ctx, *tok.TeamID, user.ID); err == nil {
 			allowed = true

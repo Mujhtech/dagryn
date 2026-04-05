@@ -2,18 +2,21 @@ package licensing
 
 import (
 	"crypto/ed25519"
+	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 )
 
-// publicKeysJSON is a JSON map of key ID -> hex-encoded Ed25519 public key.
+// license_keys.json contains a JSON map of key ID -> hex-encoded Ed25519 public key.
 // Example: {"kp_2026q1":"<hex>","kp_2025q4":"<hex>"}
 //
-// Override at build time:
+// To update: fetch from the license server and write to license_keys.json:
 //
-//	-ldflags "-X github.com/mujhtech/dagryn/pkg/licensing.publicKeysJSON=<json>"
-var publicKeysJSON = "{}"
+//	make fetch-license-keys
+//
+//go:embed license_keys.json
+var publicKeysJSON string
 
 // ParsePublicKeys decodes the embedded keyring.
 // Returns an empty map (not an error) when no keys are embedded,
