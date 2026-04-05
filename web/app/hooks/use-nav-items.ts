@@ -19,7 +19,6 @@ const dynamicNavMap: Record<
 > = {
   license: { title: "License", url: "/license", icon: Icons.Key },
   billing: { title: "Billing", url: "/billing", icon: Icons.CreditCard },
-  clusters: { title: "Clusters", url: "/clusters", icon: Icons.Network },
 };
 
 export function useNavItems() {
