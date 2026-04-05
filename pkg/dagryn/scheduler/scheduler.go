@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -19,6 +20,8 @@ import (
 	"github.com/mujhtech/dagryn/pkg/dagryn/executor"
 	"github.com/mujhtech/dagryn/pkg/dagryn/plugin"
 	"github.com/mujhtech/dagryn/pkg/dagryn/task"
+
+	"golang.org/x/sync/singleflight"
 )
 
 // Options configures the scheduler behavior.
@@ -88,6 +91,9 @@ type Scheduler struct {
 	cacheSaveTotal atomic.Int32
 	cacheSaveDone  atomic.Int32
 
+	// Composite plugin setup deduplication
+	setupCache compositeSetupCache
+
 	// Integration plugin hooks
 	integrationRegistry *plugin.IntegrationRegistry
 
@@ -111,6 +117,21 @@ type compositeCleanupTask struct {
 	manifest *plugin.Manifest
 	setup    *plugin.CompositeSetupResult
 	workdir  string
+}
+
+// compositeSetupCache deduplicates composite plugin setup across parallel tasks.
+// When multiple tasks use the same plugin with the same inputs, setup runs once
+// and the result (env vars, cleanup context) is shared.
+type compositeSetupCache struct {
+	mu      sync.Mutex
+	entries map[string]*compositeSetupEntry
+	group   singleflight.Group
+}
+
+type compositeSetupEntry struct {
+	env     map[string]string
+	cleanup compositeCleanupTask
+	err     error
 }
 
 // PluginCallback is called when a plugin is being installed.
@@ -151,6 +172,7 @@ func New(workflow *task.Workflow, projectRoot string, opts Options) (*Scheduler,
 		cache:               c,
 		pluginManager:       plugin.NewManager(projectRoot),
 		compositeExecutor:   plugin.NewCompositeExecutor(projectRoot, nil),
+		setupCache:          compositeSetupCache{entries: make(map[string]*compositeSetupEntry)},
 		integrationRegistry: integrationRegistry,
 		opts:                opts,
 		projectRoot:         projectRoot,
@@ -313,6 +335,9 @@ func (s *Scheduler) Run(ctx context.Context, targets []string) (*RunSummary, err
 		}
 	}
 
+	// Run composite plugin cleanups once, after all tasks complete.
+	s.runCachedCompositeCleanups()
+
 	summary.EndTime = time.Now()
 	summary.Total = summary.EndTime.Sub(summary.StartTime)
 
@@ -439,6 +464,18 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 				"task", taskName, "key", cacheKey, "error", err)
 			// Fall through to execution instead of returning Cached
 		} else {
+			// Even when task output is restored from cache, run composite plugin
+			// setup for host execution so downstream tasks can reuse toolchains
+			// (e.g. setup-node/setup-pnpm) without paying setup cost again.
+			useContainer := s.containerRuntime != nil && s.containerConfig != nil
+			if useContainer && t.Container != nil && t.Container.Enabled != nil && !*t.Container.Enabled {
+				useContainer = false
+			}
+			if !useContainer {
+				taskCE := s.compositeExecutor.WithOutput(s.stdout, s.stderr)
+				_ = s.runCompositeSetup(ctx, t, taskCE)
+			}
+
 			// Emit a synthetic log line so remote dashboards show feedback
 			// for cached tasks (they produce no real output).
 			if s.onLogLine != nil {
@@ -516,7 +553,6 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 	taskCE := s.compositeExecutor.WithOutput(stdoutWriter, stderrWriter)
 
 	var compositeEnv map[string]string
-	var compositeCleanupTasks []compositeCleanupTask
 	var setupScript string
 
 	if useContainer {
@@ -525,8 +561,8 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 		// The container is always Linux; the architecture matches the host.
 		setupScript = s.generateCompositeSetupScript(ctx, t, taskCE, "linux", runtime.GOARCH)
 	} else {
-		// For host tasks, run composite setup on the host as before.
-		compositeEnv, compositeCleanupTasks = s.runCompositeSetup(ctx, t, taskCE)
+		// For host tasks, run composite setup (deduplicated across parallel tasks).
+		compositeEnv = s.runCompositeSetup(ctx, t, taskCE)
 	}
 
 	var taskExec executor.TaskExecutor
@@ -550,10 +586,8 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 	// Execute task
 	result := taskExec.Execute(ctx, t)
 
-	// Run composite cleanup after the task command (host-only; containers are ephemeral).
-	if !useContainer {
-		s.runCompositeCleanup(compositeCleanupTasks, taskCE)
-	}
+	// Composite cleanup is handled centrally after all tasks complete
+	// (see runCachedCompositeCleanups in Run). No per-task cleanup needed.
 
 	// Flush any partial lines from LineWriters
 	if stdoutLW != nil {
@@ -787,8 +821,8 @@ func (s *Scheduler) installPluginsForPlan(ctx context.Context, plan *dag.Executi
 			if s.onPluginDone != nil {
 				s.onPluginDone(spec, &plugin.InstallResult{
 					Plugin:  resolved,
-					Status:  plugin.StatusInstalled,
-					Message: fmt.Sprintf("Resolved integration plugin %s", resolved.Name),
+					Status:  plugin.StatusResolved,
+					Message: fmt.Sprintf("Loaded integration plugin %s", resolved.Name),
 				})
 			}
 			continue
@@ -800,8 +834,8 @@ func (s *Scheduler) installPluginsForPlan(ctx context.Context, plan *dag.Executi
 			if s.onPluginDone != nil {
 				s.onPluginDone(spec, &plugin.InstallResult{
 					Plugin:  resolved,
-					Status:  plugin.StatusInstalled,
-					Message: fmt.Sprintf("Resolved composite plugin %s", resolved.Name),
+					Status:  plugin.StatusResolved,
+					Message: fmt.Sprintf("Loaded composite plugin %s", resolved.Name),
 				})
 			}
 			continue
@@ -855,16 +889,38 @@ func (s *Scheduler) getPluginPathsForTask(t *task.Task) []string {
 	return s.pluginManager.GetBinPaths(t.Uses)
 }
 
-// runCompositeSetup runs composite plugin setup steps for a task that has both
-// a command and composite plugin uses. Returns collected environment variables
-// from the composite steps (e.g., PATH modifications).
-func (s *Scheduler) runCompositeSetup(ctx context.Context, t *task.Task, ce *plugin.CompositeExecutor) (map[string]string, []compositeCleanupTask) {
+// compositeSetupKey builds a cache key from the plugin spec and task inputs.
+// Two tasks using the same plugin with the same inputs share a single setup.
+func compositeSetupKey(spec string, with map[string]string) string {
+	if len(with) == 0 {
+		return spec
+	}
+	keys := make([]string, 0, len(with))
+	for k := range with {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var sb strings.Builder
+	sb.WriteString(spec)
+	for _, k := range keys {
+		sb.WriteByte(0)
+		sb.WriteString(k)
+		sb.WriteByte('=')
+		sb.WriteString(with[k])
+	}
+	return sb.String()
+}
+
+// runCompositeSetup runs composite plugin setup steps for a task.
+// Setup is deduplicated: if multiple parallel tasks use the same plugin with the
+// same inputs, the setup runs once and the result (env vars) is shared. This
+// prevents races where parallel downloads/extractions corrupt each other.
+func (s *Scheduler) runCompositeSetup(ctx context.Context, t *task.Task, ce *plugin.CompositeExecutor) map[string]string {
 	if len(t.Uses) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	env := make(map[string]string)
-	cleanupTasks := make([]compositeCleanupTask, 0)
 
 	workdir := s.projectRoot
 	if t.Workdir != "" {
@@ -877,34 +933,84 @@ func (s *Scheduler) runCompositeSetup(ctx context.Context, t *task.Task, ce *plu
 			continue
 		}
 
-		// Execute only setup steps now; run cleanup after task command.
-		setup, err := ce.ExecuteSetup(ctx, resolved.Manifest, t.With, t.Env, workdir)
-		if err != nil {
-			// Log but don't fail — the task command will likely fail with a clear error
+		key := compositeSetupKey(spec, t.With)
+
+		// Reuse completed setup from this run. singleflight only deduplicates
+		// concurrent calls; this cache avoids rerunning setup for later tasks.
+		s.setupCache.mu.Lock()
+		cached, ok := s.setupCache.entries[key]
+		s.setupCache.mu.Unlock()
+		if ok && cached != nil {
+			for k, v := range cached.env {
+				env[k] = v
+			}
 			continue
 		}
-		cleanupTasks = append(cleanupTasks, compositeCleanupTask{
-			manifest: resolved.Manifest,
-			setup:    setup,
-			workdir:  workdir,
+
+		// Use singleflight to ensure setup runs exactly once per (plugin, inputs).
+		// Parallel tasks calling Do with the same key will block and receive the
+		// same result without re-running the setup.
+		result, _, _ := s.setupCache.group.Do(key, func() (interface{}, error) {
+			// Merge task env with accumulated plugin env
+			mergedEnv := make(map[string]string, len(t.Env)+len(env))
+			for k, v := range t.Env {
+				mergedEnv[k] = v
+			}
+			for k, v := range env {
+				mergedEnv[k] = v
+			}
+
+			setup, err := ce.ExecuteSetup(ctx, resolved.Manifest, t.With, mergedEnv, workdir)
+			entry := &compositeSetupEntry{}
+			if err != nil {
+				slog.Warn("composite plugin setup failed",
+					"plugin", spec, "task", t.Name, "error", err)
+				entry.err = err
+			}
+			if setup != nil {
+				entry.env = setup.Env
+				entry.cleanup = compositeCleanupTask{
+					manifest: resolved.Manifest,
+					setup:    setup,
+					workdir:  workdir,
+				}
+			}
+
+			// Store in persistent cache for cleanup later
+			s.setupCache.mu.Lock()
+			s.setupCache.entries[key] = entry
+			s.setupCache.mu.Unlock()
+
+			return entry, nil
 		})
 
-		// Collect environment variables from composite steps
-		stepEnv := ce.CollectStepEnv(resolved.Manifest, t.With)
-		for k, v := range stepEnv {
-			env[k] = v
+		if entry, ok := result.(*compositeSetupEntry); ok && entry != nil {
+			for k, v := range entry.env {
+				env[k] = v
+			}
 		}
 	}
 
 	if len(env) == 0 {
-		return nil, cleanupTasks
+		return nil
 	}
-	return env, cleanupTasks
+	return env
 }
 
-func (s *Scheduler) runCompositeCleanup(tasks []compositeCleanupTask, ce *plugin.CompositeExecutor) {
-	for _, t := range tasks {
-		ce.RunCleanup(t.manifest, t.setup, t.workdir)
+// runCachedCompositeCleanups runs cleanup for all composite plugins that were
+// set up during this run. Called once after all tasks complete.
+func (s *Scheduler) runCachedCompositeCleanups() {
+	s.setupCache.mu.Lock()
+	entries := make([]*compositeSetupEntry, 0, len(s.setupCache.entries))
+	for _, e := range s.setupCache.entries {
+		entries = append(entries, e)
+	}
+	s.setupCache.mu.Unlock()
+
+	for _, e := range entries {
+		if e.cleanup.manifest != nil && e.cleanup.setup != nil {
+			s.compositeExecutor.RunCleanup(e.cleanup.manifest, e.cleanup.setup, e.cleanup.workdir)
+		}
 	}
 }
 

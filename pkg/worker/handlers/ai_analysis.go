@@ -322,7 +322,7 @@ func (h *AIAnalysisHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	// Build evidence builder.
-	evidenceBuilder := evidence.NewEvidenceBuilder(h.store.Runs, h.store.Workflows, h.logger)
+	evidenceBuilder := evidence.NewEvidenceBuilder(h.store.Runs, h.store.Workflows, h.store.Projects, h.logger)
 
 	// Build policy checker from project guardrails when available.
 	guardrails := config.AIGuardrailConfig{}

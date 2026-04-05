@@ -50,6 +50,24 @@ func (m *mockWorkflowDataSource) GetByID(_ context.Context, _ uuid.UUID) (*model
 	return m.workflow, m.err
 }
 
+// mockProjectDataSource implements ProjectDataSource for tests.
+type mockProjectDataSource struct {
+	project *models.Project
+	err     error
+}
+
+func (m *mockProjectDataSource) GetByID(_ context.Context, _ uuid.UUID) (*models.Project, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.project, nil
+}
+
+// nilProjectDS returns a mock project data source with a default config path.
+func nilProjectDS() *mockProjectDataSource {
+	return &mockProjectDataSource{project: &models.Project{ConfigPath: "dagryn.toml"}}
+}
+
 func ptrStr(s string) *string        { return &s }
 func ptrInt(i int) *int              { return &i }
 func ptrInt64(i int64) *int64        { return &i }
@@ -93,7 +111,7 @@ func TestBuild_SingleFailedTask(t *testing.T) {
 	}
 	wfDS := &mockWorkflowDataSource{err: assert.AnError}
 
-	builder := NewEvidenceBuilder(runDS, wfDS, zerolog.Nop())
+	builder := NewEvidenceBuilder(runDS, wfDS, nilProjectDS(), zerolog.Nop())
 	input, err := builder.Build(context.Background(), runID)
 
 	require.NoError(t, err)
@@ -125,6 +143,7 @@ func TestBuild_MultipleFailedTasks(t *testing.T) {
 	builder := NewEvidenceBuilder(
 		&mockRunDataSource{run: run, taskResults: results, logs: logs},
 		&mockWorkflowDataSource{err: assert.AnError},
+		nilProjectDS(),
 		zerolog.Nop(),
 	)
 	input, err := builder.Build(context.Background(), run.ID)
@@ -145,6 +164,7 @@ func TestBuild_NoFailures(t *testing.T) {
 			},
 		},
 		&mockWorkflowDataSource{err: assert.AnError},
+		nilProjectDS(),
 		zerolog.Nop(),
 	)
 	input, err := builder.Build(context.Background(), run.ID)
@@ -179,6 +199,7 @@ func TestBuild_WithWorkflowGraph(t *testing.T) {
 			},
 		},
 		&mockWorkflowDataSource{workflow: wf},
+		nilProjectDS(),
 		zerolog.Nop(),
 	)
 
@@ -206,6 +227,7 @@ func TestBuild_RedactionApplied(t *testing.T) {
 			},
 		},
 		&mockWorkflowDataSource{err: assert.AnError},
+		nilProjectDS(),
 		zerolog.Nop(),
 	)
 
@@ -233,6 +255,7 @@ func TestBuild_EvidenceSizeCap(t *testing.T) {
 			},
 		},
 		&mockWorkflowDataSource{err: assert.AnError},
+		nilProjectDS(),
 		zerolog.Nop(),
 	)
 
@@ -256,6 +279,7 @@ func TestBuild_FailedTasksCapped(t *testing.T) {
 	builder := NewEvidenceBuilder(
 		&mockRunDataSource{run: run, taskResults: results, logs: map[string][]models.RunLog{}},
 		&mockWorkflowDataSource{err: assert.AnError},
+		nilProjectDS(),
 		zerolog.Nop(),
 	)
 
@@ -268,6 +292,7 @@ func TestBuild_RunNotFound(t *testing.T) {
 	builder := NewEvidenceBuilder(
 		&mockRunDataSource{runErr: assert.AnError},
 		&mockWorkflowDataSource{},
+		nilProjectDS(),
 		zerolog.Nop(),
 	)
 	_, err := builder.Build(context.Background(), uuid.New())
@@ -286,6 +311,7 @@ func TestBuild_NilOptionalFields(t *testing.T) {
 	builder := NewEvidenceBuilder(
 		&mockRunDataSource{run: run, taskResults: nil},
 		&mockWorkflowDataSource{err: assert.AnError},
+		nilProjectDS(),
 		zerolog.Nop(),
 	)
 

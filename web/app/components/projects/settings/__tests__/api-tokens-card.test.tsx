@@ -7,12 +7,11 @@ import type { APIKey } from "~/lib/api";
 // Mock Select to a plain <select> since Radix Select doesn't work in jsdom
 vi.mock("~/components/ui/select", () => ({
   Select: ({
-    children,
     value,
     onValueChange,
     disabled,
   }: {
-    children: React.ReactNode;
+    children?: React.ReactNode;
     value?: string;
     onValueChange?: (v: string) => void;
     disabled?: boolean;

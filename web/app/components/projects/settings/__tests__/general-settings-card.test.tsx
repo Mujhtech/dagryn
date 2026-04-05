@@ -7,28 +7,14 @@ import type { Project } from "~/lib/api";
 // Mock Select to a plain <select> since Radix Select doesn't work in jsdom
 vi.mock("~/components/ui/select", () => ({
   Select: ({
-    children,
     value,
     onValueChange,
   }: {
-    children: React.ReactNode;
+    children?: React.ReactNode;
     value?: string;
     onValueChange?: (v: string) => void;
   }) => (
     <div data-testid="select-root">
-      {typeof children === "function"
-        ? null
-        : React.Children.map(children, (child) => {
-            if (!child || typeof child !== "object" || !("props" in child))
-              return child;
-            if (child.type === (exports as Record<string, unknown>).SelectTrigger) {
-              return null;
-            }
-            if (child.type === (exports as Record<string, unknown>).SelectContent) {
-              return null;
-            }
-            return child;
-          })}
       <select
         data-testid="visibility-select"
         value={value}

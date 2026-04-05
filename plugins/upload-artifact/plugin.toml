@@ -32,7 +32,7 @@ default = "30"
 [[step]]
 name = "check-aws-cli"
 command = """
-if ! command -v aws &> /dev/null; then
+if ! command -v aws >/dev/null 2>&1; then
   echo "Error: AWS CLI is not installed"
   echo "Install it from https://aws.amazon.com/cli/"
   exit 1

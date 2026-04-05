@@ -45,6 +45,7 @@ type TeamStore interface {
 	RemoveMember(ctx context.Context, teamID, userID uuid.UUID) error
 	GetMember(ctx context.Context, teamID, userID uuid.UUID) (*models.TeamMember, error)
 	ListMembers(ctx context.Context, teamID uuid.UUID) ([]models.TeamMemberWithUser, error)
+	CountMembersByUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	SlugExists(ctx context.Context, slug string) (bool, error)
 }
 
@@ -70,6 +71,7 @@ type ProjectStore interface {
 	SlugExists(ctx context.Context, teamID *uuid.UUID, slug string) (bool, error)
 	ListPublic(ctx context.Context, limit, offset int) ([]models.Project, error)
 	ListAll(ctx context.Context, limit, offset int) ([]models.Project, int, error)
+	CountByUser(ctx context.Context, userID uuid.UUID) (int64, error)
 }
 
 // APIKeyStore defines the interface for API key repository operations.
@@ -115,11 +117,13 @@ type RunStore interface {
 	GetDashboardChartByProject(ctx context.Context, projectID uuid.UUID, days int) ([]RunDashboardChartPoint, error)
 	GetDashboardFacetsByProject(ctx context.Context, projectID uuid.UUID) (*RunDashboardFacets, error)
 	GetActiveByProject(ctx context.Context, projectID uuid.UUID) ([]models.Run, error)
+	CountActiveByUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	CreateTaskResult(ctx context.Context, result *models.TaskResult) error
 	UpdateTaskResult(ctx context.Context, result *models.TaskResult) error
 	GetTaskResult(ctx context.Context, runID uuid.UUID, taskName string) (*models.TaskResult, error)
 	ListTaskResults(ctx context.Context, runID uuid.UUID) ([]models.TaskResult, error)
+	CancelNonTerminalTasks(ctx context.Context, runID uuid.UUID) error
 	DeleteTaskResultsByRun(ctx context.Context, runID uuid.UUID) error
 	GetRunWithTasks(ctx context.Context, id uuid.UUID) (*models.RunWithTasks, error)
 	CleanupOldRuns(ctx context.Context, olderThan time.Duration, keepMinimum int) (int64, error)

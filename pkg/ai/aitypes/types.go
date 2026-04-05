@@ -26,6 +26,7 @@ type AnalysisInput struct {
 	RunID           string               `json:"run_id"`
 	ProjectID       string               `json:"project_id"`
 	WorkflowName    string               `json:"workflow_name,omitempty"`
+	ConfigPath      string               `json:"config_path,omitempty"`
 	GitBranch       string               `json:"git_branch,omitempty"`
 	GitCommit       string               `json:"git_commit,omitempty"`
 	CommitMessage   string               `json:"commit_message,omitempty"`

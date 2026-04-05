@@ -8,7 +8,7 @@ WORKDIR /app/web
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Copy frontend package files
-COPY web/package.json web/pnpm-lock.yaml ./
+COPY web/package.json web/pnpm-lock.yaml web/source.config.ts ./
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
@@ -16,8 +16,8 @@ RUN pnpm install --frozen-lockfile
 # Copy frontend source
 COPY web/ ./
 
-# Build frontend (only vite build, skip the copy-dist step)
-RUN pnpm exec vite build --config vite.config.mjs
+# Generate OpenAPI docs and build frontend (skip copy-dist, handled in next stage)
+RUN pnpm dlx tsx scripts/generate-openapi-docs.ts && pnpm exec vite build --config vite.config.mjs
 
 # Stage 2: Build Go application
 FROM golang:1.25-alpine AS go-builder
@@ -45,17 +45,19 @@ ARG GIT_COMMIT=unknown
 ARG BUILD_DATE=unknown
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s \
-      -X github.com/mujhtech/dagryn/internal/version.Version=${GIT_VERSION} \
-      -X github.com/mujhtech/dagryn/internal/version.Commit=${GIT_COMMIT} \
-      -X github.com/mujhtech/dagryn/internal/version.BuildDate=${BUILD_DATE} \
-      -X github.com/mujhtech/dagryn/pkg/api/handlers.Version=${GIT_VERSION}" \
+    -X github.com/mujhtech/dagryn/internal/version.Version=${GIT_VERSION} \
+    -X github.com/mujhtech/dagryn/internal/version.Commit=${GIT_COMMIT} \
+    -X github.com/mujhtech/dagryn/internal/version.BuildDate=${BUILD_DATE} \
+    -X github.com/mujhtech/dagryn/pkg/api/handlers.Version=${GIT_VERSION}" \
     -o /bin/dagryn ./cmd/dagryn
 
 # Stage 3: Final runtime image
 FROM alpine:latest
 
-# Install runtime dependencies
-RUN apk add --no-cache ca-certificates tzdata git docker-cli
+# Install runtime dependencies. Build tools (node, go, etc.) are NOT needed
+# here, but host-mode plugin installs require minimal runtime libs for
+# downloaded musl binaries (e.g. Node.js from unofficial builds).
+RUN apk add --no-cache ca-certificates tzdata git docker-cli libstdc++ libgcc gcc musl-dev
 
 # Create non-root user
 RUN addgroup -g 1000 dagryn && \

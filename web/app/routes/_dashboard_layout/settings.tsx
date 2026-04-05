@@ -105,7 +105,10 @@ function SettingsPage() {
                 {/* Avatar Display */}
                 <div className="flex items-center gap-4">
                   <Avatar className="h-20 w-20">
-                    <AvatarImage src={user.avatar_url} alt={user.name || "User"} />
+                    <AvatarImage
+                      src={user.avatar_url}
+                      alt={user.name || "User"}
+                    />
                     <AvatarFallback className="text-2xl">
                       {user.name?.charAt(0)?.toUpperCase() || "U"}
                     </AvatarFallback>
@@ -151,7 +154,8 @@ function SettingsPage() {
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Email is managed by your OAuth provider and cannot be changed.
+                    Email is managed by your OAuth provider and cannot be
+                    changed.
                   </p>
                 </div>
 
@@ -167,11 +171,8 @@ function SettingsPage() {
                   </div>
                 )}
               </CardContent>
-              <CardFooter>
-                <Button
-                  type="submit"
-                  disabled={updateUserMutation.isPending}
-                >
+              <CardFooter className="mt-2">
+                <Button type="submit" disabled={updateUserMutation.isPending}>
                   {updateUserMutation.isPending ? (
                     <>
                       <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />

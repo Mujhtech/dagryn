@@ -1322,6 +1322,11 @@ func (h *Handler) CancelRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Mark any running/pending tasks as cancelled so they don't stay stuck.
+	if err := h.store.Runs.CancelNonTerminalTasks(ctx, runID); err != nil {
+		slog.Warn("cancel_run: failed to cancel non-terminal tasks", "run_id", runID, "error", err)
+	}
+
 	if h.cancelManager != nil {
 		if err := h.cancelManager.Signal(ctx, runID.String()); err != nil {
 			slog.Warn("cancel_run: failed to signal worker", "run_id", runID, "error", err)

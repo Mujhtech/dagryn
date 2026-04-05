@@ -6,12 +6,16 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
 )
 
 const compositeCleanupTimeout = 30 * time.Second
+
+var unresolvedInputVarPattern = regexp.MustCompile(`\$\{inputs\.[^}]+\}`)
 
 // CompositeExecutor executes composite plugin steps.
 type CompositeExecutor struct {
@@ -91,6 +95,9 @@ func (e *CompositeExecutor) ExecuteSetup(ctx context.Context, manifest *Manifest
 	if !manifest.IsComposite() {
 		return nil, fmt.Errorf("manifest is not a composite plugin")
 	}
+	if err := ensureCompositeHostPrereqs(); err != nil {
+		return nil, err
+	}
 
 	// Validate required inputs
 	mergedInputs, err := e.mergeInputs(manifest, inputs)
@@ -121,15 +128,25 @@ func (e *CompositeExecutor) ExecuteSetup(ctx context.Context, manifest *Manifest
 		e.logger.Info("running step %d: %s", i, step.Name)
 
 		// Build environment
-		stepEnv := make([]string, 0)
-		for k, v := range cleanupEnv {
-			stepEnv = append(stepEnv, fmt.Sprintf("%s=%s", k, v))
-		}
 		for k, v := range step.Env {
 			resolved := substituteVars(v, mergedInputs)
-			stepEnv = append(stepEnv, fmt.Sprintf("%s=%s", k, resolved))
-			// Track for cleanup
-			cleanupEnv[k] = resolved
+			expanded := expandWithEnv(resolved, cleanupEnv)
+			cleanupEnv[k] = expanded
+		}
+
+		// Build deduplicated env: start from OS env, overlay accumulated cleanupEnv
+		envMap := make(map[string]string)
+		for _, e := range os.Environ() {
+			if k, v, ok := strings.Cut(e, "="); ok {
+				envMap[k] = v
+			}
+		}
+		for k, v := range cleanupEnv {
+			envMap[k] = v
+		}
+		cmdEnv := make([]string, 0, len(envMap))
+		for k, v := range envMap {
+			cmdEnv = append(cmdEnv, k+"="+v)
 		}
 
 		// Execute via shell
@@ -139,9 +156,7 @@ func (e *CompositeExecutor) ExecuteSetup(ctx context.Context, manifest *Manifest
 		} else {
 			cmd.Dir = e.projectRoot
 		}
-		if len(stepEnv) > 0 {
-			cmd.Env = append(cmd.Environ(), stepEnv...)
-		}
+		cmd.Env = cmdEnv
 
 		// Stream output when writers are set; otherwise capture to buffer.
 		if e.stdout != nil || e.stderr != nil {
@@ -177,6 +192,38 @@ func (e *CompositeExecutor) ExecuteSetup(ctx context.Context, manifest *Manifest
 		Inputs: mergedInputs,
 		Env:    cleanupEnv,
 	}, nil
+}
+
+func ensureCompositeHostPrereqs() error {
+	if _, err := exec.LookPath("sh"); err != nil {
+		return fmt.Errorf("plugin setup prerequisite failed [missing_dependency]: POSIX shell 'sh' not found in PATH")
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return fmt.Errorf("plugin setup prerequisite failed [permission_denied]: HOME directory is not available")
+	}
+
+	dagrynDir := filepath.Join(home, ".dagryn")
+	if err := os.MkdirAll(dagrynDir, 0755); err != nil {
+		if os.IsPermission(err) {
+			return fmt.Errorf("plugin setup prerequisite failed [permission_denied]: cannot write %s", dagrynDir)
+		}
+		return fmt.Errorf("plugin setup prerequisite failed: prepare %s: %w", dagrynDir, err)
+	}
+
+	checkFile, err := os.CreateTemp(dagrynDir, "preflight-*.tmp")
+	if err != nil {
+		if os.IsPermission(err) {
+			return fmt.Errorf("plugin setup prerequisite failed [permission_denied]: cannot create files in %s", dagrynDir)
+		}
+		return fmt.Errorf("plugin setup prerequisite failed: create temp file in %s: %w", dagrynDir, err)
+	}
+	path := checkFile.Name()
+	_ = checkFile.Close()
+	_ = os.Remove(path)
+
+	return nil
 }
 
 // RunCleanup executes cleanup steps for a previously completed setup.
@@ -219,14 +266,24 @@ func (e *CompositeExecutor) executeCleanup(ctx context.Context, cleanupSteps []C
 
 		e.logger.Info("running cleanup step %d: %s", i, step.Name)
 
-		// Build environment
-		stepEnv := make([]string, 0)
+		// Build deduplicated env for cleanup step
+		envMap := make(map[string]string)
+		for _, e := range os.Environ() {
+			if k, v, ok := strings.Cut(e, "="); ok {
+				envMap[k] = v
+			}
+		}
 		for k, v := range env {
-			stepEnv = append(stepEnv, fmt.Sprintf("%s=%s", k, v))
+			envMap[k] = v
 		}
 		for k, v := range step.Env {
 			resolved := substituteVars(v, inputs)
-			stepEnv = append(stepEnv, fmt.Sprintf("%s=%s", k, resolved))
+			expanded := expandWithEnv(resolved, env)
+			envMap[k] = expanded
+		}
+		cmdEnv := make([]string, 0, len(envMap))
+		for k, v := range envMap {
+			cmdEnv = append(cmdEnv, k+"="+v)
 		}
 
 		// Execute via shell
@@ -236,9 +293,7 @@ func (e *CompositeExecutor) executeCleanup(ctx context.Context, cleanupSteps []C
 		} else {
 			cmd.Dir = e.projectRoot
 		}
-		if len(stepEnv) > 0 {
-			cmd.Env = append(cmd.Environ(), stepEnv...)
-		}
+		cmd.Env = cmdEnv
 
 		if e.stdout != nil || e.stderr != nil {
 			stdout := e.stdout
@@ -319,8 +374,8 @@ func (e *CompositeExecutor) CollectStepEnv(manifest *Manifest, inputs map[string
 		}
 		for k, v := range step.Env {
 			resolved := substituteVars(v, mergedInputs)
-			// Expand shell variables like $HOME, $PATH
-			resolved = os.ExpandEnv(resolved)
+			// Expand shell variables like $HOME, $PATH using accumulated env
+			resolved = expandWithEnv(resolved, env)
 			env[k] = resolved
 		}
 	}
@@ -363,6 +418,8 @@ func (e *CompositeExecutor) GenerateSetupScript(manifest *Manifest, inputs map[s
 		// short-circuit a step) doesn't terminate the entire script and
 		// skip the actual task command. Env exports above stay in the
 		// outer shell so they persist for subsequent steps and the task.
+		// After the subshell, check its exit code so real failures (e.g.,
+		// a failed download) abort the script instead of being swallowed.
 		command := substituteVarsForPlatform(step.Command, mergedInputs, targetOS, targetArch)
 		sb.WriteString("(\n")
 		sb.WriteString(command)
@@ -370,6 +427,7 @@ func (e *CompositeExecutor) GenerateSetupScript(manifest *Manifest, inputs map[s
 			sb.WriteByte('\n')
 		}
 		sb.WriteString(")\n")
+		fmt.Fprintf(&sb, "_step_exit=$?; if [ $_step_exit -ne 0 ]; then echo \"Plugin step '%s' failed (exit $_step_exit)\" >&2; exit $_step_exit; fi\n", step.Name)
 	}
 
 	return sb.String(), nil
@@ -380,6 +438,17 @@ func substituteVars(s string, inputs map[string]string) string {
 	return substituteVarsForPlatform(s, inputs, runtime.GOOS, runtime.GOARCH)
 }
 
+// expandWithEnv expands shell-style $VAR and ${VAR} references using the
+// provided env map first, falling back to os.Getenv for unset keys.
+func expandWithEnv(s string, env map[string]string) string {
+	return os.Expand(s, func(key string) string {
+		if v, ok := env[key]; ok {
+			return v
+		}
+		return os.Getenv(key)
+	})
+}
+
 // substituteVarsForPlatform replaces ${inputs.key}, ${os}, and ${arch} in a
 // string using the supplied platform values instead of the host runtime.
 func substituteVarsForPlatform(s string, inputs map[string]string, targetOS, targetArch string) string {
@@ -387,6 +456,10 @@ func substituteVarsForPlatform(s string, inputs map[string]string, targetOS, tar
 	for k, v := range inputs {
 		s = strings.ReplaceAll(s, fmt.Sprintf("${inputs.%s}", k), v)
 	}
+
+	// Prevent shell "bad substitution" errors when optional inputs are unset.
+	// Any remaining ${inputs.*} placeholders are treated as empty values.
+	s = unresolvedInputVarPattern.ReplaceAllString(s, "")
 
 	// Replace built-in variables
 	s = strings.ReplaceAll(s, "${os}", targetOS)

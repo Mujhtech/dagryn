@@ -1,7 +1,7 @@
 [plugin]
 name = "setup-rust"
 description = "Install and configure Rust toolchain"
-version = "1.0.0"
+version = "1.1.0"
 type = "composite"
 author = "dagryn"
 license = "MIT"
@@ -21,27 +21,54 @@ if command -v rustup >/dev/null 2>&1; then
   echo "rustup already installed"
 else
   echo "Installing rustup"
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none
-  export PATH="$HOME/.cargo/bin:$PATH"
+  if command -v curl >/dev/null 2>&1; then
+    INSTALLER_CMD='curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs'
+  elif command -v wget >/dev/null 2>&1; then
+    INSTALLER_CMD='wget -qO- https://sh.rustup.rs'
+  else
+    echo "Error: curl or wget is required to install rustup" >&2
+    exit 1
+  fi
+  if ! sh -c "$INSTALLER_CMD" | sh -s -- -y --default-toolchain none; then
+    echo "Error: rustup installation failed" >&2
+    exit 1
+  fi
+fi
+
+if ! command -v rustup >/dev/null 2>&1; then
+  echo "Error: rustup is not available after installation attempt" >&2
+  exit 1
+fi
+
+if ! rustup --version >/dev/null 2>&1; then
+  RUSTUP_ERR=$(rustup --version 2>&1 || true)
+  echo "Error: rustup is present but cannot execute [binary_not_executable]" >&2
+  if [ -n "$RUSTUP_ERR" ]; then
+    echo "$RUSTUP_ERR" >&2
+  fi
+  exit 1
 fi
 """
+[step.env]
+PATH = "$HOME/.cargo/bin:$PATH"
 
 [[step]]
 name = "install-toolchain"
 command = """
-export PATH="$HOME/.cargo/bin:$PATH"
 TOOLCHAIN="${inputs.rust-version}"
 echo "Installing Rust toolchain: $TOOLCHAIN"
-rustup install "$TOOLCHAIN"
+if ! rustup install "$TOOLCHAIN"; then
+  echo "Error: failed to install Rust toolchain $TOOLCHAIN" >&2
+  exit 1
+fi
 rustup default "$TOOLCHAIN"
 """
 
 [[step]]
 name = "verify"
 command = """
-export PATH="$HOME/.cargo/bin:$PATH"
-echo "Rust: $(rustc --version)"
-echo "Cargo: $(cargo --version)"
+echo "Rust: $(rustc --version 2>/dev/null || echo 'unknown')"
+echo "Cargo: $(cargo --version 2>/dev/null || echo 'unknown')"
 """
 
 [[step]]

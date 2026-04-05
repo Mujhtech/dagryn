@@ -21,11 +21,13 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "~/*": ["./app/*"]
+      "~/*": ["./app/*"],
+      "collections/*": ["./.source/*"]
     }
   },
   "include": [
     "app/**/*",
-    "trigger.config.ts"
+    "trigger.config.ts",
+    ".source/**/*"
   ]
 }

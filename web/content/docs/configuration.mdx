@@ -1,0 +1,250 @@
+---
+title: Configuration
+description: Complete reference for the dagryn.toml configuration file.
+---
+
+Dagryn is configured via a `dagryn.toml` file in your project root. This page documents every available option.
+
+## Workflow
+
+```toml
+[workflow]
+name = "ci"        # Workflow name
+default = true     # If true, `dagryn run` executes all tasks
+```
+
+### Triggers
+
+Define when workflows run in response to webhooks (requires server integration):
+
+```toml
+[workflow.trigger.push]
+branches = ["main", "develop"]
+
+[workflow.trigger.pull_request]
+branches = ["main"]
+types = ["opened", "synchronize", "reopened"]
+```
+
+## Tasks
+
+Tasks are the core unit of work. Each task is defined under `[tasks.<name>]`.
+
+```toml
+[tasks.build]
+command = "go build -v ./..."       # Shell command to execute (required)
+needs = ["dep1", "dep2"]            # Tasks that must complete first
+inputs = ["**/*.go", "go.mod"]      # File globs for cache key computation
+outputs = ["bin/**"]                # File globs captured after execution
+timeout = "10m"                     # Max execution time (e.g., "30s", "5m", "1h")
+workdir = "."                       # Working directory (relative to project root)
+uses = ["plugin-name"]              # Plugins to install before running
+group = "backend"                   # Logical group for target resolution
+if = "branch == 'main'"             # Conditional execution expression
+
+[tasks.build.env]                   # Environment variables
+GOOS = "linux"
+GOARCH = "amd64"
+
+[tasks.build.with]                  # Plugin inputs (for composite/integration plugins)
+config_path = ".golangci.yml"
+```
+
+### Task Dependencies
+
+The `needs` field creates edges in the DAG. Dagryn resolves the full graph and runs tasks at the same "level" in parallel:
+
+```toml
+[tasks.install]
+command = "npm install"
+
+[tasks.build]
+command = "npm run build"
+needs = ["install"]            # Waits for install
+
+[tasks.test]
+command = "npm test"
+needs = ["build"]              # Waits for build
+
+[tasks.lint]
+command = "npm run lint"
+needs = ["install"]            # Runs in parallel with build
+```
+
+### Container Overrides
+
+Override project-level container settings per task:
+
+```toml
+[tasks.frontend.container]
+image = "node:20-bookworm-slim"
+memory_limit = "4g"
+cpu_limit = "2.0"
+network = "bridge"
+```
+
+### Task Routing (Multi-Cluster)
+
+Route tasks to specific workers or clusters:
+
+```toml
+[tasks.gpu-train.routing]
+labels = { gpu = "true", arch = "arm64" }   # Required worker labels
+cluster = "gpu-cluster"                      # Target cluster
+prefer_local = false                         # Skip local, dispatch remotely
+```
+
+## Plugins
+
+Declare plugins globally and reference them in tasks:
+
+```toml
+[plugins]
+golangci-lint = "github:golangci/golangci-lint@v2.8.0"
+govulncheck = "go:golang.org/x/vuln/cmd/govulncheck@latest"
+setup-node = "local:./plugins/setup-node"
+```
+
+Supported plugin sources:
+
+| Format | Example |
+|--------|---------|
+| GitHub release | `github:owner/repo@version` |
+| Go install | `go:package@version` |
+| npm | `npm:package@version` |
+| pip | `pip:package@version` |
+| Cargo | `cargo:package@version` |
+| Local | `local:./path/to/plugin` |
+
+## Cache
+
+```toml
+[cache]
+local = true        # Enable local caching (default: true)
+dir = ""             # Override local cache directory (default: .dagryn/cache)
+
+[cache.remote]
+enabled = true                  # Enable remote cache
+cloud = true                    # Use Dagryn Cloud cache (easiest option)
+strategy = "local-first"        # "local-first", "remote-first", "write-through"
+fallback_on_error = true        # Fall back to local on remote errors
+```
+
+### Self-Hosted Remote Cache
+
+When not using Dagryn Cloud (`cloud = false`), configure a storage backend:
+
+```toml
+[cache.remote]
+enabled = true
+cloud = false
+provider = "s3"                 # "s3", "filesystem", "grpc"
+bucket = "my-cache-bucket"
+region = "us-east-1"
+endpoint = ""                   # Custom endpoint for R2, MinIO, etc.
+access_key_id = ""
+secret_access_key = ""
+prefix = ""                     # Key prefix in the bucket
+```
+
+For gRPC-based remote cache (REAPI v2):
+
+```toml
+[cache.remote]
+enabled = true
+cloud = false
+provider = "grpc"
+grpc_target = "localhost:9092"
+instance_name = "default"
+tls = true
+tls_ca_cert = "/path/to/ca.crt"
+auth_token = "bearer-token"
+```
+
+## Container Isolation
+
+Project-level container defaults:
+
+```toml
+[container]
+enabled = false                 # Enable container execution
+image = "golang:1.25-bookworm"  # Default image
+memory_limit = "2g"             # Memory limit
+cpu_limit = "2.0"               # CPU limit
+network = "bridge"              # Network mode
+```
+
+When enabled, tasks run inside containers. Individual tasks can override these settings with `[tasks.<name>.container]`.
+
+## AI Analysis
+
+Configure AI-powered run analysis (summarize failures, suggest fixes):
+
+```toml
+[ai]
+enabled = true
+mode = "summarize_and_suggest"       # "summarize" or "summarize_and_suggest"
+provider = "google"                  # "openai", "google", "gemini"
+model = "gemini-3-flash-preview"
+
+[ai.backend]
+mode = "managed"                     # "managed", "byok", "agent"
+# For BYOK (bring your own key):
+# api_key_env = "OPENAI_API_KEY"
+# For agent mode (external endpoint):
+# endpoint = "https://api.example.com"
+# auth_token_env = "AI_TOKEN"
+
+[ai.guardrails]
+min_confidence = 0.7
+max_suggestions_per_analysis = 5
+require_human_approval = false
+
+[ai.publish]
+github_comment = true                # Post analysis as PR comment
+github_check = true                  # Create GitHub check run
+github_suggestions = false           # Inline code suggestions
+```
+
+## Full Example
+
+```toml
+[workflow]
+name = "ci"
+default = true
+
+[workflow.trigger.push]
+branches = ["main"]
+
+[plugins]
+golangci-lint = "github:golangci/golangci-lint@v2.8.0"
+
+[tasks.build]
+command = "go build -v ./..."
+inputs = ["**/*.go", "go.mod", "go.sum"]
+outputs = ["bin/**"]
+timeout = "10m"
+
+[tasks.test]
+command = "go test -v -race ./..."
+needs = ["build"]
+inputs = ["**/*.go", "go.mod"]
+timeout = "5m"
+
+[tasks.lint]
+command = "golangci-lint run ./..."
+uses = ["golangci-lint"]
+needs = ["build"]
+inputs = ["**/*.go", ".golangci.yml"]
+timeout = "2m"
+
+[cache]
+local = true
+
+[cache.remote]
+enabled = true
+cloud = true
+
+[container]
+enabled = false
+```

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as Dashboard_layoutRouteImport } from './routes/_dashboard_layout'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DocsSplatRouteImport } from './routes/docs/$'
 import { Route as AuthDeviceRouteImport } from './routes/auth/device'
 import { Route as Dashboard_layoutSettingsRouteImport } from './routes/_dashboard_layout/settings'
 import { Route as Dashboard_layoutLicenseRouteImport } from './routes/_dashboard_layout/license'
@@ -53,6 +54,11 @@ const Dashboard_layoutRoute = Dashboard_layoutRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsSplatRoute = DocsSplatRouteImport.update({
+  id: '/docs/$',
+  path: '/docs/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthDeviceRoute = AuthDeviceRouteImport.update({
@@ -229,6 +235,7 @@ export interface FileRoutesByFullPath {
   '/license': typeof Dashboard_layoutLicenseRoute
   '/settings': typeof Dashboard_layoutSettingsRoute
   '/auth/device': typeof AuthDeviceRoute
+  '/docs/$': typeof DocsSplatRoute
   '/plugins/$pluginName': typeof Dashboard_layoutPluginsPluginNameRoute
   '/plugins/browse': typeof Dashboard_layoutPluginsBrowseRoute
   '/plugins/publish': typeof Dashboard_layoutPluginsPublishRoute
@@ -261,6 +268,7 @@ export interface FileRoutesByTo {
   '/license': typeof Dashboard_layoutLicenseRoute
   '/settings': typeof Dashboard_layoutSettingsRoute
   '/auth/device': typeof AuthDeviceRoute
+  '/docs/$': typeof DocsSplatRoute
   '/plugins/$pluginName': typeof Dashboard_layoutPluginsPluginNameRoute
   '/plugins/browse': typeof Dashboard_layoutPluginsBrowseRoute
   '/plugins/publish': typeof Dashboard_layoutPluginsPublishRoute
@@ -294,6 +302,7 @@ export interface FileRoutesById {
   '/_dashboard_layout/license': typeof Dashboard_layoutLicenseRoute
   '/_dashboard_layout/settings': typeof Dashboard_layoutSettingsRoute
   '/auth/device': typeof AuthDeviceRoute
+  '/docs/$': typeof DocsSplatRoute
   '/_dashboard_layout/plugins/$pluginName': typeof Dashboard_layoutPluginsPluginNameRoute
   '/_dashboard_layout/plugins/browse': typeof Dashboard_layoutPluginsBrowseRoute
   '/_dashboard_layout/plugins/publish': typeof Dashboard_layoutPluginsPublishRoute
@@ -328,6 +337,7 @@ export interface FileRouteTypes {
     | '/license'
     | '/settings'
     | '/auth/device'
+    | '/docs/$'
     | '/plugins/$pluginName'
     | '/plugins/browse'
     | '/plugins/publish'
@@ -360,6 +370,7 @@ export interface FileRouteTypes {
     | '/license'
     | '/settings'
     | '/auth/device'
+    | '/docs/$'
     | '/plugins/$pluginName'
     | '/plugins/browse'
     | '/plugins/publish'
@@ -392,6 +403,7 @@ export interface FileRouteTypes {
     | '/_dashboard_layout/license'
     | '/_dashboard_layout/settings'
     | '/auth/device'
+    | '/docs/$'
     | '/_dashboard_layout/plugins/$pluginName'
     | '/_dashboard_layout/plugins/browse'
     | '/_dashboard_layout/plugins/publish'
@@ -422,6 +434,7 @@ export interface RootRouteChildren {
   Dashboard_layoutRoute: typeof Dashboard_layoutRouteWithChildren
   LoginRoute: typeof LoginRoute
   AuthDeviceRoute: typeof AuthDeviceRoute
+  DocsSplatRoute: typeof DocsSplatRoute
   AuthProviderCallbackRoute: typeof AuthProviderCallbackRoute
 }
 
@@ -446,6 +459,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/$': {
+      id: '/docs/$'
+      path: '/docs/$'
+      fullPath: '/docs/$'
+      preLoaderRoute: typeof DocsSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/device': {
@@ -741,6 +761,7 @@ const rootRouteChildren: RootRouteChildren = {
   Dashboard_layoutRoute: Dashboard_layoutRouteWithChildren,
   LoginRoute: LoginRoute,
   AuthDeviceRoute: AuthDeviceRoute,
+  DocsSplatRoute: DocsSplatRoute,
   AuthProviderCallbackRoute: AuthProviderCallbackRoute,
 }
 export const routeTree = rootRouteImport

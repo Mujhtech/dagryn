@@ -268,6 +268,9 @@ func (l *Logger) PluginDone(spec string, result *plugin.InstallResult) {
 		_, _ = fmt.Fprintf(l.writer, "    %s Installed %s %s\n", l.render(cliui.StyleSuccess, "✓"), result.Plugin.Name, result.Plugin.ResolvedVersion)
 	case plugin.StatusCached:
 		_, _ = fmt.Fprintf(l.writer, "    %s %s [CACHED]\n", l.render(cliui.StyleSuccess, "✓"), result.Plugin.Name)
+	case plugin.StatusResolved:
+		_, _ = fmt.Fprintf(l.writer, "    %s %s %s [LOADED]\n",
+			l.render(cliui.StyleSuccess, "✓"), result.Plugin.Name, result.Plugin.ResolvedVersion)
 	case plugin.StatusFailed:
 		_, _ = fmt.Fprintf(l.writer, "    %s Failed to install %s: %v\n", l.render(cliui.StyleError, "✗"), spec, result.Error)
 	}

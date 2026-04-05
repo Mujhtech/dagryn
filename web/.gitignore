@@ -1,4 +1,6 @@
 .trigger
+.source
+content/docs/api
 
 # Playwright
 playwright-report/

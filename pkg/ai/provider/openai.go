@@ -140,6 +140,9 @@ func buildUserMessage(input aitypes.AnalysisInput) string {
 	if input.WorkflowName != "" {
 		fmt.Fprintf(&b, "- Workflow: %s\n", input.WorkflowName)
 	}
+	if input.ConfigPath != "" {
+		fmt.Fprintf(&b, "- Config File: %s\n", input.ConfigPath)
+	}
 	fmt.Fprintf(&b, "- Tasks: %d total, %d completed, %d failed, %d cache hits\n",
 		input.TotalTasks, input.CompletedTasks, input.FailedTaskCount, input.CacheHits)
 	if input.DurationMs > 0 {
@@ -205,7 +208,9 @@ func buildUserMessage(input aitypes.AnalysisInput) string {
 }
 
 // System prompt instructs the model to produce JSON matching AnalysisOutput.
-const systemPrompt = `You are a CI/CD failure analysis assistant. Analyze the provided build/test failure evidence and respond with a JSON object matching this exact schema:
+const systemPrompt = `You are a failure analysis assistant for Dagryn, a workflow orchestrator that uses a TOML configuration file (typically "dagryn.toml") to define tasks and workflows. You are NOT analyzing GitHub Actions, GitLab CI, or any other CI provider — you are analyzing Dagryn workflow runs.
+
+Analyze the provided build/test failure evidence and respond with a JSON object matching this exact schema:
 
 {
   "summary": "Brief human-readable summary of the failure (max 500 chars)",
@@ -220,5 +225,6 @@ Rules:
 - confidence should reflect how certain you are about the root cause
 - evidence should reference specific tasks and log lines
 - likely_files should be real file paths extracted from logs or inferred from error context
-- recommended_actions should be concrete and actionable
+- likely_files should reference the project's Dagryn config file (provided in the evidence as "Config File") for workflow/task configuration issues, NOT CI provider files like .github/workflows/*.yml, .gitlab-ci.yml, or similar
+- recommended_actions should be concrete and actionable, referencing Dagryn concepts (tasks, dagryn.toml configuration) rather than CI provider concepts (GitHub Actions steps, workflow YAML)
 - Respond ONLY with valid JSON, no markdown or explanation`

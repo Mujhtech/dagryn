@@ -1,14 +1,14 @@
 [plugin]
 name = "setup-go"
 description = "Install and configure Go"
-version = "1.0.0"
+version = "1.4.0"
 type = "composite"
 author = "dagryn"
 license = "MIT"
 
 [inputs.go-version]
 description = "Go version to install"
-default = "1.22"
+default = "1.25.5"
 
 [inputs.cache]
 description = "Cache Go module cache"
@@ -18,6 +18,17 @@ default = "true"
 name = "download-and-install"
 command = """
 GO_VERSION="${inputs.go-version}"
+
+# go.dev tarballs require full semver (e.g. 1.25.1). If users provide a
+# major.minor value, fall back to .0 for compatibility.
+DOWNLOAD_VERSION="$GO_VERSION"
+case "$GO_VERSION" in
+  *.*.*) ;;
+  *.*)
+    DOWNLOAD_VERSION="${GO_VERSION}.0"
+    echo "Go version '$GO_VERSION' is not full semver; trying '$DOWNLOAD_VERSION'"
+    ;;
+esac
 
 # Skip download if go is already available on PATH
 if command -v go >/dev/null 2>&1; then
@@ -29,31 +40,61 @@ fi
 GO_OS="${os}"
 GO_ARCH="${arch}"
 INSTALL_DIR="$HOME/.dagryn/tools/go-$GO_VERSION"
-if [ -d "$INSTALL_DIR/go" ]; then
-  echo "Go $GO_VERSION already installed"
-else
-  mkdir -p "$INSTALL_DIR"
-  TARBALL="go${GO_VERSION}.${GO_OS}-${GO_ARCH}.tar.gz"
-  URL="https://go.dev/dl/${TARBALL}"
-  echo "Downloading Go $GO_VERSION from $URL"
-  TMPFILE=$(mktemp)
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "$TMPFILE" "$URL"
-  elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$TMPFILE" "$URL"
-  else
-    echo "Error: curl or wget is required" >&2; exit 1
-  fi
-  if [ ! -s "$TMPFILE" ]; then
-    echo "Error: failed to download $URL" >&2; rm -f "$TMPFILE"; exit 1
-  fi
-  tar xzf "$TMPFILE" -C "$INSTALL_DIR"
-  rm -f "$TMPFILE"
-  if [ ! -d "$INSTALL_DIR/go/bin" ]; then
-    echo "Error: go binary not found after extraction" >&2; exit 1
-  fi
-  echo "Go $GO_VERSION downloaded successfully"
+
+if ! command -v tar >/dev/null 2>&1; then
+  echo "Error: tar is required to extract Go archive [missing_dependency]" >&2
+  exit 1
 fi
+
+if [ -e "$INSTALL_DIR" ] && [ ! -w "$INSTALL_DIR" ]; then
+  echo "Error: install directory is not writable: $INSTALL_DIR [permission_denied]" >&2
+  exit 1
+fi
+
+if [ -d "$INSTALL_DIR/go" ]; then
+  if "$INSTALL_DIR/go/bin/go" version >/dev/null 2>&1; then
+    echo "Go $GO_VERSION already installed"
+    exit 0
+  fi
+  echo "Existing Go binary cannot execute, re-downloading..."
+  rm -rf "$INSTALL_DIR"
+fi
+
+mkdir -p "$INSTALL_DIR"
+TARBALL="go${DOWNLOAD_VERSION}.${GO_OS}-${GO_ARCH}.tar.gz"
+URL="https://go.dev/dl/${TARBALL}"
+echo "Downloading Go $GO_VERSION from $URL"
+TMPFILE=$(mktemp)
+if command -v curl >/dev/null 2>&1; then
+  curl -fsSL -o "$TMPFILE" "$URL"
+elif command -v wget >/dev/null 2>&1; then
+  wget -q -O "$TMPFILE" "$URL"
+else
+  echo "Error: curl or wget is required" >&2; exit 1
+fi
+if [ ! -s "$TMPFILE" ]; then
+  echo "Error: failed to download $URL" >&2; rm -f "$TMPFILE"; exit 1
+fi
+tar xzf "$TMPFILE" -C "$INSTALL_DIR"
+if [ $? -ne 0 ]; then
+  echo "Error: failed to extract Go archive to $INSTALL_DIR" >&2
+  rm -f "$TMPFILE"
+  exit 1
+fi
+rm -f "$TMPFILE"
+if [ ! -f "$INSTALL_DIR/go/bin/go" ]; then
+  echo "Error: go binary not found after extraction" >&2; exit 1
+fi
+if ! "$INSTALL_DIR/go/bin/go" version >/dev/null 2>&1; then
+  GO_ERR=$("$INSTALL_DIR/go/bin/go" version 2>&1 || true)
+  echo "Error: go binary exists but cannot execute" >&2
+  if [ -n "$GO_ERR" ]; then
+    echo "$GO_ERR" >&2
+  fi
+  rm -rf "$INSTALL_DIR"
+  exit 1
+fi
+echo "Go $GO_VERSION downloaded successfully"
 """
 
 [[step]]
@@ -61,15 +102,19 @@ name = "set-environment"
 command = """
 GO_VERSION="${inputs.go-version}"
 INSTALL_DIR="$HOME/.dagryn/tools/go-$GO_VERSION"
-if [ -d "$INSTALL_DIR/go" ]; then
-  export GOROOT="$INSTALL_DIR/go"
-  export PATH="$GOROOT/bin:$PATH"
+if [ -d "$INSTALL_DIR/go/bin" ]; then
+  echo "Go $(go version 2>/dev/null || echo 'unknown') ready (dagryn-managed)"
+else
+  echo "Go $(go version 2>/dev/null || echo 'unknown') ready (system)"
 fi
-echo "Go $(go version) ready"
+
+if ! command -v go >/dev/null 2>&1; then
+  echo "Error: go is not available after setup [missing_dependency]" >&2
+  exit 1
+fi
 """
 [step.env]
-GOROOT = "$(go env GOROOT 2>/dev/null || echo $HOME/.dagryn/tools/go-${inputs.go-version}/go)"
-PATH = "$(go env GOROOT 2>/dev/null || echo $HOME/.dagryn/tools/go-${inputs.go-version}/go)/bin:$PATH"
+PATH = "$HOME/.dagryn/tools/go-${inputs.go-version}/go/bin:$PATH"
 
 [[step]]
 name = "cache-modules"

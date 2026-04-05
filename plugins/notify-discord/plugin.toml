@@ -37,24 +37,33 @@ AVATAR_URL="${inputs.avatar-url}"
 EMBED_TITLE="${inputs.embed-title}"
 EMBED_COLOR="${inputs.embed-color}"
 
+json_escape() {
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e ':a;N;$!ba;s/\n/\\n/g' -e 's/\r/\\r/g' -e 's/\t/\\t/g'
+}
+
+MESSAGE_ESCAPED=$(json_escape "$MESSAGE")
+USERNAME_ESCAPED=$(json_escape "$USERNAME")
+AVATAR_ESCAPED=$(json_escape "$AVATAR_URL")
+TITLE_ESCAPED=$(json_escape "$EMBED_TITLE")
+
 if [ -n "$EMBED_TITLE" ]; then
   # Rich embed mode
-  EMBED="{\"title\": \"$EMBED_TITLE\", \"description\": \"$MESSAGE\""
+  EMBED="{\"title\": \"$TITLE_ESCAPED\", \"description\": \"$MESSAGE_ESCAPED\""
   if [ -n "$EMBED_COLOR" ]; then
     EMBED="$EMBED, \"color\": $EMBED_COLOR"
   fi
   EMBED="$EMBED}"
 
-  PAYLOAD="{\"username\": \"$USERNAME\", \"embeds\": [$EMBED]"
+  PAYLOAD="{\"username\": \"$USERNAME_ESCAPED\", \"embeds\": [$EMBED]"
   if [ -n "$AVATAR_URL" ]; then
-    PAYLOAD="$PAYLOAD, \"avatar_url\": \"$AVATAR_URL\""
+    PAYLOAD="$PAYLOAD, \"avatar_url\": \"$AVATAR_ESCAPED\""
   fi
   PAYLOAD="$PAYLOAD}"
 else
   # Simple text mode
-  PAYLOAD="{\"content\": \"$MESSAGE\", \"username\": \"$USERNAME\""
+  PAYLOAD="{\"content\": \"$MESSAGE_ESCAPED\", \"username\": \"$USERNAME_ESCAPED\""
   if [ -n "$AVATAR_URL" ]; then
-    PAYLOAD="$PAYLOAD, \"avatar_url\": \"$AVATAR_URL\""
+    PAYLOAD="$PAYLOAD, \"avatar_url\": \"$AVATAR_ESCAPED\""
   fi
   PAYLOAD="$PAYLOAD}"
 fi

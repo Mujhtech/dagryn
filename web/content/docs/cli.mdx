@@ -1,0 +1,378 @@
+---
+title: CLI Reference
+description: Complete reference for all Dagryn CLI commands.
+---
+
+## Global Flags
+
+These flags are available on all commands:
+
+| Flag | Description |
+|------|-------------|
+| `-c, --config <file>` | Path to config file (default: `dagryn.toml`) |
+| `-v, --verbose` | Enable verbose logging |
+| `--no-cache` | Disable task caching |
+| `--no-remote-cache` | Disable remote cache |
+| `--no-plugins` | Skip plugin installation |
+
+## Core Commands
+
+### `dagryn init`
+
+Create a new `dagryn.toml` configuration in the current directory.
+
+```bash
+dagryn init                      # Auto-detect project type
+dagryn init --template go        # Use a specific template
+dagryn init --list-templates     # Show available templates
+dagryn init --remote             # Link project to remote server
+dagryn init --force              # Overwrite existing config
+```
+
+| Flag | Description |
+|------|-------------|
+| `--template <type>` | Template: go, rust, python, node, java, ruby, php, elixir, swift, cpp, generic |
+| `--list-templates` | List all available templates |
+| `--force` | Overwrite existing `dagryn.toml` |
+| `--interactive` | Interactive setup wizard |
+| `--remote` | Link project to remote server |
+| `--project-name <name>` | Set project name |
+| `--gitignore` / `--no-gitignore` | Control `.gitignore` updates |
+
+### `dagryn run [task...]`
+
+Run one or more tasks and their dependencies.
+
+```bash
+dagryn run                  # Run all tasks (if workflow.default = true)
+dagryn run test             # Run "test" and its dependencies
+dagryn run test lint        # Run multiple tasks
+dagryn run --dry-run        # Preview execution plan
+dagryn run --parallel 4     # Limit parallelism
+dagryn run --sync           # Sync results to remote server
+```
+
+| Flag | Description |
+|------|-------------|
+| `-p, --parallel <n>` | Max parallel tasks |
+| `--dry-run` | Show execution plan without running |
+| `--sync` | Sync results to remote server |
+| `--project <id>` | Remote project ID |
+
+### `dagryn graph`
+
+Print an ASCII visualization of the task dependency graph.
+
+```bash
+dagryn graph
+```
+
+### `dagryn doctor`
+
+Run diagnostic checks on your setup.
+
+```bash
+dagryn doctor
+```
+
+Checks config validity, Docker/Podman availability, Git installation, remote server connectivity, and plugin health.
+
+### `dagryn config validate`
+
+Validate your `dagryn.toml` configuration.
+
+```bash
+dagryn config validate
+```
+
+### `dagryn clean`
+
+Remove the `.dagryn` directory contents.
+
+```bash
+dagryn clean              # Remove cache, keep project.json
+dagryn clean --force      # Remove everything including project.json
+dagryn clean --dry-run    # Preview what would be removed
+```
+
+### `dagryn version`
+
+Print version information.
+
+```bash
+dagryn version
+dagryn version --json     # Output as JSON
+```
+
+## Authentication
+
+### `dagryn auth login`
+
+Authenticate with a Dagryn server using device code flow.
+
+```bash
+dagryn auth login
+dagryn auth login --server https://dagryn.example.com
+```
+
+### `dagryn auth logout`
+
+Log out of the current session.
+
+```bash
+dagryn auth logout
+dagryn auth logout --revoke-all   # Revoke all tokens
+```
+
+### `dagryn auth whoami`
+
+Show the currently authenticated user.
+
+```bash
+dagryn auth whoami
+```
+
+### `dagryn use`
+
+Switch between server workspaces/contexts.
+
+```bash
+dagryn use
+```
+
+## Cache Management
+
+### `dagryn cache status`
+
+Show local and remote cache status.
+
+```bash
+dagryn cache status
+```
+
+### `dagryn cache clear`
+
+Clear the local cache.
+
+```bash
+dagryn cache clear              # Clear all
+dagryn cache clear --task build # Clear specific task
+```
+
+### `dagryn cache push`
+
+Push local cache entries to the remote cache.
+
+```bash
+dagryn cache push
+dagryn cache push --task build
+```
+
+### `dagryn cache pull`
+
+Pull remote cache entries to local.
+
+```bash
+dagryn cache pull
+dagryn cache pull --task build
+```
+
+## Plugin Management
+
+### `dagryn plugin list`
+
+List installed plugins.
+
+```bash
+dagryn plugin list
+```
+
+### `dagryn plugin install <spec>`
+
+Install a plugin manually.
+
+```bash
+dagryn plugin install github:golangci/golangci-lint@v2.8.0
+dagryn plugin install go:golang.org/x/vuln/cmd/govulncheck@latest
+dagryn plugin install npm:prettier@3.0.0
+```
+
+### `dagryn plugin info <spec>`
+
+Show plugin metadata and available inputs.
+
+```bash
+dagryn plugin info golangci-lint
+```
+
+### `dagryn plugin update`
+
+Update all plugins to their latest versions.
+
+```bash
+dagryn plugin update
+```
+
+### `dagryn plugin init <name>`
+
+Scaffold a new plugin project.
+
+```bash
+dagryn plugin init my-plugin
+dagryn plugin init my-plugin --type composite
+```
+
+| Flag | Description |
+|------|-------------|
+| `--type <type>` | Plugin type: tool, composite, integration |
+
+### `dagryn plugin validate`
+
+Validate a `plugin.toml` manifest.
+
+```bash
+dagryn plugin validate
+```
+
+### `dagryn plugin clean [spec]`
+
+Remove installed plugins.
+
+```bash
+dagryn plugin clean golangci-lint
+dagryn plugin clean --all
+```
+
+## Cluster and Node Management
+
+### `dagryn cluster list`
+
+List all registered clusters.
+
+```bash
+dagryn cluster list
+```
+
+### `dagryn cluster create <name>`
+
+Create a new cluster.
+
+```bash
+dagryn cluster create gpu-cluster --description "GPU worker pool"
+```
+
+### `dagryn cluster delete <id>`
+
+Delete a cluster.
+
+```bash
+dagryn cluster delete <cluster-id>
+```
+
+### `dagryn nodes list`
+
+List worker nodes.
+
+```bash
+dagryn nodes list
+dagryn nodes list --cluster <cluster-id>
+```
+
+### `dagryn nodes drain <worker-id>`
+
+Drain a worker — stops accepting new tasks while finishing current ones.
+
+```bash
+dagryn nodes drain <worker-id>
+```
+
+### `dagryn nodes remove <worker-id>`
+
+Deregister a worker node.
+
+```bash
+dagryn nodes remove <worker-id>
+```
+
+## Agent (Worker)
+
+### `dagryn agent start`
+
+Start a worker agent that connects to the control plane and executes tasks.
+
+```bash
+dagryn agent start --server localhost:9001 --token <auth-token>
+```
+
+| Flag | Description |
+|------|-------------|
+| `--server <addr>` | Control plane gRPC address (default: `localhost:9001`) |
+| `--token <token>` | Authentication token |
+| `--labels <k=v,...>` | Worker labels (e.g., `gpu=true,arch=arm64`) |
+| `--max-tasks <n>` | Max concurrent tasks |
+| `--heartbeat <sec>` | Heartbeat interval in seconds |
+| `--workdir <path>` | Working directory for task execution |
+| `--cluster <name>` | Cluster to join |
+| `--tls-cert <path>` | TLS certificate |
+| `--tls-key <path>` | TLS private key |
+| `--tls-ca <path>` | TLS CA certificate |
+
+### `dagryn agent status`
+
+Show agent connection status.
+
+```bash
+dagryn agent status
+```
+
+## Server and Infrastructure
+
+### `dagryn server`
+
+Start the Dagryn API server. See [Self-Hosting](/docs/self-hosting) for details.
+
+```bash
+dagryn server
+dagryn server --port 3000 --database postgres://localhost/dagryn
+dagryn server --config /etc/dagryn/server.toml
+```
+
+### `dagryn worker`
+
+Start the background job worker.
+
+```bash
+dagryn worker
+dagryn worker --concurrency 20 --redis-host redis.local
+```
+
+### `dagryn migrate`
+
+Manage database migrations.
+
+```bash
+dagryn migrate up                    # Apply all pending migrations
+dagryn migrate down                  # Rollback last migration
+dagryn migrate down --steps 3        # Rollback multiple
+dagryn migrate status                # Show migration status
+```
+
+### `dagryn license`
+
+Manage license activation.
+
+```bash
+dagryn license status
+dagryn license activate <key> --name "production"
+dagryn license deactivate
+```
+
+## Shell Completion
+
+```bash
+# Bash
+dagryn completion bash > /etc/bash_completion.d/dagryn
+
+# Zsh
+dagryn completion zsh > "${fpath[1]}/_dagryn"
+```
