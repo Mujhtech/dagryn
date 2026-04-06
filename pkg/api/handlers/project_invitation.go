@@ -186,7 +186,7 @@ func (h *Handler) RevokeProjectInvitation(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	invitationID, err := uuid.Parse(chi.URLParam(r, "invitationID"))
+	invitationID, err := uuid.Parse(chi.URLParam(r, InvitationIDParam))
 	if err != nil {
 		_ = response.BadRequest(w, r, errors.New("invalid invitation ID"))
 		return

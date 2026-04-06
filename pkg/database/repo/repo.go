@@ -17,6 +17,10 @@ type UserStore interface {
 	Update(ctx context.Context, user *models.User) error
 	UpsertByProvider(ctx context.Context, user *models.User) error
 	Delete(ctx context.Context, id uuid.UUID) error
+	Deactivate(ctx context.Context, id uuid.UUID) error
+	Reactivate(ctx context.Context, id uuid.UUID) error
+	GetBySCIMExternalID(ctx context.Context, externalID string) (*models.User, error)
+	ListByTeamForSCIM(ctx context.Context, teamID uuid.UUID, startIndex, count int) ([]models.User, int, error)
 }
 
 // TokenStore defines the interface for token repository operations.
@@ -83,6 +87,14 @@ type APIKeyStore interface {
 	ListByUser(ctx context.Context, userID uuid.UUID) ([]models.APIKeyWithProject, error)
 	ListByProject(ctx context.Context, projectID uuid.UUID) ([]models.APIKey, error)
 	ListActive(ctx context.Context, userID uuid.UUID) ([]models.APIKeyWithProject, error)
+}
+
+type ClusterWorkerTokenStore interface {
+	Create(ctx context.Context, token *models.ClusterWorkerToken) (string, error)
+	Validate(ctx context.Context, rawToken string) (*models.ClusterWorkerToken, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*models.ClusterWorkerToken, error)
+	ListByUser(ctx context.Context, userID uuid.UUID) ([]models.ClusterWorkerToken, error)
+	Revoke(ctx context.Context, id uuid.UUID) error
 }
 
 // InvitationStore defines the interface for invitation repository operations.
@@ -254,6 +266,20 @@ type AuditLogStore interface {
 // AnalyticsStore defines the interface for cross-project analytics aggregation.
 type AnalyticsStore interface {
 	GetTeamAnalytics(ctx context.Context, projectIDs []uuid.UUID, teamID *uuid.UUID, days int) (*TeamAnalytics, error)
+}
+
+// SSOStore defines the interface for SSO repository operations.
+type SSOStore interface {
+	CreateConnection(ctx context.Context, conn *models.SSOConnection) error
+	GetConnectionByID(ctx context.Context, id uuid.UUID) (*models.SSOConnection, error)
+	GetConnectionByTeamID(ctx context.Context, teamID uuid.UUID) (*models.SSOConnection, error)
+	GetConnectionBySPEntityID(ctx context.Context, spEntityID string) (*models.SSOConnection, error)
+	UpdateConnection(ctx context.Context, conn *models.SSOConnection) error
+	DeleteConnection(ctx context.Context, id uuid.UUID) error
+	CreateState(ctx context.Context, state *models.SSOState) error
+	GetStateByRelayState(ctx context.Context, relayState string) (*models.SSOState, error)
+	DeleteState(ctx context.Context, id uuid.UUID) error
+	CleanupExpiredStates(ctx context.Context) (int64, error)
 }
 
 // CacheStore defines the interface for cache repository operations.

@@ -240,6 +240,12 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if project.TeamID == nil && h.store.Clusters != nil {
+		if _, err := h.store.Clusters.EnsureDefaultClusterForScope(ctx, nil, &user.ID); err != nil {
+			slog.Warn("create_project: failed to ensure personal default cluster", "user_id", user.ID, "error", err)
+		}
+	}
+
 	// Fire lifecycle hook for billing account linkage (cloud) or no-op (self-hosted).
 	if h.entitlements != nil {
 		var ownerName string

@@ -118,7 +118,7 @@ func (h *AuthHandler) ListProviders(w http.ResponseWriter, r *http.Request) {
 //	@Failure		400			{object}	ErrorResponse
 //	@Router			/api/v1/auth/{provider} [get]
 func (h *AuthHandler) StartOAuth(w http.ResponseWriter, r *http.Request) {
-	providerName := chi.URLParam(r, "provider")
+	providerName := chi.URLParam(r, ProviderParam)
 
 	provider, ok := h.providers[providerName]
 	if !ok {
@@ -157,7 +157,7 @@ func (h *AuthHandler) StartOAuth(w http.ResponseWriter, r *http.Request) {
 //	@Failure		401			{object}	ErrorResponse
 //	@Router			/api/v1/auth/{provider}/callback [post]
 func (h *AuthHandler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
-	providerName := chi.URLParam(r, "provider")
+	providerName := chi.URLParam(r, ProviderParam)
 
 	provider, ok := h.providers[providerName]
 	if !ok {

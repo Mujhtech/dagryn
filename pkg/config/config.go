@@ -83,6 +83,30 @@ type AIServerConfig struct {
 	RawResponseStorage    string `toml:"raw_response_storage" envconfig:"RAW_RESPONSE_STORAGE"`
 }
 
+// SSOConfig holds SAML SSO configuration.
+type SSOConfig struct {
+	SPCertFile       string `toml:"sp_cert_file" envconfig:"SP_CERT_FILE"`
+	SPKeyFile        string `toml:"sp_key_file" envconfig:"SP_KEY_FILE"`
+	SPCert           string `toml:"sp_cert" envconfig:"SP_CERT"`
+	SPKey            string `toml:"sp_key" envconfig:"SP_KEY"`
+	AutoGenerateCert bool   `toml:"auto_generate_cert" envconfig:"AUTO_GENERATE_CERT"`
+}
+
+// ClusterConfig holds multi-cluster / distributed worker pool configuration.
+type ClusterConfig struct {
+	Enabled         bool   `toml:"enabled" envconfig:"ENABLED"`
+	GRPCAddress     string `toml:"grpc_address" envconfig:"GRPC_ADDRESS"`        // default ":9001"
+	HeartbeatSec    int    `toml:"heartbeat_interval" envconfig:"HEARTBEAT_SEC"` // default 10
+	StaleTimeoutSec int    `toml:"stale_timeout" envconfig:"STALE_TIMEOUT_SEC"`  // default 30
+	MaxRetries      int    `toml:"max_retries" envconfig:"MAX_RETRIES"`          // default 2
+	DefaultRouter   string `toml:"default_router" envconfig:"DEFAULT_ROUTER"`    // "least-loaded", "round-robin", "label-affinity"
+
+	// mTLS
+	TLSCertFile string `toml:"tls_cert_file" envconfig:"TLS_CERT_FILE"`
+	TLSKeyFile  string `toml:"tls_key_file" envconfig:"TLS_KEY_FILE"`
+	TLSCAFile   string `toml:"tls_ca_file" envconfig:"TLS_CA_FILE"`
+}
+
 // Config holds all server configuration.
 type Config struct {
 	Worker          WorkerConfig          `toml:"worker"`
@@ -102,6 +126,8 @@ type Config struct {
 	License         LicenseConfig         `toml:"license"`
 	Cache           CacheConfig           `toml:"cache"`
 	AI              AIServerConfig        `toml:"ai"`
+	SSO             SSOConfig             `toml:"sso"`
+	Cluster         ClusterConfig         `toml:"cluster"`
 }
 
 // StorageConfig holds cache storage backend configuration.
@@ -379,6 +405,8 @@ func ProcessEnvVars(cfg *Config) {
 	_ = envconfig.Process("DAGRYN", &cfg.Health)
 	_ = envconfig.Process("DAGRYN_STRIPE", &cfg.Stripe)
 	_ = envconfig.Process("DAGRYN_AI", &cfg.AI)
+	_ = envconfig.Process("DAGRYN_SSO", &cfg.SSO)
+	_ = envconfig.Process("DAGRYN_CLUSTER", &cfg.Cluster)
 
 	// OTEL vars use standard naming (not DAGRYN-prefixed).
 	if v := os.Getenv("OTEL_SERVICE_NAME"); v != "" {

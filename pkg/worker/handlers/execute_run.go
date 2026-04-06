@@ -77,6 +77,12 @@ type JobEnqueuer interface {
 	EnqueueRaw(queue, taskName string, data []byte) error
 }
 
+// ClusterDispatcher dispatches tasks to remote workers. Optional; nil when cluster mode is disabled.
+type ClusterDispatcher interface {
+	// CreateRemoteExecutor creates a TaskExecutor that dispatches to remote workers.
+	CreateRemoteExecutor(runID, projectID string, teamID *uuid.UUID, ownerUserID *uuid.UUID, gitSource interface{}, maxRetries int) executor.TaskExecutor
+}
+
 // ExecuteRunHandler handles the execute_run job: clone repo, load config, run workflow, report status.
 type ExecuteRunHandler struct {
 	runs                repo.RunStore
@@ -94,6 +100,7 @@ type ExecuteRunHandler struct {
 	eventPublisher      sse.EventPublisher
 	jobEnqueuer         JobEnqueuer
 	baseURL             string
+	clusterDispatcher   ClusterDispatcher
 }
 
 // GitHubAppClient is an interface for fetching installation tokens.
@@ -159,6 +166,11 @@ func NewExecuteRunHandler(
 		jobEnqueuer:         jobEnqueuer,
 		baseURL:             baseURL,
 	}
+}
+
+// SetClusterDispatcher sets the optional cluster dispatcher for distributed mode.
+func (h *ExecuteRunHandler) SetClusterDispatcher(d ClusterDispatcher) {
+	h.clusterDispatcher = d
 }
 
 // createSyntheticTask creates a task result for infrastructure operations like clone/cleanup.
@@ -639,6 +651,32 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		condCtx.PRNumber = *run.PRNumber
 	}
 	opts.ConditionContext = condCtx
+
+	// Wire cluster dispatcher for distributed mode (if configured)
+	if h.clusterDispatcher != nil {
+		opts.DistributedMode = true
+		var ownerUserID *uuid.UUID
+		if run.TriggeredByUserID != nil {
+			ownerUserID = run.TriggeredByUserID
+		} else if project.TeamID == nil {
+			if project.RepoLinkedByUserID != nil {
+				ownerUserID = project.RepoLinkedByUserID
+			} else if members, listErr := h.projects.ListMembers(ctx, projectID); listErr == nil {
+				for i := range members {
+					if members[i].Role == models.RoleOwner {
+						ownerUserID = &members[i].UserID
+						break
+					}
+				}
+				if ownerUserID == nil && len(members) > 0 {
+					ownerUserID = &members[0].UserID
+				}
+			}
+		}
+		opts.RemoteExecutor = h.clusterDispatcher.CreateRemoteExecutor(
+			runID.String(), projectID.String(), project.TeamID, ownerUserID, nil, 2,
+		)
+	}
 
 	sched, err := scheduler.New(workflow, workDir, opts)
 	if err != nil {

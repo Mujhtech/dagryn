@@ -20,9 +20,11 @@ import (
 	"github.com/mujhtech/dagryn/pkg/githubapp"
 	"github.com/mujhtech/dagryn/pkg/http/response"
 	"github.com/mujhtech/dagryn/pkg/licensing"
+	"github.com/mujhtech/dagryn/pkg/scim"
 	"github.com/mujhtech/dagryn/pkg/server/dashboard"
 	"github.com/mujhtech/dagryn/pkg/server/sse"
 	"github.com/mujhtech/dagryn/pkg/service"
+	"github.com/mujhtech/dagryn/pkg/sso"
 	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/mujhtech/dagryn/pkg/worker"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
@@ -47,6 +49,8 @@ type API struct {
 	extraRoutes       func(chi.Router)       // Injected by cloud binary via RegisterExtraRoutes.
 	dashboardHandler  http.Handler           // Overrides default embedded dashboard (set by cloud binary).
 	auditService      *service.AuditService  // Stored for passing to authHandler during BuildRouter.
+	ssoService        *sso.Service           // SSO service for SAML authentication.
+	scimService       *scim.Service          // SCIM service for user provisioning.
 }
 
 func New(
@@ -133,9 +137,26 @@ func (a *API) SetAuditService(s *service.AuditService) {
 	a.auditService = s
 }
 
+// SetSSOService sets the SSO service on both the API and handler.
+func (a *API) SetSSOService(s *sso.Service) {
+	a.ssoService = s
+	a.h.SetSSOService(s)
+}
+
+// SetSCIMService sets the SCIM service on both the API and handler.
+func (a *API) SetSCIMService(s *scim.Service) {
+	a.scimService = s
+	a.h.SetSCIMService(s)
+}
+
 // SetEncrypter delegates to the handler for webhook secret encryption.
 func (a *API) SetEncrypter(e encrypt.Encrypt) {
 	a.h.SetEncrypter(e)
+}
+
+// SetLicenseServerURL delegates to the handler for license server URL.
+func (a *API) SetLicenseServerURL(url string) {
+	a.h.SetLicenseServerURL(url)
 }
 
 // SetFeatureGate delegates to the handler for detailed license info.
@@ -229,12 +250,45 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 			r.Post("/github", a.h.GitHubWebhook)
 		})
 
+		// Public SAML SP endpoints (no auth required)
+		if a.ssoService != nil {
+			ssoHandler := handlers.NewSSOHandler(a.ssoService, a.jwtService, a.store, a.cfg.Server.BaseURL)
+			r.Route(fmt.Sprintf("/sso/{%s}", handlers.TeamSlugParam), func(r chi.Router) {
+				r.Get("/metadata", ssoHandler.SSOMetadata)
+				r.Get("/login", ssoHandler.SSOLogin)
+				r.Post("/acs", ssoHandler.SSOACS)
+			})
+		}
+
+		// SCIM 2.0 provisioning endpoints (SCIM token auth, no JWT)
+		if a.scimService != nil {
+			scimHandler := handlers.NewSCIMHandler(a.scimService)
+			r.Route(fmt.Sprintf("/scim/{%s}", handlers.TeamSlugParam), func(r chi.Router) {
+				r.Use(middleware.RequireFeature(a.entitlements, string(licensing.FeatureSSO)))
+				r.Use(middleware.SCIMAuth(a.store.SSO, a.store.Teams))
+
+				// Users
+				r.Get("/Users", scimHandler.ListSCIMUsers)
+				r.Post("/Users", scimHandler.CreateSCIMUser)
+				r.Get(fmt.Sprintf("/Users/{%s}", handlers.SCIMUserIDParam), scimHandler.GetSCIMUser)
+				r.Put(fmt.Sprintf("/Users/{%s}", handlers.SCIMUserIDParam), scimHandler.UpdateSCIMUser)
+				r.Patch(fmt.Sprintf("/Users/{%s}", handlers.SCIMUserIDParam), scimHandler.PatchSCIMUser)
+				r.Delete(fmt.Sprintf("/Users/{%s}", handlers.SCIMUserIDParam), scimHandler.DeleteSCIMUser)
+
+				// Groups
+				r.Get("/Groups", scimHandler.ListSCIMGroups)
+				r.Get(fmt.Sprintf("/Groups/{%s}", handlers.SCIMGroupIDParam), scimHandler.GetSCIMGroup)
+				r.Patch(fmt.Sprintf("/Groups/{%s}", handlers.SCIMGroupIDParam), scimHandler.PatchSCIMGroup)
+				r.Delete(fmt.Sprintf("/Groups/{%s}", handlers.SCIMGroupIDParam), scimHandler.DeleteSCIMGroup)
+			})
+		}
+
 		// Auth routes (mixed public and protected)
 		r.Route("/auth", func(r chi.Router) {
 			// Public auth endpoints
 			r.Get("/providers", authHandler.ListProviders)
-			r.Get("/{provider}", authHandler.StartOAuth)
-			r.Post("/{provider}/callback", authHandler.OAuthCallback)
+			r.Get(fmt.Sprintf("/{%s}", handlers.ProviderParam), authHandler.StartOAuth)
+			r.Post(fmt.Sprintf("/{%s}/callback", handlers.ProviderParam), authHandler.OAuthCallback)
 			r.Post("/refresh", authHandler.RefreshToken)
 
 			// Device code flow (for CLI) - public
@@ -316,6 +370,19 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 								r.Post("/test", a.h.TestAuditWebhook)
 							})
 						})
+					})
+
+					// Team SSO settings (gated by SSO feature)
+					r.Route("/sso", func(r chi.Router) {
+						r.Use(middleware.RequireFeature(a.entitlements, string(licensing.FeatureSSO)))
+						r.Get("/", a.h.GetSSOConnection)
+						r.Post("/", a.h.CreateSSOConnection)
+						r.Patch("/", a.h.UpdateSSOConnection)
+						r.Delete("/", a.h.DeleteSSOConnection)
+						r.Post("/test", a.h.TestSSOConnection)
+						r.Patch("/enforce", a.h.ToggleSSOEnforcement)
+						r.Post("/scim-token", a.h.GenerateSCIMToken)
+						r.Post("/scim-token/rotate", a.h.RotateSCIMToken)
 					})
 				})
 			})
@@ -416,7 +483,7 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 					r.Route("/api-keys", func(r chi.Router) {
 						r.Get("/", a.h.ListProjectAPIKeys)
 						r.Post("/", a.h.CreateProjectAPIKey)
-						r.Delete("/{keyID}", a.h.RevokeProjectAPIKey)
+						r.Delete(fmt.Sprintf("/{%s}", handlers.KeyIDParam), a.h.RevokeProjectAPIKey)
 					})
 
 					// Project workflows
@@ -506,8 +573,44 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 			// Invitations (for accepting)
 			r.Route("/invitations", func(r chi.Router) {
 				r.Get("/", a.h.ListPendingInvitations)
-				r.Post("/{token}/accept", a.h.AcceptInvitation)
-				r.Post("/{token}/decline", a.h.DeclineInvitation)
+				r.Post(fmt.Sprintf("/{%s}/accept", handlers.InvitationTokenParam), a.h.AcceptInvitation)
+				r.Post(fmt.Sprintf("/{%s}/decline", handlers.InvitationTokenParam), a.h.DeclineInvitation)
+			})
+
+			// Cluster management routes
+			r.Route("/clusters", func(r chi.Router) {
+				r.Use(middleware.RequireFeature(a.entitlements, string(licensing.FeatureMultiCluster)))
+				r.Get("/", a.h.ListClusters)
+				r.Post("/", a.h.CreateCluster)
+				r.Route(fmt.Sprintf("/{%s}", handlers.ClusterIDParam), func(r chi.Router) {
+					r.Get("/", a.h.GetCluster)
+					r.Put("/", a.h.UpdateCluster)
+					r.Delete("/", a.h.DeleteCluster)
+				})
+			})
+
+			// Worker management routes
+			r.Route("/workers", func(r chi.Router) {
+				r.Use(middleware.RequireFeature(a.entitlements, string(licensing.FeatureMultiCluster)))
+				r.Get("/", a.h.ListWorkers)
+				r.Route("/tokens", func(r chi.Router) {
+					r.Get("/", a.h.ListClusterWorkerTokens)
+					r.Post("/", a.h.CreateClusterWorkerToken)
+					r.Delete(fmt.Sprintf("/{%s}", handlers.WorkerTokenIDParam), a.h.RevokeClusterWorkerToken)
+				})
+				r.Route(fmt.Sprintf("/{%s}", handlers.WorkerIDParam), func(r chi.Router) {
+					r.Get("/", a.h.GetWorker)
+					r.Delete("/", a.h.DeleteWorker)
+					r.Post("/drain", a.h.DrainWorker)
+				})
+			})
+
+			// Task assignment routes (per run)
+			r.Route("/runs", func(r chi.Router) {
+				r.Route(fmt.Sprintf("/{%s}", handlers.RunIDParam), func(r chi.Router) {
+					r.Use(middleware.RequireFeature(a.entitlements, string(licensing.FeatureMultiCluster)))
+					r.Get("/assignments", a.h.ListRunAssignments)
+				})
 			})
 
 			// Extra routes injected by the cloud binary (e.g. billing

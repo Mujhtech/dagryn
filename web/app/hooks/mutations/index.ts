@@ -24,3 +24,12 @@ export { useUninstallPlugin } from "./use-uninstall-plugin";
 export { useRetryAIAnalysis, usePostAISuggestions } from "./use-ai-analysis";
 export { useActivateLicense } from "./use-activate-license";
 export { useCreateAuditWebhook, useUpdateAuditWebhook, useDeleteAuditWebhook } from "./use-audit-webhooks";
+export {
+  useCreateSSOConnection,
+  useUpdateSSOConnection,
+  useDeleteSSOConnection,
+  useTestSSOConnection,
+  useToggleSSOEnforcement,
+  useGenerateSCIMToken,
+  useRotateSCIMToken,
+} from "./use-sso-mutations";

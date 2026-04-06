@@ -217,6 +217,13 @@ func (tc *TriggerConfig) MatchesPullRequest(baseBranch, action string) bool {
 	return true
 }
 
+// TaskRoutingConfig controls how a task is dispatched in distributed mode.
+type TaskRoutingConfig struct {
+	Labels      map[string]string `toml:"labels"`       // Required worker labels
+	Cluster     string            `toml:"cluster"`      // Target cluster name
+	PreferLocal *bool             `toml:"prefer_local"` // Try local before remote (default true)
+}
+
 // TaskConfig represents a task definition in the config file.
 type TaskConfig struct {
 	Command   string                    `toml:"command"`
@@ -231,6 +238,7 @@ type TaskConfig struct {
 	Container *task.TaskContainerConfig `toml:"container"` // Per-task container overrides
 	Group     string                    `toml:"group"`     // Logical group for target resolution
 	If        string                    `toml:"if"`        // Condition expression for conditional execution
+	Routing   *TaskRoutingConfig        `toml:"routing"`   // Distributed dispatch routing config
 }
 
 // HasPlugins returns true if the task has any plugin dependencies.

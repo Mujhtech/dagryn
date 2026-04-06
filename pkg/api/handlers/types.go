@@ -802,6 +802,16 @@ type UpdateAuditWebhookRequest struct {
 	IsActive    *bool    `json:"is_active,omitempty" example:"true"`
 }
 
+// WebhookTestResponse represents the result of a webhook test delivery.
+//
+//	@Description	Webhook test delivery result
+type WebhookTestResponse struct {
+	Success    bool   `json:"success" example:"true"`
+	StatusCode int    `json:"status_code,omitempty" example:"200"`
+	Error      string `json:"error,omitempty"`
+	DurationMs int64  `json:"duration_ms" example:"142"`
+}
+
 // TeamAnalyticsResponse contains aggregated analytics across projects.
 //
 //	@Description	Aggregated analytics response
@@ -926,6 +936,109 @@ type AuditActorCountResponse struct {
 type DailyAuditPointResponse struct {
 	Date   string `json:"date"`
 	Events int    `json:"events"`
+}
+
+// ClusterResponse represents a cluster in API responses.
+//
+//	@Description	Cluster resource
+type ClusterResponse struct {
+	ID            string            `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Name          string            `json:"name" example:"production"`
+	Slug          string            `json:"slug" example:"production"`
+	Description   string            `json:"description" example:"Production cluster"`
+	Labels        map[string]string `json:"labels"`
+	ScopeType     string            `json:"scope_type" example:"team"`
+	TeamID        *string           `json:"team_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440001"`
+	OwnerUserID   *string           `json:"owner_user_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440002"`
+	SystemDefault bool              `json:"system_default" example:"false"`
+	CreatedAt     string            `json:"created_at" example:"2025-01-01T00:00:00Z"`
+	UpdatedAt     string            `json:"updated_at" example:"2025-01-01T00:00:00Z"`
+}
+
+// CreateClusterRequest represents the request body for creating a cluster.
+//
+//	@Description	Create cluster request
+type CreateClusterRequest struct {
+	Name        string            `json:"name" example:"staging"`
+	Description string            `json:"description" example:"Staging cluster for pre-production testing"`
+	Labels      map[string]string `json:"labels"`
+	TeamID      *string           `json:"team_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440001"`
+}
+
+// UpdateClusterRequest represents the request body for updating a cluster.
+//
+//	@Description	Update cluster request
+type UpdateClusterRequest struct {
+	Name        *string           `json:"name,omitempty" example:"staging-v2"`
+	Description *string           `json:"description,omitempty" example:"Updated staging cluster"`
+	Labels      map[string]string `json:"labels,omitempty"`
+}
+
+// WorkerResponse represents a worker in API responses.
+//
+//	@Description	Worker resource
+type WorkerResponse struct {
+	ID                 string   `json:"id" example:"550e8400-e29b-41d4-a716-446655440003"`
+	Hostname           string   `json:"hostname" example:"worker-01.example.com"`
+	OS                 string   `json:"os" example:"linux"`
+	Arch               string   `json:"arch" example:"amd64"`
+	Environment        string   `json:"environment" example:"docker"`
+	Labels             any      `json:"labels"`
+	Capabilities       []string `json:"capabilities" example:"docker,gpu"`
+	MaxConcurrentTasks int      `json:"max_concurrent_tasks" example:"4"`
+	Version            string   `json:"version" example:"0.1.0"`
+	Status             string   `json:"status" example:"online"`
+	LastHeartbeatAt    string   `json:"last_heartbeat_at" example:"2025-01-01T00:00:00Z"`
+	RegisteredAt       string   `json:"registered_at" example:"2025-01-01T00:00:00Z"`
+	ClusterID          *string  `json:"cluster_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ActiveTasks        int      `json:"active_tasks" example:"2"`
+}
+
+// ClusterWorkerTokenResponse represents a cluster worker token.
+type ClusterWorkerTokenResponse struct {
+	ID          string  `json:"id" example:"550e8400-e29b-41d4-a716-446655440010"`
+	Name        string  `json:"name" example:"my-personal-mbp"`
+	KeyPrefix   string  `json:"key_prefix" example:"dg_wkr_abc123def"`
+	ScopeType   string  `json:"scope_type" example:"personal"`
+	TeamID      *string `json:"team_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440001"`
+	OwnerUserID *string `json:"owner_user_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440002"`
+	ClusterID   *string `json:"cluster_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
+	LastUsedAt  *string `json:"last_used_at,omitempty" example:"2026-04-03T09:00:00Z"`
+	ExpiresAt   *string `json:"expires_at,omitempty" example:"2026-07-01T00:00:00Z"`
+	CreatedAt   string  `json:"created_at" example:"2026-04-03T08:00:00Z"`
+	RevokedAt   *string `json:"revoked_at,omitempty" example:"2026-04-04T08:00:00Z"`
+}
+
+// CreateClusterWorkerTokenRequest creates a scoped worker token.
+type CreateClusterWorkerTokenRequest struct {
+	Name      string  `json:"name" example:"team-runner-1"`
+	TeamID    *string `json:"team_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440001"`
+	ClusterID *string `json:"cluster_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ExpiresIn string  `json:"expires_in,omitempty" example:"90d"`
+}
+
+// ClusterWorkerTokenCreatedResponse contains metadata and one-time token secret.
+type ClusterWorkerTokenCreatedResponse struct {
+	Token ClusterWorkerTokenResponse `json:"token"`
+	Key   string                     `json:"key" example:"dg_wkr_..."`
+}
+
+// TaskAssignmentResponse represents a task assignment in API responses.
+//
+//	@Description	Task assignment resource
+type TaskAssignmentResponse struct {
+	ID          string  `json:"id" example:"550e8400-e29b-41d4-a716-446655440004"`
+	RunID       string  `json:"run_id" example:"550e8400-e29b-41d4-a716-446655440005"`
+	TaskName    string  `json:"task_name" example:"build"`
+	WorkerID    *string `json:"worker_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440003"`
+	ClusterID   *string `json:"cluster_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Status      string  `json:"status" example:"completed"`
+	AssignedAt  *string `json:"assigned_at,omitempty" example:"2025-01-01T00:00:00Z"`
+	StartedAt   *string `json:"started_at,omitempty" example:"2025-01-01T00:00:01Z"`
+	CompletedAt *string `json:"completed_at,omitempty" example:"2025-01-01T00:00:30Z"`
+	RetryCount  int     `json:"retry_count" example:"0"`
+	MaxRetries  int     `json:"max_retries" example:"3"`
+	CreatedAt   string  `json:"created_at" example:"2025-01-01T00:00:00Z"`
 }
 
 // ProjectActivityResponse summarizes a project's activity for the leaderboard.

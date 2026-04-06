@@ -26,6 +26,8 @@ const (
 	UserAgentContextKey contextKey = "user_agent"
 	// RequestIDContextKey is the context key for the request ID.
 	RequestIDContextKey contextKey = "request_id"
+	// TeamContextKey is the context key for the team (used by SCIM middleware).
+	TeamContextKey contextKey = "team"
 )
 
 // AuthMethod represents how the request was authenticated.
@@ -36,6 +38,8 @@ const (
 	AuthMethodJWT AuthMethod = "jwt"
 	// AuthMethodAPIKey indicates API key authentication.
 	AuthMethodAPIKey AuthMethod = "api_key"
+	// AuthMethodSAML indicates SAML SSO authentication.
+	AuthMethodSAML AuthMethod = "saml"
 )
 
 // WithUser adds the user to the context.
@@ -117,4 +121,15 @@ func WithRequestID(ctx context.Context, id string) context.Context {
 func GetRequestID(ctx context.Context) string {
 	id, _ := ctx.Value(RequestIDContextKey).(string)
 	return id
+}
+
+// WithTeam adds a team to the context (used by SCIM middleware).
+func WithTeam(ctx context.Context, team *models.Team) context.Context {
+	return context.WithValue(ctx, TeamContextKey, team)
+}
+
+// GetTeam returns the team from the context, or nil if not set.
+func GetTeam(ctx context.Context) *models.Team {
+	team, _ := ctx.Value(TeamContextKey).(*models.Team)
+	return team
 }

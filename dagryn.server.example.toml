@@ -49,6 +49,18 @@ concurrency = 10
 [telemetry]
 enabled = false
 
+# Distributed worker pool / multi-cluster control plane (optional)
+[cluster]
+enabled = true
+grpc_address = ":9001"
+heartbeat_interval = 10
+stale_timeout = 30
+max_retries = 2
+default_router = "least-loaded" # "least-loaded", "round-robin", "label-affinity"
+# tls_cert_file = ""
+# tls_key_file = ""
+# tls_ca_file = ""
+
 # GitHub App configuration (optional, required for GitHub webhooks + app-based repo access)
 [github_app]
 # Numeric GitHub App ID

@@ -54,6 +54,81 @@ export interface TeamMember {
   joined_at: string;
 }
 
+export interface Cluster {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  labels?: Record<string, string>;
+  scope_type: "global" | "team" | "personal";
+  team_id?: string;
+  owner_user_id?: string;
+  system_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Worker {
+  id: string;
+  hostname: string;
+  os: string;
+  arch: string;
+  environment: string;
+  labels?: Record<string, string>;
+  capabilities: string[];
+  max_concurrent_tasks: number;
+  version: string;
+  status: "online" | "draining" | "offline";
+  cluster_id?: string;
+  active_tasks: number;
+  last_heartbeat_at: string;
+  cpu_millicores_available?: number;
+  memory_bytes_available?: number;
+  disk_bytes_available?: number;
+  cpu_usage_percent?: number;
+  memory_usage_percent?: number;
+}
+
+export interface TaskAssignment {
+  id: string;
+  run_id: string;
+  task_name: string;
+  worker_id?: string;
+  cluster_id?: string;
+  status:
+    | "pending"
+    | "assigned"
+    | "running"
+    | "completed"
+    | "failed"
+    | "reassigned";
+  assigned_at?: string;
+  started_at?: string;
+  completed_at?: string;
+  retry_count: number;
+  max_retries: number;
+  created_at: string;
+}
+
+export interface WorkerToken {
+  id: string;
+  name: string;
+  key_prefix: string;
+  scope_type: "team" | "personal";
+  team_id?: string;
+  owner_user_id?: string;
+  cluster_id?: string;
+  last_used_at?: string;
+  expires_at?: string;
+  created_at: string;
+  revoked_at?: string;
+}
+
+export interface WorkerTokenCreated {
+  token: WorkerToken;
+  key: string;
+}
+
 export interface Invitation {
   id: string;
   email: string;
@@ -654,6 +729,7 @@ export interface CapabilitiesResponse {
   edition: "community" | "pro" | "enterprise" | "cloud";
   features: FeatureEntry[];
   nav: CapabilitiesNavItem[];
+  grpc_public_address: string;
 }
 
 // Audit log types
@@ -792,6 +868,37 @@ export interface ProjectActivitySummary {
   cache_size_bytes: number;
   artifact_size_bytes: number;
   bandwidth_bytes: number;
+}
+
+// SSO types
+export interface SSOConnection {
+  id: string;
+  team_id: string;
+  idp_entity_id: string;
+  idp_sso_url: string;
+  idp_metadata_url?: string;
+  sp_entity_id: string;
+  sp_acs_url: string;
+  scim_enabled: boolean;
+  enforce_sso: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateSSOConnectionInput {
+  idp_entity_id: string;
+  idp_sso_url: string;
+  idp_metadata_url?: string;
+  idp_metadata_xml?: string;
+  certificate: string;
+}
+
+export interface UpdateSSOConnectionInput {
+  idp_entity_id?: string;
+  idp_sso_url?: string;
+  idp_metadata_url?: string;
+  idp_metadata_xml?: string;
+  certificate?: string;
 }
 
 // API Error
@@ -1063,6 +1170,75 @@ class ApiClient {
   // Teams
   async listTeams() {
     return this.fetch<PaginatedResponse<Team>>("/teams");
+  }
+
+  // Clusters
+  async listClusters(teamId?: string) {
+    const q = teamId ? `?team_id=${encodeURIComponent(teamId)}` : "";
+    return this.fetch<Cluster[]>(`/clusters${q}`);
+  }
+
+  async getCluster(clusterId: string) {
+    return this.fetch<Cluster>(`/clusters/${clusterId}`);
+  }
+
+  async createCluster(data: {
+    name: string;
+    description?: string;
+    labels?: Record<string, string>;
+    team_id?: string;
+  }) {
+    return this.fetch<Cluster>("/clusters", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteCluster(clusterId: string) {
+    return this.fetch<void>(`/clusters/${clusterId}`, { method: "DELETE" });
+  }
+
+  async listWorkers(
+    clusterId?: string,
+    status?: Worker["status"],
+    teamId?: string,
+  ) {
+    const params = new URLSearchParams();
+    if (clusterId) params.set("cluster_id", clusterId);
+    if (status) params.set("status", status);
+    if (teamId) params.set("team_id", teamId);
+    const q = params.toString();
+    return this.fetch<Worker[]>(`/workers${q ? `?${q}` : ""}`);
+  }
+
+  async getWorker(workerId: string) {
+    return this.fetch<Worker>(`/workers/${workerId}`);
+  }
+
+  async listWorkerTokens() {
+    return this.fetch<WorkerToken[]>("/workers/tokens");
+  }
+
+  async createWorkerToken(data: {
+    name: string;
+    team_id?: string;
+    cluster_id?: string;
+    expires_in?: string;
+  }) {
+    return this.fetch<WorkerTokenCreated>("/workers/tokens", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async revokeWorkerToken(workerTokenId: string) {
+    return this.fetch<void>(`/workers/tokens/${workerTokenId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async listRunAssignments(runId: string) {
+    return this.fetch<TaskAssignment[]>(`/runs/${runId}/assignments`);
   }
 
   async getTeam(id: string) {
@@ -1799,6 +1975,59 @@ class ApiClient {
 
   async getUserAnalytics(days = 30) {
     return this.fetch<AnalyticsOverview>(`/analytics?days=${days}`);
+  }
+
+  // SSO
+  async getSSOConnection(teamId: string) {
+    return this.fetch<SSOConnection>(`/teams/${teamId}/sso`);
+  }
+
+  async createSSOConnection(teamId: string, input: CreateSSOConnectionInput) {
+    return this.fetch<SSOConnection>(`/teams/${teamId}/sso`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+  }
+
+  async updateSSOConnection(teamId: string, input: UpdateSSOConnectionInput) {
+    return this.fetch<SSOConnection>(`/teams/${teamId}/sso`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+  }
+
+  async deleteSSOConnection(teamId: string) {
+    return this.fetch<void>(`/teams/${teamId}/sso`, { method: "DELETE" });
+  }
+
+  async testSSOConnection(teamId: string) {
+    return this.fetch<{ success: boolean; error?: string }>(
+      `/teams/${teamId}/sso/test`,
+      { method: "POST" },
+    );
+  }
+
+  async toggleSSOEnforcement(teamId: string, enforce: boolean) {
+    return this.fetch<SSOConnection>(`/teams/${teamId}/sso/enforce`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enforce }),
+    });
+  }
+
+  async generateSCIMToken(teamId: string) {
+    return this.fetch<{ token: string }>(`/teams/${teamId}/sso/scim-token`, {
+      method: "POST",
+    });
+  }
+
+  async rotateSCIMToken(teamId: string) {
+    return this.fetch<{ token: string }>(
+      `/teams/${teamId}/sso/scim-token/rotate`,
+      { method: "POST" },
+    );
   }
 
   // Public wrapper around the private fetch method.

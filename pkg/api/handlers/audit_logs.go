@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	apiCtx "github.com/mujhtech/dagryn/pkg/api/context"
 	"github.com/mujhtech/dagryn/pkg/database/models"
@@ -45,7 +44,7 @@ func (h *Handler) ListTeamAuditLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	teamID, err := uuid.Parse(chi.URLParam(r, "teamID"))
+	teamID, err := getTeamIDFromPath(r)
 	if err != nil {
 		_ = response.BadRequest(w, r, errors.New("invalid team ID"))
 		return
@@ -396,7 +395,7 @@ func (h *Handler) GetAuditRetentionPolicy(w http.ResponseWriter, r *http.Request
 //	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
-//	@Param			teamId	path		string						true	"Team ID"
+//	@Param			teamId	path		string							true	"Team ID"
 //	@Param			body	body		UpdateRetentionPolicyRequest	true	"Retention policy update"
 //	@Success		200		{object}	AuditRetentionPolicyResponse
 //	@Failure		400		{object}	ErrorResponse

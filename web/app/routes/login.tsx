@@ -1,11 +1,31 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useAuth } from "~/lib/auth";
 import { useAuthProviders } from "~/hooks/queries";
 import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import { cn } from "~/lib/utils";
 import { Logo } from "~/components/logo";
 import { generateMetadata } from "~/lib/metadata";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormMessage,
+} from "~/components/ui/form";
+
+const ssoLoginSchema = z.object({
+  teamSlug: z
+    .string()
+    .min(1, "Team slug is required")
+    .regex(/^[a-z0-9-]+$/, "Only lowercase letters, numbers, and hyphens"),
+});
+
+type SSOLoginFormValues = z.infer<typeof ssoLoginSchema>;
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -22,6 +42,10 @@ function LoginPage() {
   const { data: providers = [], isLoading: providersLoading } =
     useAuthProviders();
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
+  const ssoForm = useForm<SSOLoginFormValues>({
+    resolver: zodResolver(ssoLoginSchema),
+    defaultValues: { teamSlug: "" },
+  });
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
@@ -84,6 +108,45 @@ function LoginPage() {
               </Button>
             ))
           )}
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">Or</span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-center text-sm text-muted-foreground">
+              Sign in with SSO
+            </p>
+            <Form {...ssoForm}>
+              <form
+                onSubmit={ssoForm.handleSubmit((values) => {
+                  window.location.href = `/api/v1/sso/${values.teamSlug}/login`;
+                })}
+                className="flex gap-2"
+              >
+                <FormField
+                  control={ssoForm.control}
+                  name="teamSlug"
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormControl>
+                        <Input placeholder="Team slug" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" variant="outline">
+                  SSO
+                </Button>
+              </form>
+            </Form>
+          </div>
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">

@@ -1,0 +1,166 @@
+syntax = "proto3";
+package dagryn.cluster.v1;
+
+option go_package = "github.com/mujhtech/dagryn/pkg/cluster/v1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+// ClusterService manages worker registration, task dispatch, and log streaming.
+service ClusterService {
+  // Worker calls this to register and maintain connection.
+  // Server streams heartbeat acks; worker streams heartbeats.
+  rpc RegisterWorker(stream WorkerHeartbeat) returns (stream ControlMessage);
+
+  // Bidirectional stream for task dispatch and result reporting.
+  rpc TaskStream(stream TaskEvent) returns (stream TaskAssignment);
+
+  // Worker streams log lines back to control plane.
+  rpc StreamLogs(stream LogEntry) returns (LogAck);
+}
+
+// WorkerHeartbeat is sent periodically by the worker agent.
+message WorkerHeartbeat {
+  string worker_id = 1;
+  WorkerInfo info = 2;           // Sent on first heartbeat only
+  ResourceSnapshot resources = 3; // Sent on every heartbeat
+  int32 active_tasks = 4;
+  google.protobuf.Timestamp timestamp = 5;
+}
+
+// WorkerInfo describes a worker agent's capabilities and environment.
+message WorkerInfo {
+  string hostname = 1;
+  string os = 2;
+  string arch = 3;
+  string environment = 4;        // "kubernetes", "docker", "bare-metal"
+  map<string, string> labels = 5;
+  int32 max_concurrent_tasks = 6;
+  repeated string capabilities = 7; // "docker", "gpu", "arm64", etc.
+  string version = 8;             // Agent version for compat checks
+}
+
+// ResourceSnapshot is a point-in-time snapshot of worker resources.
+message ResourceSnapshot {
+  int64 cpu_millicores_available = 1;
+  int64 memory_bytes_available = 2;
+  int64 disk_bytes_available = 3;
+  double cpu_usage_percent = 4;
+  double memory_usage_percent = 5;
+}
+
+// ControlMessage is sent from the control plane to a worker.
+message ControlMessage {
+  oneof message {
+    HeartbeatAck ack = 1;
+    DrainRequest drain = 2;
+    ShutdownRequest shutdown = 3;
+  }
+}
+
+// HeartbeatAck acknowledges a worker heartbeat.
+message HeartbeatAck {
+  google.protobuf.Timestamp server_time = 1;
+  google.protobuf.Duration heartbeat_interval = 2;
+  string worker_id = 3;  // Assigned on first heartbeat (registration)
+}
+
+// DrainRequest asks the worker to stop accepting new tasks.
+message DrainRequest {
+  string reason = 1;
+  google.protobuf.Duration grace_period = 2;
+}
+
+// ShutdownRequest asks the worker to shut down.
+message ShutdownRequest {
+  string reason = 1;
+}
+
+// TaskAssignment is sent from the control plane to a worker to execute a task.
+message TaskAssignment {
+  string assignment_id = 1;
+  string run_id = 2;
+  string project_id = 3;
+  string task_name = 4;
+  string command = 5;
+  string workdir = 6;
+  map<string, string> env = 7;
+  int64 timeout_ms = 8;
+  ContainerConfig container = 9;
+  repeated string input_patterns = 10;
+  repeated string output_patterns = 11;
+
+  // Source code delivery
+  oneof source {
+    GitSource git = 20;
+    ArtifactSource artifact = 21;
+  }
+}
+
+// GitSource tells the worker how to clone the source code.
+message GitSource {
+  string repo_url = 1;
+  string ref = 2;
+  string commit = 3;
+  string token = 4;  // Ephemeral clone token
+}
+
+// ArtifactSource provides a pre-signed URL to a workspace tarball.
+message ArtifactSource {
+  string signed_url = 1;
+}
+
+// ContainerConfig specifies container execution settings.
+message ContainerConfig {
+  string image = 1;
+  string memory_limit = 2;
+  string cpu_limit = 3;
+  string network = 4;
+}
+
+// TaskEvent is sent from a worker back to the control plane.
+message TaskEvent {
+  string assignment_id = 1;
+  string worker_id = 2;
+  oneof event {
+    TaskAccepted accepted = 3;
+    TaskRejected rejected = 4;
+    TaskResult result = 5;
+  }
+}
+
+// TaskAccepted indicates the worker has accepted the task assignment.
+message TaskAccepted {}
+
+// TaskRejected indicates the worker has rejected the task assignment.
+message TaskRejected {
+  string reason = 1;
+}
+
+// TaskResult contains the outcome of a task execution.
+message TaskResult {
+  string task_name = 1;
+  int32 status = 2;             // Maps to executor.Status
+  int64 duration_ms = 3;
+  string output = 4;
+  int32 exit_code = 5;
+  string error_message = 6;     // String, not Go error (fix #2 from review: serializable)
+  google.protobuf.Timestamp start_time = 7;
+  google.protobuf.Timestamp end_time = 8;
+}
+
+// LogEntry is a single log line streamed from a worker.
+message LogEntry {
+  string assignment_id = 1;
+  string worker_id = 2;
+  string task_name = 3;
+  string stream = 4;            // "stdout" or "stderr"
+  string line = 5;
+  google.protobuf.Timestamp timestamp = 6;
+  string run_id = 7;            // Run ID for SSE log routing
+}
+
+// LogAck acknowledges receipt of log entries.
+message LogAck {
+  int64 lines_received = 1;
+}

@@ -26,15 +26,17 @@ import (
 
 // Options configures the scheduler behavior.
 type Options struct {
-	Parallelism      int                // Max concurrent tasks (default: NumCPU)
-	NoCache          bool               // Disable caching
-	NoPlugins        bool               // Disable plugin installation
-	FailFast         bool               // Stop on first failure
-	DryRun           bool               // Show plan without executing
-	CacheBackend     cache.Backend      // Optional custom cache backend
-	ContainerConfig  *container.Config  // Optional container isolation config
-	ConditionContext *condition.Context // Optional context for evaluating task conditions
-	GlobalPlugins    map[string]string  // Global plugins (name -> spec) from config [plugins] section
+	Parallelism      int                   // Max concurrent tasks (default: NumCPU)
+	NoCache          bool                  // Disable caching
+	NoPlugins        bool                  // Disable plugin installation
+	FailFast         bool                  // Stop on first failure
+	DryRun           bool                  // Show plan without executing
+	CacheBackend     cache.Backend         // Optional custom cache backend
+	ContainerConfig  *container.Config     // Optional container isolation config
+	ConditionContext *condition.Context    // Optional context for evaluating task conditions
+	GlobalPlugins    map[string]string     // Global plugins (name -> spec) from config [plugins] section
+	DistributedMode  bool                  // Enable remote task dispatch
+	RemoteExecutor   executor.TaskExecutor // RemoteTaskExecutor from cluster package
 }
 
 // DefaultOptions returns the default scheduler options.
@@ -494,6 +496,16 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 		}
 	}
 
+	// Distributed dispatch decision
+	// Fix #5: prefer_local defaults to true, so tasks only go remote if explicitly configured
+	if s.opts.DistributedMode && s.opts.RemoteExecutor != nil && s.shouldDispatchRemotely(t) {
+		result := s.opts.RemoteExecutor.Execute(ctx, t)
+		if s.onTaskComplete != nil {
+			s.onTaskComplete(taskName, result, false)
+		}
+		return &taskState{result: result, cacheKey: cacheKey}
+	}
+
 	// Dry run mode
 	if s.opts.DryRun {
 		result := s.executor.DryRun(t)
@@ -643,6 +655,25 @@ func (s *Scheduler) executeTask(ctx context.Context, taskName string, states map
 	s.integrationRegistry.DispatchHook(ctx, plugin.HookOnTaskEnd, taskEndHookCtx)
 
 	return &taskState{result: result, cacheKey: cacheKey}
+}
+
+// shouldDispatchRemotely determines if a task should be sent to a remote worker.
+// Fix #5 from review: prefer_local defaults to true. Tasks only dispatch remotely if:
+//   - The task has explicit routing config with prefer_local = false, OR
+//   - The task has routing labels/cluster set (indicating it needs specific remote resources)
+func (s *Scheduler) shouldDispatchRemotely(t *task.Task) bool {
+	if t.Routing == nil {
+		// No routing config = use local execution (prefer_local default is true)
+		return false
+	}
+
+	// If prefer_local is explicitly true, run locally
+	if t.Routing.PreferLocal {
+		return false
+	}
+
+	// Has routing config with prefer_local=false, or has specific cluster/label requirements
+	return true
 }
 
 // executeCompositeTask handles execution of composite plugin tasks.

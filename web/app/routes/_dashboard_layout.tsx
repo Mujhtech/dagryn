@@ -1,4 +1,9 @@
-import { createFileRoute, Navigate, useLocation } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Navigate,
+  useLocation,
+} from "@tanstack/react-router";
 import { Outlet } from "@tanstack/react-router";
 import { AppSidebar } from "~/components/app-sidebar";
 import {
@@ -7,6 +12,14 @@ import {
   SidebarTrigger,
 } from "~/components/ui/sidebar";
 import { Separator } from "~/components/ui/separator";
+import {
+  Breadcrumb as BreadcrumbRoot,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "~/components/ui/breadcrumb";
 import { useAuth } from "~/lib/auth";
 import { Icons } from "~/components/icons";
 import { useLicenseStatus } from "~/hooks/queries/use-license-status";
@@ -64,29 +77,34 @@ function LayoutComponent() {
 
 function Breadcrumb() {
   const location = useLocation();
-  const paths = location.pathname.split("/").filter(Boolean);
+  const segments = location.pathname.split("/").filter(Boolean);
 
-  if (paths.length === 0) {
+  if (segments.length === 0) {
     return <h1 className="text-lg font-semibold">Dashboard</h1>;
   }
 
   return (
-    <nav className="flex items-center gap-2 text-sm">
-      {paths.map((path, index) => (
-        <span key={path} className="flex items-center gap-2">
-          {index > 0 && <span className="text-muted-foreground">/</span>}
-          <span
-            className={
-              index === paths.length - 1
-                ? "font-medium"
-                : "text-muted-foreground"
-            }
-          >
-            {formatPathSegment(path)}
-          </span>
-        </span>
-      ))}
-    </nav>
+    <BreadcrumbRoot>
+      <BreadcrumbList>
+        {segments.map((segment, index) => {
+          const href = "/" + segments.slice(0, index + 1).join("/");
+          const isLast = index === segments.length - 1;
+
+          return (
+            <BreadcrumbItem key={href}>
+              {index > 0 && <BreadcrumbSeparator />}
+              {isLast ? (
+                <BreadcrumbPage>{formatPathSegment(segment)}</BreadcrumbPage>
+              ) : (
+                <BreadcrumbLink asChild>
+                  <Link to={href}>{formatPathSegment(segment)}</Link>
+                </BreadcrumbLink>
+              )}
+            </BreadcrumbItem>
+          );
+        })}
+      </BreadcrumbList>
+    </BreadcrumbRoot>
   );
 }
 

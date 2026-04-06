@@ -176,13 +176,8 @@ func (h *Handler) ActivateLicense(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 3. Try to register with License Server (non-blocking on failure)
-	serverURL := os.Getenv("DAGRYN_LICENSE_SERVER_URL")
-	if serverURL == "" {
-		serverURL = "https://license.dagryn.dev"
-	}
-
 	serverClient := licensing.NewServerClient(licensing.ServerConfig{
-		BaseURL: serverURL,
+		BaseURL: h.licenseServerURL,
 		Timeout: 10 * time.Second,
 	})
 

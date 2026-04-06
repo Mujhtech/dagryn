@@ -28,6 +28,11 @@ export const queryKeys = {
   project: (id: string) => ["project", id] as const,
   projectApiKeys: (projectId: string) => ["projectApiKeys", projectId] as const,
   teams: ["teams"] as const,
+  clusters: (teamId?: string) => ["clusters", teamId ?? "personal"] as const,
+  workers: (clusterId?: string, status?: string, teamId?: string) =>
+    ["workers", clusterId ?? "all", status ?? "all", teamId ?? "all"] as const,
+  workerTokens: ["workerTokens"] as const,
+  runAssignments: (runId: string) => ["runAssignments", runId] as const,
   team: (id: string) => ["team", id] as const,
   teamMembers: (teamId: string) => ["teamMembers", teamId] as const,
   teamInvitations: (teamId: string) => ["teamInvitations", teamId] as const,
@@ -44,8 +49,17 @@ export const queryKeys = {
   githubAppInstallations: ["githubAppInstallations"] as const,
   githubAppRepos: (installationId: string) =>
     ["githubAppRepos", installationId] as const,
-  githubWorkflowTranslation: (repoFullName: string, installationId?: string, ref?: string) =>
-    ["githubWorkflowTranslation", repoFullName, installationId ?? "none", ref ?? "default"] as const,
+  githubWorkflowTranslation: (
+    repoFullName: string,
+    installationId?: string,
+    ref?: string,
+  ) =>
+    [
+      "githubWorkflowTranslation",
+      repoFullName,
+      installationId ?? "none",
+      ref ?? "default",
+    ] as const,
   projectWorkflows: (projectId: string) =>
     ["projectWorkflows", projectId] as const,
   runWorkflow: (projectId: string, runId: string) =>
@@ -83,11 +97,10 @@ export const queryKeys = {
     ["projectAuditLogs", projectId, cursor ?? ""] as const,
   teamAuditRetention: (teamId: string) =>
     ["teamAuditRetention", teamId] as const,
-  teamAuditWebhooks: (teamId: string) =>
-    ["teamAuditWebhooks", teamId] as const,
+  teamAuditWebhooks: (teamId: string) => ["teamAuditWebhooks", teamId] as const,
+  ssoConnection: (teamId: string) => ["ssoConnection", teamId] as const,
   health: ["health"] as const,
-  sampleTemplate: (language: string) =>
-    ["sampleTemplate", language] as const,
+  sampleTemplate: (language: string) => ["sampleTemplate", language] as const,
   teamAnalytics: (teamId: string, days: number) =>
     ["teamAnalytics", teamId, days] as const,
   userAnalytics: (days: number) => ["userAnalytics", days] as const,

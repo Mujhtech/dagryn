@@ -199,13 +199,8 @@ func runLicenseActivate(key string, instanceName string) error {
 	}
 
 	// 3. Try to register with License Server (non-blocking on failure)
-	serverURL := os.Getenv("DAGRYN_LICENSE_SERVER_URL")
-	if serverURL == "" {
-		serverURL = "https://license.dagryn.dev"
-	}
-
 	serverClient := licensing.NewServerClient(licensing.ServerConfig{
-		BaseURL: serverURL,
+		BaseURL: resolveLicenseServerURL(),
 		Timeout: 10 * time.Second,
 	})
 
@@ -248,14 +243,9 @@ func runLicenseDeactivate() error {
 	}
 
 	// Try to deactivate from License Server
-	serverURL := os.Getenv("DAGRYN_LICENSE_SERVER_URL")
-	if serverURL == "" {
-		serverURL = "https://license.dagryn.dev"
-	}
-
 	if stored.LicenseID != "" && stored.InstanceID != "" {
 		serverClient := licensing.NewServerClient(licensing.ServerConfig{
-			BaseURL: serverURL,
+			BaseURL: resolveLicenseServerURL(),
 			Timeout: 10 * time.Second,
 		})
 
@@ -281,4 +271,13 @@ func runLicenseDeactivate() error {
 	fmt.Println("License deactivated. This instance is now running as Community edition.")
 	fmt.Println("Restart the server to apply.")
 	return nil
+}
+
+// resolveLicenseServerURL returns the license server URL from the
+// DAGRYN_LICENSE_SERVER_URL env var, falling back to the canonical default.
+func resolveLicenseServerURL() string {
+	if url := os.Getenv("DAGRYN_LICENSE_SERVER_URL"); url != "" {
+		return url
+	}
+	return licensing.DefaultServerURL
 }

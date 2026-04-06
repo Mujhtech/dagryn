@@ -75,6 +75,7 @@ func taskConfigToTask(name string, tc TaskConfig, globalPlugins map[string]strin
 		Container: tc.Container,
 		Group:     tc.Group,
 		If:        tc.If,
+		Routing:   taskRoutingConfigToTask(tc.Routing),
 	}
 
 	// Parse timeout if specified
@@ -87,6 +88,23 @@ func taskConfigToTask(name string, tc TaskConfig, globalPlugins map[string]strin
 	}
 
 	return t, nil
+}
+
+// taskRoutingConfigToTask converts a config TaskRoutingConfig to a task TaskRoutingConfig.
+func taskRoutingConfigToTask(cfg *TaskRoutingConfig) *task.TaskRoutingConfig {
+	if cfg == nil {
+		return nil
+	}
+	// Default prefer_local to true when not explicitly set
+	preferLocal := true
+	if cfg.PreferLocal != nil {
+		preferLocal = *cfg.PreferLocal
+	}
+	return &task.TaskRoutingConfig{
+		Labels:      cfg.Labels,
+		Cluster:     cfg.Cluster,
+		PreferLocal: preferLocal,
+	}
 }
 
 // resolvePluginRefs resolves plugin references to their full specs.

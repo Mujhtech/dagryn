@@ -1,5 +1,5 @@
 import { type RefObject, useMemo, useState } from "react";
-import type { Artifact, TaskResult } from "~/lib/api";
+import type { Artifact, TaskAssignment, TaskResult } from "~/lib/api";
 import { api } from "~/lib/api";
 import { WorkflowDag, type TaskStatusInfo } from "~/components/workflow-dag";
 import {
@@ -65,6 +65,7 @@ type RunDetailTabsProps = {
   taskStatusMap: Map<string, TaskStatusInfo>;
   logsEndRef: RefObject<HTMLDivElement | null>;
   runStatus?: string;
+  assignmentByTaskName?: Record<string, TaskAssignment>;
 };
 
 export function RunDetailTabs({
@@ -84,6 +85,7 @@ export function RunDetailTabs({
   taskStatusMap,
   logsEndRef,
   runStatus,
+  assignmentByTaskName,
 }: RunDetailTabsProps) {
   const [tasksView, setTasksView] = useState<"table" | "canvas" | "waterfall">(
     "canvas",
@@ -350,6 +352,12 @@ export function RunDetailTabs({
                             <span className="flex items-center gap-1 text-purple-500">
                               <Icons.Database className="h-3 w-3" />
                               cached
+                            </span>
+                          ) : null}
+                          {assignmentByTaskName?.[task.task_name]?.worker_id ? (
+                            <span className="flex items-center gap-1">
+                              <Icons.Users className="h-3 w-3" />
+                              worker {assignmentByTaskName[task.task_name].worker_id?.slice(0, 8)}
                             </span>
                           ) : null}
                         </div>

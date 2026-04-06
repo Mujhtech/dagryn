@@ -25,6 +25,7 @@ import {
   FormLabel,
   FormMessage,
 } from "~/components/ui/form";
+import { cn } from "~/lib/utils";
 
 const licenseKeySchema = z.object({
   licenseKey: z.string().min(1, "License key is required"),
@@ -270,7 +271,8 @@ function ActivateLicenseCard() {
             />
             {activateMutation.isError && (
               <p className="text-destructive text-sm">
-                {activateMutation.error?.message || "Failed to activate license"}
+                {activateMutation.error?.message ||
+                  "Failed to activate license"}
               </p>
             )}
             {activateMutation.isSuccess && (
@@ -278,10 +280,7 @@ function ActivateLicenseCard() {
                 License activated successfully.
               </p>
             )}
-            <Button
-              type="submit"
-              disabled={activateMutation.isPending}
-            >
+            <Button type="submit" disabled={activateMutation.isPending}>
               {activateMutation.isPending ? (
                 <>
                   <Icons.Loader className="h-4 w-4 animate-spin mr-2" />
@@ -361,14 +360,12 @@ function ChangeLicenseCard() {
             />
             {activateMutation.isError && (
               <p className="text-destructive text-sm">
-                {activateMutation.error?.message || "Failed to activate license"}
+                {activateMutation.error?.message ||
+                  "Failed to activate license"}
               </p>
             )}
             <div className="flex gap-2">
-              <Button
-                type="submit"
-                disabled={activateMutation.isPending}
-              >
+              <Button type="submit" disabled={activateMutation.isPending}>
                 {activateMutation.isPending ? (
                   <>
                     <Icons.Loader className="h-4 w-4 animate-spin mr-2" />
@@ -419,15 +416,16 @@ function LimitRow({
         </span>
       </div>
       {limit != null && (
-        <div className="h-2 bg-muted rounded-full overflow-hidden">
+        <div className="h-2 bg-muted rounded-none overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all ${
+            className={cn(
+              `h-full rounded-none transition-all`,
               pct > 90
                 ? "bg-destructive"
                 : pct > 70
                   ? "bg-yellow-500"
-                  : "bg-primary"
-            }`}
+                  : "bg-primary",
+            )}
             style={{ width: `${pct}%` }}
           />
         </div>

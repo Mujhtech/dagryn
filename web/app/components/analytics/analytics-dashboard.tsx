@@ -585,9 +585,9 @@ export function AnalyticsDashboard({
                       </td>
                       <td className="py-2 px-3 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                          <div className="w-16 h-2 bg-muted rounded-none overflow-hidden">
                             <div
-                              className="h-full bg-emerald-500 rounded-full"
+                              className="h-full bg-emerald-500 rounded-none"
                               style={{
                                 width: `${Math.min(project.success_rate, 100)}%`,
                               }}
