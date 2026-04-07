@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -33,8 +32,8 @@ import (
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
+	gh "github.com/mujhtech/dagryn/pkg/github"
 	"github.com/mujhtech/dagryn/pkg/githubapp"
-	"github.com/mujhtech/dagryn/pkg/notification"
 	"github.com/mujhtech/dagryn/pkg/server/sse"
 	"github.com/mujhtech/dagryn/pkg/service"
 )
@@ -1448,11 +1447,12 @@ func (h *ExecuteRunHandler) notifyGitHub(ctx context.Context, run *models.Run, p
 	// }
 
 	// Check run (create/update)
+	ghClient := gh.NewClient(accessToken)
 	checkStatus, conclusion := mapGitHubCheckRunState(status)
 	checkOutput := buildGitHubCheckRunOutput(run, status)
 
 	if run.GitHubCheckRunID == nil || *run.GitHubCheckRunID == 0 {
-		req := notification.CheckRunRequest{
+		req := gh.CheckRunRequest{
 			Name:       "Dagryn / workflow",
 			HeadSHA:    sha,
 			Status:     checkStatus,
@@ -1468,7 +1468,7 @@ func (h *ExecuteRunHandler) notifyGitHub(ctx context.Context, run *models.Run, p
 			req.CompletedAt = &now
 		}
 
-		checkRunID, err := notification.CreateCheckRun(ctx, accessToken, owner, repoName, req)
+		checkRunID, err := ghClient.CreateCheckRun(ctx, owner, repoName, req)
 		if err != nil {
 			slog.Error("github_check_run_create_failed", "run_id", run.ID, "error", err)
 		} else if checkRunID != 0 {
@@ -1478,7 +1478,7 @@ func (h *ExecuteRunHandler) notifyGitHub(ctx context.Context, run *models.Run, p
 			}
 		}
 	} else {
-		req := notification.CheckRunRequest{
+		req := gh.CheckRunRequest{
 			Status:     checkStatus,
 			Conclusion: conclusion,
 			DetailsURL: targetURL,
@@ -1488,7 +1488,7 @@ func (h *ExecuteRunHandler) notifyGitHub(ctx context.Context, run *models.Run, p
 			now := time.Now()
 			req.CompletedAt = &now
 		}
-		if err := notification.UpdateCheckRun(ctx, accessToken, owner, repoName, *run.GitHubCheckRunID, req); err != nil {
+		if err := ghClient.UpdateCheckRun(ctx, owner, repoName, *run.GitHubCheckRunID, req); err != nil {
 			slog.Error("github_check_run_update_failed", "run_id", run.ID, "error", err)
 		}
 	}
@@ -1500,33 +1500,24 @@ func (h *ExecuteRunHandler) notifyGitHub(ctx context.Context, run *models.Run, p
 		return
 	}
 
-	commentBody := map[string]string{
-		"body": buildGitHubPRComment(run, status, targetURL),
-	}
+	commentText := buildGitHubPRComment(run, status, targetURL)
 
 	if run.GitHubPRCommentID != nil {
-		// Update existing comment
-		commentURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/issues/comments/%d", owner, repoName, *run.GitHubPRCommentID)
-		if err := notification.SendGitHubJSON(ctx, accessToken, http.MethodPatch, commentURL, commentBody, nil); err != nil {
+		if err := ghClient.UpdateIssueComment(ctx, owner, repoName, *run.GitHubPRCommentID, commentText); err != nil {
 			slog.Error("github_pr_comment_update_failed", "run_id", run.ID, "error", err)
 		}
 	} else {
-		// Create new comment and persist its ID
-		commentURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/issues/%d/comments", owner, repoName, *run.PRNumber)
-		var respBody struct {
-			ID int64 `json:"id"`
-		}
-
-		if err := notification.SendGitHubJSON(ctx, accessToken, http.MethodPost, commentURL, commentBody, &respBody); err != nil {
+		commentID, err := ghClient.CreateIssueComment(ctx, owner, repoName, *run.PRNumber, commentText)
+		if err != nil {
 			slog.Error("github_pr_comment_create_failed", "run_id", run.ID, "error", err)
 		}
-		slog.Info("github_pr_comment_created", "run_id", run.ID, "comment_id", respBody.ID)
-		if respBody.ID != 0 {
-			run.GitHubPRCommentID = &respBody.ID
+		slog.Info("github_pr_comment_created", "run_id", run.ID, "comment_id", commentID)
+		if commentID != 0 {
+			run.GitHubPRCommentID = &commentID
 			if err := h.runs.Update(ctx, run); err != nil {
 				slog.Error("github_pr_comment_id_persist_failed", "run_id", run.ID, "error", err)
 			}
-			slog.Info("github_pr_comment_id_persisted", "run_id", run.ID, "comment_id", respBody.ID)
+			slog.Info("github_pr_comment_id_persisted", "run_id", run.ID, "comment_id", commentID)
 		}
 	}
 
@@ -1548,7 +1539,7 @@ func mapGitHubCheckRunState(status models.RunStatus) (checkStatus string, conclu
 	}
 }
 
-func buildGitHubCheckRunOutput(run *models.Run, status models.RunStatus) *notification.CheckRunOutput {
+func buildGitHubCheckRunOutput(run *models.Run, status models.RunStatus) *gh.CheckRunOutput {
 	title := fmt.Sprintf("Dagryn run %s", status)
 	summary := fmt.Sprintf("Status: %s\nTasks: %d/%d\nFailed: %d\nCache hits: %d",
 		status, run.CompletedTasks, run.TotalTasks, run.FailedTasks, run.CacheHits,
@@ -1556,7 +1547,7 @@ func buildGitHubCheckRunOutput(run *models.Run, status models.RunStatus) *notifi
 	if run.DurationMs != nil {
 		summary = fmt.Sprintf("%s\nDuration: %s", summary, formatDurationMs(*run.DurationMs))
 	}
-	return &notification.CheckRunOutput{
+	return &gh.CheckRunOutput{
 		Title:   title,
 		Summary: summary,
 	}
@@ -1618,26 +1609,7 @@ func formatDurationMs(ms int64) string {
 	return fmt.Sprintf("%dm %ds", min, sec)
 }
 
-// parseGitHubOwnerRepoFromURL extracts owner and repo from a GitHub URL.
+// parseGitHubOwnerRepoFromURL delegates to the centralized github package.
 func parseGitHubOwnerRepoFromURL(repoURL string) (owner, repo string, err error) {
-	repoURL = strings.TrimSuffix(repoURL, ".git")
-	repoURL = strings.TrimSuffix(repoURL, "/")
-
-	// Handle HTTPS URLs: https://github.com/owner/repo
-	if strings.HasPrefix(repoURL, "https://github.com/") {
-		parts := strings.Split(strings.TrimPrefix(repoURL, "https://github.com/"), "/")
-		if len(parts) >= 2 {
-			return parts[0], parts[1], nil
-		}
-	}
-
-	// Handle SSH URLs: git@github.com:owner/repo
-	if strings.HasPrefix(repoURL, "git@github.com:") {
-		parts := strings.Split(strings.TrimPrefix(repoURL, "git@github.com:"), "/")
-		if len(parts) >= 2 {
-			return parts[0], parts[1], nil
-		}
-	}
-
-	return "", "", fmt.Errorf("cannot parse GitHub URL: %s", repoURL)
+	return gh.ParseOwnerRepo(repoURL)
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -14,7 +13,7 @@ import (
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/store"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
-	"github.com/mujhtech/dagryn/pkg/notification"
+	gh "github.com/mujhtech/dagryn/pkg/github"
 	"github.com/mujhtech/dagryn/pkg/telemetry"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
@@ -236,53 +235,42 @@ func (h *AIPublishHandler) publishPRComment(ctx context.Context, analysis *model
 		return nil
 	}
 
+	ghClient := gh.NewClient(accessToken)
+	commentText := buildAICommentBody(analysis, run, targetURL)
+
 	// Check idempotency.
 	existing, err := h.store.AI.GetPublicationByRunAndDestination(ctx, run.ID, models.AIPublicationDestGitHubPRComment)
 	if err == nil && existing != nil {
 		if existing.Status == models.AIPublicationStatusSent && existing.ExternalID != nil {
 			// Update existing comment.
-			commentBody := map[string]string{
-				"body": buildAICommentBody(analysis, run, targetURL),
+			var commentID int64
+			if _, err := fmt.Sscanf(*existing.ExternalID, "%d", &commentID); err == nil {
+				if err := ghClient.UpdateIssueComment(ctx, owner, repoName, commentID, commentText); err != nil {
+					h.logger.Warn().Err(err).Msg("failed to update PR comment")
+					errMsg := err.Error()
+					_ = h.store.AI.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusFailed, nil, &errMsg)
+					return err
+				}
+				_ = h.store.AI.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusUpdated, existing.ExternalID, nil)
+				return nil
 			}
-			commentURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/issues/comments/%s", owner, repoName, *existing.ExternalID)
-			if err := notification.SendGitHubJSON(ctx, accessToken, http.MethodPatch, commentURL, commentBody, nil); err != nil {
-				h.logger.Warn().Err(err).Msg("failed to update PR comment")
-				errMsg := err.Error()
-				_ = h.store.AI.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusFailed, nil, &errMsg)
-				return err
-			}
-			_ = h.store.AI.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusUpdated, existing.ExternalID, nil)
-			return nil
 		}
 		// Previous attempt failed — retry by posting a new comment, then update the existing record.
-		commentBody := map[string]string{
-			"body": buildAICommentBody(analysis, run, targetURL),
-		}
-		commentURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/issues/%d/comments", owner, repoName, *run.PRNumber)
-		var respBody struct {
-			ID int64 `json:"id"`
-		}
-		if err := notification.SendGitHubJSON(ctx, accessToken, http.MethodPost, commentURL, commentBody, &respBody); err != nil {
+		newID, err := ghClient.CreateIssueComment(ctx, owner, repoName, *run.PRNumber, commentText)
+		if err != nil {
 			h.logger.Warn().Err(err).Msg("failed to create PR comment")
 			errMsg := err.Error()
 			_ = h.store.AI.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusFailed, nil, &errMsg)
 			return err
 		}
-		externalID := fmt.Sprintf("%d", respBody.ID)
+		externalID := fmt.Sprintf("%d", newID)
 		_ = h.store.AI.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusSent, &externalID, nil)
 		return nil
 	}
 
 	// Create new comment.
-	commentBody := map[string]string{
-		"body": buildAICommentBody(analysis, run, targetURL),
-	}
-	commentURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/issues/%d/comments", owner, repoName, *run.PRNumber)
-
-	var respBody struct {
-		ID int64 `json:"id"`
-	}
-	if err := notification.SendGitHubJSON(ctx, accessToken, http.MethodPost, commentURL, commentBody, &respBody); err != nil {
+	newID, err := ghClient.CreateIssueComment(ctx, owner, repoName, *run.PRNumber, commentText)
+	if err != nil {
 		h.logger.Warn().Err(err).Msg("failed to create PR comment")
 		pub := &models.AIPublication{
 			AnalysisID:   analysis.ID,
@@ -296,7 +284,7 @@ func (h *AIPublishHandler) publishPRComment(ctx context.Context, analysis *model
 	}
 
 	// Store publication.
-	externalID := fmt.Sprintf("%d", respBody.ID)
+	externalID := fmt.Sprintf("%d", newID)
 	pub := &models.AIPublication{
 		AnalysisID:  analysis.ID,
 		RunID:       run.ID,
@@ -314,6 +302,7 @@ func (h *AIPublishHandler) publishPRComment(ctx context.Context, analysis *model
 // publishCheckRun publishes or updates a GitHub check run with the analysis results.
 func (h *AIPublishHandler) publishCheckRun(ctx context.Context, analysis *models.AIAnalysis, run *models.Run, owner, repoName, accessToken, targetURL string) error {
 	sha := *run.GitCommit
+	ghClient := gh.NewClient(accessToken)
 
 	// Check idempotency.
 	existing, err := h.store.AI.GetPublicationByRunAndDestination(ctx, run.ID, models.AIPublicationDestGitHubCheck)
@@ -324,14 +313,14 @@ func (h *AIPublishHandler) publishCheckRun(ctx context.Context, analysis *models
 			if _, err := fmt.Sscanf(*existing.ExternalID, "%d", &checkRunID); err == nil {
 				checkOutput := buildAICheckRunOutput(analysis)
 				now := time.Now()
-				req := notification.CheckRunRequest{
+				req := gh.CheckRunRequest{
 					Status:      "completed",
 					Conclusion:  "neutral",
 					DetailsURL:  targetURL,
 					Output:      checkOutput,
 					CompletedAt: &now,
 				}
-				if err := notification.UpdateCheckRun(ctx, accessToken, owner, repoName, checkRunID, req); err != nil {
+				if err := ghClient.UpdateCheckRun(ctx, owner, repoName, checkRunID, req); err != nil {
 					h.logger.Warn().Err(err).Msg("failed to update check run")
 					errMsg := err.Error()
 					_ = h.store.AI.UpdatePublication(ctx, existing.ID, models.AIPublicationStatusFailed, nil, &errMsg)
@@ -344,7 +333,7 @@ func (h *AIPublishHandler) publishCheckRun(ctx context.Context, analysis *models
 		// Previous attempt failed — retry by creating a new check run, then update the existing record.
 		checkOutput := buildAICheckRunOutput(analysis)
 		now := time.Now()
-		req := notification.CheckRunRequest{
+		req := gh.CheckRunRequest{
 			Name:        "Dagryn / AI Analysis",
 			HeadSHA:     sha,
 			Status:      "completed",
@@ -353,7 +342,7 @@ func (h *AIPublishHandler) publishCheckRun(ctx context.Context, analysis *models
 			Output:      checkOutput,
 			CompletedAt: &now,
 		}
-		newCheckRunID, err := notification.CreateCheckRun(ctx, accessToken, owner, repoName, req)
+		newCheckRunID, err := ghClient.CreateCheckRun(ctx, owner, repoName, req)
 		if err != nil {
 			h.logger.Warn().Err(err).Msg("failed to create check run")
 			errMsg := err.Error()
@@ -368,7 +357,7 @@ func (h *AIPublishHandler) publishCheckRun(ctx context.Context, analysis *models
 	// Create new check run.
 	checkOutput := buildAICheckRunOutput(analysis)
 	now := time.Now()
-	req := notification.CheckRunRequest{
+	req := gh.CheckRunRequest{
 		Name:        "Dagryn / AI Analysis",
 		HeadSHA:     sha,
 		Status:      "completed",
@@ -378,7 +367,7 @@ func (h *AIPublishHandler) publishCheckRun(ctx context.Context, analysis *models
 		CompletedAt: &now,
 	}
 
-	checkRunID, err := notification.CreateCheckRun(ctx, accessToken, owner, repoName, req)
+	checkRunID, err := ghClient.CreateCheckRun(ctx, owner, repoName, req)
 	if err != nil {
 		h.logger.Warn().Err(err).Msg("failed to create check run")
 		pub := &models.AIPublication{
@@ -474,7 +463,7 @@ func buildAICommentBody(analysis *models.AIAnalysis, run *models.Run, targetURL 
 }
 
 // buildAICheckRunOutput creates a GitHub check run output from the analysis.
-func buildAICheckRunOutput(analysis *models.AIAnalysis) *notification.CheckRunOutput {
+func buildAICheckRunOutput(analysis *models.AIAnalysis) *gh.CheckRunOutput {
 	title := "AI Failure Analysis"
 	if analysis.Confidence != nil {
 		title = fmt.Sprintf("AI Analysis: %d%% confidence", int(*analysis.Confidence*100))
@@ -511,7 +500,7 @@ func buildAICheckRunOutput(analysis *models.AIAnalysis) *notification.CheckRunOu
 		}
 	}
 
-	return &notification.CheckRunOutput{
+	return &gh.CheckRunOutput{
 		Title:   title,
 		Summary: summary,
 		Text:    text.String(),

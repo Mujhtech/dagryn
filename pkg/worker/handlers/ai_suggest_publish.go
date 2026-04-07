@@ -4,14 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/encrypt"
-	"github.com/mujhtech/dagryn/pkg/notification"
+	gh "github.com/mujhtech/dagryn/pkg/github"
 	"github.com/rs/zerolog"
 )
 
@@ -193,11 +192,9 @@ func (h *AISuggestPublishHandler) Handle(ctx context.Context, t *asynq.Task) err
 		reviewReq["comments"] = comments
 	}
 
-	reviewURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d/reviews", owner, repoName, *run.PRNumber)
-	var reviewResp struct {
-		ID int64 `json:"id"`
-	}
-	if err := notification.SendGitHubJSON(ctx, accessToken, http.MethodPost, reviewURL, reviewReq, &reviewResp); err != nil {
+	ghClient := gh.NewClient(accessToken)
+	reviewID, err := ghClient.CreatePRReview(ctx, owner, repoName, *run.PRNumber, reviewReq)
+	if err != nil {
 		h.logger.Warn().Err(err).Msg("failed to create PR review")
 		pub := &models.AIPublication{
 			AnalysisID:   analysisID,
@@ -211,7 +208,7 @@ func (h *AISuggestPublishHandler) Handle(ctx context.Context, t *asynq.Task) err
 	}
 
 	// Mark suggestions as posted.
-	reviewIDStr := fmt.Sprintf("%d", reviewResp.ID)
+	reviewIDStr := fmt.Sprintf("%d", reviewID)
 	for i := range suggestions {
 		_ = h.aiRepo.UpdateSuggestionStatus(ctx, suggestions[i].ID, models.AISuggestionStatusPosted, &reviewIDStr, nil)
 	}
@@ -231,7 +228,7 @@ func (h *AISuggestPublishHandler) Handle(ctx context.Context, t *asynq.Task) err
 	h.logger.Info().
 		Str("analysis_id", payload.AnalysisID).
 		Int("suggestions_posted", len(suggestions)).
-		Int64("review_id", reviewResp.ID).
+		Int64("review_id", reviewID).
 		Msg("suggestions published as PR review")
 
 	return nil
@@ -344,12 +341,9 @@ func linesInHunks(hunks []hunkRange, start, end int) bool {
 
 // fetchPRDiffFiles returns per-file diff info (hunks) for a pull request.
 func fetchPRDiffFiles(ctx context.Context, token, owner, repo string, prNumber int) (map[string]*diffFileInfo, error) {
-	u := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d/files?per_page=100", owner, repo, prNumber)
-	var files []struct {
-		Filename string `json:"filename"`
-		Patch    string `json:"patch"`
-	}
-	if err := notification.SendGitHubJSON(ctx, token, http.MethodGet, u, nil, &files); err != nil {
+	ghClient := gh.NewClient(token)
+	files, err := ghClient.GetPRFiles(ctx, owner, repo, prNumber)
+	if err != nil {
 		return nil, err
 	}
 	m := make(map[string]*diffFileInfo, len(files))

@@ -2,18 +2,16 @@ package handlers
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	apiCtx "github.com/mujhtech/dagryn/pkg/api/context"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
+	gh "github.com/mujhtech/dagryn/pkg/github"
 	"github.com/mujhtech/dagryn/pkg/http/response"
 	"github.com/mujhtech/dagryn/pkg/workflow/ghactions"
 )
@@ -197,55 +195,15 @@ func (h *Handler) resolveGitHubAccessToken(ctx context.Context, userID uuid.UUID
 }
 
 func splitGitHubFullName(fullName string) (string, string, error) {
-	trimmed := strings.TrimSuffix(strings.TrimSpace(fullName), ".git")
-	parts := strings.Split(trimmed, "/")
-	if len(parts) != 2 {
-		return "", "", errors.New("repo_full_name must be in owner/repo format")
-	}
-	return parts[0], parts[1], nil
-}
-
-type githubContentItem struct {
-	Name string `json:"name"`
-	Path string `json:"path"`
-	Type string `json:"type"`
-}
-
-type githubContentFile struct {
-	Content  string `json:"content"`
-	Encoding string `json:"encoding"`
+	return gh.SplitFullName(fullName)
 }
 
 func fetchGitHubWorkflowFiles(ctx context.Context, token, owner, repoName, ref string) (map[string][]byte, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/.github/workflows", owner, repoName)
-	if ref != "" {
-		url += "?ref=" + ref
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	client := gh.NewClient(token)
+	items, err := client.ListContents(ctx, owner, repoName, ".github/workflows", ref)
 	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Accept", "application/vnd.github+json")
-
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode == http.StatusNotFound {
+		// Treat 404 (no workflows dir) as empty.
 		return map[string][]byte{}, nil
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("github API returned %d: %s", resp.StatusCode, string(body))
-	}
-
-	var items []githubContentItem
-	if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
-		return nil, err
 	}
 
 	files := make(map[string][]byte)
@@ -253,53 +211,18 @@ func fetchGitHubWorkflowFiles(ctx context.Context, token, owner, repoName, ref s
 		if item.Type != "file" {
 			continue
 		}
-		name := item.Name
-		if !strings.HasSuffix(name, ".yml") && !strings.HasSuffix(name, ".yaml") {
+		if !strings.HasSuffix(item.Name, ".yml") && !strings.HasSuffix(item.Name, ".yaml") {
 			continue
 		}
-		content, err := fetchGitHubFile(ctx, token, owner, repoName, item.Path, ref)
+		content, err := client.GetContents(ctx, owner, repoName, item.Path, ref)
 		if err != nil {
 			return nil, err
 		}
-		files[name] = content
+		files[item.Name] = content
 	}
 	return files, nil
 }
 
 func fetchGitHubFile(ctx context.Context, token, owner, repoName, path, ref string) ([]byte, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s", owner, repoName, path)
-	if ref != "" {
-		url += "?ref=" + ref
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Accept", "application/vnd.github+json")
-
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("github API returned %d: %s", resp.StatusCode, string(body))
-	}
-
-	var file githubContentFile
-	if err := json.NewDecoder(resp.Body).Decode(&file); err != nil {
-		return nil, err
-	}
-	if file.Encoding != "base64" {
-		return nil, fmt.Errorf("unsupported content encoding: %s", file.Encoding)
-	}
-	decoded, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(file.Content, "\n", ""))
-	if err != nil {
-		return nil, err
-	}
-	return decoded, nil
+	return gh.NewClient(token).GetContents(ctx, owner, repoName, path, ref)
 }

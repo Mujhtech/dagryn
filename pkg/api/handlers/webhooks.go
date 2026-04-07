@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -16,6 +15,7 @@ import (
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
 	"github.com/mujhtech/dagryn/pkg/entitlement"
+	gh "github.com/mujhtech/dagryn/pkg/github"
 	"github.com/mujhtech/dagryn/pkg/worker"
 )
 
@@ -511,26 +511,8 @@ func (h *Handler) fetchTriggerConfig(ctx context.Context, project *models.Projec
 	}
 
 	// Fetch config file content from GitHub Contents API
-	contentsURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s?ref=%s",
-		owner, repoName, configPath, ref)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, contentsURL, nil)
-	if err != nil {
-		return nil
-	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Accept", "application/vnd.github.raw+json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		if resp != nil {
-			_ = resp.Body.Close()
-		}
-		return nil
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := io.ReadAll(resp.Body)
+	client := gh.NewClient(accessToken)
+	body, err := client.GetRawContents(ctx, owner, repoName, configPath, ref)
 	if err != nil {
 		return nil
 	}

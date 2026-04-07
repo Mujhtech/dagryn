@@ -1,141 +1,63 @@
 package handlers
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
-	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	apiCtx "github.com/mujhtech/dagryn/pkg/api/context"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
+	gh "github.com/mujhtech/dagryn/pkg/github"
 	"github.com/mujhtech/dagryn/pkg/http/response"
 )
 
 const (
-	githubReposURL      = "https://api.github.com/user/repos?affiliation=owner,collaborator,organization_member&sort=updated&per_page=100"
-	githubContentsPath  = "dagryn.toml"
-	errNoDagrynToml     = "repository must contain dagryn.toml at the root to be used as a project"
-	errInvalidGitHubURL = "invalid GitHub repository URL"
+	githubContentsPath = "dagryn.toml"
+	errNoDagrynToml    = "repository must contain dagryn.toml at the root to be used as a project"
 )
 
-// parseGitHubOwnerRepo extracts owner and repo name from a GitHub URL.
-// Supports https://github.com/owner/repo, https://github.com/owner/repo.git, git@github.com:owner/repo.git.
+// parseGitHubOwnerRepo delegates to the centralized github package.
 func parseGitHubOwnerRepo(repoURL string) (owner, repo string, err error) {
-	u := strings.TrimSpace(repoURL)
-	u = strings.TrimSuffix(u, ".git")
-	var parts []string
-	if strings.HasPrefix(u, "git@github.com:") {
-		u = strings.TrimPrefix(u, "git@github.com:")
-		parts = strings.Split(u, "/")
-	} else if strings.Contains(u, "github.com/") {
-		i := strings.Index(u, "github.com/")
-		u = u[i+len("github.com/"):]
-		parts = strings.Split(u, "/")
-	} else {
-		return "", "", errors.New(errInvalidGitHubURL)
-	}
-	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
-		return "", "", errors.New(errInvalidGitHubURL)
-	}
-	return parts[0], parts[1], nil
+	return gh.ParseOwnerRepo(repoURL)
 }
 
 // checkGitHubRepoHasDagrynToml verifies that the GitHub repo contains dagryn.toml at the root (default branch).
-// Returns an error if the file is missing or the request fails.
 func (h *Handler) checkGitHubRepoHasDagrynToml(ctx context.Context, accessToken, repoURL string) error {
-	owner, repo, err := parseGitHubOwnerRepo(repoURL)
+	owner, repoName, err := parseGitHubOwnerRepo(repoURL)
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s", owner, repo, githubContentsPath)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to check repository: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		return nil
-	case http.StatusNotFound:
+	client := gh.NewClient(accessToken)
+	if err := client.FileExists(ctx, owner, repoName, githubContentsPath); err != nil {
 		return errors.New(errNoDagrynToml)
-	case http.StatusForbidden:
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("access denied (403): ensure the GitHub App has 'Contents: Read' permission and the repository is included in the installation. If using GitHub App, verify the repo is selected when installing the app. GitHub response: %s", string(body))
-	default:
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("repository must contain dagryn.toml at the root: GitHub returned %d: %s", resp.StatusCode, string(body))
 	}
+	return nil
 }
 
 // validateGitHubRepoBelongsToInstallation verifies that a repo belongs to a GitHub App installation.
-// It checks that the repo ID matches and the repo is accessible with the installation token.
 func (h *Handler) validateGitHubRepoBelongsToInstallation(ctx context.Context, accessToken string, repoID int64, repoURL string) error {
 	owner, repoName, err := parseGitHubOwnerRepo(repoURL)
 	if err != nil {
 		return err
 	}
 
-	// Fetch repo details using installation token
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s", owner, repoName)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	client := gh.NewClient(accessToken)
+	r, err := client.GetRepo(ctx, owner, repoName)
 	if err != nil {
-		return err
+		return fmt.Errorf("repository not accessible with installation token: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to validate repository: %w", err)
+	if r.ID != repoID {
+		return fmt.Errorf("repository ID mismatch: expected %d, got %d", repoID, r.ID)
 	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		_, _ = io.ReadAll(resp.Body)
-		return fmt.Errorf("repository not accessible with installation token: GitHub returned %d", resp.StatusCode)
-	}
-
-	var repoResp struct {
-		ID int64 `json:"id"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&repoResp); err != nil {
-		return fmt.Errorf("failed to parse repository response: %w", err)
-	}
-
-	if repoResp.ID != repoID {
-		return fmt.Errorf("repository ID mismatch: expected %d, got %d", repoID, repoResp.ID)
-	}
-
 	return nil
 }
 
 // GitHubRepo is a minimal repo representation for the Import from GitHub UI.
-type GitHubRepo struct {
-	ID            int64  `json:"id"`
-	FullName      string `json:"full_name"`
-	CloneURL      string `json:"clone_url"`
-	DefaultBranch string `json:"default_branch"`
-	Private       bool   `json:"private"`
-	Language      string `json:"language"`
-}
+type GitHubRepo = gh.Repository
 
 // ListGitHubRepos godoc
 //
@@ -173,54 +95,14 @@ func (h *Handler) ListGitHubRepos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, githubReposURL, nil)
-	if err != nil {
-		_ = response.InternalServerError(w, r, err)
-		return
-	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
+	client := gh.NewClient(accessToken)
+	repos, err := client.ListUserRepos(ctx)
 	if err != nil {
 		_ = response.InternalServerError(w, r, fmt.Errorf("gitHub API request failed: %w", err))
 		return
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		_ = response.InternalServerError(w, r, fmt.Errorf("gitHub API returned %d: %s", resp.StatusCode, string(body)))
-		return
-	}
-
-	var raw []struct {
-		ID            int64  `json:"id"`
-		FullName      string `json:"full_name"`
-		CloneURL      string `json:"clone_url"`
-		DefaultBranch string `json:"default_branch"`
-		Private       bool   `json:"private"`
-		Language      string `json:"language"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		_ = response.InternalServerError(w, r, err)
-		return
-	}
-
-	list := make([]GitHubRepo, 0, len(raw))
-	for _, r := range raw {
-		list = append(list, GitHubRepo{
-			ID:            r.ID,
-			FullName:      r.FullName,
-			CloneURL:      r.CloneURL,
-			DefaultBranch: r.DefaultBranch,
-			Private:       r.Private,
-			Language:      r.Language,
-		})
-	}
-
-	_ = response.Ok(w, r, "Success", list)
+	_ = response.Ok(w, r, "Success", repos)
 }
 
 // GitHubAppInstallation represents a GitHub App installation.
@@ -317,111 +199,18 @@ func (h *Handler) ListGitHubAppRepos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// List repos accessible to this installation
-	url := "https://api.github.com/installation/repositories?per_page=100"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		_ = response.InternalServerError(w, r, err)
-		return
-	}
-	req.Header.Set("Authorization", "Bearer "+token.Token)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
+	client := gh.NewClient(token.Token)
+	repos, err := client.ListInstallationRepos(ctx)
 	if err != nil {
 		_ = response.InternalServerError(w, r, fmt.Errorf("github API request failed: %w", err))
 		return
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		_ = response.InternalServerError(w, r, fmt.Errorf("github API returned %d: %s", resp.StatusCode, string(body)))
-		return
-	}
-
-	var raw struct {
-		Repositories []struct {
-			ID            int64  `json:"id"`
-			FullName      string `json:"full_name"`
-			CloneURL      string `json:"clone_url"`
-			DefaultBranch string `json:"default_branch"`
-			Private       bool   `json:"private"`
-			Language      string `json:"language"`
-		} `json:"repositories"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		_ = response.InternalServerError(w, r, err)
-		return
-	}
-
-	list := make([]GitHubRepo, 0, len(raw.Repositories))
-	for _, r := range raw.Repositories {
-		list = append(list, GitHubRepo{
-			ID:            r.ID,
-			FullName:      r.FullName,
-			CloneURL:      r.CloneURL,
-			DefaultBranch: r.DefaultBranch,
-			Private:       r.Private,
-			Language:      r.Language,
-		})
-	}
-
-	_ = response.Ok(w, r, "Success", list)
-}
-
-// githubAPIRequest is a small helper that sends a JSON request to the GitHub API
-// and decodes the response into dest (if non-nil). Returns the HTTP status code.
-func githubAPIRequest(accessToken, method, url string, body interface{}, dest interface{}) (int, error) {
-	var reqBody io.Reader
-	if body != nil {
-		b, err := json.Marshal(body)
-		if err != nil {
-			return 0, fmt.Errorf("marshal request: %w", err)
-		}
-		reqBody = bytes.NewReader(b)
-	}
-	req, err := http.NewRequest(method, url, reqBody)
-	if err != nil {
-		return 0, err
-	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode >= 400 {
-		respBody, _ := io.ReadAll(resp.Body)
-		return resp.StatusCode, fmt.Errorf("GitHub API %d: %s", resp.StatusCode, string(respBody))
-	}
-	if dest != nil {
-		if err := json.NewDecoder(resp.Body).Decode(dest); err != nil {
-			return resp.StatusCode, fmt.Errorf("decode response: %w", err)
-		}
-	}
-	return resp.StatusCode, nil
+	_ = response.Ok(w, r, "Success", repos)
 }
 
 // commitDagrynTomlToGitHub creates a new branch with dagryn.toml and opens a
-// pull request for the user to merge. This avoids issues with branch protection
-// rules that block direct pushes.
-//
-// Steps:
-//  1. GET the default branch ref SHA
-//  2. POST a new branch ref (dagryn/add-config)
-//  3. PUT dagryn.toml on that branch via the Contents API
-//  4. POST a pull request targeting the default branch
-//
-// All failures are best-effort and logged as warnings.
+// pull request for the user to merge.
 func commitDagrynTomlToGitHub(accessToken, repoURL, content, defaultBranch string) error {
 	owner, repoName, err := parseGitHubOwnerRepo(repoURL)
 	if err != nil {
@@ -431,29 +220,18 @@ func commitDagrynTomlToGitHub(accessToken, repoURL, content, defaultBranch strin
 		defaultBranch = "main"
 	}
 
-	base := fmt.Sprintf("https://api.github.com/repos/%s/%s", owner, repoName)
+	ctx := context.Background()
+	client := gh.NewClient(accessToken)
 	branchName := "dagryn/add-config"
 
 	// 1. Get the SHA of the default branch HEAD
-	var refResp struct {
-		Object struct {
-			SHA string `json:"sha"`
-		} `json:"object"`
-	}
-	if _, err := githubAPIRequest(accessToken, http.MethodGet,
-		fmt.Sprintf("%s/git/ref/heads/%s", base, defaultBranch),
-		nil, &refResp); err != nil {
+	baseSHA, err := client.GetRef(ctx, owner, repoName, "heads/"+defaultBranch)
+	if err != nil {
 		return fmt.Errorf("get default branch ref: %w", err)
 	}
-	baseSHA := refResp.Object.SHA
 
 	// 2. Create a new branch
-	createRefBody := map[string]string{
-		"ref": "refs/heads/" + branchName,
-		"sha": baseSHA,
-	}
-	status, err := githubAPIRequest(accessToken, http.MethodPost,
-		base+"/git/refs", createRefBody, nil)
+	status, err := client.CreateRef(ctx, owner, repoName, "refs/heads/"+branchName, baseSHA)
 	if err != nil {
 		// 422 = branch already exists (perhaps from a previous attempt) — continue
 		if status != http.StatusUnprocessableEntity {
@@ -463,14 +241,12 @@ func commitDagrynTomlToGitHub(accessToken, repoURL, content, defaultBranch strin
 	}
 
 	// 3. Commit dagryn.toml to the new branch
-	putFileBody := map[string]string{
-		"message": "chore: add dagryn.toml configuration\n\nGenerated by Dagryn during project import.",
-		"content": base64.StdEncoding.EncodeToString([]byte(content)),
-		"branch":  branchName,
+	fileReq := gh.CreateFileRequest{
+		Message: "chore: add dagryn.toml configuration\n\nGenerated by Dagryn during project import.",
+		Content: base64.StdEncoding.EncodeToString([]byte(content)),
+		Branch:  branchName,
 	}
-	status, err = githubAPIRequest(accessToken, http.MethodPut,
-		fmt.Sprintf("%s/contents/%s", base, githubContentsPath),
-		putFileBody, nil)
+	status, err = client.CreateOrUpdateFile(ctx, owner, repoName, githubContentsPath, fileReq)
 	if err != nil {
 		// 422 = file already exists on this branch — continue to PR creation
 		if status != http.StatusUnprocessableEntity {
@@ -480,14 +256,13 @@ func commitDagrynTomlToGitHub(accessToken, repoURL, content, defaultBranch strin
 	}
 
 	// 4. Open a pull request
-	prBody := map[string]string{
-		"title": "chore: add dagryn.toml configuration",
-		"head":  branchName,
-		"base":  defaultBranch,
-		"body":  "This PR adds a `dagryn.toml` workflow configuration file generated during project import.\n\nYou can edit and merge when ready — Dagryn will use the stored configuration in the meantime.",
+	prReq := gh.CreatePRRequest{
+		Title: "chore: add dagryn.toml configuration",
+		Head:  branchName,
+		Base:  defaultBranch,
+		Body:  "This PR adds a `dagryn.toml` workflow configuration file generated during project import.\n\nYou can edit and merge when ready — Dagryn will use the stored configuration in the meantime.",
 	}
-	status, err = githubAPIRequest(accessToken, http.MethodPost,
-		base+"/pulls", prBody, nil)
+	status, err = client.CreatePR(ctx, owner, repoName, prReq)
 	if err != nil {
 		// 422 = PR already exists for this head/base pair
 		if status == http.StatusUnprocessableEntity {

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -17,8 +16,8 @@ import (
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
 	"github.com/mujhtech/dagryn/pkg/entitlement"
+	gh "github.com/mujhtech/dagryn/pkg/github"
 	"github.com/mujhtech/dagryn/pkg/http/response"
-	"github.com/mujhtech/dagryn/pkg/notification"
 	"github.com/mujhtech/dagryn/pkg/server/sse"
 	"github.com/mujhtech/dagryn/pkg/worker"
 )
@@ -593,7 +592,6 @@ func (h *Handler) enrichRunWithGitHubCommit(ctx context.Context, run *models.Run
 		return
 	}
 
-	// Prefer the user who linked the repo (stable access), fallback to current user.
 	tokenUserID := currentUserID
 	if project.RepoLinkedByUserID != nil {
 		tokenUserID = *project.RepoLinkedByUserID
@@ -608,116 +606,7 @@ func (h *Handler) enrichRunWithGitHubCommit(ctx context.Context, run *models.Run
 		return
 	}
 
-	owner, repoName, err := parseGitHubOwnerRepo(*project.RepoURL)
-	if err != nil {
-		return
-	}
-
-	branch := strings.TrimSpace(requestedBranch)
-	if branch == "" {
-		// Resolve default branch
-		u := fmt.Sprintf("https://api.github.com/repos/%s/%s", owner, repoName)
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-		if err != nil {
-			return
-		}
-		req.Header.Set("Authorization", "Bearer "+accessToken)
-		req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-		client := &http.Client{Timeout: 10 * time.Second}
-		resp, err := client.Do(req)
-		if err != nil {
-			return
-		}
-		defer func() { _ = resp.Body.Close() }()
-		if resp.StatusCode != http.StatusOK {
-			_, _ = io.ReadAll(resp.Body)
-			return
-		}
-
-		var repoResp struct {
-			DefaultBranch string `json:"default_branch"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&repoResp); err != nil {
-			return
-		}
-		branch = strings.TrimSpace(repoResp.DefaultBranch)
-	}
-	if branch == "" {
-		return
-	}
-
-	// Fetch the latest commit for the branch
-	u := fmt.Sprintf("https://api.github.com/repos/%s/%s/commits/%s", owner, repoName, branch)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	if err != nil {
-		return
-	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		_, _ = io.ReadAll(resp.Body)
-		return
-	}
-
-	var commitResp struct {
-		SHA    string `json:"sha"`
-		Commit struct {
-			Message string `json:"message"`
-			Author  struct {
-				Name  string `json:"name"`
-				Email string `json:"email"`
-			} `json:"author"`
-		} `json:"commit"`
-		Author struct {
-			AvatarURL string `json:"avatar_url"`
-		} `json:"author"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&commitResp); err != nil {
-		return
-	}
-
-	// Populate run fields if missing
-	if run.GitBranch == nil || *run.GitBranch == "" {
-		run.GitBranch = &branch
-	}
-	if run.GitCommit == nil || *run.GitCommit == "" {
-		if commitResp.SHA != "" {
-			sha := commitResp.SHA
-			run.GitCommit = &sha
-		}
-	}
-	if run.CommitMessage == nil || *run.CommitMessage == "" {
-		if commitResp.Commit.Message != "" {
-			msg := commitResp.Commit.Message
-			run.CommitMessage = &msg
-		}
-	}
-	if run.CommitAuthorName == nil || *run.CommitAuthorName == "" {
-		if commitResp.Commit.Author.Name != "" {
-			n := commitResp.Commit.Author.Name
-			run.CommitAuthorName = &n
-		}
-	}
-	if run.CommitAuthorEmail == nil || *run.CommitAuthorEmail == "" {
-		if commitResp.Commit.Author.Email != "" {
-			e := commitResp.Commit.Author.Email
-			run.CommitAuthorEmail = &e
-		}
-	}
-	if run.CommitAuthorAvatarURL == nil || *run.CommitAuthorAvatarURL == "" {
-		if commitResp.Author.AvatarURL != "" {
-			a := commitResp.Author.AvatarURL
-			run.CommitAuthorAvatarURL = &a
-		}
-	}
+	h.enrichRunWithGitHubCommitUsingToken(ctx, run, project, accessToken, requestedBranch)
 }
 
 // enrichRunWithGitHubPR attempts to populate PR metadata for a run using the GitHub API.
@@ -751,7 +640,6 @@ func (h *Handler) enrichRunWithGitHubPR(ctx context.Context, run *models.Run, pr
 }
 
 // enrichRunWithGitHubPRUsingToken populates PR metadata using a provided GitHub access token.
-// It first tries to find a PR by commit SHA, then falls back to searching by branch name.
 func (h *Handler) enrichRunWithGitHubPRUsingToken(ctx context.Context, run *models.Run, project *models.Project, accessToken string) {
 	if project.RepoURL == nil || *project.RepoURL == "" {
 		return
@@ -765,99 +653,34 @@ func (h *Handler) enrichRunWithGitHubPRUsingToken(ctx context.Context, run *mode
 		return
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := gh.NewClient(accessToken)
 
 	// Strategy 1: look up PRs by commit SHA.
 	if run.GitCommit != nil && *run.GitCommit != "" {
-		if pr := h.fetchPRByCommit(ctx, client, accessToken, owner, repoName, *run.GitCommit); pr != nil {
-			run.PRNumber = &pr.Number
-			if pr.Title != "" {
-				run.PRTitle = &pr.Title
+		prs, err := client.GetPRsByCommit(ctx, owner, repoName, *run.GitCommit)
+		if err == nil && len(prs) > 0 && prs[0].Number != 0 {
+			run.PRNumber = &prs[0].Number
+			if prs[0].Title != "" {
+				run.PRTitle = &prs[0].Title
 			}
 			return
 		}
 	}
 
 	// Strategy 2: look up open PRs by branch name.
-	// Push webhooks may arrive before GitHub indexes the commit→PR association,
-	// but searching by head branch is immediate.
 	if run.GitBranch != nil && *run.GitBranch != "" {
-		if pr := h.fetchPRByBranch(ctx, client, accessToken, owner, repoName, *run.GitBranch); pr != nil {
-			run.PRNumber = &pr.Number
-			if pr.Title != "" {
-				run.PRTitle = &pr.Title
+		prs, err := client.GetPRsByBranch(ctx, owner, repoName, *run.GitBranch)
+		if err == nil && len(prs) > 0 && prs[0].Number != 0 {
+			run.PRNumber = &prs[0].Number
+			if prs[0].Title != "" {
+				run.PRTitle = &prs[0].Title
 			}
 			return
 		}
 	}
 }
 
-type ghPRRef struct {
-	Number int
-	Title  string
-}
-
-func (h *Handler) fetchPRByCommit(ctx context.Context, client *http.Client, token, owner, repo, sha string) *ghPRRef {
-	u := fmt.Sprintf("https://api.github.com/repos/%s/%s/commits/%s/pulls", owner, repo, sha)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	if err != nil {
-		return nil
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Accept", "application/vnd.github+json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		_, _ = io.ReadAll(resp.Body)
-		return nil
-	}
-
-	var prs []struct {
-		Number int    `json:"number"`
-		Title  string `json:"title"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&prs); err != nil || len(prs) == 0 || prs[0].Number == 0 {
-		return nil
-	}
-	return &ghPRRef{Number: prs[0].Number, Title: prs[0].Title}
-}
-
-func (h *Handler) fetchPRByBranch(ctx context.Context, client *http.Client, token, owner, repo, branch string) *ghPRRef {
-	u := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls?state=open&head=%s:%s&per_page=1",
-		owner, repo, owner, branch)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	if err != nil {
-		return nil
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Accept", "application/vnd.github+json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		_, _ = io.ReadAll(resp.Body)
-		return nil
-	}
-
-	var prs []struct {
-		Number int    `json:"number"`
-		Title  string `json:"title"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&prs); err != nil || len(prs) == 0 || prs[0].Number == 0 {
-		return nil
-	}
-	return &ghPRRef{Number: prs[0].Number, Title: prs[0].Title}
-}
-
 // enrichRunWithGitHubCommitUsingToken enriches a run with commit metadata using a provided GitHub access token.
-// This is used when we have an installation token from the GitHub App.
 func (h *Handler) enrichRunWithGitHubCommitUsingToken(ctx context.Context, run *models.Run, project *models.Project, accessToken, requestedBranch string) {
 	if project.RepoURL == nil || *project.RepoURL == "" {
 		return
@@ -868,108 +691,54 @@ func (h *Handler) enrichRunWithGitHubCommitUsingToken(ctx context.Context, run *
 		return
 	}
 
+	client := gh.NewClient(accessToken)
 	branch := strings.TrimSpace(requestedBranch)
 	if branch == "" {
-		// Resolve default branch
-		u := fmt.Sprintf("https://api.github.com/repos/%s/%s", owner, repoName)
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+		r, err := client.GetRepo(ctx, owner, repoName)
 		if err != nil {
 			return
 		}
-		req.Header.Set("Authorization", "Bearer "+accessToken)
-		req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-		client := &http.Client{Timeout: 10 * time.Second}
-		resp, err := client.Do(req)
-		if err != nil {
-			return
-		}
-		defer func() { _ = resp.Body.Close() }()
-		if resp.StatusCode != http.StatusOK {
-			_, _ = io.ReadAll(resp.Body)
-			return
-		}
-
-		var repoResp struct {
-			DefaultBranch string `json:"default_branch"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&repoResp); err != nil {
-			return
-		}
-		branch = strings.TrimSpace(repoResp.DefaultBranch)
+		branch = strings.TrimSpace(r.DefaultBranch)
 	}
 	if branch == "" {
 		return
 	}
 
-	// Fetch the latest commit for the branch
-	u := fmt.Sprintf("https://api.github.com/repos/%s/%s/commits/%s", owner, repoName, branch)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	commit, err := client.GetCommit(ctx, owner, repoName, branch)
 	if err != nil {
 		return
 	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		_, _ = io.ReadAll(resp.Body)
-		return
-	}
-
-	var commitResp struct {
-		SHA    string `json:"sha"`
-		Commit struct {
-			Message string `json:"message"`
-			Author  struct {
-				Name  string `json:"name"`
-				Email string `json:"email"`
-			} `json:"author"`
-		} `json:"commit"`
-		Author struct {
-			AvatarURL string `json:"avatar_url"`
-		} `json:"author"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&commitResp); err != nil {
-		return
-	}
-
-	// Populate run fields if missing
 	if run.GitBranch == nil || *run.GitBranch == "" {
 		run.GitBranch = &branch
 	}
 	if run.GitCommit == nil || *run.GitCommit == "" {
-		if commitResp.SHA != "" {
-			sha := commitResp.SHA
+		if commit.SHA != "" {
+			sha := commit.SHA
 			run.GitCommit = &sha
 		}
 	}
 	if run.CommitMessage == nil || *run.CommitMessage == "" {
-		if commitResp.Commit.Message != "" {
-			msg := commitResp.Commit.Message
+		if commit.Commit.Message != "" {
+			msg := commit.Commit.Message
 			run.CommitMessage = &msg
 		}
 	}
 	if run.CommitAuthorName == nil || *run.CommitAuthorName == "" {
-		if commitResp.Commit.Author.Name != "" {
-			n := commitResp.Commit.Author.Name
+		if commit.Commit.Author.Name != "" {
+			n := commit.Commit.Author.Name
 			run.CommitAuthorName = &n
 		}
 	}
 	if run.CommitAuthorEmail == nil || *run.CommitAuthorEmail == "" {
-		if commitResp.Commit.Author.Email != "" {
-			e := commitResp.Commit.Author.Email
+		if commit.Commit.Author.Email != "" {
+			e := commit.Commit.Author.Email
 			run.CommitAuthorEmail = &e
 		}
 	}
 	if run.CommitAuthorAvatarURL == nil || *run.CommitAuthorAvatarURL == "" {
-		if commitResp.Author.AvatarURL != "" {
-			a := commitResp.Author.AvatarURL
+		if commit.Author.AvatarURL != "" {
+			a := commit.Author.AvatarURL
 			run.CommitAuthorAvatarURL = &a
 		}
 	}
@@ -1072,10 +841,11 @@ func (h *Handler) notifyGitHubForRun(ctx context.Context, projectID, runID uuid.
 	// }
 
 	// 2) Check run (create/update)
+	ghClient := gh.NewClient(accessToken)
 	checkStatus, conclusion := mapGitHubCheckRunState(status)
 	checkOutput := buildGitHubCheckRunOutput(run, status)
 	if run.GitHubCheckRunID == nil || *run.GitHubCheckRunID == 0 {
-		req := notification.CheckRunRequest{
+		req := gh.CheckRunRequest{
 			Name:       "Dagryn / workflow",
 			HeadSHA:    sha,
 			Status:     checkStatus,
@@ -1090,7 +860,7 @@ func (h *Handler) notifyGitHubForRun(ctx context.Context, projectID, runID uuid.
 		if checkStatus == "completed" {
 			req.CompletedAt = &now
 		}
-		checkRunID, err := notification.CreateCheckRun(ctx, accessToken, owner, repoName, req)
+		checkRunID, err := ghClient.CreateCheckRun(ctx, owner, repoName, req)
 		if err != nil {
 			slog.Error("github_check_run_create_failed", "run_id", run.ID, "error", err)
 		} else if checkRunID != 0 {
@@ -1100,7 +870,7 @@ func (h *Handler) notifyGitHubForRun(ctx context.Context, projectID, runID uuid.
 			}
 		}
 	} else {
-		req := notification.CheckRunRequest{
+		req := gh.CheckRunRequest{
 			Status:     checkStatus,
 			Conclusion: conclusion,
 			DetailsURL: targetURL,
@@ -1110,36 +880,28 @@ func (h *Handler) notifyGitHubForRun(ctx context.Context, projectID, runID uuid.
 			now := time.Now()
 			req.CompletedAt = &now
 		}
-		if err := notification.UpdateCheckRun(ctx, accessToken, owner, repoName, *run.GitHubCheckRunID, req); err != nil {
+		if err := ghClient.UpdateCheckRun(ctx, owner, repoName, *run.GitHubCheckRunID, req); err != nil {
 			slog.Error("github_check_run_update_failed", "run_id", run.ID, "error", err)
 		}
 	}
 
-	// 2) PR summary comment (create once, then update same comment)
-	commentBody := map[string]string{
-		"body": buildGitHubPRComment(run, status, targetURL),
-	}
+	// 3) PR summary comment (create once, then update same comment)
+	commentText := buildGitHubPRComment(run, status, targetURL)
 
 	if run.GitHubPRCommentID != nil {
-		// Update existing comment
-		commentURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/issues/comments/%d", owner, repoName, *run.GitHubPRCommentID)
-		if err := notification.SendGitHubJSON(ctx, accessToken, http.MethodPatch, commentURL, commentBody, nil); err != nil {
+		if err := ghClient.UpdateIssueComment(ctx, owner, repoName, *run.GitHubPRCommentID, commentText); err != nil {
 			slog.Error("github_pr_comment_update_failed", "run_id", runID, "error", err)
 		}
 	} else {
-		// Create new comment and persist its ID
-		commentURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/issues/%d/comments", owner, repoName, *run.PRNumber)
-		var respBody struct {
-			ID int64 `json:"id"`
-		}
-		if err := notification.SendGitHubJSON(ctx, accessToken, http.MethodPost, commentURL, commentBody, &respBody); err != nil {
+		commentID, err := ghClient.CreateIssueComment(ctx, owner, repoName, *run.PRNumber, commentText)
+		if err != nil {
 			slog.Error("github_pr_comment_create_failed", "run_id", runID, "error", err)
 		}
 
-		slog.Info("github_pr_comment_created", "run_id", runID, "comment_id", respBody.ID)
+		slog.Info("github_pr_comment_created", "run_id", runID, "comment_id", commentID)
 
-		if respBody.ID != 0 {
-			run.GitHubPRCommentID = &respBody.ID
+		if commentID != 0 {
+			run.GitHubPRCommentID = &commentID
 			if err := h.store.Runs.Update(ctx, run); err != nil {
 				slog.Error("github_pr_comment_id_persist_failed", "run_id", runID, "error", err)
 			}
@@ -1164,7 +926,7 @@ func mapGitHubCheckRunState(status models.RunStatus) (checkStatus string, conclu
 	}
 }
 
-func buildGitHubCheckRunOutput(run *models.Run, status models.RunStatus) *notification.CheckRunOutput {
+func buildGitHubCheckRunOutput(run *models.Run, status models.RunStatus) *gh.CheckRunOutput {
 	title := fmt.Sprintf("Dagryn run %s", status)
 	summary := fmt.Sprintf("Status: %s\nTasks: %d/%d\nFailed: %d\nCache hits: %d",
 		status, run.CompletedTasks, run.TotalTasks, run.FailedTasks, run.CacheHits,
@@ -1172,7 +934,7 @@ func buildGitHubCheckRunOutput(run *models.Run, status models.RunStatus) *notifi
 	if run.DurationMs != nil {
 		summary = fmt.Sprintf("%s\nDuration: %s", summary, formatDurationMs(*run.DurationMs))
 	}
-	return &notification.CheckRunOutput{
+	return &gh.CheckRunOutput{
 		Title:   title,
 		Summary: summary,
 	}
