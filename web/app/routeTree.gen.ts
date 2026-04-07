@@ -23,6 +23,11 @@ import { Route as Dashboard_layoutTeamsIndexRouteImport } from './routes/_dashbo
 import { Route as Dashboard_layoutProjectsIndexRouteImport } from './routes/_dashboard_layout/projects/index'
 import { Route as Dashboard_layoutInvitationsIndexRouteImport } from './routes/_dashboard_layout/invitations/index'
 import { Route as Dashboard_layoutClustersIndexRouteImport } from './routes/_dashboard_layout/clusters/index'
+import { Route as Dashboard_layoutPluginsIndexRouteImport } from './routes/_dashboard_layout/plugins/index'
+import { Route as Dashboard_layoutPluginsPublishersIndexRouteImport } from './routes/_dashboard_layout/plugins/publishers/index'
+import { Route as Dashboard_layoutWorkersIndexRouteImport } from './routes/_dashboard_layout/workers/index'
+import { Route as Dashboard_layoutProjectsNewIndexRouteImport } from './routes/_dashboard_layout/projects/new/index'
+import { Route as Dashboard_layoutProjectsProjectIdRunsIndexRouteImport } from './routes/_dashboard_layout/projects/$projectId/runs/index'
 import { Route as AuthProviderCallbackRouteImport } from './routes/auth/$provider/callback'
 import { Route as Dashboard_layoutWorkersWorkerIdRouteImport } from './routes/_dashboard_layout/workers/$workerId'
 import { Route as Dashboard_layoutPluginsPublishRouteImport } from './routes/_dashboard_layout/plugins/publish'
@@ -121,6 +126,36 @@ const Dashboard_layoutClustersIndexRoute =
   Dashboard_layoutClustersIndexRouteImport.update({
     id: '/clusters/',
     path: '/clusters/',
+    getParentRoute: () => Dashboard_layoutRoute,
+  } as any)
+const Dashboard_layoutPluginsIndexRoute =
+  Dashboard_layoutPluginsIndexRouteImport.update({
+    id: '/plugins/',
+    path: '/plugins/',
+    getParentRoute: () => Dashboard_layoutRoute,
+  } as any)
+const Dashboard_layoutPluginsPublishersIndexRoute =
+  Dashboard_layoutPluginsPublishersIndexRouteImport.update({
+    id: '/plugins/publishers/',
+    path: '/plugins/publishers/',
+    getParentRoute: () => Dashboard_layoutRoute,
+  } as any)
+const Dashboard_layoutWorkersIndexRoute =
+  Dashboard_layoutWorkersIndexRouteImport.update({
+    id: '/workers/',
+    path: '/workers/',
+    getParentRoute: () => Dashboard_layoutRoute,
+  } as any)
+const Dashboard_layoutProjectsNewIndexRoute =
+  Dashboard_layoutProjectsNewIndexRouteImport.update({
+    id: '/projects/new/',
+    path: '/projects/new/',
+    getParentRoute: () => Dashboard_layoutRoute,
+  } as any)
+const Dashboard_layoutProjectsProjectIdRunsIndexRoute =
+  Dashboard_layoutProjectsProjectIdRunsIndexRouteImport.update({
+    id: '/projects/$projectId/runs/',
+    path: '/projects/$projectId/runs/',
     getParentRoute: () => Dashboard_layoutRoute,
   } as any)
 const AuthProviderCallbackRoute = AuthProviderCallbackRouteImport.update({
@@ -279,8 +314,13 @@ export interface FileRoutesByFullPath {
   '/auth/$provider/callback': typeof AuthProviderCallbackRoute
   '/clusters/': typeof Dashboard_layoutClustersIndexRoute
   '/invitations/': typeof Dashboard_layoutInvitationsIndexRoute
+  '/plugins/': typeof Dashboard_layoutPluginsIndexRoute
+  '/plugins/publishers/': typeof Dashboard_layoutPluginsPublishersIndexRoute
   '/projects/': typeof Dashboard_layoutProjectsIndexRoute
+  '/projects/new/': typeof Dashboard_layoutProjectsNewIndexRoute
   '/teams/': typeof Dashboard_layoutTeamsIndexRoute
+  '/workers/': typeof Dashboard_layoutWorkersIndexRoute
+  '/projects/$projectId/runs/': typeof Dashboard_layoutProjectsProjectIdRunsIndexRoute
   '/plugins/publishers/$publisher': typeof Dashboard_layoutPluginsPublishersPublisherRoute
   '/projects/$projectId/ai-analyses': typeof Dashboard_layoutProjectsProjectIdAiAnalysesRoute
   '/projects/$projectId/audit-logs': typeof Dashboard_layoutProjectsProjectIdAuditLogsRoute
@@ -317,8 +357,13 @@ export interface FileRoutesByTo {
   '/auth/$provider/callback': typeof AuthProviderCallbackRoute
   '/clusters': typeof Dashboard_layoutClustersIndexRoute
   '/invitations': typeof Dashboard_layoutInvitationsIndexRoute
+  '/plugins': typeof Dashboard_layoutPluginsIndexRoute
+  '/plugins/publishers': typeof Dashboard_layoutPluginsPublishersIndexRoute
   '/projects': typeof Dashboard_layoutProjectsIndexRoute
+  '/projects/new': typeof Dashboard_layoutProjectsNewIndexRoute
   '/teams': typeof Dashboard_layoutTeamsIndexRoute
+  '/workers': typeof Dashboard_layoutWorkersIndexRoute
+  '/projects/$projectId/runs': typeof Dashboard_layoutProjectsProjectIdRunsIndexRoute
   '/plugins/publishers/$publisher': typeof Dashboard_layoutPluginsPublishersPublisherRoute
   '/projects/$projectId/ai-analyses': typeof Dashboard_layoutProjectsProjectIdAiAnalysesRoute
   '/projects/$projectId/audit-logs': typeof Dashboard_layoutProjectsProjectIdAuditLogsRoute
@@ -356,8 +401,13 @@ export interface FileRoutesById {
   '/auth/$provider/callback': typeof AuthProviderCallbackRoute
   '/_dashboard_layout/clusters/': typeof Dashboard_layoutClustersIndexRoute
   '/_dashboard_layout/invitations/': typeof Dashboard_layoutInvitationsIndexRoute
+  '/_dashboard_layout/plugins/': typeof Dashboard_layoutPluginsIndexRoute
+  '/_dashboard_layout/plugins/publishers/': typeof Dashboard_layoutPluginsPublishersIndexRoute
   '/_dashboard_layout/projects/': typeof Dashboard_layoutProjectsIndexRoute
+  '/_dashboard_layout/projects/new/': typeof Dashboard_layoutProjectsNewIndexRoute
   '/_dashboard_layout/teams/': typeof Dashboard_layoutTeamsIndexRoute
+  '/_dashboard_layout/workers/': typeof Dashboard_layoutWorkersIndexRoute
+  '/_dashboard_layout/projects/$projectId/runs/': typeof Dashboard_layoutProjectsProjectIdRunsIndexRoute
   '/_dashboard_layout/plugins/publishers/$publisher': typeof Dashboard_layoutPluginsPublishersPublisherRoute
   '/_dashboard_layout/projects/$projectId/ai-analyses': typeof Dashboard_layoutProjectsProjectIdAiAnalysesRoute
   '/_dashboard_layout/projects/$projectId/audit-logs': typeof Dashboard_layoutProjectsProjectIdAuditLogsRoute
@@ -396,8 +446,13 @@ export interface FileRouteTypes {
     | '/auth/$provider/callback'
     | '/clusters/'
     | '/invitations/'
+    | '/plugins/'
+    | '/plugins/publishers/'
     | '/projects/'
+    | '/projects/new/'
     | '/teams/'
+    | '/workers/'
+    | '/projects/$projectId/runs/'
     | '/plugins/publishers/$publisher'
     | '/projects/$projectId/ai-analyses'
     | '/projects/$projectId/audit-logs'
@@ -434,8 +489,13 @@ export interface FileRouteTypes {
     | '/auth/$provider/callback'
     | '/clusters'
     | '/invitations'
+    | '/plugins'
+    | '/plugins/publishers'
     | '/projects'
+    | '/projects/new'
     | '/teams'
+    | '/workers'
+    | '/projects/$projectId/runs'
     | '/plugins/publishers/$publisher'
     | '/projects/$projectId/ai-analyses'
     | '/projects/$projectId/audit-logs'
@@ -472,8 +532,13 @@ export interface FileRouteTypes {
     | '/auth/$provider/callback'
     | '/_dashboard_layout/clusters/'
     | '/_dashboard_layout/invitations/'
+    | '/_dashboard_layout/plugins/'
+    | '/_dashboard_layout/plugins/publishers/'
     | '/_dashboard_layout/projects/'
+    | '/_dashboard_layout/projects/new/'
     | '/_dashboard_layout/teams/'
+    | '/_dashboard_layout/workers/'
+    | '/_dashboard_layout/projects/$projectId/runs/'
     | '/_dashboard_layout/plugins/publishers/$publisher'
     | '/_dashboard_layout/projects/$projectId/ai-analyses'
     | '/_dashboard_layout/projects/$projectId/audit-logs'
@@ -601,6 +666,41 @@ declare module '@tanstack/react-router' {
       path: '/clusters'
       fullPath: '/clusters/'
       preLoaderRoute: typeof Dashboard_layoutClustersIndexRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
+    }
+    '/_dashboard_layout/plugins/': {
+      id: '/_dashboard_layout/plugins/'
+      path: '/plugins'
+      fullPath: '/plugins/'
+      preLoaderRoute: typeof Dashboard_layoutPluginsIndexRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
+    }
+    '/_dashboard_layout/plugins/publishers/': {
+      id: '/_dashboard_layout/plugins/publishers/'
+      path: '/plugins/publishers'
+      fullPath: '/plugins/publishers/'
+      preLoaderRoute: typeof Dashboard_layoutPluginsPublishersIndexRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
+    }
+    '/_dashboard_layout/workers/': {
+      id: '/_dashboard_layout/workers/'
+      path: '/workers'
+      fullPath: '/workers/'
+      preLoaderRoute: typeof Dashboard_layoutWorkersIndexRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
+    }
+    '/_dashboard_layout/projects/new/': {
+      id: '/_dashboard_layout/projects/new/'
+      path: '/projects/new'
+      fullPath: '/projects/new/'
+      preLoaderRoute: typeof Dashboard_layoutProjectsNewIndexRouteImport
+      parentRoute: typeof Dashboard_layoutRoute
+    }
+    '/_dashboard_layout/projects/$projectId/runs/': {
+      id: '/_dashboard_layout/projects/$projectId/runs/'
+      path: '/projects/$projectId/runs'
+      fullPath: '/projects/$projectId/runs/'
+      preLoaderRoute: typeof Dashboard_layoutProjectsProjectIdRunsIndexRouteImport
       parentRoute: typeof Dashboard_layoutRoute
     }
     '/auth/$provider/callback': {
@@ -800,8 +900,13 @@ interface Dashboard_layoutRouteChildren {
   Dashboard_layoutWorkersWorkerIdRoute: typeof Dashboard_layoutWorkersWorkerIdRoute
   Dashboard_layoutClustersIndexRoute: typeof Dashboard_layoutClustersIndexRoute
   Dashboard_layoutInvitationsIndexRoute: typeof Dashboard_layoutInvitationsIndexRoute
+  Dashboard_layoutPluginsIndexRoute: typeof Dashboard_layoutPluginsIndexRoute
+  Dashboard_layoutPluginsPublishersIndexRoute: typeof Dashboard_layoutPluginsPublishersIndexRoute
   Dashboard_layoutProjectsIndexRoute: typeof Dashboard_layoutProjectsIndexRoute
+  Dashboard_layoutProjectsNewIndexRoute: typeof Dashboard_layoutProjectsNewIndexRoute
   Dashboard_layoutTeamsIndexRoute: typeof Dashboard_layoutTeamsIndexRoute
+  Dashboard_layoutWorkersIndexRoute: typeof Dashboard_layoutWorkersIndexRoute
+  Dashboard_layoutProjectsProjectIdRunsIndexRoute: typeof Dashboard_layoutProjectsProjectIdRunsIndexRoute
   Dashboard_layoutPluginsPublishersPublisherRoute: typeof Dashboard_layoutPluginsPublishersPublisherRoute
   Dashboard_layoutProjectsProjectIdAiAnalysesRoute: typeof Dashboard_layoutProjectsProjectIdAiAnalysesRoute
   Dashboard_layoutProjectsProjectIdAuditLogsRoute: typeof Dashboard_layoutProjectsProjectIdAuditLogsRoute
@@ -832,8 +937,13 @@ const Dashboard_layoutRouteChildren: Dashboard_layoutRouteChildren = {
   Dashboard_layoutWorkersWorkerIdRoute: Dashboard_layoutWorkersWorkerIdRoute,
   Dashboard_layoutClustersIndexRoute: Dashboard_layoutClustersIndexRoute,
   Dashboard_layoutInvitationsIndexRoute: Dashboard_layoutInvitationsIndexRoute,
+  Dashboard_layoutPluginsIndexRoute: Dashboard_layoutPluginsIndexRoute,
+  Dashboard_layoutPluginsPublishersIndexRoute: Dashboard_layoutPluginsPublishersIndexRoute,
   Dashboard_layoutProjectsIndexRoute: Dashboard_layoutProjectsIndexRoute,
+  Dashboard_layoutProjectsNewIndexRoute: Dashboard_layoutProjectsNewIndexRoute,
   Dashboard_layoutTeamsIndexRoute: Dashboard_layoutTeamsIndexRoute,
+  Dashboard_layoutWorkersIndexRoute: Dashboard_layoutWorkersIndexRoute,
+  Dashboard_layoutProjectsProjectIdRunsIndexRoute: Dashboard_layoutProjectsProjectIdRunsIndexRoute,
   Dashboard_layoutPluginsPublishersPublisherRoute:
     Dashboard_layoutPluginsPublishersPublisherRoute,
   Dashboard_layoutProjectsProjectIdAiAnalysesRoute:

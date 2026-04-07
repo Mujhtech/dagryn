@@ -320,7 +320,7 @@ function ChangeLicenseCard() {
   if (!showForm) {
     return (
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="pt-0">
           <Button variant="outline" size="sm" onClick={() => setShowForm(true)}>
             Change License Key
           </Button>
