@@ -1,6 +1,6 @@
 "use client";
 
-import { Icons } from "./icons";
+// import { Icons } from "./icons";
 import type { FunctionComponent } from "react";
 import type { IconProps } from "@phosphor-icons/react";
 
@@ -27,7 +27,7 @@ export function NavMain({
   return (
     <SidebarGroup>
       <SidebarGroupContent className="flex flex-col gap-2">
-        <SidebarMenu>
+        {/* <SidebarMenu>
           <SidebarMenuItem className="flex items-center gap-2">
             <SidebarMenuButton
               tooltip="Quick Create"
@@ -37,7 +37,7 @@ export function NavMain({
               <span>Create Project</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
-        </SidebarMenu>
+        </SidebarMenu> */}
         <SidebarMenu>
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
