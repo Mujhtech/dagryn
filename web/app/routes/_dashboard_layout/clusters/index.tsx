@@ -1,4 +1,9 @@
-import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  redirect,
+  useSearch,
+} from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -68,6 +73,16 @@ const createWorkerTokenSchema = z.object({
 type CreateWorkerTokenForm = z.infer<typeof createWorkerTokenSchema>;
 
 export const Route = createFileRoute("/_dashboard_layout/clusters/")({
+  beforeLoad: async () => {
+    const { data: capabilities } = await api.getCapabilities();
+    const clusterEnabled = (capabilities.nav ?? []).some(
+      (item) => item.key === "clusters" && item.enabled,
+    );
+
+    if (!clusterEnabled) {
+      throw redirect({ to: "/dashboard" });
+    }
+  },
   component: ClustersPage,
   head: () => generateMetadata({ title: "Clusters" }),
   validateSearch: (search: Record<string, unknown>) => ({

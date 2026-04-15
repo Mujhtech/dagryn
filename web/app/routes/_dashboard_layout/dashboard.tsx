@@ -2,7 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useAuth } from "~/lib/auth";
 import { useDashboardOverview } from "~/hooks/queries";
-import { useTeams, useWorkersForAccessibleScopes } from "~/hooks/queries";
+import {
+  useCapabilities,
+  useTeams,
+  useWorkersForAccessibleScopes,
+} from "~/hooks/queries";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Icons } from "~/components/icons";
@@ -22,13 +26,17 @@ export const Route = createFileRoute("/_dashboard_layout/dashboard")({
 export function IndexPage() {
   const { isAuthenticated } = useAuth();
   const { data: overview, isLoading } = useDashboardOverview(isAuthenticated);
+  const { data: capabilities } = useCapabilities();
+  const clusterEnabled = (capabilities?.nav ?? []).some(
+    (item) => item.key === "clusters" && item.enabled,
+  );
   const { data: teamsResp } = useTeams();
   const teamIds = useMemo(
     () => (teamsResp?.data ?? []).map((team) => team.id),
     [teamsResp?.data],
   );
   const { data: workers, isLoading: workersLoading } =
-    useWorkersForAccessibleScopes(teamIds, isAuthenticated);
+    useWorkersForAccessibleScopes(teamIds, isAuthenticated && clusterEnabled);
   const [copiedStep, setCopiedStep] = useState<number | null>(null);
 
   if (isLoading) {
@@ -126,45 +134,47 @@ export function IndexPage() {
           </div>
         </div>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Cluster Health</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground">Total Workers</p>
-                <p className="text-2xl font-semibold">{totalWorkers}</p>
+        {clusterEnabled ? (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Cluster Health</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Total Workers</p>
+                  <p className="text-2xl font-semibold">{totalWorkers}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Online</p>
+                  <p className="text-2xl font-semibold">{onlineWorkers}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Online</p>
-                <p className="text-2xl font-semibold">{onlineWorkers}</p>
+              <div className="flex items-center gap-3">
+                {workersLoading ? (
+                  <Icons.Loader className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : (
+                  <Badge
+                    variant={
+                      workerHealth === "healthy"
+                        ? "default"
+                        : workerHealth === "degraded"
+                          ? "secondary"
+                          : "outline"
+                    }
+                  >
+                    {workerHealth}
+                  </Badge>
+                )}
+                <Button variant="outline" asChild>
+                  <Link to="/clusters" search={{ teamId: undefined }}>
+                    View Clusters
+                  </Link>
+                </Button>
               </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {workersLoading ? (
-                <Icons.Loader className="h-4 w-4 animate-spin text-muted-foreground" />
-              ) : (
-                <Badge
-                  variant={
-                    workerHealth === "healthy"
-                      ? "default"
-                      : workerHealth === "degraded"
-                        ? "secondary"
-                        : "outline"
-                  }
-                >
-                  {workerHealth}
-                </Badge>
-              )}
-              <Button variant="outline" asChild>
-                <Link to="/clusters" search={{ teamId: undefined }}>
-                  View Clusters
-                </Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {recentProjects.length === 0 ? (
           <SetupGuide
