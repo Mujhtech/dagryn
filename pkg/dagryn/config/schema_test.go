@@ -97,3 +97,25 @@ func TestTriggerConfig_MatchesPullRequest_EmptyTypes(t *testing.T) {
 	// No type filter, any action matches
 	assert.True(t, tc.MatchesPullRequest("main", "any-action"))
 }
+
+func TestTriggerConfig_MatchesPush_TagPatternMatch(t *testing.T) {
+	tc := &TriggerConfig{
+		Tag: &TagTriggerConfig{Patterns: []string{"v*", "release-*"}},
+	}
+	assert.True(t, tc.MatchesPush("refs/tags/v1.2.3"))
+	assert.True(t, tc.MatchesPush("refs/tags/release-2026-04"))
+	assert.False(t, tc.MatchesPush("refs/tags/hotfix-1"))
+}
+
+func TestTriggerConfig_MatchesTag_EmptyPatterns(t *testing.T) {
+	tc := &TriggerConfig{Tag: &TagTriggerConfig{Patterns: []string{}}}
+	assert.True(t, tc.MatchesTag("v1.0.0"))
+}
+
+func TestMatchSimplePattern(t *testing.T) {
+	assert.True(t, matchSimplePattern("v*", "v1.0.0"))
+	assert.True(t, matchSimplePattern("release-*", "release-2026-04"))
+	assert.True(t, matchSimplePattern("*-rc*", "v1-rc1"))
+	assert.False(t, matchSimplePattern("v*", "x1.0.0"))
+	assert.False(t, matchSimplePattern("release-*", "release"))
+}

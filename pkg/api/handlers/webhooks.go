@@ -32,6 +32,8 @@ type GitHubPushEvent struct {
 		ID int64 `json:"id"`
 	} `json:"installation"`
 	Commits []GitHubPushCommit `json:"commits"`
+	Created bool               `json:"created"`
+	Deleted bool               `json:"deleted"`
 }
 
 // GitHubPushCommit represents a commit in a push event.
@@ -233,12 +235,34 @@ func (h *Handler) handleGitHubPush(ctx context.Context, payload *GitHubPushEvent
 	}
 
 	branch := strings.TrimPrefix(payload.Ref, "refs/heads/")
+	ref := strings.TrimSpace(payload.Ref)
+	tag := ""
+	if strings.HasPrefix(ref, "refs/tags/") {
+		tag = strings.TrimPrefix(ref, "refs/tags/")
+	}
 
-	// Check workflow trigger configuration before creating a run
-	triggerCfg := h.fetchTriggerConfig(ctx, project, payload.Installation.ID, payload.After)
-	if triggerCfg != nil && !triggerCfg.MatchesPush(branch) {
-		slog.Info("github_webhook: push trigger not matched, skipping", "branch", branch)
-		return nil
+	// Check workflow trigger configuration before creating a run.
+	// Use branch/tag ref for fetching dagryn.toml, not commit SHA, so trigger
+	// config can actually be resolved from the expected ref.
+	configRef := ref
+	if configRef == "" {
+		configRef = payload.After
+	}
+	triggerCfg := h.fetchTriggerConfig(ctx, project, payload.Installation.ID, configRef)
+	if triggerCfg != nil {
+		if strings.HasPrefix(ref, "refs/tags/") {
+			if !payload.Created || payload.Deleted {
+				slog.Info("github_webhook: tag event ignored (not created)", "ref", payload.Ref)
+				return nil
+			}
+			if !triggerCfg.MatchesPush(ref) {
+				slog.Info("github_webhook: tag trigger not matched, skipping", "ref", ref)
+				return nil
+			}
+		} else if !triggerCfg.MatchesPush(ref) {
+			slog.Info("github_webhook: push trigger not matched, skipping", "branch", branch)
+			return nil
+		}
 	}
 
 	// Check concurrent runs quota — skip run if exceeded (don't fail the webhook)
@@ -297,13 +321,18 @@ func (h *Handler) handleGitHubPush(ctx context.Context, payload *GitHubPushEvent
 
 	// Enqueue server-side execution if repo_url is set.
 	if project.RepoURL != nil && *project.RepoURL != "" {
+		eventType := "push"
+		if strings.HasPrefix(ref, "refs/tags/") {
+			eventType = "tag"
+		}
 		data, err := json.Marshal(worker.ExecuteRunPayload{
 			ProjectID: project.ID.String(),
 			RunID:     run.ID.String(),
 			GitBranch: branch,
+			GitTag:    tag,
 			GitCommit: payload.After,
 			RepoURL:   *project.RepoURL,
-			EventType: "push",
+			EventType: eventType,
 		})
 		if err == nil {
 			_ = h.jobClient.Enqueue(worker.QueueNameDefault, worker.ExecuteRunTaskName, &worker.ClientPayload{Data: data})
@@ -353,8 +382,14 @@ func (h *Handler) handleGitHubPullRequest(ctx context.Context, payload *GitHubPu
 	baseBranch := strings.TrimSpace(payload.PullRequest.Base.Ref)
 	sha := strings.TrimSpace(payload.PullRequest.Head.SHA)
 
-	// Check workflow trigger configuration before creating a run
-	triggerCfg := h.fetchTriggerConfig(ctx, project, payload.Installation.ID, sha)
+	// Check workflow trigger configuration before creating a run.
+	// Use PR head branch ref for config fetch (SHA may fail with Contents API in
+	// some cases depending on permissions/ref visibility).
+	configRef := branch
+	if configRef == "" {
+		configRef = sha
+	}
+	triggerCfg := h.fetchTriggerConfig(ctx, project, payload.Installation.ID, configRef)
 	if triggerCfg != nil && !triggerCfg.MatchesPullRequest(baseBranch, payload.Action) {
 		slog.Info("github_webhook: pull_request trigger not matched, skipping",
 			"base_branch", baseBranch, "action", payload.Action)

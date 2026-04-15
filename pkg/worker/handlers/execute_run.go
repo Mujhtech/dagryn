@@ -245,6 +245,7 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		RunID       string   `json:"run_id"`
 		Targets     []string `json:"targets"`
 		GitBranch   string   `json:"git_branch,omitempty"`
+		GitTag      string   `json:"git_tag,omitempty"`
 		GitCommit   string   `json:"git_commit,omitempty"`
 		RepoURL     string   `json:"repo_url,omitempty"`
 		EventType   string   `json:"event_type,omitempty"`
@@ -645,6 +646,20 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		Event:       payload.EventType,
 		EventAction: payload.EventAction,
 		Trigger:     string(run.TriggeredBy),
+	}
+	if condCtx.Branch == "" {
+		if payload.GitTag != "" {
+			condCtx.Branch = payload.GitTag
+		} else if run.GitBranch != nil {
+			condCtx.Branch = *run.GitBranch
+		}
+	}
+	if condCtx.Event == "" {
+		if payload.GitTag != "" {
+			condCtx.Event = "tag"
+		} else {
+			condCtx.Event = "push"
+		}
 	}
 	if run.PRNumber != nil {
 		condCtx.PRNumber = *run.PRNumber

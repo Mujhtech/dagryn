@@ -108,6 +108,7 @@ func NewManager(projectRoot string, opts ...ManagerOption) *Manager {
 	registry.Register(SourcePip, NewPipResolver())
 	registry.Register(SourceCargo, NewCargoResolver())
 	registry.Register(SourceLocal, NewLocalResolver(projectRoot))
+	registry.Register(SourceOfficial, NewOfficialResolver(projectRoot))
 	m.registry = registry
 
 	// Load existing lock file if present

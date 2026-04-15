@@ -1,6 +1,8 @@
 package config
 
 import (
+	"strings"
+
 	"github.com/mujhtech/dagryn/pkg/dagryn/plugin"
 	"github.com/mujhtech/dagryn/pkg/dagryn/task"
 )
@@ -156,6 +158,7 @@ type WorkflowConfig struct {
 type TriggerConfig struct {
 	Push        *PushTriggerConfig        `toml:"push"`
 	PullRequest *PullRequestTriggerConfig `toml:"pull_request"`
+	Tag         *TagTriggerConfig         `toml:"tag"`
 }
 
 // PushTriggerConfig filters push events by branch.
@@ -169,9 +172,23 @@ type PullRequestTriggerConfig struct {
 	Types    []string `toml:"types"`    // e.g. "opened", "synchronize", "reopened"
 }
 
-// MatchesPush returns true if a push to the given branch should trigger the workflow.
-// Returns true if TriggerConfig is nil, Push is nil, or branches list is empty (all match).
+// TagTriggerConfig filters tag push events by tag pattern.
+// Patterns support '*' wildcard matching (e.g. "v*", "release-*").
+type TagTriggerConfig struct {
+	Patterns []string `toml:"patterns"`
+}
+
+// MatchesPush returns true if a push to the given ref should trigger the workflow.
+// Supports both branch refs (refs/heads/*) and tag refs (refs/tags/*).
+// For tags, only creation events should call this method (deleted tags should be
+// filtered by caller).
 func (tc *TriggerConfig) MatchesPush(branch string) bool {
+	if strings.HasPrefix(branch, "refs/tags/") {
+		tag := strings.TrimPrefix(branch, "refs/tags/")
+		return tc.MatchesTag(tag)
+	}
+	branch = strings.TrimPrefix(branch, "refs/heads/")
+
 	if tc == nil || tc.Push == nil || len(tc.Push.Branches) == 0 {
 		return true
 	}
@@ -181,6 +198,52 @@ func (tc *TriggerConfig) MatchesPush(branch string) bool {
 		}
 	}
 	return false
+}
+
+// MatchesTag returns true if a tag event should trigger the workflow.
+// Returns true if TriggerConfig is nil, Tag is nil, or patterns list is empty.
+func (tc *TriggerConfig) MatchesTag(tag string) bool {
+	if tc == nil || tc.Tag == nil || len(tc.Tag.Patterns) == 0 {
+		return true
+	}
+	for _, p := range tc.Tag.Patterns {
+		if matchSimplePattern(p, tag) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchSimplePattern(pattern, value string) bool {
+	if pattern == "*" {
+		return true
+	}
+	parts := strings.Split(pattern, "*")
+	if len(parts) == 1 {
+		return pattern == value
+	}
+
+	idx := 0
+	for i, part := range parts {
+		if part == "" {
+			continue
+		}
+		pos := strings.Index(value[idx:], part)
+		if pos < 0 {
+			return false
+		}
+		if i == 0 && !strings.HasPrefix(pattern, "*") && pos != 0 {
+			return false
+		}
+		idx += pos + len(part)
+	}
+
+	last := parts[len(parts)-1]
+	if !strings.HasSuffix(pattern, "*") && last != "" && !strings.HasSuffix(value, last) {
+		return false
+	}
+
+	return true
 }
 
 // MatchesPullRequest returns true if a pull_request event with the given base branch

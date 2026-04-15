@@ -50,14 +50,17 @@ branches = [
     "design",
 ] # Match branches for PR events (e.g., "main", "develop")
 types = ["opened", "synchronize"] # PR event types to match     
+[workflow.trigger.tag]
+patterns = ["v*"] # Trigger only on version tag creation (e.g., v1.2.3)
 
 # Global plugins (available to all tasks by reference name)
 [plugins]
 golangci-lint = "github:golangci/golangci-lint@v2.8.0"
 golang-vul = "go:golang.org/x/vuln/cmd/govulncheck@latest"
-setup-node = "local:./plugins/setup-node"
-setup-pnpm = "local:./plugins/setup-pnpm"
-setup-go = "local:./plugins/setup-go"
+goreleaser = "github:goreleaser/goreleaser@latest"
+setup-node = "official:setup-node@v1"
+setup-pnpm = "official:setup-pnpm@v1"
+setup-go = "official:setup-go@v1"
 
 # Install dependencies
 [tasks.web-install]
@@ -146,6 +149,24 @@ uses = ["setup-go"]
 needs = ["go-build"]
 inputs = ["**/*.go"]
 timeout = "1m"
+
+# Publish binaries to GitHub releases via Goreleaser
+[tasks.publish-release]
+command = "goreleaser release --clean"
+uses = ["setup-go", "goreleaser"]
+needs = ["web-build"]
+if = "event == 'tag'"
+inputs = ["**/*.go", "go.mod", "go.sum", ".goreleaser*", "web/**"]
+outputs = ["dist/**"]
+timeout = "20m"
+
+# Build and push Docker Hub + GHCR images
+[tasks.publish-images]
+command = "docker buildx build --push --file Dockerfile --tag $DOCKERHUB_USERNAME/dagryn:latest --tag $DOCKERHUB_USERNAME/dagryn:${DAGRYN_RELEASE_TAG#v} --tag ghcr.io/mujhtech/dagryn:latest --tag ghcr.io/mujhtech/dagryn:${DAGRYN_RELEASE_TAG#v} --build-arg GIT_VERSION=${DAGRYN_RELEASE_TAG#v} --build-arg GIT_COMMIT=${DAGRYN_GIT_SHA:0:7} --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) ."
+needs = ["web-build"]
+if = "event == 'tag'"
+inputs = ["Dockerfile", "**/*.go", "go.mod", "go.sum", "web/**"]
+timeout = "20m"
 
 
 [cache]

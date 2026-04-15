@@ -101,6 +101,9 @@ branches = ["main", "develop"]
 branches = ["main"]
 types = ["opened", "synchronize"]
 
+[workflow.trigger.tag]
+patterns = ["v*", "release-*"]
+
 [tasks.build]
 command = "go build ./..."
 `
@@ -112,6 +115,8 @@ command = "go build ./..."
 	require.NotNil(t, cfg.Workflow.Trigger.PullRequest)
 	assert.Equal(t, []string{"main"}, cfg.Workflow.Trigger.PullRequest.Branches)
 	assert.Equal(t, []string{"opened", "synchronize"}, cfg.Workflow.Trigger.PullRequest.Types)
+	require.NotNil(t, cfg.Workflow.Trigger.Tag)
+	assert.Equal(t, []string{"v*", "release-*"}, cfg.Workflow.Trigger.Tag.Patterns)
 }
 
 func TestParseBytes_WithoutTriggers(t *testing.T) {
