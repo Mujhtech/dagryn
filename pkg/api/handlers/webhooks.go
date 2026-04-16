@@ -203,6 +203,11 @@ func (h *Handler) GitHubWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleGitHubPush(ctx context.Context, payload *GitHubPushEvent) error {
+	if payload.Deleted {
+		// Ignore delete refs (branch/tag deletion) completely.
+		return nil
+	}
+
 	repoURL := strings.TrimSpace(payload.Repository.CloneURL)
 	if repoURL == "" {
 		return errors.New("missing clone_url")
@@ -242,13 +247,8 @@ func (h *Handler) handleGitHubPush(ctx context.Context, payload *GitHubPushEvent
 	}
 
 	// Check workflow trigger configuration before creating a run.
-	// Use branch/tag ref for fetching dagryn.toml, not commit SHA, so trigger
-	// config can actually be resolved from the expected ref.
-	configRef := ref
-	if configRef == "" {
-		configRef = payload.After
-	}
-	triggerCfg := h.fetchTriggerConfig(ctx, project, payload.Installation.ID, configRef)
+	// Use repo default branch dagryn.toml as authoritative trigger config.
+	triggerCfg := h.fetchTriggerConfigForEvent(ctx, project, payload.Installation.ID, ref, payload.After)
 	if triggerCfg != nil {
 		if strings.HasPrefix(ref, "refs/tags/") {
 			if !payload.Created || payload.Deleted {
@@ -383,13 +383,8 @@ func (h *Handler) handleGitHubPullRequest(ctx context.Context, payload *GitHubPu
 	sha := strings.TrimSpace(payload.PullRequest.Head.SHA)
 
 	// Check workflow trigger configuration before creating a run.
-	// Use PR head branch ref for config fetch (SHA may fail with Contents API in
-	// some cases depending on permissions/ref visibility).
-	configRef := branch
-	if configRef == "" {
-		configRef = sha
-	}
-	triggerCfg := h.fetchTriggerConfig(ctx, project, payload.Installation.ID, configRef)
+	// Use repo default branch dagryn.toml as authoritative trigger config.
+	triggerCfg := h.fetchTriggerConfigForEvent(ctx, project, payload.Installation.ID, branch, sha)
 	if triggerCfg != nil && !triggerCfg.MatchesPullRequest(baseBranch, payload.Action) {
 		slog.Info("github_webhook: pull_request trigger not matched, skipping",
 			"base_branch", baseBranch, "action", payload.Action)
@@ -558,6 +553,50 @@ func (h *Handler) fetchTriggerConfig(ctx context.Context, project *models.Projec
 	}
 
 	return cfg.Workflow.Trigger
+}
+
+// fetchTriggerConfigForEvent resolves trigger config from the default branch first.
+// This ensures branch filters in dagryn.toml cannot be bypassed by changing
+// trigger config in a feature branch. Falls back to event ref/SHA if default
+// branch config cannot be fetched.
+func (h *Handler) fetchTriggerConfigForEvent(ctx context.Context, project *models.Project, installationID int64, preferredRef, fallbackRef string) *config.TriggerConfig {
+	if project.RepoURL == nil || *project.RepoURL == "" {
+		return nil
+	}
+
+	owner, repoName, err := parseGitHubOwnerRepo(*project.RepoURL)
+	if err != nil {
+		return h.fetchTriggerConfig(ctx, project, installationID, preferredRef)
+	}
+
+	accessToken := ""
+	if project.GitHubInstallationID != nil && installationID > 0 && h.githubApp != nil {
+		token, tokErr := h.githubApp.FetchInstallationToken(ctx, installationID)
+		if tokErr == nil && token != nil {
+			accessToken = token.Token
+		}
+	}
+	if accessToken == "" {
+		return h.fetchTriggerConfig(ctx, project, installationID, preferredRef)
+	}
+
+	client := gh.NewClient(accessToken)
+	repoMeta, repoErr := client.GetRepo(ctx, owner, repoName)
+	if repoErr == nil && strings.TrimSpace(repoMeta.DefaultBranch) != "" {
+		if tc := h.fetchTriggerConfig(ctx, project, installationID, strings.TrimSpace(repoMeta.DefaultBranch)); tc != nil {
+			return tc
+		}
+	}
+
+	if preferredRef != "" {
+		if tc := h.fetchTriggerConfig(ctx, project, installationID, preferredRef); tc != nil {
+			return tc
+		}
+	}
+	if fallbackRef != "" {
+		return h.fetchTriggerConfig(ctx, project, installationID, fallbackRef)
+	}
+	return nil
 }
 
 // projectOwnerForWebhook returns the user ID whose provider token should be used when enriching webhook runs.
