@@ -385,10 +385,12 @@ func (h *Handler) handleGitHubPullRequest(ctx context.Context, payload *GitHubPu
 	// Check workflow trigger configuration before creating a run.
 	// Use repo default branch dagryn.toml as authoritative trigger config.
 	triggerCfg := h.fetchTriggerConfigForEvent(ctx, project, payload.Installation.ID, branch, sha)
-	if triggerCfg != nil && !triggerCfg.MatchesPullRequest(baseBranch, payload.Action) {
-		slog.Info("github_webhook: pull_request trigger not matched, skipping",
-			"base_branch", baseBranch, "action", payload.Action)
-		return nil
+	if triggerCfg != nil {
+		if !triggerCfg.MatchesPullRequest(baseBranch, payload.Action) {
+			slog.Info("github_webhook: pull_request trigger not matched, skipping",
+				"base_branch", baseBranch, "action", payload.Action)
+			return nil
+		}
 	}
 
 	// Check concurrent runs quota — skip run if exceeded (don't fail the webhook)
@@ -577,7 +579,10 @@ func (h *Handler) fetchTriggerConfigForEvent(ctx context.Context, project *model
 		}
 	}
 	if accessToken == "" {
-		return h.fetchTriggerConfig(ctx, project, installationID, preferredRef)
+		if tc := h.fetchTriggerConfig(ctx, project, installationID, preferredRef); tc != nil {
+			return tc
+		}
+		return h.fetchStoredTriggerConfig(ctx, project)
 	}
 
 	client := gh.NewClient(accessToken)
@@ -594,9 +599,26 @@ func (h *Handler) fetchTriggerConfigForEvent(ctx context.Context, project *model
 		}
 	}
 	if fallbackRef != "" {
-		return h.fetchTriggerConfig(ctx, project, installationID, fallbackRef)
+		if tc := h.fetchTriggerConfig(ctx, project, installationID, fallbackRef); tc != nil {
+			return tc
+		}
 	}
-	return nil
+	return h.fetchStoredTriggerConfig(ctx, project)
+}
+
+func (h *Handler) fetchStoredTriggerConfig(ctx context.Context, project *models.Project) *config.TriggerConfig {
+	if project == nil {
+		return nil
+	}
+	wf, err := h.store.Workflows.GetDefaultByProject(ctx, project.ID)
+	if err != nil || wf == nil || wf.RawConfig == nil || strings.TrimSpace(*wf.RawConfig) == "" {
+		return nil
+	}
+	cfg, err := config.ParseBytes([]byte(*wf.RawConfig))
+	if err != nil {
+		return nil
+	}
+	return cfg.Workflow.Trigger
 }
 
 // projectOwnerForWebhook returns the user ID whose provider token should be used when enriching webhook runs.

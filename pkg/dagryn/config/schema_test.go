@@ -29,6 +29,15 @@ func TestTriggerConfig_MatchesPush_BranchMatch(t *testing.T) {
 	assert.True(t, tc.MatchesPush("develop"))
 }
 
+func TestTriggerConfig_MatchesPush_BranchWildcardMatch(t *testing.T) {
+	tc := &TriggerConfig{
+		Push: &PushTriggerConfig{Branches: []string{"fix/*", "main"}},
+	}
+	assert.True(t, tc.MatchesPush("fix/official-plugins-issue"))
+	assert.True(t, tc.MatchesPush("main"))
+	assert.False(t, tc.MatchesPush("feature/x"))
+}
+
 func TestTriggerConfig_MatchesPush_BranchNoMatch(t *testing.T) {
 	tc := &TriggerConfig{
 		Push: &PushTriggerConfig{Branches: []string{"main"}},
@@ -66,6 +75,17 @@ func TestTriggerConfig_MatchesPullRequest_BranchNoMatch(t *testing.T) {
 		},
 	}
 	assert.False(t, tc.MatchesPullRequest("develop", "opened"))
+}
+
+func TestTriggerConfig_MatchesPullRequest_BranchWildcardMatch(t *testing.T) {
+	tc := &TriggerConfig{
+		PullRequest: &PullRequestTriggerConfig{
+			Branches: []string{"release/*"},
+			Types:    []string{"opened"},
+		},
+	}
+	assert.True(t, tc.MatchesPullRequest("release/2026-04", "opened"))
+	assert.False(t, tc.MatchesPullRequest("main", "opened"))
 }
 
 func TestTriggerConfig_MatchesPullRequest_TypeNoMatch(t *testing.T) {

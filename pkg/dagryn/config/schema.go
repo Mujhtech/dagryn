@@ -193,7 +193,7 @@ func (tc *TriggerConfig) MatchesPush(branch string) bool {
 		return true
 	}
 	for _, b := range tc.Push.Branches {
-		if b == branch {
+		if matchSimplePattern(b, branch) {
 			return true
 		}
 	}
@@ -258,7 +258,7 @@ func (tc *TriggerConfig) MatchesPullRequest(baseBranch, action string) bool {
 	if len(pr.Branches) > 0 {
 		matched := false
 		for _, b := range pr.Branches {
-			if b == baseBranch {
+			if matchSimplePattern(b, baseBranch) {
 				matched = true
 				break
 			}
