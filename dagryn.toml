@@ -58,9 +58,9 @@ patterns = ["v*"] # Trigger only on version tag creation (e.g., v1.2.3)
 golangci-lint = "github:golangci/golangci-lint@v2.8.0"
 golang-vul = "go:golang.org/x/vuln/cmd/govulncheck@latest"
 goreleaser = "github:goreleaser/goreleaser@latest"
-setup-node = "official:setup-node@v1"
-setup-pnpm = "official:setup-pnpm@v1"
-setup-go = "official:setup-go@v1"
+setup-node = "official:setup-node@v0.1.0"
+setup-pnpm = "official:setup-pnpm@v0.1.0"
+setup-go = "official:setup-go@v0.1.0"
 
 # Install dependencies
 [tasks.web-install]
@@ -202,3 +202,7 @@ github_suggestions = true # Post inline code suggestions
 [container]
 enabled = false
 image = "golang:1.25-bookworm"
+
+# [cluster]
+# enabled = true
+# grpc_port = 9001

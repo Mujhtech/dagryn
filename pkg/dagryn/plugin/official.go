@@ -2,15 +2,21 @@ package plugin
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
+	"time"
 )
 
 const defaultOfficialPluginsRepo = "https://github.com/mujhtech/dagryn-plugins.git"
+const defaultOfficialPluginsAPI = "https://api.github.com"
 
 // OfficialResolver resolves official Dagryn plugins from the dagryn-plugins
 // repository using sparse checkout for only the requested plugin directory.
@@ -26,12 +32,16 @@ const defaultOfficialPluginsRepo = "https://github.com/mujhtech/dagryn-plugins.g
 type OfficialResolver struct {
 	projectRoot string
 	fallback    *LocalResolver
+	apiBase     string
+	client      *http.Client
 }
 
 func NewOfficialResolver(projectRoot string) *OfficialResolver {
 	return &OfficialResolver{
 		projectRoot: projectRoot,
 		fallback:    NewLocalResolver(projectRoot),
+		apiBase:     defaultOfficialPluginsAPI,
+		client:      &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -51,7 +61,9 @@ func (r *OfficialResolver) Resolve(ctx context.Context, plugin *Plugin) (*Plugin
 
 	// If manager already points us to a cached install path, use it directly.
 	if resolved.InstallPath != "" {
-		return r.resolveFromDir(ctx, &resolved, resolved.InstallPath)
+		if p, err := r.resolveFromDir(ctx, &resolved, resolved.InstallPath); err == nil {
+			return p, nil
+		}
 	}
 
 	if envRoot := strings.TrimSpace(os.Getenv("DAGRYN_PLUGINS_DIR")); envRoot != "" {
@@ -61,17 +73,29 @@ func (r *OfficialResolver) Resolve(ctx context.Context, plugin *Plugin) (*Plugin
 		}
 	}
 
-	// Bridge mode from sparse checkout (manager install dir cache).
-	version := resolved.Version
-	if version == "latest" {
-		version = "main"
+	// Manager will install on-demand via sparse checkout when not found locally.
+	// Return a resolvable descriptor without requiring pre-existing local files.
+	if resolved.Owner == "" {
+		resolved.Owner = "dagryn"
 	}
-	cachedDir := filepath.Join(r.projectRoot, ".dagryn", PluginDir, string(SourceOfficial), resolved.Name, version)
-	if p, err := r.resolveFromDir(ctx, &resolved, cachedDir); err == nil {
-		return p, nil
+	if resolved.Repo == "" {
+		resolved.Repo = resolved.Name
 	}
 
-	return nil, fmt.Errorf("official plugin %q not available locally; run install to fetch via sparse checkout", resolved.Name)
+	// Resolve semver-like refs for official plugins:
+	// - latest -> main
+	// - v1 -> highest v1.x.x tag
+	// - ^1.2.0 / ~1.2.0 -> best matching tag
+	if v, err := r.resolveOfficialVersion(ctx, resolved.Version); err == nil {
+		resolved.ResolvedVersion = v
+	} else {
+		return nil, err
+	}
+
+	resolved.InstallPath = ""
+	resolved.Manifest = nil
+	resolved.Version = resolved.ResolvedVersion
+	return &resolved, nil
 }
 
 func (r *OfficialResolver) Install(ctx context.Context, plugin *Plugin, installDir string) (*InstallResult, error) {
@@ -100,8 +124,11 @@ func (r *OfficialResolver) Install(ctx context.Context, plugin *Plugin, installD
 		}
 	}
 
-	ref := plugin.Version
-	if ref == "" || ref == "latest" {
+	ref := plugin.ResolvedVersion
+	if ref == "" {
+		ref = plugin.Version
+	}
+	if ref == "" {
 		ref = "main"
 	}
 
@@ -127,6 +154,191 @@ func (r *OfficialResolver) Install(ctx context.Context, plugin *Plugin, installD
 	result.Status = StatusInstalled
 	result.Message = fmt.Sprintf("Installed official plugin %s@%s", plugin.Name, ref)
 	return result, nil
+}
+
+func (r *OfficialResolver) resolveOfficialVersion(ctx context.Context, version string) (string, error) {
+	v := strings.TrimSpace(version)
+	if v == "" || v == "latest" {
+		return "main", nil
+	}
+
+	if isMajorAlias(v) || strings.HasPrefix(v, "^") || strings.HasPrefix(v, "~") {
+		tags, err := r.listOfficialTags(ctx)
+		if err != nil {
+			return "", err
+		}
+		resolved, err := resolveSemverConstraint(v, tags)
+		if err != nil {
+			return "", err
+		}
+		return resolved, nil
+	}
+
+	return v, nil
+}
+
+func isMajorAlias(v string) bool {
+	v = strings.TrimPrefix(v, "v")
+	if v == "" {
+		return false
+	}
+	for _, ch := range v {
+		if ch < '0' || ch > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+type githubRef struct {
+	Ref string `json:"ref"`
+}
+
+func (r *OfficialResolver) listOfficialTags(ctx context.Context) ([]string, error) {
+	repoURL := strings.TrimSpace(os.Getenv("DAGRYN_OFFICIAL_PLUGINS_REPO"))
+	if repoURL == "" {
+		repoURL = defaultOfficialPluginsRepo
+	}
+	owner, repo, err := parseGitHubRepo(repoURL)
+	if err != nil {
+		return nil, err
+	}
+
+	url := fmt.Sprintf("%s/repos/%s/%s/git/matching-refs/tags", r.apiBase, owner, repo)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	if tok := strings.TrimSpace(os.Getenv("GITHUB_TOKEN")); tok != "" {
+		req.Header.Set("Authorization", "Bearer "+tok)
+	}
+
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to list official plugin tags: status %d", resp.StatusCode)
+	}
+
+	var refs []githubRef
+	if err := json.NewDecoder(resp.Body).Decode(&refs); err != nil {
+		return nil, err
+	}
+
+	tags := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		const prefix = "refs/tags/"
+		if strings.HasPrefix(ref.Ref, prefix) {
+			tag := strings.TrimPrefix(ref.Ref, prefix)
+			if isSemverTag(tag) {
+				tags = append(tags, tag)
+			}
+		}
+	}
+	return tags, nil
+}
+
+func parseGitHubRepo(repoURL string) (owner, repo string, err error) {
+	u := strings.TrimSpace(repoURL)
+	u = strings.TrimPrefix(u, "https://")
+	u = strings.TrimPrefix(u, "http://")
+	u = strings.TrimPrefix(u, "git@")
+	u = strings.TrimSuffix(u, ".git")
+	u = strings.ReplaceAll(u, ":", "/")
+	parts := strings.Split(u, "/")
+	if len(parts) < 3 {
+		return "", "", fmt.Errorf("invalid official plugins repo url: %s", repoURL)
+	}
+	return parts[len(parts)-2], parts[len(parts)-1], nil
+}
+
+func isSemverTag(tag string) bool {
+	_, ok := parseSemverTag(tag)
+	return ok
+}
+
+type semver struct{ major, minor, patch int }
+
+func parseSemverTag(tag string) (semver, bool) {
+	t := strings.TrimPrefix(strings.TrimSpace(tag), "v")
+	parts := strings.Split(t, ".")
+	if len(parts) < 3 {
+		return semver{}, false
+	}
+	patchPart := strings.Split(parts[2], "-")[0]
+	maj, err1 := strconv.Atoi(parts[0])
+	min, err2 := strconv.Atoi(parts[1])
+	pat, err3 := strconv.Atoi(patchPart)
+	if err1 != nil || err2 != nil || err3 != nil {
+		return semver{}, false
+	}
+	return semver{major: maj, minor: min, patch: pat}, true
+}
+
+func resolveSemverConstraint(constraint string, tags []string) (string, error) {
+	if len(tags) == 0 {
+		return "", fmt.Errorf("no semver tags found for official plugins")
+	}
+
+	type candidate struct {
+		tag string
+		v   semver
+	}
+	cands := make([]candidate, 0, len(tags))
+	for _, tag := range tags {
+		if v, ok := parseSemverTag(tag); ok {
+			cands = append(cands, candidate{tag: tag, v: v})
+		}
+	}
+	if len(cands) == 0 {
+		return "", fmt.Errorf("no semver tags found for official plugins")
+	}
+
+	sort.Slice(cands, func(i, j int) bool {
+		a, b := cands[i].v, cands[j].v
+		if a.major != b.major {
+			return a.major > b.major
+		}
+		if a.minor != b.minor {
+			return a.minor > b.minor
+		}
+		return a.patch > b.patch
+	})
+
+	if isMajorAlias(constraint) {
+		m, _ := strconv.Atoi(strings.TrimPrefix(constraint, "v"))
+		for _, c := range cands {
+			if c.v.major == m {
+				return c.tag, nil
+			}
+		}
+		return "", fmt.Errorf("no tag matches %s", constraint)
+	}
+
+	prefix := constraint[:1]
+	base, ok := parseSemverTag(strings.TrimPrefix(constraint[1:], "v"))
+	if !ok {
+		return "", fmt.Errorf("invalid semver constraint: %s", constraint)
+	}
+
+	for _, c := range cands {
+		switch prefix {
+		case "^":
+			if c.v.major == base.major && (c.v.minor > base.minor || (c.v.minor == base.minor && c.v.patch >= base.patch)) {
+				return c.tag, nil
+			}
+		case "~":
+			if c.v.major == base.major && c.v.minor == base.minor && c.v.patch >= base.patch {
+				return c.tag, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no tag matches %s", constraint)
 }
 
 func (r *OfficialResolver) Verify(ctx context.Context, plugin *Plugin) error {

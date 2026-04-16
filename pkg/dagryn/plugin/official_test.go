@@ -85,3 +85,34 @@ func TestOfficialResolverResolveFromInstallPath(t *testing.T) {
 		t.Fatalf("expected install path %s, got %s", pluginDir, resolved.InstallPath)
 	}
 }
+
+func TestResolveSemverConstraintMajorAlias(t *testing.T) {
+	tags := []string{"v0.1.0", "v1.0.0", "v1.2.3", "v2.0.0"}
+	got, err := resolveSemverConstraint("v1", tags)
+	if err != nil {
+		t.Fatalf("resolveSemverConstraint(v1): %v", err)
+	}
+	if got != "v1.2.3" {
+		t.Fatalf("expected v1.2.3, got %s", got)
+	}
+}
+
+func TestResolveSemverConstraintCaretAndTilde(t *testing.T) {
+	tags := []string{"v1.2.3", "v1.2.9", "v1.3.0", "v2.0.0"}
+
+	got, err := resolveSemverConstraint("^1.2.3", tags)
+	if err != nil {
+		t.Fatalf("resolveSemverConstraint(^1.2.3): %v", err)
+	}
+	if got != "v1.3.0" {
+		t.Fatalf("expected v1.3.0, got %s", got)
+	}
+
+	got, err = resolveSemverConstraint("~1.2.3", tags)
+	if err != nil {
+		t.Fatalf("resolveSemverConstraint(~1.2.3): %v", err)
+	}
+	if got != "v1.2.9" {
+		t.Fatalf("expected v1.2.9, got %s", got)
+	}
+}
