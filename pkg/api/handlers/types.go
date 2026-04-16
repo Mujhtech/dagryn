@@ -361,6 +361,7 @@ type TaskResultResponse struct {
 type TriggerRunRequest struct {
 	Targets     []string `json:"targets,omitempty" example:"[\"build\",\"test\"]"`
 	GitBranch   string   `json:"git_branch,omitempty" example:"main"`
+	GitTag      string   `json:"git_tag,omitempty" example:"v1.2.3"`
 	GitCommit   string   `json:"git_commit,omitempty" example:"abc123def456"`
 	Force       bool     `json:"force,omitempty" example:"false"`
 	Description string   `json:"description,omitempty" example:"Retrying after infra fix"`
