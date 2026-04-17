@@ -1,6 +1,6 @@
 module github.com/mujhtech/dagryn
 
-go 1.25.5
+go 1.26.2
 
 require (
 	cloud.google.com/go/storage v1.61.3

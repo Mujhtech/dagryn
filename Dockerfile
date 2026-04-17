@@ -20,7 +20,7 @@ COPY web/ ./
 RUN pnpm dlx tsx scripts/generate-openapi-docs.ts && pnpm exec vite build --config vite.config.mjs
 
 # Stage 2: Build Go application
-FROM golang:1.25-alpine AS go-builder
+FROM golang:1.26-alpine AS go-builder
 
 # Install build dependencies
 RUN apk add --no-cache git make ca-certificates
