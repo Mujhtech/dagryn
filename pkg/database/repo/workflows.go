@@ -245,9 +245,9 @@ func (r *WorkflowRepo) getTasksByWorkflowID(ctx context.Context, workflowID uuid
 func (r *WorkflowRepo) GetDefaultByProject(ctx context.Context, projectID uuid.UUID) (*models.ProjectWorkflow, error) {
 	var w models.ProjectWorkflow
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, project_id, name, version, is_default, config_hash, synced_at
+		SELECT id, project_id, name, version, is_default, config_hash, raw_config, synced_at
 		FROM project_workflows WHERE project_id = $1 AND is_default = true LIMIT 1`, projectID,
-	).Scan(&w.ID, &w.ProjectID, &w.Name, &w.Version, &w.IsDefault, &w.ConfigHash, &w.SyncedAt)
+	).Scan(&w.ID, &w.ProjectID, &w.Name, &w.Version, &w.IsDefault, &w.ConfigHash, &w.RawConfig, &w.SyncedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil

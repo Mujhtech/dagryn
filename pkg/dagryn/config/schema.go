@@ -183,8 +183,7 @@ type TagTriggerConfig struct {
 // For tags, only creation events should call this method (deleted tags should be
 // filtered by caller).
 func (tc *TriggerConfig) MatchesPush(branch string) bool {
-	if strings.HasPrefix(branch, "refs/tags/") {
-		tag := strings.TrimPrefix(branch, "refs/tags/")
+	if tag, found := strings.CutPrefix(branch, "refs/tags/"); found {
 		return tc.MatchesTag(tag)
 	}
 	branch = strings.TrimPrefix(branch, "refs/heads/")

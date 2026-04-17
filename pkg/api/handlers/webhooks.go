@@ -165,14 +165,8 @@ func (h *Handler) GitHubWebhook(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid payload", http.StatusBadRequest)
 			return
 		}
-		// Only react to opened/synchronize/reopened
-		switch payload.Action {
-		case "opened", "synchronize", "reopened":
-			if err := h.handleGitHubPullRequest(ctx, &payload); err != nil {
-				slog.Error("github_webhook: handle pull_request failed", "error", err)
-			}
-		default:
-			// Ignore other actions
+		if err := h.handleGitHubPullRequest(ctx, &payload); err != nil {
+			slog.Error("github_webhook: handle pull_request failed", "error", err)
 		}
 	case "installation":
 		var payload GitHubInstallationEvent
@@ -242,8 +236,8 @@ func (h *Handler) handleGitHubPush(ctx context.Context, payload *GitHubPushEvent
 	branch := strings.TrimPrefix(payload.Ref, "refs/heads/")
 	ref := strings.TrimSpace(payload.Ref)
 	tag := ""
-	if strings.HasPrefix(ref, "refs/tags/") {
-		tag = strings.TrimPrefix(ref, "refs/tags/")
+	if newTag, found := strings.CutPrefix(ref, "refs/tags/"); found {
+		tag = newTag
 	}
 
 	// Check workflow trigger configuration before creating a run.
@@ -353,44 +347,28 @@ func (h *Handler) handleGitHubPullRequest(ctx context.Context, payload *GitHubPu
 		return errors.New("missing clone_url")
 	}
 
-	var project *models.Project
-	var err error
-
-	// Try to find project by GitHub App installation + repo ID first (preferred)
-	if payload.Installation.ID > 0 && payload.Repository.ID > 0 {
-		inst, err := h.store.GitHubInstallations.GetByInstallationID(ctx, payload.Installation.ID)
-		if err == nil && inst != nil {
-			project, err = h.store.Projects.GetByGitHubRepoID(ctx, inst.ID, payload.Repository.ID)
-			if err != nil && !errors.Is(err, repo.ErrNotFound) {
-				return err
-			}
-		}
-	}
-
-	// Fallback to repo_url lookup (for legacy OAuth-based projects)
-	if project == nil {
-		project, err = h.store.Projects.GetByRepoURL(ctx, repoURL)
-		if err != nil {
-			if errors.Is(err, repo.ErrNotFound) {
-				return nil
-			}
-			return err
-		}
-	}
-
 	branch := strings.TrimSpace(payload.PullRequest.Head.Ref)
 	baseBranch := strings.TrimSpace(payload.PullRequest.Base.Ref)
 	sha := strings.TrimSpace(payload.PullRequest.Head.SHA)
 
-	// Check workflow trigger configuration before creating a run.
-	// Use repo default branch dagryn.toml as authoritative trigger config.
-	triggerCfg := h.fetchTriggerConfigForEvent(ctx, project, payload.Installation.ID, branch, sha)
-	if triggerCfg != nil {
-		if !triggerCfg.MatchesPullRequest(baseBranch, payload.Action) {
-			slog.Info("github_webhook: pull_request trigger not matched, skipping",
-				"base_branch", baseBranch, "action", payload.Action)
-			return nil
-		}
+	project, err := h.getProjectForGitHubPullRequestEvent(
+		ctx,
+		payload.Installation.ID,
+		payload.Repository.ID,
+		repoURL,
+		branch,
+		baseBranch,
+		sha,
+		payload.Action,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	if project == nil {
+		// No linked project or trigger config not matched; ignore.
+		return nil
 	}
 
 	// Check concurrent runs quota — skip run if exceeded (don't fail the webhook)
@@ -467,6 +445,56 @@ func (h *Handler) handleGitHubPullRequest(ctx context.Context, payload *GitHubPu
 	}
 
 	return nil
+}
+
+func (h *Handler) getProjectForGitHubPullRequestEvent(
+	ctx context.Context,
+	installationID int64,
+	repoID int64,
+	repoURL string,
+	head, base, headSha, action string,
+) (*models.Project, error) {
+	var project *models.Project
+	var err error
+
+	// Try to find project by GitHub App installation + repo ID first (preferred)
+	if installationID > 0 && repoID > 0 {
+		inst, err := h.store.GitHubInstallations.GetByInstallationID(ctx, installationID)
+		if err == nil && inst != nil {
+			project, err = h.store.Projects.GetByGitHubRepoID(ctx, inst.ID, repoID)
+			if err != nil && !errors.Is(err, repo.ErrNotFound) {
+				return nil, err
+			}
+		}
+	}
+
+	// Fallback to repo_url lookup (for legacy OAuth-based projects)
+	if project == nil {
+		project, err = h.store.Projects.GetByRepoURL(ctx, repoURL)
+		if err != nil {
+			if errors.Is(err, repo.ErrNotFound) {
+				return nil, nil
+			}
+			return nil, err
+		}
+	}
+
+	branch := strings.TrimSpace(head)
+	baseBranch := strings.TrimSpace(base)
+	sha := strings.TrimSpace(headSha)
+
+	// Check workflow trigger configuration before creating a run.
+	// Use repo default branch dagryn.toml as authoritative trigger config.
+	triggerCfg := h.fetchTriggerConfigForEvent(ctx, project, installationID, branch, sha)
+	if triggerCfg != nil {
+		if !triggerCfg.MatchesPullRequest(baseBranch, action) {
+			slog.Info("github_webhook: pull_request trigger not matched, skipping",
+				"base_branch", baseBranch, "action", action)
+			return nil, nil
+		}
+	}
+
+	return project, nil
 }
 
 // handleGitHubInstallation handles installation events (created, deleted, suspend, unsuspend).
