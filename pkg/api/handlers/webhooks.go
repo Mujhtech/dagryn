@@ -59,7 +59,9 @@ type GitHubPullRequestEvent struct {
 			Ref string `json:"ref"` // target (base) branch
 		} `json:"base"`
 		User struct {
-			Login string `json:"login"`
+			Login     string `json:"login"`
+			ID        int64  `json:"id"`
+			AvatarURL string `json:"avatar_url"`
 		} `json:"user"`
 	} `json:"pull_request"`
 	Repository struct {
@@ -480,16 +482,16 @@ func (h *Handler) getProjectForGitHubPullRequestEvent(
 	}
 
 	branch := strings.TrimSpace(head)
-	baseBranch := strings.TrimSpace(base)
+	// baseBranch := strings.TrimSpace(base)
 	sha := strings.TrimSpace(headSha)
 
 	// Check workflow trigger configuration before creating a run.
 	// Use repo default branch dagryn.toml as authoritative trigger config.
 	triggerCfg := h.fetchTriggerConfigForEvent(ctx, project, installationID, branch, sha)
 	if triggerCfg != nil {
-		if !triggerCfg.MatchesPullRequest(baseBranch, action) {
+		if !triggerCfg.MatchesPullRequest(branch, action) {
 			slog.Info("github_webhook: pull_request trigger not matched, skipping",
-				"base_branch", baseBranch, "action", action)
+				"branch", branch, "action", action)
 			return nil, nil
 		}
 	}
