@@ -117,6 +117,21 @@ func (a *API) SetEntitlementChecker(c entitlement.Checker) {
 	a.h.SetEntitlementChecker(c)
 }
 
+// SetEnvSecretsConfig delegates managed env secret provider config to handlers.
+func (a *API) SetEnvSecretsConfig(
+	provider, providerRefPrefix, cloudflareStoreID string,
+	awsRegion, awsAccessKeyID, awsSecretKey, awsCredsFile string,
+	gcpCredsFile string,
+	cfAccountID, cfAPIToken, cfAPIBase string,
+) {
+	a.h.SetEnvSecretsConfig(
+		provider, providerRefPrefix, cloudflareStoreID,
+		awsRegion, awsAccessKeyID, awsSecretKey, awsCredsFile,
+		gcpCredsFile,
+		cfAccountID, cfAPIToken, cfAPIBase,
+	)
+}
+
 // RegisterExtraRoutes allows an external binary (e.g. dagryn-cloud) to
 // inject additional routes (e.g. /billing/*) into the protected API group.
 // Must be called before BuildRouter.
@@ -484,6 +499,17 @@ func (a *API) BuildRouter(router *chi.Mux) *chi.Mux {
 						r.Get("/", a.h.ListProjectAPIKeys)
 						r.Post("/", a.h.CreateProjectAPIKey)
 						r.Delete(fmt.Sprintf("/{%s}", handlers.KeyIDParam), a.h.RevokeProjectAPIKey)
+					})
+
+					// Project env vars
+					r.Route("/env-vars", func(r chi.Router) {
+						r.Post("/", a.h.ListProjectEnvVars)
+						r.Post("/set", a.h.SetProjectEnvVar)
+						r.Post("/seed", a.h.SeedProjectEnvVars)
+						r.Post("/resolve", a.h.ResolveProjectEnvVars)
+						r.Patch(fmt.Sprintf("/{%s}", handlers.EnvVarIDParam), a.h.UpdateProjectEnvVar)
+						r.Delete(fmt.Sprintf("/{%s}", handlers.EnvVarIDParam), a.h.DeleteProjectEnvVar)
+						r.Post(fmt.Sprintf("/{%s}/rotate", handlers.EnvVarIDParam), a.h.RotateProjectEnvVar)
 					})
 
 					// Project workflows

@@ -221,9 +221,7 @@ export function CreateProjectDialog() {
                     </Button>
                     <Button
                       type="button"
-                      variant={
-                        field.value === "public" ? "default" : "outline"
-                      }
+                      variant={field.value === "public" ? "default" : "outline"}
                       size="sm"
                       onClick={() => field.onChange("public")}
                       disabled={createProjectMutation.isPending}
@@ -249,7 +247,7 @@ export function CreateProjectDialog() {
                       disabled={createProjectMutation.isPending}
                     >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="No team" />
                         </SelectTrigger>
                       </FormControl>
@@ -286,10 +284,7 @@ export function CreateProjectDialog() {
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={createProjectMutation.isPending}
-              >
+              <Button type="submit" disabled={createProjectMutation.isPending}>
                 {createProjectMutation.isPending ? (
                   <>
                     <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />

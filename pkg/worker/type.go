@@ -93,6 +93,7 @@ type ExecuteRunPayload struct {
 	ProjectID   string   `json:"project_id"`
 	RunID       string   `json:"run_id"`
 	Targets     []string `json:"targets"`
+	Environment string   `json:"environment,omitempty"`
 	GitBranch   string   `json:"git_branch,omitempty"`
 	GitTag      string   `json:"git_tag,omitempty"`
 	GitCommit   string   `json:"git_commit,omitempty"`

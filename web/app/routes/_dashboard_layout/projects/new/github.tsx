@@ -890,7 +890,9 @@ function WorkflowDetectionSection({
           Checking repository...
         </div>
       ) : workflowTranslationError ? (
-        <p className="text-sm text-destructive">Failed to inspect repository.</p>
+        <p className="text-sm text-destructive">
+          Failed to inspect repository.
+        </p>
       ) : workflowTranslation?.has_dagryn_toml ? (
         <div className="rounded-none border bg-muted/40 p-3 space-y-3">
           <div className="flex items-center gap-2">
@@ -900,8 +902,9 @@ function WorkflowDetectionSection({
           </div>
 
           <p className="text-xs text-muted-foreground">
-            This repository already contains a <code className="font-mono text-foreground">dagryn.toml</code> configuration
-            file. The project will use the existing configuration.
+            This repository already contains a{" "}
+            <code className="font-mono text-foreground">dagryn.toml</code>{" "}
+            configuration file. The project will use the existing configuration.
           </p>
 
           <div className="rounded-none border overflow-hidden">
@@ -1071,7 +1074,7 @@ function ProjectDetailsSection({
         <div className="grid gap-2">
           <Label htmlFor="import-team">Team (optional)</Label>
           <Select value={teamId} onValueChange={setTeamId} disabled={disabled}>
-            <SelectTrigger id="import-team">
+            <SelectTrigger id="import-team" className="w-full">
               <SelectValue placeholder="No team" />
             </SelectTrigger>
             <SelectContent>
@@ -1291,7 +1294,8 @@ function ImportFromGitHubPage() {
       const project = await createProjectMutation.mutateAsync({
         name: importName.trim(),
         slug: importSlug.trim(),
-        team_id: importTeamId && importTeamId !== "none" ? importTeamId : undefined,
+        team_id:
+          importTeamId && importTeamId !== "none" ? importTeamId : undefined,
         repo_url: repoUrl,
         github_installation_id:
           gitScope?.kind === "installation" ? (gitScope.id ?? "") : "",
@@ -1431,7 +1435,7 @@ function ImportFromGitHubPage() {
           onTriggerChange={setTriggerConfig}
           autoDetected={Boolean(
             workflowTranslation?.detected ||
-              workflowTranslation?.has_dagryn_toml,
+            workflowTranslation?.has_dagryn_toml,
           )}
           defaultBranch={selectedRepo?.default_branch}
           disabled={

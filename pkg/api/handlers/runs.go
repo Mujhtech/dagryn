@@ -533,6 +533,10 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 	if req.GitBranch != "" {
 		run.GitBranch = &req.GitBranch
 	}
+	if req.Environment != "" {
+		env := strings.TrimSpace(req.Environment)
+		run.Environment = &env
+	}
 	if req.GitTag != "" {
 		tagAsBranch := req.GitTag
 		run.GitBranch = &tagAsBranch
@@ -581,14 +585,15 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 				gitBranch = req.GitTag
 			}
 			payload := worker.ExecuteRunPayload{
-				ProjectID: projectID.String(),
-				RunID:     run.ID.String(),
-				Targets:   req.Targets,
-				GitBranch: gitBranch,
-				GitTag:    req.GitTag,
-				GitCommit: req.GitCommit,
-				RepoURL:   repoURL,
-				EventType: eventType,
+				ProjectID:   projectID.String(),
+				RunID:       run.ID.String(),
+				Targets:     req.Targets,
+				Environment: ptrToString(run.Environment),
+				GitBranch:   gitBranch,
+				GitTag:      req.GitTag,
+				GitCommit:   req.GitCommit,
+				RepoURL:     repoURL,
+				EventType:   eventType,
 			}
 			data, err := json.Marshal(payload)
 			if err == nil {
@@ -1349,6 +1354,9 @@ func runModelToResponse(run *models.Run) RunResponse {
 
 	if run.GitBranch != nil {
 		resp.TriggerRef = *run.GitBranch
+	}
+	if run.Environment != nil {
+		resp.Environment = *run.Environment
 	}
 	if run.GitCommit != nil {
 		resp.CommitSHA = *run.GitCommit

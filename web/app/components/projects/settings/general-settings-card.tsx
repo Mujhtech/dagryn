@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { FolderCog } from "lucide-react";
+import { useTeams } from "~/hooks/queries";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
@@ -13,7 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "~/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "~/components/ui/card";
 import {
   Form,
   FormControl,
@@ -30,6 +38,7 @@ const generalSettingsSchema = z.object({
   name: z.string().min(1, "Project name is required"),
   description: z.string().optional(),
   visibility: z.enum(["private", "public"]),
+  team_id: z.string().optional(),
 });
 
 export type GeneralSettingsFormValues = z.infer<typeof generalSettingsSchema>;
@@ -55,14 +64,19 @@ export function GeneralSettingsCard({
       name: project.name || "",
       description: project.description || "",
       visibility: (project.visibility as "public" | "private") || "private",
+      team_id: project.team_id || "none",
     },
   });
+
+  const { data: teamsData } = useTeams();
+  const teams = teamsData?.data ?? [];
 
   useEffect(() => {
     form.reset({
       name: project.name || "",
       description: project.description || "",
       visibility: (project.visibility as "public" | "private") || "private",
+      team_id: project.team_id || "none",
     });
   }, [project, form]);
 
@@ -79,7 +93,9 @@ export function GeneralSettingsCard({
           <FolderCog className="h-5 w-5" />
           General
         </CardTitle>
-        <CardDescription>Update your project&apos;s basic information.</CardDescription>
+        <CardDescription>
+          Update your project&apos;s basic information.
+        </CardDescription>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)}>
@@ -119,14 +135,40 @@ export function GeneralSettingsCard({
 
             <FormField
               control={form.control}
+              name="team_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Team</FormLabel>
+                  <Select value={field.value || "none"} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="No team" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="none">No team</SelectItem>
+                      {teams.map((team) => (
+                        <SelectItem key={team.id} value={team.id}>
+                          {team.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Transfer this project to another team or keep it without a team.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="visibility"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Visibility</FormLabel>
-                  <Select
-                    value={field.value}
-                    onValueChange={field.onChange}
-                  >
+                  <Select value={field.value} onValueChange={field.onChange}>
                     <FormControl>
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select visibility" />
@@ -163,7 +205,7 @@ export function GeneralSettingsCard({
               </div>
             ) : null}
           </CardContent>
-          <CardFooter>
+          <CardFooter className="mt-4">
             <Button type="submit" disabled={isSaving}>
               {isSaving ? (
                 <>

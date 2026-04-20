@@ -107,6 +107,31 @@ type ClusterConfig struct {
 	TLSCAFile   string `toml:"tls_ca_file" envconfig:"TLS_CA_FILE"`
 }
 
+// EnvSecretsConfig controls server-managed env secret provider behavior.
+type EnvSecretsConfig struct {
+	// Provider is the backend used for all project env secrets.
+	// Supported: db, aws_sm, gcp_sm, cloudflare.
+	Provider string `toml:"provider" envconfig:"PROVIDER"`
+	// ProviderRefPrefix is used by managed non-db providers to build provider refs.
+	ProviderRefPrefix string `toml:"provider_ref_prefix" envconfig:"PROVIDER_REF_PREFIX"`
+	// CloudflareStoreID is required when provider=cloudflare.
+	CloudflareStoreID string `toml:"cloudflare_store_id" envconfig:"CLOUDFLARE_STORE_ID"`
+
+	// AWS provider credentials/config (optional; falls back to default chain when unset).
+	AWSRegion          string `toml:"aws_region" envconfig:"AWS_REGION"`
+	AWSAccessKeyID     string `toml:"aws_access_key_id" envconfig:"AWS_ACCESS_KEY_ID"`
+	AWSSecretAccessKey string `toml:"aws_secret_access_key" envconfig:"AWS_SECRET_ACCESS_KEY"`
+	AWSCredentialsFile string `toml:"aws_credentials_file" envconfig:"AWS_CREDENTIALS_FILE"`
+
+	// GCP provider credentials/config.
+	GCPCredentialsFile string `toml:"gcp_credentials_file" envconfig:"GCP_CREDENTIALS_FILE"`
+
+	// Cloudflare provider credentials/config.
+	CloudflareAccountID string `toml:"cloudflare_account_id" envconfig:"CLOUDFLARE_ACCOUNT_ID"`
+	CloudflareAPIToken  string `toml:"cloudflare_api_token" envconfig:"CLOUDFLARE_API_TOKEN"`
+	CloudflareAPIBase   string `toml:"cloudflare_api_base_url" envconfig:"CLOUDFLARE_API_BASE_URL"`
+}
+
 // Config holds all server configuration.
 type Config struct {
 	Worker          WorkerConfig          `toml:"worker"`
@@ -128,6 +153,7 @@ type Config struct {
 	AI              AIServerConfig        `toml:"ai"`
 	SSO             SSOConfig             `toml:"sso"`
 	Cluster         ClusterConfig         `toml:"cluster"`
+	EnvSecrets      EnvSecretsConfig      `toml:"env_secrets"`
 }
 
 // StorageConfig holds cache storage backend configuration.
@@ -264,6 +290,10 @@ func DefaultConfig() Config {
 		Worker: WorkerConfig{
 			Enabled:     true,
 			RoutePrefix: "queue",
+		},
+		EnvSecrets: EnvSecretsConfig{
+			Provider:          "db",
+			ProviderRefPrefix: "projects",
 		},
 	}
 }
@@ -407,6 +437,7 @@ func ProcessEnvVars(cfg *Config) {
 	_ = envconfig.Process("DAGRYN_AI", &cfg.AI)
 	_ = envconfig.Process("DAGRYN_SSO", &cfg.SSO)
 	_ = envconfig.Process("DAGRYN_CLUSTER", &cfg.Cluster)
+	_ = envconfig.Process("DAGRYN_ENV_SECRETS", &cfg.EnvSecrets)
 
 	// OTEL vars use standard naming (not DAGRYN-prefixed).
 	if v := os.Getenv("OTEL_SERVICE_NAME"); v != "" {
@@ -491,6 +522,26 @@ func (c *Config) Validate() error {
 		return &ConfigError{
 			Field:   "oauth",
 			Message: "At least one OAuth provider (GitHub or Google) must be configured.",
+		}
+	}
+
+	provider := c.EnvSecrets.Provider
+	if provider == "" {
+		provider = "db"
+	}
+	switch provider {
+	case "db", "aws_sm", "gcp_sm", "cloudflare":
+		// valid
+	default:
+		return &ConfigError{
+			Field:   "env_secrets.provider",
+			Message: "env_secrets.provider must be one of: db, aws_sm, gcp_sm, cloudflare",
+		}
+	}
+	if provider == "cloudflare" && c.EnvSecrets.CloudflareStoreID == "" {
+		return &ConfigError{
+			Field:   "env_secrets.cloudflare_store_id",
+			Message: "cloudflare_store_id is required when env_secrets.provider=cloudflare",
 		}
 	}
 

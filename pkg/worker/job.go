@@ -37,6 +37,18 @@ type Job struct {
 	metrics           *telemetry.Metrics
 	baseURL           string
 	auditService      *service.AuditService
+
+	envSecretsProvider            string
+	envSecretsProviderRefPrefix   string
+	envSecretsCloudflareStoreID   string
+	envSecretsAWSRegion           string
+	envSecretsAWSAccessKeyID      string
+	envSecretsAWSSecretAccessKey  string
+	envSecretsAWSCredentialsFile  string
+	envSecretsGCPCredentialsFile  string
+	envSecretsCloudflareAccountID string
+	envSecretsCloudflareAPIToken  string
+	envSecretsCloudflareAPIBase   string
 }
 
 // Config holds the configuration for the job system.
@@ -72,6 +84,19 @@ type Config struct {
 	BaseURL string
 	// AuditService is the audit service for retention GC jobs (optional).
 	AuditService *service.AuditService
+
+	// Managed env secret provider config (server-side source of truth)
+	EnvSecretsProvider            string
+	EnvSecretsProviderRefPrefix   string
+	EnvSecretsCloudflareStoreID   string
+	EnvSecretsAWSRegion           string
+	EnvSecretsAWSAccessKeyID      string
+	EnvSecretsAWSSecretAccessKey  string
+	EnvSecretsAWSCredentialsFile  string
+	EnvSecretsGCPCredentialsFile  string
+	EnvSecretsCloudflareAccountID string
+	EnvSecretsCloudflareAPIToken  string
+	EnvSecretsCloudflareAPIBase   string
 }
 
 // DefaultConfig returns sensible defaults for job configuration.
@@ -124,6 +149,18 @@ func New(cfg Config, appCtx context.Context, rds *redis.Redis) (*Job, error) {
 		metrics:           cfg.Metrics,
 		baseURL:           cfg.BaseURL,
 		auditService:      cfg.AuditService,
+
+		envSecretsProvider:            cfg.EnvSecretsProvider,
+		envSecretsProviderRefPrefix:   cfg.EnvSecretsProviderRefPrefix,
+		envSecretsCloudflareStoreID:   cfg.EnvSecretsCloudflareStoreID,
+		envSecretsAWSRegion:           cfg.EnvSecretsAWSRegion,
+		envSecretsAWSAccessKeyID:      cfg.EnvSecretsAWSAccessKeyID,
+		envSecretsAWSSecretAccessKey:  cfg.EnvSecretsAWSSecretAccessKey,
+		envSecretsAWSCredentialsFile:  cfg.EnvSecretsAWSCredentialsFile,
+		envSecretsGCPCredentialsFile:  cfg.EnvSecretsGCPCredentialsFile,
+		envSecretsCloudflareAccountID: cfg.EnvSecretsCloudflareAccountID,
+		envSecretsCloudflareAPIToken:  cfg.EnvSecretsCloudflareAPIToken,
+		envSecretsCloudflareAPIBase:   cfg.EnvSecretsCloudflareAPIBase,
 	}, nil
 }
 
@@ -141,6 +178,7 @@ func (j *Job) RegisterAndStart() error {
 	execHandler := handlers.NewExecuteRunHandler(
 		j.store.Runs,
 		j.store.Projects,
+		j.store.ProjectEnv,
 		j.store.Workflows,
 		j.encrypter,
 		j.store.ProviderTokens,
@@ -154,6 +192,19 @@ func (j *Job) RegisterAndStart() error {
 		j.eventPublisher,
 		j.Client,
 		j.baseURL,
+	)
+	execHandler.SetEnvSecretsConfig(
+		j.envSecretsProvider,
+		j.envSecretsProviderRefPrefix,
+		j.envSecretsCloudflareStoreID,
+		j.envSecretsAWSRegion,
+		j.envSecretsAWSAccessKeyID,
+		j.envSecretsAWSSecretAccessKey,
+		j.envSecretsAWSCredentialsFile,
+		j.envSecretsGCPCredentialsFile,
+		j.envSecretsCloudflareAccountID,
+		j.envSecretsCloudflareAPIToken,
+		j.envSecretsCloudflareAPIBase,
 	)
 	j.Executor.RegisterJobHandler(ExecuteRunTaskName, asynq.HandlerFunc(execHandler.Handle))
 

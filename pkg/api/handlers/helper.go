@@ -41,7 +41,7 @@ func projectModelToResponse(project *models.Project, role models.Role) ProjectRe
 	}
 
 	if project.TeamID != nil {
-		resp.TeamID = *project.TeamID
+		resp.TeamID = project.TeamID
 	}
 	if project.Description != nil {
 		resp.Description = *project.Description
@@ -68,7 +68,7 @@ func projectWithMemberToResponse(project *models.ProjectWithMember) ProjectRespo
 		resp.DefaultBranch = *project.DefaultBranch
 	}
 	if project.TeamID != nil {
-		resp.TeamID = *project.TeamID
+		resp.TeamID = project.TeamID
 	}
 	if project.Description != nil {
 		resp.Description = *project.Description
@@ -95,6 +95,25 @@ func apiKeyModelToResponse(key *models.APIKey) APIKeyResponse {
 		ExpiresAt:  key.ExpiresAt,
 		CreatedAt:  key.CreatedAt,
 	}
+}
+
+func projectEnvVarToResponse(item models.ProjectEnvVar, includeValue bool, value *string) ProjectEnvVarResponse {
+	out := ProjectEnvVarResponse{
+		ID:          item.ID,
+		Key:         item.Key,
+		ValueType:   string(item.ValueType),
+		Environment: item.Environment,
+		Branch:      item.Branch,
+		Required:    item.Required,
+		Enabled:     item.Enabled,
+		Description: item.Description,
+		CreatedAt:   &item.CreatedAt,
+		UpdatedAt:   &item.UpdatedAt,
+	}
+	if includeValue {
+		out.Value = value
+	}
+	return out
 }
 
 func stringPtr(s string) *string {

@@ -180,7 +180,7 @@ export interface GitHubWorkflowTranslateResponse {
 // Project types
 export interface Project {
   id: string;
-  team_id: string | null;
+  team_id?: string | null;
   name: string;
   slug: string;
   description?: string;
@@ -208,6 +208,37 @@ export interface APIKey {
 
 export interface APIKeyCreated extends APIKey {
   key: string;
+}
+
+export interface ProjectEnvVar {
+  id: string;
+  key: string;
+  value_type: "plain" | "secret";
+  environment?: string;
+  branch?: string;
+  required: boolean;
+  enabled: boolean;
+  description?: string;
+  value?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ListProjectEnvVarsInput {
+  environment?: string;
+  branch?: string;
+  key?: string;
+  value_type?: "plain" | "secret";
+}
+
+export interface SetProjectEnvVarInput {
+  key: string;
+  value: string;
+  environment?: string;
+  branch?: string;
+  required?: boolean;
+  secret?: boolean;
+  description?: string;
 }
 
 // Run types
@@ -319,6 +350,7 @@ export type TaskStatus =
 // Trigger run types
 export interface TriggerRunRequest {
   targets?: string[];
+  environment?: string;
   git_branch?: string;
   git_commit?: string;
   force?: boolean;
@@ -1541,6 +1573,7 @@ class ApiClient {
       name?: string;
       description?: string;
       visibility?: string;
+      team_id?: string | null;
     },
   ) {
     return this.fetch<Project>(`/projects/${id}`, {
@@ -1586,6 +1619,69 @@ class ApiClient {
   async revokeProjectAPIKey(projectId: string, keyId: string) {
     await this.fetch(`/projects/${projectId}/api-keys/${keyId}`, {
       method: "DELETE",
+    });
+  }
+
+  // Project env vars
+  async listProjectEnvVars(projectId: string, filters?: ListProjectEnvVarsInput) {
+    return this.fetch<ProjectEnvVar[]>(`/projects/${projectId}/env-vars`, {
+      method: "POST",
+      body: JSON.stringify(filters ?? {}),
+    });
+  }
+
+  async setProjectEnvVar(projectId: string, data: SetProjectEnvVarInput) {
+    return this.fetch<ProjectEnvVar>(`/projects/${projectId}/env-vars/set`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async seedProjectEnvVars(projectId: string, items: SetProjectEnvVarInput[]) {
+    return this.fetch<ProjectEnvVar[]>(`/projects/${projectId}/env-vars/seed`, {
+      method: "POST",
+      body: JSON.stringify({ items }),
+    });
+  }
+
+  async resolveProjectEnvVars(
+    projectId: string,
+    data: { environment: string; branch?: string; reveal?: boolean },
+  ) {
+    return this.fetch<ProjectEnvVar[]>(`/projects/${projectId}/env-vars/resolve`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async rotateProjectEnvVar(
+    projectId: string,
+    envVarId: string,
+    data: { value?: string },
+  ) {
+    return this.fetch<ProjectEnvVar>(
+      `/projects/${projectId}/env-vars/${envVarId}/rotate`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    );
+  }
+
+  async deleteProjectEnvVar(projectId: string, envVarId: string) {
+    return this.fetch<void>(`/projects/${projectId}/env-vars/${envVarId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async updateProjectEnvVar(
+    projectId: string,
+    envVarId: string,
+    data: { description?: string; required?: boolean; enabled?: boolean },
+  ) {
+    return this.fetch<ProjectEnvVar>(`/projects/${projectId}/env-vars/${envVarId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
     });
   }
 

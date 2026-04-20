@@ -89,6 +89,49 @@ type APIKeyStore interface {
 	ListActive(ctx context.Context, userID uuid.UUID) ([]models.APIKeyWithProject, error)
 }
 
+type ProjectEnvFilter struct {
+	ProjectID      uuid.UUID
+	Environment    *string
+	Branch         *string
+	Key            *string
+	Provider       *models.SecretProvider
+	ValueType      *models.EnvValueType
+	IncludeDeleted bool
+}
+
+type EnvResolutionParams struct {
+	ProjectID   uuid.UUID
+	Environment string
+	Branch      string
+}
+
+type ResolvedEnvVar struct {
+	Key            string                `json:"key"`
+	ValueType      models.EnvValueType   `json:"value_type"`
+	Provider       models.SecretProvider `json:"provider"`
+	Environment    *string               `json:"environment,omitempty"`
+	Branch         *string               `json:"branch,omitempty"`
+	Required       bool                  `json:"required"`
+	ProviderRef    *string               `json:"provider_ref,omitempty"`
+	SecretRecordID *uuid.UUID            `json:"secret_record_id,omitempty"`
+	PlainValue     *string               `json:"plain_value,omitempty"`
+}
+
+type ProjectEnvStore interface {
+	CreateSecretRecord(ctx context.Context, secret *models.SecretRecord) error
+	GetSecretRecordByID(ctx context.Context, id uuid.UUID) (*models.SecretRecord, error)
+	UpdateSecretRecord(ctx context.Context, secret *models.SecretRecord) error
+	RevokeSecretRecord(ctx context.Context, id uuid.UUID) error
+	CreateEnvVar(ctx context.Context, envVar *models.ProjectEnvVar) error
+	UpdateEnvVar(ctx context.Context, envVar *models.ProjectEnvVar) error
+	SoftDeleteEnvVar(ctx context.Context, projectID, envVarID uuid.UUID, deletedBy *uuid.UUID) error
+	GetEnvVarByID(ctx context.Context, projectID, envVarID uuid.UUID) (*models.ProjectEnvVar, error)
+	GetEnvVarByScope(ctx context.Context, projectID uuid.UUID, key string, environment, branch *string) (*models.ProjectEnvVar, error)
+	ListEnvVars(ctx context.Context, filter ProjectEnvFilter) ([]models.ProjectEnvVar, error)
+	ResolveEnv(ctx context.Context, params EnvResolutionParams) ([]ResolvedEnvVar, error)
+	CreateAuditEvent(ctx context.Context, event *models.EnvAuditEvent) error
+}
+
 type ClusterWorkerTokenStore interface {
 	Create(ctx context.Context, token *models.ClusterWorkerToken) (string, error)
 	Validate(ctx context.Context, rawToken string) (*models.ClusterWorkerToken, error)

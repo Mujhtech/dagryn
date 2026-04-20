@@ -67,6 +67,10 @@ const (
 	PermissionMembersManage   Permission = "members:manage"
 	PermissionAPIKeysView     Permission = "apikeys:view"
 	PermissionAPIKeysManage   Permission = "apikeys:manage"
+	PermissionEnvView         Permission = "env:view"
+	PermissionEnvManage       Permission = "env:manage"
+	PermissionEnvReveal       Permission = "env:reveal"
+	PermissionEnvRotate       Permission = "env:rotate"
 	PermissionCacheView       Permission = "cache:view"
 	PermissionCacheClear      Permission = "cache:clear"
 	PermissionAuditLogsView   Permission = "audit_logs:view"
@@ -81,6 +85,7 @@ var RolePermissions = map[Role][]Permission{
 		PermissionRunTrigger, PermissionRunCancel, PermissionRunView,
 		PermissionMembersView, PermissionMembersManage,
 		PermissionAPIKeysView, PermissionAPIKeysManage,
+		PermissionEnvView, PermissionEnvManage, PermissionEnvReveal, PermissionEnvRotate,
 		PermissionCacheView, PermissionCacheClear,
 		PermissionAuditLogsView, PermissionAuditLogsExport, PermissionAuditLogsManage,
 	},
@@ -89,6 +94,7 @@ var RolePermissions = map[Role][]Permission{
 		PermissionRunTrigger, PermissionRunCancel, PermissionRunView,
 		PermissionMembersView, PermissionMembersManage,
 		PermissionAPIKeysView, PermissionAPIKeysManage,
+		PermissionEnvView, PermissionEnvManage, PermissionEnvReveal, PermissionEnvRotate,
 		PermissionCacheView, PermissionCacheClear,
 		PermissionAuditLogsView, PermissionAuditLogsExport, PermissionAuditLogsManage,
 	},
@@ -97,12 +103,14 @@ var RolePermissions = map[Role][]Permission{
 		PermissionRunTrigger, PermissionRunCancel, PermissionRunView,
 		PermissionMembersView,
 		PermissionAPIKeysView,
+		PermissionEnvView,
 		PermissionCacheView,
 	},
 	RoleViewer: {
 		PermissionProjectView,
 		PermissionRunView,
 		PermissionMembersView,
+		PermissionEnvView,
 		PermissionCacheView,
 	},
 }

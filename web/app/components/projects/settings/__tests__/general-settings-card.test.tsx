@@ -4,6 +4,17 @@ import userEvent from "@testing-library/user-event";
 import { GeneralSettingsCard } from "../general-settings-card";
 import type { Project } from "~/lib/api";
 
+vi.mock("~/hooks/queries", () => ({
+  useTeams: vi.fn(() => ({
+    data: {
+      data: [
+        { id: "team-1", name: "Team One" },
+        { id: "team-2", name: "Team Two" },
+      ],
+    },
+  })),
+}));
+
 // Mock Select to a plain <select> since Radix Select doesn't work in jsdom
 vi.mock("~/components/ui/select", () => ({
   Select: ({
@@ -95,7 +106,7 @@ describe("GeneralSettingsCard", () => {
     ) as HTMLTextAreaElement;
     expect(descInput.value).toBe("App description");
 
-    const selectEl = screen.getByTestId("visibility-select") as HTMLSelectElement;
+    const selectEl = screen.getAllByTestId("visibility-select")[1] as HTMLSelectElement;
     expect(selectEl.value).toBe("public");
   });
 
@@ -122,6 +133,7 @@ describe("GeneralSettingsCard", () => {
         name: "Updated Name",
         description: "Desc",
         visibility: "private",
+        team_id: "team-1",
       });
     });
   });

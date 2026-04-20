@@ -30,6 +30,8 @@ function GeneralSettingsPage() {
         name: values.name.trim(),
         description: values.description?.trim() || undefined,
         visibility: values.visibility,
+        team_id:
+          values.team_id && values.team_id !== "none" ? values.team_id : null,
       },
       {
         onSuccess: () => {

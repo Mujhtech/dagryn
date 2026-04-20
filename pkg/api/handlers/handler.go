@@ -74,6 +74,19 @@ type Handler struct {
 
 	// SCIM service (optional; nil when SCIM is not configured)
 	scimService *scim.Service
+
+	// Managed env secret provider configuration (server-side source of truth)
+	envSecretsProvider          string
+	envSecretsProviderRefPrefix string
+	envSecretsCloudflareStoreID string
+	envSecretsAWSRegion         string
+	envSecretsAWSAccessKeyID    string
+	envSecretsAWSSecretKey      string
+	envSecretsAWSCredsFile      string
+	envSecretsGCPCredsFile      string
+	envSecretsCFAccountID       string
+	envSecretsCFAPIToken        string
+	envSecretsCFAPIBase         string
 }
 
 // New creates a new Handler with all dependencies.
@@ -182,4 +195,24 @@ func (h *Handler) Encrypter() encrypt.Encrypt {
 		return h.encrypter
 	}
 	return h.providerEncrypt
+}
+
+// SetEnvSecretsConfig sets managed env secret provider configuration.
+func (h *Handler) SetEnvSecretsConfig(
+	provider, providerRefPrefix, cloudflareStoreID string,
+	awsRegion, awsAccessKeyID, awsSecretKey, awsCredsFile string,
+	gcpCredsFile string,
+	cfAccountID, cfAPIToken, cfAPIBase string,
+) {
+	h.envSecretsProvider = provider
+	h.envSecretsProviderRefPrefix = providerRefPrefix
+	h.envSecretsCloudflareStoreID = cloudflareStoreID
+	h.envSecretsAWSRegion = awsRegion
+	h.envSecretsAWSAccessKeyID = awsAccessKeyID
+	h.envSecretsAWSSecretKey = awsSecretKey
+	h.envSecretsAWSCredsFile = awsCredsFile
+	h.envSecretsGCPCredsFile = gcpCredsFile
+	h.envSecretsCFAccountID = cfAccountID
+	h.envSecretsCFAPIToken = cfAPIToken
+	h.envSecretsCFAPIBase = cfAPIBase
 }

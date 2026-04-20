@@ -160,9 +160,9 @@ func (r *ProjectRepo) Update(ctx context.Context, project *models.Project) error
 	project.UpdatedAt = time.Now()
 
 	result, err := r.pool.Exec(ctx, `
-		UPDATE projects SET name = $1, slug = $2, description = $3, visibility = $4, config_path = $5, repo_url = $6, repo_linked_by_user_id = $7, github_installation_id = $8, github_repo_id = $9, default_branch = $10, updated_at = $11
-		WHERE id = $12
-	`, project.Name, project.Slug, project.Description, project.Visibility, project.ConfigPath, project.RepoURL, project.RepoLinkedByUserID, project.GitHubInstallationID, project.GitHubRepoID, project.DefaultBranch, project.UpdatedAt, project.ID)
+		UPDATE projects SET name = $1, slug = $2, description = $3, visibility = $4, config_path = $5, repo_url = $6, repo_linked_by_user_id = $7, github_installation_id = $8, github_repo_id = $9, default_branch = $10, team_id = $11, updated_at = $12
+		WHERE id = $13
+	`, project.Name, project.Slug, project.Description, project.Visibility, project.ConfigPath, project.RepoURL, project.RepoLinkedByUserID, project.GitHubInstallationID, project.GitHubRepoID, project.DefaultBranch, project.TeamID, project.UpdatedAt, project.ID)
 
 	if err != nil {
 		return err

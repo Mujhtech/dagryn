@@ -432,6 +432,54 @@ func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 		project.RepoURL = req.RepoURL
 		project.RepoLinkedByUserID = &user.ID
 	}
+	if req.TeamID != nil {
+		trimmedTeamID := strings.TrimSpace(*req.TeamID)
+		var targetTeamID *uuid.UUID
+
+		if trimmedTeamID != "" {
+			parsedTeamID, err := uuid.Parse(trimmedTeamID)
+			if err != nil {
+				_ = response.BadRequest(w, r, errors.New("invalid team_id"))
+				return
+			}
+
+			member, err := h.store.Teams.GetMember(ctx, parsedTeamID, user.ID)
+			if err != nil {
+				if errors.Is(err, repo.ErrNotFound) {
+					_ = response.Forbidden(w, r, errors.New("you are not a member of this team"))
+					return
+				}
+				_ = response.InternalServerError(w, r, errors.New("failed to check team membership"))
+				return
+			}
+
+			if !member.Role.CanManageMembers() {
+				_ = response.Forbidden(w, r, errors.New("you don't have permission to assign this project to the selected team"))
+				return
+			}
+
+			targetTeamID = &parsedTeamID
+		}
+
+		teamChanged := (project.TeamID == nil) != (targetTeamID == nil)
+		if !teamChanged && project.TeamID != nil && targetTeamID != nil {
+			teamChanged = *project.TeamID != *targetTeamID
+		}
+
+		if teamChanged {
+			exists, err := h.store.Projects.SlugExists(ctx, targetTeamID, project.Slug)
+			if err != nil {
+				_ = response.InternalServerError(w, r, errors.New("failed to validate project slug in target scope"))
+				return
+			}
+			if exists {
+				_ = response.BadRequest(w, r, errors.New("a project with this slug already exists in the target scope"))
+				return
+			}
+		}
+
+		project.TeamID = targetTeamID
+	}
 
 	if err := h.store.Projects.Update(ctx, project); err != nil {
 		_ = response.InternalServerError(w, r, errors.New("failed to update project"))

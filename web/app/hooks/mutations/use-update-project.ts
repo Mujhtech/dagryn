@@ -6,6 +6,7 @@ interface UpdateProjectInput {
   name?: string;
   description?: string;
   visibility?: string;
+  team_id?: string | null;
 }
 
 export function useUpdateProject(projectId: string) {

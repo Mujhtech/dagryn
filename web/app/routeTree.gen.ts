@@ -48,6 +48,7 @@ import { Route as Dashboard_layoutProjectsProjectIdSettingsIndexRouteImport } fr
 import { Route as Dashboard_layoutProjectsProjectIdRunsIndexRouteImport } from './routes/_dashboard_layout/projects/$projectId/runs/index'
 import { Route as Dashboard_layoutPluginsPublisherNameIndexRouteImport } from './routes/_dashboard_layout/plugins/$publisher/$name/index'
 import { Route as Dashboard_layoutProjectsProjectIdSettingsGitRouteImport } from './routes/_dashboard_layout/projects/$projectId/settings/git'
+import { Route as Dashboard_layoutProjectsProjectIdSettingsEnvRouteImport } from './routes/_dashboard_layout/projects/$projectId/settings/env'
 import { Route as Dashboard_layoutProjectsProjectIdSettingsApiKeysRouteImport } from './routes/_dashboard_layout/projects/$projectId/settings/api-keys'
 import { Route as Dashboard_layoutProjectsProjectIdRunsRunIdRouteImport } from './routes/_dashboard_layout/projects/$projectId/runs/$runId'
 import { Route as Dashboard_layoutPluginsPublisherNameAnalyticsRouteImport } from './routes/_dashboard_layout/plugins/$publisher/$name/analytics'
@@ -277,6 +278,12 @@ const Dashboard_layoutProjectsProjectIdSettingsGitRoute =
     path: '/git',
     getParentRoute: () => Dashboard_layoutProjectsProjectIdSettingsRoute,
   } as any)
+const Dashboard_layoutProjectsProjectIdSettingsEnvRoute =
+  Dashboard_layoutProjectsProjectIdSettingsEnvRouteImport.update({
+    id: '/env',
+    path: '/env',
+    getParentRoute: () => Dashboard_layoutProjectsProjectIdSettingsRoute,
+  } as any)
 const Dashboard_layoutProjectsProjectIdSettingsApiKeysRoute =
   Dashboard_layoutProjectsProjectIdSettingsApiKeysRouteImport.update({
     id: '/api-keys',
@@ -334,6 +341,7 @@ export interface FileRoutesByFullPath {
   '/plugins/$publisher/$name/analytics': typeof Dashboard_layoutPluginsPublisherNameAnalyticsRoute
   '/projects/$projectId/runs/$runId': typeof Dashboard_layoutProjectsProjectIdRunsRunIdRoute
   '/projects/$projectId/settings/api-keys': typeof Dashboard_layoutProjectsProjectIdSettingsApiKeysRoute
+  '/projects/$projectId/settings/env': typeof Dashboard_layoutProjectsProjectIdSettingsEnvRoute
   '/projects/$projectId/settings/git': typeof Dashboard_layoutProjectsProjectIdSettingsGitRoute
   '/plugins/$publisher/$name/': typeof Dashboard_layoutPluginsPublisherNameIndexRoute
   '/projects/$projectId/runs/': typeof Dashboard_layoutProjectsProjectIdRunsIndexRoute
@@ -376,6 +384,7 @@ export interface FileRoutesByTo {
   '/plugins/$publisher/$name/analytics': typeof Dashboard_layoutPluginsPublisherNameAnalyticsRoute
   '/projects/$projectId/runs/$runId': typeof Dashboard_layoutProjectsProjectIdRunsRunIdRoute
   '/projects/$projectId/settings/api-keys': typeof Dashboard_layoutProjectsProjectIdSettingsApiKeysRoute
+  '/projects/$projectId/settings/env': typeof Dashboard_layoutProjectsProjectIdSettingsEnvRoute
   '/projects/$projectId/settings/git': typeof Dashboard_layoutProjectsProjectIdSettingsGitRoute
   '/plugins/$publisher/$name': typeof Dashboard_layoutPluginsPublisherNameIndexRoute
   '/projects/$projectId/runs': typeof Dashboard_layoutProjectsProjectIdRunsIndexRoute
@@ -421,6 +430,7 @@ export interface FileRoutesById {
   '/_dashboard_layout/plugins/$publisher/$name/analytics': typeof Dashboard_layoutPluginsPublisherNameAnalyticsRoute
   '/_dashboard_layout/projects/$projectId/runs/$runId': typeof Dashboard_layoutProjectsProjectIdRunsRunIdRoute
   '/_dashboard_layout/projects/$projectId/settings/api-keys': typeof Dashboard_layoutProjectsProjectIdSettingsApiKeysRoute
+  '/_dashboard_layout/projects/$projectId/settings/env': typeof Dashboard_layoutProjectsProjectIdSettingsEnvRoute
   '/_dashboard_layout/projects/$projectId/settings/git': typeof Dashboard_layoutProjectsProjectIdSettingsGitRoute
   '/_dashboard_layout/plugins/$publisher/$name/': typeof Dashboard_layoutPluginsPublisherNameIndexRoute
   '/_dashboard_layout/projects/$projectId/runs/': typeof Dashboard_layoutProjectsProjectIdRunsIndexRoute
@@ -466,6 +476,7 @@ export interface FileRouteTypes {
     | '/plugins/$publisher/$name/analytics'
     | '/projects/$projectId/runs/$runId'
     | '/projects/$projectId/settings/api-keys'
+    | '/projects/$projectId/settings/env'
     | '/projects/$projectId/settings/git'
     | '/plugins/$publisher/$name/'
     | '/projects/$projectId/runs/'
@@ -508,6 +519,7 @@ export interface FileRouteTypes {
     | '/plugins/$publisher/$name/analytics'
     | '/projects/$projectId/runs/$runId'
     | '/projects/$projectId/settings/api-keys'
+    | '/projects/$projectId/settings/env'
     | '/projects/$projectId/settings/git'
     | '/plugins/$publisher/$name'
     | '/projects/$projectId/runs'
@@ -552,6 +564,7 @@ export interface FileRouteTypes {
     | '/_dashboard_layout/plugins/$publisher/$name/analytics'
     | '/_dashboard_layout/projects/$projectId/runs/$runId'
     | '/_dashboard_layout/projects/$projectId/settings/api-keys'
+    | '/_dashboard_layout/projects/$projectId/settings/env'
     | '/_dashboard_layout/projects/$projectId/settings/git'
     | '/_dashboard_layout/plugins/$publisher/$name/'
     | '/_dashboard_layout/projects/$projectId/runs/'
@@ -843,6 +856,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Dashboard_layoutProjectsProjectIdSettingsGitRouteImport
       parentRoute: typeof Dashboard_layoutProjectsProjectIdSettingsRoute
     }
+    '/_dashboard_layout/projects/$projectId/settings/env': {
+      id: '/_dashboard_layout/projects/$projectId/settings/env'
+      path: '/env'
+      fullPath: '/projects/$projectId/settings/env'
+      preLoaderRoute: typeof Dashboard_layoutProjectsProjectIdSettingsEnvRouteImport
+      parentRoute: typeof Dashboard_layoutProjectsProjectIdSettingsRoute
+    }
     '/_dashboard_layout/projects/$projectId/settings/api-keys': {
       id: '/_dashboard_layout/projects/$projectId/settings/api-keys'
       path: '/api-keys'
@@ -869,6 +889,7 @@ declare module '@tanstack/react-router' {
 
 interface Dashboard_layoutProjectsProjectIdSettingsRouteChildren {
   Dashboard_layoutProjectsProjectIdSettingsApiKeysRoute: typeof Dashboard_layoutProjectsProjectIdSettingsApiKeysRoute
+  Dashboard_layoutProjectsProjectIdSettingsEnvRoute: typeof Dashboard_layoutProjectsProjectIdSettingsEnvRoute
   Dashboard_layoutProjectsProjectIdSettingsGitRoute: typeof Dashboard_layoutProjectsProjectIdSettingsGitRoute
   Dashboard_layoutProjectsProjectIdSettingsIndexRoute: typeof Dashboard_layoutProjectsProjectIdSettingsIndexRoute
 }
@@ -877,6 +898,8 @@ const Dashboard_layoutProjectsProjectIdSettingsRouteChildren: Dashboard_layoutPr
   {
     Dashboard_layoutProjectsProjectIdSettingsApiKeysRoute:
       Dashboard_layoutProjectsProjectIdSettingsApiKeysRoute,
+    Dashboard_layoutProjectsProjectIdSettingsEnvRoute:
+      Dashboard_layoutProjectsProjectIdSettingsEnvRoute,
     Dashboard_layoutProjectsProjectIdSettingsGitRoute:
       Dashboard_layoutProjectsProjectIdSettingsGitRoute,
     Dashboard_layoutProjectsProjectIdSettingsIndexRoute:

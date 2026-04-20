@@ -20,6 +20,7 @@ import (
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
+	"github.com/mujhtech/dagryn/pkg/ai/evidence"
 	"github.com/mujhtech/dagryn/pkg/dagryn/cache"
 	"github.com/mujhtech/dagryn/pkg/dagryn/cache/cloud"
 	"github.com/mujhtech/dagryn/pkg/dagryn/condition"
@@ -34,6 +35,7 @@ import (
 	"github.com/mujhtech/dagryn/pkg/encrypt"
 	gh "github.com/mujhtech/dagryn/pkg/github"
 	"github.com/mujhtech/dagryn/pkg/githubapp"
+	"github.com/mujhtech/dagryn/pkg/secrets"
 	"github.com/mujhtech/dagryn/pkg/server/sse"
 	"github.com/mujhtech/dagryn/pkg/service"
 )
@@ -86,6 +88,7 @@ type ClusterDispatcher interface {
 type ExecuteRunHandler struct {
 	runs                repo.RunStore
 	projects            repo.ProjectStore
+	projectEnv          repo.ProjectEnvStore
 	workflows           repo.WorkflowStore
 	encrypter           encrypt.Encrypt
 	providerTokens      repo.ProviderTokenStore
@@ -100,6 +103,18 @@ type ExecuteRunHandler struct {
 	jobEnqueuer         JobEnqueuer
 	baseURL             string
 	clusterDispatcher   ClusterDispatcher
+
+	envSecretsProvider            string
+	envSecretsProviderRefPrefix   string
+	envSecretsCloudflareStoreID   string
+	envSecretsAWSRegion           string
+	envSecretsAWSAccessKeyID      string
+	envSecretsAWSSecretAccessKey  string
+	envSecretsAWSCredentialsFile  string
+	envSecretsGCPCredentialsFile  string
+	envSecretsCloudflareAccountID string
+	envSecretsCloudflareAPIToken  string
+	envSecretsCloudflareAPIBase   string
 }
 
 // GitHubAppClient is an interface for fetching installation tokens.
@@ -131,6 +146,7 @@ func NewGitHubAppClientAdapter(client *githubapp.Client) GitHubAppClient {
 func NewExecuteRunHandler(
 	runs repo.RunStore,
 	projects repo.ProjectStore,
+	projectEnv repo.ProjectEnvStore,
 	workflows repo.WorkflowStore,
 	encrypter encrypt.Encrypt,
 	providerTokens repo.ProviderTokenStore,
@@ -151,6 +167,7 @@ func NewExecuteRunHandler(
 	return &ExecuteRunHandler{
 		runs:                runs,
 		projects:            projects,
+		projectEnv:          projectEnv,
 		workflows:           workflows,
 		encrypter:           encrypter,
 		providerTokens:      providerTokens,
@@ -170,6 +187,25 @@ func NewExecuteRunHandler(
 // SetClusterDispatcher sets the optional cluster dispatcher for distributed mode.
 func (h *ExecuteRunHandler) SetClusterDispatcher(d ClusterDispatcher) {
 	h.clusterDispatcher = d
+}
+
+func (h *ExecuteRunHandler) SetEnvSecretsConfig(
+	provider, providerRefPrefix, cloudflareStoreID string,
+	awsRegion, awsAccessKeyID, awsSecretAccessKey, awsCredsFile string,
+	gcpCredsFile string,
+	cfAccountID, cfAPIToken, cfAPIBase string,
+) {
+	h.envSecretsProvider = provider
+	h.envSecretsProviderRefPrefix = providerRefPrefix
+	h.envSecretsCloudflareStoreID = cloudflareStoreID
+	h.envSecretsAWSRegion = awsRegion
+	h.envSecretsAWSAccessKeyID = awsAccessKeyID
+	h.envSecretsAWSSecretAccessKey = awsSecretAccessKey
+	h.envSecretsAWSCredentialsFile = awsCredsFile
+	h.envSecretsGCPCredentialsFile = gcpCredsFile
+	h.envSecretsCloudflareAccountID = cfAccountID
+	h.envSecretsCloudflareAPIToken = cfAPIToken
+	h.envSecretsCloudflareAPIBase = cfAPIBase
 }
 
 // createSyntheticTask creates a task result for infrastructure operations like clone/cleanup.
@@ -244,6 +280,7 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		ProjectID   string   `json:"project_id"`
 		RunID       string   `json:"run_id"`
 		Targets     []string `json:"targets"`
+		Environment string   `json:"environment,omitempty"`
 		GitBranch   string   `json:"git_branch,omitempty"`
 		GitTag      string   `json:"git_tag,omitempty"`
 		GitCommit   string   `json:"git_commit,omitempty"`
@@ -532,6 +569,24 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 		targets = run.Targets
 	}
 
+	// Resolve managed project env (project-level secrets/config) and merge into each task env.
+	resolvedProjectEnv, envWarnings := h.resolveProjectEnvForRun(ctx, run, projectID, payload.Environment, payload.GitBranch)
+	for _, w := range envWarnings {
+		slog.Warn("execute_run: project env warning", "run_id", runID, "warning", w)
+	}
+	if len(resolvedProjectEnv) > 0 {
+		for _, t := range workflow.Tasks {
+			if t.Env == nil {
+				t.Env = map[string]string{}
+			}
+			for k, v := range resolvedProjectEnv {
+				if _, exists := t.Env[k]; !exists {
+					t.Env[k] = v
+				}
+			}
+		}
+	}
+
 	// When no targets are specified, run all tasks from the workflow.
 	if len(targets) == 0 {
 		targets = workflow.TaskNames()
@@ -790,6 +845,7 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	})
 
 	sched.OnLogLine(func(taskName, stream, line string) {
+		line = evidence.RedactAll(line)
 		logMu.Lock()
 		lineNums[taskName]++
 		ln := lineNums[taskName]
@@ -881,6 +937,122 @@ func (h *ExecuteRunHandler) Handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	return nil
+}
+
+func (h *ExecuteRunHandler) resolveProjectEnvForRun(ctx context.Context, run *models.Run, projectID uuid.UUID, requestedEnvironment, branch string) (map[string]string, []string) {
+	provider := models.SecretProvider(h.envSecretsProvider)
+	if provider == "" {
+		provider = models.SecretProviderDB
+	}
+
+	environment := strings.TrimSpace(requestedEnvironment)
+	if environment == "" && run != nil && run.Environment != nil {
+		environment = strings.TrimSpace(*run.Environment)
+	}
+	if environment == "" {
+		environment = strings.TrimSpace(os.Getenv("DAGRYN_RUN_ENV"))
+	}
+	if environment == "" {
+		environment = "dev"
+	}
+
+	resolved, err := h.projectsEnvResolver(ctx, projectID, environment, branch)
+	if err != nil {
+		return nil, []string{fmt.Sprintf("project env resolve failed: %v", err)}
+	}
+
+	out := make(map[string]string, len(resolved))
+	warnings := make([]string, 0)
+
+	for _, item := range resolved {
+		if item.ValueType == models.EnvValueTypePlain {
+			if item.PlainValue != nil {
+				out[item.Key] = *item.PlainValue
+			} else if item.Required {
+				warnings = append(warnings, "missing required plain env: "+item.Key)
+			}
+			continue
+		}
+
+		// Secret resolution path
+		switch item.Provider {
+		case models.SecretProviderDB:
+			if item.SecretRecordID == nil {
+				if item.Required {
+					warnings = append(warnings, "missing required db secret record: "+item.Key)
+				}
+				continue
+			}
+			record, rerr := h.projectEnv.GetSecretRecordByID(ctx, *item.SecretRecordID)
+			if rerr != nil {
+				if item.Required {
+					warnings = append(warnings, "failed loading db secret: "+item.Key)
+				}
+				continue
+			}
+			if h.encrypter == nil {
+				if item.Required {
+					warnings = append(warnings, "missing encrypter for db secret: "+item.Key)
+				}
+				continue
+			}
+			plain, derr := h.encrypter.Decrypt(string(record.Ciphertext))
+			if derr != nil {
+				if item.Required {
+					warnings = append(warnings, "failed decrypting db secret: "+item.Key)
+				}
+				continue
+			}
+			out[item.Key] = plain
+		default:
+			if item.ProviderRef == nil || strings.TrimSpace(*item.ProviderRef) == "" {
+				if item.Required {
+					warnings = append(warnings, "missing provider_ref for secret: "+item.Key)
+				}
+				continue
+			}
+			providerClient, perr := secrets.NewProviderWithConfig(ctx, provider, secrets.Config{
+				AWSRegion:           h.envSecretsAWSRegion,
+				AWSAccessKeyID:      h.envSecretsAWSAccessKeyID,
+				AWSSecretAccessKey:  h.envSecretsAWSSecretAccessKey,
+				AWSCredentialsFile:  h.envSecretsAWSCredentialsFile,
+				GCPCredentialsFile:  h.envSecretsGCPCredentialsFile,
+				CloudflareAccountID: h.envSecretsCloudflareAccountID,
+				CloudflareAPIToken:  h.envSecretsCloudflareAPIToken,
+				CloudflareAPIBase:   h.envSecretsCloudflareAPIBase,
+			})
+			if perr != nil {
+				if item.Required {
+					warnings = append(warnings, "provider init failed: "+item.Key)
+				}
+				continue
+			}
+			v, gerr := providerClient.Get(ctx, *item.ProviderRef)
+			if gerr != nil {
+				if item.Required {
+					warnings = append(warnings, "provider get failed: "+item.Key)
+				}
+				continue
+			}
+			out[item.Key] = v
+		}
+	}
+
+	return out, warnings
+}
+
+func (h *ExecuteRunHandler) projectsEnvResolver(ctx context.Context, projectID uuid.UUID, environment, branch string) ([]repo.ResolvedEnvVar, error) {
+	if h.projectEnv == nil {
+		return nil, fmt.Errorf("project env store unavailable")
+	}
+	if strings.TrimSpace(branch) == "" {
+		branch = ""
+	}
+	return h.projectEnv.ResolveEnv(ctx, repo.EnvResolutionParams{
+		ProjectID:   projectID,
+		Environment: environment,
+		Branch:      branch,
+	})
 }
 
 // loadConfigFromStoredWorkflow loads the config from the project's default
