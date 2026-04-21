@@ -63,6 +63,7 @@ function EnvSettingsPage() {
         createPending={setMutation.isPending}
         deletePending={deleteMutation.isPending}
         rotatePending={rotateMutation.isPending}
+        updatePending={updateMutation.isPending}
         seedPending={seedMutation.isPending}
         onCreate={(payload) =>
           setMutation.mutate(payload, {

@@ -54,6 +54,7 @@ type EnvVarsCardProps = {
   createPending: boolean;
   deletePending: boolean;
   rotatePending: boolean;
+  updatePending: boolean;
   seedPending: boolean;
   onCreate: (payload: SetProjectEnvVarInput) => void;
   onDelete: (id: string) => void;
@@ -71,6 +72,7 @@ export function EnvVarsCard({
   createPending,
   deletePending,
   rotatePending,
+  updatePending,
   seedPending,
   onCreate,
   onDelete,
@@ -85,6 +87,10 @@ export function EnvVarsCard({
   const [seedRequired, setSeedRequired] = useState(false);
   const [rotateTarget, setRotateTarget] = useState<ProjectEnvVar | null>(null);
   const [rotateValue, setRotateValue] = useState("");
+  const [editTarget, setEditTarget] = useState<ProjectEnvVar | null>(null);
+  const [editDescription, setEditDescription] = useState("");
+  const [editRequired, setEditRequired] = useState(false);
+  const [editEnabled, setEditEnabled] = useState(true);
 
   const form = useForm<EnvFormValues>({
     resolver: zodResolver(envSchema),
@@ -146,6 +152,31 @@ export function EnvVarsCard({
     if (!value) return;
     onRotate({ envVarId: rotateTarget.id, value });
     closeRotateDialog();
+  };
+
+  const openEditDialog = (item: ProjectEnvVar) => {
+    setEditTarget(item);
+    setEditDescription(item.description || "");
+    setEditRequired(Boolean(item.required));
+    setEditEnabled(Boolean(item.enabled));
+  };
+
+  const closeEditDialog = () => {
+    setEditTarget(null);
+    setEditDescription("");
+    setEditRequired(false);
+    setEditEnabled(true);
+  };
+
+  const submitEdit = () => {
+    if (!editTarget) return;
+    onUpdate({
+      envVarId: editTarget.id,
+      description: editDescription.trim() || undefined,
+      required: editRequired,
+      enabled: editEnabled,
+    });
+    closeEditDialog();
   };
 
   return (
@@ -380,13 +411,7 @@ export function EnvVarsCard({
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        const description = window.prompt("Description", item.description || "");
-                        if (description === null) return;
-                        const required = window.confirm("Mark as required?");
-                        const enabled = window.confirm("Keep enabled?");
-                        onUpdate({ envVarId: item.id, description, required, enabled });
-                      }}
+                      onClick={() => openEditDialog(item)}
                     >
                       Edit
                     </Button>
@@ -427,6 +452,48 @@ export function EnvVarsCard({
             </Button>
             <Button type="button" onClick={submitRotate} disabled={!rotateValue.trim() || rotatePending}>
               {rotatePending ? "Rotating..." : "Rotate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editTarget} onOpenChange={(open) => !open && closeEditDialog()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Variable</DialogTitle>
+            <DialogDescription>
+              Update metadata for <span className="font-mono">{editTarget?.key}</span>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Description</label>
+              <Input
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="Optional context"
+                autoFocus
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={editRequired} onCheckedChange={(v) => setEditRequired(Boolean(v))} />
+              Required at runtime
+            </label>
+
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={editEnabled} onCheckedChange={(v) => setEditEnabled(Boolean(v))} />
+              Enabled
+            </label>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={closeEditDialog}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={submitEdit} disabled={updatePending}>
+              {updatePending ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
