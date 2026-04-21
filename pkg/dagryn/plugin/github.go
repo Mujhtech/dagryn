@@ -20,6 +20,11 @@ import (
 	"time"
 )
 
+const (
+	githubAssetDownloadTimeout = 20 * time.Minute
+	githubAssetDownloadRetries = 3
+)
+
 // rateLimitState tracks GitHub API rate limit headers.
 type rateLimitState struct {
 	remaining int
@@ -538,28 +543,9 @@ func (r *GitHubResolver) findAsset(assets []GitHubAsset, binaryName string) (*Gi
 
 // downloadAsset downloads an asset to a temporary file.
 func (r *GitHubResolver) downloadAsset(ctx context.Context, asset *GitHubAsset) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", asset.BrowserDownloadURL, nil)
-	if err != nil {
-		return "", err
-	}
-
-	// Use a dedicated client with a longer timeout for large file downloads.
-	downloadClient := &http.Client{Timeout: 5 * time.Minute}
-	r.setHeaders(req)
-	resp, err := downloadClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("download returned status %d", resp.StatusCode)
-	}
-
 	// Create temp file with same extension as asset
 	ext := filepath.Ext(asset.Name)
 	if strings.Contains(asset.Name, ".tar.") {
-		// Handle .tar.gz, .tar.xz, etc.
 		ext = ".tar" + ext
 	}
 
@@ -567,14 +553,71 @@ func (r *GitHubResolver) downloadAsset(ctx context.Context, asset *GitHubAsset) 
 	if err != nil {
 		return "", err
 	}
-	defer func() { _ = tempFile.Close() }()
+	tempPath := tempFile.Name()
+	_ = tempFile.Close()
 
-	if _, err := io.Copy(tempFile, resp.Body); err != nil {
-		_ = os.Remove(tempFile.Name())
-		return "", err
+	var lastErr error
+	for attempt := 1; attempt <= githubAssetDownloadRetries; attempt++ {
+		if err := r.downloadAssetToFile(ctx, asset.BrowserDownloadURL, tempPath); err == nil {
+			return tempPath, nil
+		} else {
+			lastErr = err
+			_ = os.Remove(tempPath)
+			if attempt < githubAssetDownloadRetries {
+				backoff := time.Duration(attempt*2) * time.Second
+				log.Printf("GitHub asset download failed, retrying in %s (attempt %d/%d): %v", backoff, attempt, githubAssetDownloadRetries, err)
+				select {
+				case <-time.After(backoff):
+				case <-ctx.Done():
+					return "", ctx.Err()
+				}
+			}
+		}
 	}
 
-	return tempFile.Name(), nil
+	return "", lastErr
+}
+
+func (r *GitHubResolver) downloadAssetToFile(ctx context.Context, url, path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	r.setHeaders(req)
+
+	downloadClient := &http.Client{Timeout: githubAssetDownloadTimeout}
+	resp, err := downloadClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download returned status %d", resp.StatusCode)
+	}
+
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	if _, err := io.Copy(f, resp.Body); err != nil {
+		return err
+	}
+
+	if st, err := f.Stat(); err != nil || st.Size() == 0 {
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("downloaded asset is empty")
+	}
+
+	return nil
 }
 
 // extractBinary extracts the binary from an archive or copies it directly.

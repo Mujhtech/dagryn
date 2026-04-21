@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	apiCtx "github.com/mujhtech/dagryn/pkg/api/context"
+	"github.com/mujhtech/dagryn/pkg/dagryn/config"
 	"github.com/mujhtech/dagryn/pkg/database/models"
 	"github.com/mujhtech/dagryn/pkg/database/repo"
 	"github.com/mujhtech/dagryn/pkg/entitlement"
@@ -481,6 +482,23 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Enforce workflow trigger rules for manual/API triggers when a git ref is provided.
+	if req.GitBranch != "" || req.GitTag != "" {
+		if wf, _ := h.store.Workflows.GetDefaultByProject(ctx, projectID); wf != nil && wf.RawConfig != nil {
+			if cfg, parseErr := config.ParseBytes([]byte(*wf.RawConfig)); parseErr == nil && cfg.Workflow.Trigger != nil {
+				if req.GitTag != "" {
+					if !cfg.Workflow.Trigger.MatchesTag(req.GitTag) {
+						_ = response.BadRequest(w, r, fmt.Errorf("git tag %q does not match workflow trigger patterns", req.GitTag))
+						return
+					}
+				} else if !cfg.Workflow.Trigger.MatchesPush(req.GitBranch) {
+					_ = response.BadRequest(w, r, fmt.Errorf("git branch %q is not allowed by workflow trigger", req.GitBranch))
+					return
+				}
+			}
+		}
+	}
+
 	// Check concurrent runs quota
 	if h.entitlements != nil {
 		if err := h.entitlements.CheckQuota(ctx, "concurrent_runs", projectID, 0); err != nil {
@@ -514,6 +532,14 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 	// Add git info if provided
 	if req.GitBranch != "" {
 		run.GitBranch = &req.GitBranch
+	}
+	if req.Environment != "" {
+		env := strings.TrimSpace(req.Environment)
+		run.Environment = &env
+	}
+	if req.GitTag != "" {
+		tagAsBranch := req.GitTag
+		run.GitBranch = &tagAsBranch
 	}
 	if req.GitCommit != "" {
 		run.GitCommit = &req.GitCommit
@@ -550,13 +576,24 @@ func (h *Handler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 	if h.jobClient != nil && !req.SyncOnly {
 		if project.RepoURL != nil && *project.RepoURL != "" {
 			repoURL := *project.RepoURL
+			eventType := "api"
+			if req.GitTag != "" {
+				eventType = "tag"
+			}
+			gitBranch := req.GitBranch
+			if req.GitTag != "" {
+				gitBranch = req.GitTag
+			}
 			payload := worker.ExecuteRunPayload{
-				ProjectID: projectID.String(),
-				RunID:     run.ID.String(),
-				Targets:   req.Targets,
-				GitBranch: req.GitBranch,
-				GitCommit: req.GitCommit,
-				RepoURL:   repoURL,
+				ProjectID:   projectID.String(),
+				RunID:       run.ID.String(),
+				Targets:     req.Targets,
+				Environment: ptrToString(run.Environment),
+				GitBranch:   gitBranch,
+				GitTag:      req.GitTag,
+				GitCommit:   req.GitCommit,
+				RepoURL:     repoURL,
+				EventType:   eventType,
 			}
 			data, err := json.Marshal(payload)
 			if err == nil {
@@ -1317,6 +1354,9 @@ func runModelToResponse(run *models.Run) RunResponse {
 
 	if run.GitBranch != nil {
 		resp.TriggerRef = *run.GitBranch
+	}
+	if run.Environment != nil {
+		resp.Environment = *run.Environment
 	}
 	if run.GitCommit != nil {
 		resp.CommitSHA = *run.GitCommit

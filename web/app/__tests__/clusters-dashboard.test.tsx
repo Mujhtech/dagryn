@@ -24,6 +24,18 @@ const overviewState: { data: DashboardOverview } = {
   data: { projects: [], recent_runs: [] },
 };
 
+const capabilitiesState = {
+  data: {
+    mode: "cloud" as const,
+    edition: "cloud" as const,
+    features: [
+      { feature: "multi_cluster", label: "Multi-Cluster", enabled: true },
+    ],
+    nav: [{ key: "clusters", label: "Clusters", enabled: true }],
+    grpc_public_address: "dagryn.mujhtech.xyz:443",
+  },
+};
+
 vi.mock("~/lib/auth", () => ({
   useAuth: () => ({ isAuthenticated: true }),
 }));
@@ -41,13 +53,7 @@ vi.mock("~/hooks/queries", () => ({
   }),
   useWorkerTokens: () => ({ data: [], isLoading: false }),
   useCapabilities: () => ({
-    data: {
-      mode: "cloud",
-      edition: "cloud",
-      features: [{ feature: "multi_cluster", label: "Multi-Cluster", enabled: true }],
-      nav: [{ key: "clusters", label: "Clusters", enabled: true }],
-      grpc_public_address: "dagryn.mujhtech.xyz:443",
-    },
+    data: capabilitiesState.data,
     isLoading: false,
   }),
   useDashboardOverview: () => ({ data: overviewState.data, isLoading: false }),
@@ -101,6 +107,9 @@ describe("clusters and dashboard routing surfaces", () => {
     workersState.isLoading = false;
     teamsState.data = [];
     overviewState.data = { projects: [], recent_runs: [] };
+    capabilitiesState.data.nav = [
+      { key: "clusters", label: "Clusters", enabled: true },
+    ];
   });
 
   it("renders cluster list with aggregated worker counts", () => {
@@ -187,5 +196,16 @@ describe("clusters and dashboard routing surfaces", () => {
     expect(screen.getByText("1")).toBeInTheDocument();
     expect(screen.getByText("degraded")).toBeInTheDocument();
     expect(screen.getByText("View Clusters")).toBeInTheDocument();
+  });
+
+  it("hides cluster health card when clusters nav is disabled", () => {
+    capabilitiesState.data.nav = [
+      { key: "clusters", label: "Clusters", enabled: false },
+    ];
+
+    render(<IndexPage />);
+
+    expect(screen.queryByText("Cluster Health")).not.toBeInTheDocument();
+    expect(screen.queryByText("View Clusters")).not.toBeInTheDocument();
   });
 });

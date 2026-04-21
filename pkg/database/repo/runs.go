@@ -63,10 +63,10 @@ func (r *RunRepo) Create(ctx context.Context, run *models.Run) error {
 	run.CreatedAt = time.Now()
 
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO runs (id, project_id, targets, status, total_tasks, triggered_by, triggered_by_user_id, git_branch, git_commit, pr_title, pr_number, commit_message, commit_author_name, commit_author_email, commit_author_avatar_url, description, workflow_id, workflow_name, host_os, host_arch, host_name, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+		INSERT INTO runs (id, project_id, targets, status, total_tasks, triggered_by, triggered_by_user_id, git_branch, environment, git_commit, pr_title, pr_number, commit_message, commit_author_name, commit_author_email, commit_author_avatar_url, description, workflow_id, workflow_name, host_os, host_arch, host_name, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
 	`, run.ID, run.ProjectID, run.Targets, run.Status, run.TotalTasks, run.TriggeredBy,
-		run.TriggeredByUserID, run.GitBranch, run.GitCommit, run.PRTitle, run.PRNumber, run.CommitMessage, run.CommitAuthorName, run.CommitAuthorEmail, run.CommitAuthorAvatarURL, run.Description, run.WorkflowID, run.WorkflowName, run.HostOS, run.HostArch, run.HostName, run.CreatedAt)
+		run.TriggeredByUserID, run.GitBranch, run.Environment, run.GitCommit, run.PRTitle, run.PRNumber, run.CommitMessage, run.CommitAuthorName, run.CommitAuthorEmail, run.CommitAuthorAvatarURL, run.Description, run.WorkflowID, run.WorkflowName, run.HostOS, run.HostArch, run.HostName, run.CreatedAt)
 
 	return err
 }
@@ -76,7 +76,7 @@ func (r *RunRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Run, error
 	var run models.Run
 	err := r.pool.QueryRow(ctx, `
 		SELECT id, project_id, targets, status, total_tasks, completed_tasks, failed_tasks, cache_hits,
-		       duration_ms, error_message, triggered_by, triggered_by_user_id, git_branch, git_commit,
+		       duration_ms, error_message, triggered_by, triggered_by_user_id, git_branch, environment, git_commit,
 		       pr_title, pr_number, commit_message, commit_author_name, commit_author_email, commit_author_avatar_url,
 		       description, workflow_id, workflow_name,
 		       github_pr_comment_id, github_check_run_id,
@@ -85,7 +85,7 @@ func (r *RunRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Run, error
 		FROM runs WHERE id = $1
 	`, id).Scan(&run.ID, &run.ProjectID, &run.Targets, &run.Status, &run.TotalTasks, &run.CompletedTasks,
 		&run.FailedTasks, &run.CacheHits, &run.DurationMs, &run.ErrorMessage, &run.TriggeredBy,
-		&run.TriggeredByUserID, &run.GitBranch, &run.GitCommit, &run.PRTitle, &run.PRNumber,
+		&run.TriggeredByUserID, &run.GitBranch, &run.Environment, &run.GitCommit, &run.PRTitle, &run.PRNumber,
 		&run.CommitMessage, &run.CommitAuthorName, &run.CommitAuthorEmail, &run.CommitAuthorAvatarURL,
 		&run.Description, &run.WorkflowID, &run.WorkflowName,
 		&run.GitHubPRCommentID, &run.GitHubCheckRunID,
@@ -107,10 +107,10 @@ func (r *RunRepo) Update(ctx context.Context, run *models.Run) error {
 		UPDATE runs SET status = $1, total_tasks = $2, completed_tasks = $3, failed_tasks = $4, cache_hits = $5,
 		       duration_ms = $6, error_message = $7, started_at = $8, finished_at = $9,
 		       github_pr_comment_id = $10, github_check_run_id = $11, git_commit = $12, git_branch = $13,
-		       workflow_id = $14, workflow_name = $15, host_os = $16, host_arch = $17, host_name = $18
-		WHERE id = $19
+		       workflow_id = $14, workflow_name = $15, host_os = $16, host_arch = $17, host_name = $18, environment = $19
+		WHERE id = $20
 	`, run.Status, run.TotalTasks, run.CompletedTasks, run.FailedTasks, run.CacheHits, run.DurationMs,
-		run.ErrorMessage, run.StartedAt, run.FinishedAt, run.GitHubPRCommentID, run.GitHubCheckRunID, run.GitCommit, run.GitBranch, run.WorkflowID, run.WorkflowName, run.HostOS, run.HostArch, run.HostName, run.ID)
+		run.ErrorMessage, run.StartedAt, run.FinishedAt, run.GitHubPRCommentID, run.GitHubCheckRunID, run.GitCommit, run.GitBranch, run.WorkflowID, run.WorkflowName, run.HostOS, run.HostArch, run.HostName, run.Environment, run.ID)
 
 	if err != nil {
 		return err
@@ -219,7 +219,7 @@ func (r *RunRepo) ListByProject(ctx context.Context, projectID uuid.UUID, limit,
 	// Get runs
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, project_id, targets, status, total_tasks, completed_tasks, failed_tasks, cache_hits,
-		       duration_ms, error_message, triggered_by, triggered_by_user_id, git_branch, git_commit,
+		       duration_ms, error_message, triggered_by, triggered_by_user_id, git_branch, environment, git_commit,
 		       pr_title, pr_number, commit_message, commit_author_name, commit_author_email, commit_author_avatar_url,
 		       description, workflow_id, workflow_name,
 		       github_pr_comment_id, github_check_run_id,
@@ -239,7 +239,7 @@ func (r *RunRepo) ListByProject(ctx context.Context, projectID uuid.UUID, limit,
 		var run models.Run
 		if err := rows.Scan(&run.ID, &run.ProjectID, &run.Targets, &run.Status, &run.TotalTasks, &run.CompletedTasks,
 			&run.FailedTasks, &run.CacheHits, &run.DurationMs, &run.ErrorMessage, &run.TriggeredBy,
-			&run.TriggeredByUserID, &run.GitBranch, &run.GitCommit, &run.PRTitle, &run.PRNumber,
+			&run.TriggeredByUserID, &run.GitBranch, &run.Environment, &run.GitCommit, &run.PRTitle, &run.PRNumber,
 			&run.CommitMessage, &run.CommitAuthorName, &run.CommitAuthorEmail, &run.CommitAuthorAvatarURL,
 			&run.Description, &run.WorkflowID, &run.WorkflowName,
 			&run.GitHubPRCommentID, &run.GitHubCheckRunID,
@@ -436,7 +436,7 @@ func (r *RunRepo) GetDashboardFacetsByProject(ctx context.Context, projectID uui
 func (r *RunRepo) GetActiveByProject(ctx context.Context, projectID uuid.UUID) ([]models.Run, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, project_id, targets, status, total_tasks, completed_tasks, failed_tasks, cache_hits,
-		       duration_ms, error_message, triggered_by, triggered_by_user_id, git_branch, git_commit,
+		       duration_ms, error_message, triggered_by, triggered_by_user_id, git_branch, environment, git_commit,
 		       pr_title, pr_number, commit_message, commit_author_name, commit_author_email, commit_author_avatar_url,
 		       description, workflow_id, workflow_name,
 		       github_pr_comment_id, github_check_run_id,
@@ -455,7 +455,7 @@ func (r *RunRepo) GetActiveByProject(ctx context.Context, projectID uuid.UUID) (
 		var run models.Run
 		if err := rows.Scan(&run.ID, &run.ProjectID, &run.Targets, &run.Status, &run.TotalTasks, &run.CompletedTasks,
 			&run.FailedTasks, &run.CacheHits, &run.DurationMs, &run.ErrorMessage, &run.TriggeredBy,
-			&run.TriggeredByUserID, &run.GitBranch, &run.GitCommit, &run.PRTitle, &run.PRNumber,
+			&run.TriggeredByUserID, &run.GitBranch, &run.Environment, &run.GitCommit, &run.PRTitle, &run.PRNumber,
 			&run.CommitMessage, &run.CommitAuthorName, &run.CommitAuthorEmail, &run.CommitAuthorAvatarURL,
 			&run.Description, &run.WorkflowID, &run.WorkflowName,
 			&run.GitHubPRCommentID, &run.GitHubCheckRunID,
@@ -627,7 +627,7 @@ func (r *RunRepo) ListStaleRuns(ctx context.Context, timeout time.Duration) ([]m
 	cutoff := time.Now().Add(-timeout)
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, project_id, targets, status, total_tasks, completed_tasks, failed_tasks, cache_hits,
-		       duration_ms, error_message, triggered_by, triggered_by_user_id, git_branch, git_commit,
+		       duration_ms, error_message, triggered_by, triggered_by_user_id, git_branch, environment, git_commit,
 		       pr_title, pr_number, commit_message, commit_author_name, commit_author_email, commit_author_avatar_url,
 		       description, workflow_id, workflow_name,
 		       host_os, host_arch, host_name,
@@ -649,7 +649,7 @@ func (r *RunRepo) ListStaleRuns(ctx context.Context, timeout time.Duration) ([]m
 		var run models.Run
 		if err := rows.Scan(&run.ID, &run.ProjectID, &run.Targets, &run.Status, &run.TotalTasks, &run.CompletedTasks,
 			&run.FailedTasks, &run.CacheHits, &run.DurationMs, &run.ErrorMessage, &run.TriggeredBy,
-			&run.TriggeredByUserID, &run.GitBranch, &run.GitCommit, &run.PRTitle, &run.PRNumber,
+			&run.TriggeredByUserID, &run.GitBranch, &run.Environment, &run.GitCommit, &run.PRTitle, &run.PRNumber,
 			&run.CommitMessage, &run.CommitAuthorName, &run.CommitAuthorEmail, &run.CommitAuthorAvatarURL,
 			&run.Description, &run.WorkflowID, &run.WorkflowName,
 			&run.HostOS, &run.HostArch, &run.HostName,
@@ -835,7 +835,7 @@ func (r *RunRepo) GetRecentRunsAcrossProjects(ctx context.Context, projectIDs []
 
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, project_id, targets, status, total_tasks, completed_tasks, failed_tasks, cache_hits,
-		       duration_ms, error_message, triggered_by, triggered_by_user_id, git_branch, git_commit,
+		       duration_ms, error_message, triggered_by, triggered_by_user_id, git_branch, environment, git_commit,
 		       pr_title, pr_number, commit_message, commit_author_name, commit_author_email, commit_author_avatar_url,
 		       description, workflow_id, workflow_name,
 		       github_pr_comment_id, github_check_run_id,
@@ -856,7 +856,7 @@ func (r *RunRepo) GetRecentRunsAcrossProjects(ctx context.Context, projectIDs []
 		var run models.Run
 		if err := rows.Scan(&run.ID, &run.ProjectID, &run.Targets, &run.Status, &run.TotalTasks, &run.CompletedTasks,
 			&run.FailedTasks, &run.CacheHits, &run.DurationMs, &run.ErrorMessage, &run.TriggeredBy,
-			&run.TriggeredByUserID, &run.GitBranch, &run.GitCommit, &run.PRTitle, &run.PRNumber,
+			&run.TriggeredByUserID, &run.GitBranch, &run.Environment, &run.GitCommit, &run.PRTitle, &run.PRNumber,
 			&run.CommitMessage, &run.CommitAuthorName, &run.CommitAuthorEmail, &run.CommitAuthorAvatarURL,
 			&run.Description, &run.WorkflowID, &run.WorkflowName,
 			&run.GitHubPRCommentID, &run.GitHubCheckRunID,
@@ -969,7 +969,7 @@ func (r *RunRepo) GetProjectStats(ctx context.Context, projectIDs []uuid.UUID, d
 	latestRows, err := r.pool.Query(ctx, `
 		SELECT DISTINCT ON (project_id)
 			id, project_id, targets, status, total_tasks, completed_tasks, failed_tasks, cache_hits,
-			duration_ms, error_message, triggered_by, triggered_by_user_id, git_branch, git_commit,
+			duration_ms, error_message, triggered_by, triggered_by_user_id, git_branch, environment, git_commit,
 			pr_title, pr_number, commit_message, commit_author_name, commit_author_email, commit_author_avatar_url,
 			description, workflow_id, workflow_name,
 			github_pr_comment_id, github_check_run_id,
@@ -988,7 +988,7 @@ func (r *RunRepo) GetProjectStats(ctx context.Context, projectIDs []uuid.UUID, d
 		var run models.Run
 		if err := latestRows.Scan(&run.ID, &run.ProjectID, &run.Targets, &run.Status, &run.TotalTasks, &run.CompletedTasks,
 			&run.FailedTasks, &run.CacheHits, &run.DurationMs, &run.ErrorMessage, &run.TriggeredBy,
-			&run.TriggeredByUserID, &run.GitBranch, &run.GitCommit, &run.PRTitle, &run.PRNumber,
+			&run.TriggeredByUserID, &run.GitBranch, &run.Environment, &run.GitCommit, &run.PRTitle, &run.PRNumber,
 			&run.CommitMessage, &run.CommitAuthorName, &run.CommitAuthorEmail, &run.CommitAuthorAvatarURL,
 			&run.Description, &run.WorkflowID, &run.WorkflowName,
 			&run.GitHubPRCommentID, &run.GitHubCheckRunID,

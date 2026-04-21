@@ -12,7 +12,7 @@ default = "10.30.3"
 
 [inputs.node-version]
 description = "Node.js version (required for pnpm to run). Leave empty to use system Node.js"
-default = ""
+default = "20.20.0"
 
 [inputs.cache]
 description = "Cache pnpm store directory"
@@ -176,6 +176,9 @@ if [ -n "$NODE_VERSION" ] && [ -d "$NODE_INSTALL_DIR/bin" ]; then
 fi
 echo "pnpm $(pnpm --version 2>/dev/null || echo 'unknown') ready"
 """
+[step.env]
+PATH = "$HOME/.dagryn/tools/pnpm-${inputs.pnpm-version}:$HOME/.dagryn/tools/npm-global/bin:$HOME/.dagryn/tools/node-${inputs.node-version}/bin:$PATH"
+PNPM_HOME = "$HOME/.dagryn/tools/pnpm-${inputs.pnpm-version}"
 
 [[step]]
 name = "cache-pnpm-store"

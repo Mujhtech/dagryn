@@ -7,6 +7,7 @@ export { usePlugin } from "./use-plugin";
 export { useOfficialPlugins } from "./use-official-plugins";
 export { useProjectPlugins } from "./use-project-plugins";
 export { useProjectAPIKeys } from "./use-project-api-keys";
+export { useProjectEnvVars } from "./use-project-env-vars";
 export { useGitHubAppInstallations, useGitHubAppRepos } from "./use-github-app";
 export { useGitHubWorkflowTranslation } from "./use-github-workflow-translation";
 export { useTeams } from "./use-teams";

@@ -17,6 +17,13 @@ export { useTriggerRun } from "./use-trigger-run";
 export { useDeleteArtifact } from "./use-delete-artifact";
 export { useCreateProjectAPIKey } from "./use-create-project-api-key";
 export { useRevokeProjectAPIKey } from "./use-revoke-project-api-key";
+export {
+  useSetProjectEnvVar,
+  useSeedProjectEnvVars,
+  useRotateProjectEnvVar,
+  useDeleteProjectEnvVar,
+  useUpdateProjectEnvVar,
+} from "./use-project-env-vars";
 export { useConnectProjectToGitHub } from "./use-connect-project-to-github";
 export { useInstallPlugin } from "./use-install-plugin";
 export { usePublishPlugin } from "./use-publish-plugin";

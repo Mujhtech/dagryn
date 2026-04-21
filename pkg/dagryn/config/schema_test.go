@@ -29,6 +29,15 @@ func TestTriggerConfig_MatchesPush_BranchMatch(t *testing.T) {
 	assert.True(t, tc.MatchesPush("develop"))
 }
 
+func TestTriggerConfig_MatchesPush_BranchWildcardMatch(t *testing.T) {
+	tc := &TriggerConfig{
+		Push: &PushTriggerConfig{Branches: []string{"fix/*", "main"}},
+	}
+	assert.True(t, tc.MatchesPush("fix/official-plugins-issue"))
+	assert.True(t, tc.MatchesPush("main"))
+	assert.False(t, tc.MatchesPush("feature/x"))
+}
+
 func TestTriggerConfig_MatchesPush_BranchNoMatch(t *testing.T) {
 	tc := &TriggerConfig{
 		Push: &PushTriggerConfig{Branches: []string{"main"}},
@@ -68,6 +77,17 @@ func TestTriggerConfig_MatchesPullRequest_BranchNoMatch(t *testing.T) {
 	assert.False(t, tc.MatchesPullRequest("develop", "opened"))
 }
 
+func TestTriggerConfig_MatchesPullRequest_BranchWildcardMatch(t *testing.T) {
+	tc := &TriggerConfig{
+		PullRequest: &PullRequestTriggerConfig{
+			Branches: []string{"release/*"},
+			Types:    []string{"opened"},
+		},
+	}
+	assert.True(t, tc.MatchesPullRequest("release/2026-04", "opened"))
+	assert.False(t, tc.MatchesPullRequest("main", "opened"))
+}
+
 func TestTriggerConfig_MatchesPullRequest_TypeNoMatch(t *testing.T) {
 	tc := &TriggerConfig{
 		PullRequest: &PullRequestTriggerConfig{
@@ -96,4 +116,26 @@ func TestTriggerConfig_MatchesPullRequest_EmptyTypes(t *testing.T) {
 	}
 	// No type filter, any action matches
 	assert.True(t, tc.MatchesPullRequest("main", "any-action"))
+}
+
+func TestTriggerConfig_MatchesPush_TagPatternMatch(t *testing.T) {
+	tc := &TriggerConfig{
+		Tag: &TagTriggerConfig{Patterns: []string{"v*", "release-*"}},
+	}
+	assert.True(t, tc.MatchesPush("refs/tags/v1.2.3"))
+	assert.True(t, tc.MatchesPush("refs/tags/release-2026-04"))
+	assert.False(t, tc.MatchesPush("refs/tags/hotfix-1"))
+}
+
+func TestTriggerConfig_MatchesTag_EmptyPatterns(t *testing.T) {
+	tc := &TriggerConfig{Tag: &TagTriggerConfig{Patterns: []string{}}}
+	assert.True(t, tc.MatchesTag("v1.0.0"))
+}
+
+func TestMatchSimplePattern(t *testing.T) {
+	assert.True(t, matchSimplePattern("v*", "v1.0.0"))
+	assert.True(t, matchSimplePattern("release-*", "release-2026-04"))
+	assert.True(t, matchSimplePattern("*-rc*", "v1-rc1"))
+	assert.False(t, matchSimplePattern("v*", "x1.0.0"))
+	assert.False(t, matchSimplePattern("release-*", "release"))
 }

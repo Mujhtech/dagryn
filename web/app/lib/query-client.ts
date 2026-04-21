@@ -27,6 +27,8 @@ export const queryKeys = {
   projects: ["projects"] as const,
   project: (id: string) => ["project", id] as const,
   projectApiKeys: (projectId: string) => ["projectApiKeys", projectId] as const,
+  projectEnvVars: (projectId: string, filters?: Record<string, unknown>) =>
+    ["projectEnvVars", projectId, filters ?? {}] as const,
   teams: ["teams"] as const,
   clusters: (teamId?: string) => ["clusters", teamId ?? "personal"] as const,
   workers: (clusterId?: string, status?: string, teamId?: string) =>

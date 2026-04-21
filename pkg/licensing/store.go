@@ -16,8 +16,13 @@ type StoredLicense struct {
 	ActivatedAt  time.Time `json:"activated_at,omitempty"`
 }
 
-// LicensePath returns the path to the stored license file (~/.dagryn/license.json).
+// LicensePath returns the path to the stored license file.
+// If DAGRYN_LICENSE_PATH is set, it is used directly.
+// Otherwise defaults to ~/.dagryn/license.json.
 func LicensePath() (string, error) {
+	if p := os.Getenv("DAGRYN_LICENSE_PATH"); p != "" {
+		return p, nil
+	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", err

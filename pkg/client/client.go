@@ -144,9 +144,10 @@ type DeviceCodePendingResponse struct {
 
 // TriggerRunRequest represents a request to trigger a run.
 type TriggerRunRequest struct {
-	Targets   []string `json:"targets,omitempty"`
-	GitBranch string   `json:"git_branch,omitempty"`
-	GitCommit string   `json:"git_commit,omitempty"`
+	Targets     []string `json:"targets,omitempty"`
+	Environment string   `json:"environment,omitempty"`
+	GitBranch   string   `json:"git_branch,omitempty"`
+	GitCommit   string   `json:"git_commit,omitempty"`
 	// SyncOnly when true creates a run record for status tracking without triggering remote execution.
 	SyncOnly bool   `json:"sync_only,omitempty"`
 	HostOS   string `json:"host_os,omitempty"`
@@ -193,6 +194,64 @@ type ProjectResponse struct {
 	Visibility  string    `json:"visibility"`
 	MemberCount int       `json:"member_count"`
 	CreatedAt   time.Time `json:"created_at"`
+}
+
+// ProjectEnvVarResponse represents project env variable metadata.
+type ProjectEnvVarResponse struct {
+	ID          uuid.UUID `json:"id"`
+	Key         string    `json:"key"`
+	ValueType   string    `json:"value_type"`
+	Environment *string   `json:"environment,omitempty"`
+	Branch      *string   `json:"branch,omitempty"`
+	Required    bool      `json:"required"`
+	Enabled     bool      `json:"enabled"`
+	Description *string   `json:"description,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Value       *string   `json:"value,omitempty"` // only returned on reveal/resolve with reveal=true
+}
+
+// ListProjectEnvVarsRequest filters env metadata listing.
+type ListProjectEnvVarsRequest struct {
+	Environment *string `json:"environment,omitempty"`
+	Branch      *string `json:"branch,omitempty"`
+	Key         *string `json:"key,omitempty"`
+	ValueType   *string `json:"value_type,omitempty"`
+}
+
+// SetProjectEnvVarRequest creates or updates a project env variable.
+type SetProjectEnvVarRequest struct {
+	Key         string  `json:"key"`
+	Value       string  `json:"value"`
+	Environment *string `json:"environment,omitempty"`
+	Branch      *string `json:"branch,omitempty"`
+	Required    bool    `json:"required"`
+	Secret      bool    `json:"secret"`
+	Description *string `json:"description,omitempty"`
+}
+
+// ResolveProjectEnvRequest resolves effective env values.
+type ResolveProjectEnvRequest struct {
+	Environment string `json:"environment"`
+	Branch      string `json:"branch,omitempty"`
+	Reveal      bool   `json:"reveal,omitempty"`
+}
+
+// SeedProjectEnvVarsRequest bulk upserts env vars.
+type SeedProjectEnvVarsRequest struct {
+	Items []SetProjectEnvVarRequest `json:"items"`
+}
+
+// RotateProjectEnvVarRequest rotates a secret value.
+type RotateProjectEnvVarRequest struct {
+	Value string `json:"value,omitempty"`
+}
+
+// UpdateProjectEnvVarRequest updates env var metadata.
+type UpdateProjectEnvVarRequest struct {
+	Description *string `json:"description,omitempty"`
+	Required    *bool   `json:"required,omitempty"`
+	Enabled     *bool   `json:"enabled,omitempty"`
 }
 
 // RequestDeviceCode initiates the device code flow.
@@ -601,6 +660,153 @@ func (c *Client) GetProject(ctx context.Context, projectID uuid.UUID) (*ProjectR
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
+	return &result.Data, nil
+}
+
+// ListProjectEnvVars lists project env variable metadata.
+func (c *Client) ListProjectEnvVars(ctx context.Context, projectID uuid.UUID, req ListProjectEnvVarsRequest) ([]ProjectEnvVarResponse, error) {
+	path := fmt.Sprintf("/api/v1/projects/%s/env-vars", projectID)
+	resp, err := c.doRequest(ctx, "POST", path, req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.parseError(resp)
+	}
+
+	var result struct {
+		Data []ProjectEnvVarResponse `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+	return result.Data, nil
+}
+
+// SetProjectEnvVar creates or updates a project env variable.
+func (c *Client) SetProjectEnvVar(ctx context.Context, projectID uuid.UUID, req SetProjectEnvVarRequest) (*ProjectEnvVarResponse, error) {
+	path := fmt.Sprintf("/api/v1/projects/%s/env-vars/set", projectID)
+	resp, err := c.doRequest(ctx, "POST", path, req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, c.parseError(resp)
+	}
+
+	var result struct {
+		Data ProjectEnvVarResponse `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+	return &result.Data, nil
+}
+
+// ResolveProjectEnv resolves effective env values for a project scope.
+func (c *Client) ResolveProjectEnv(ctx context.Context, projectID uuid.UUID, req ResolveProjectEnvRequest) ([]ProjectEnvVarResponse, error) {
+	path := fmt.Sprintf("/api/v1/projects/%s/env-vars/resolve", projectID)
+	resp, err := c.doRequest(ctx, "POST", path, req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.parseError(resp)
+	}
+
+	var result struct {
+		Data []ProjectEnvVarResponse `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+	return result.Data, nil
+}
+
+// SeedProjectEnvVars bulk creates or updates env vars.
+func (c *Client) SeedProjectEnvVars(ctx context.Context, projectID uuid.UUID, req SeedProjectEnvVarsRequest) ([]ProjectEnvVarResponse, error) {
+	path := fmt.Sprintf("/api/v1/projects/%s/env-vars/seed", projectID)
+	resp, err := c.doRequest(ctx, "POST", path, req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, c.parseError(resp)
+	}
+
+	var result struct {
+		Data []ProjectEnvVarResponse `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+	return result.Data, nil
+}
+
+// RotateProjectEnvVar rotates a secret env var value.
+func (c *Client) RotateProjectEnvVar(ctx context.Context, projectID, envVarID uuid.UUID, req RotateProjectEnvVarRequest) (*ProjectEnvVarResponse, error) {
+	path := fmt.Sprintf("/api/v1/projects/%s/env-vars/%s/rotate", projectID, envVarID)
+	resp, err := c.doRequest(ctx, "POST", path, req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.parseError(resp)
+	}
+
+	var result struct {
+		Data ProjectEnvVarResponse `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+	return &result.Data, nil
+}
+
+// DeleteProjectEnvVar soft-deletes an env var.
+func (c *Client) DeleteProjectEnvVar(ctx context.Context, projectID, envVarID uuid.UUID) error {
+	path := fmt.Sprintf("/api/v1/projects/%s/env-vars/%s", projectID, envVarID)
+	resp, err := c.doRequest(ctx, "DELETE", path, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusNoContent {
+		return c.parseError(resp)
+	}
+	return nil
+}
+
+// UpdateProjectEnvVar updates metadata fields of an env var.
+func (c *Client) UpdateProjectEnvVar(ctx context.Context, projectID, envVarID uuid.UUID, req UpdateProjectEnvVarRequest) (*ProjectEnvVarResponse, error) {
+	path := fmt.Sprintf("/api/v1/projects/%s/env-vars/%s", projectID, envVarID)
+	resp, err := c.doRequest(ctx, "PATCH", path, req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.parseError(resp)
+	}
+
+	var result struct {
+		Data ProjectEnvVarResponse `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
 	return &result.Data, nil
 }
 

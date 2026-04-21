@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useCluster, useWorkers } from "~/hooks/queries/use-cluster-detail";
 import {
@@ -19,8 +19,19 @@ import {
 } from "~/components/ui/table";
 import { Icons } from "~/components/icons";
 import { generateMetadata } from "~/lib/metadata";
+import { api } from "~/lib/api";
 
 export const Route = createFileRoute("/_dashboard_layout/clusters/$clusterId")({
+  beforeLoad: async () => {
+    const { data: capabilities } = await api.getCapabilities();
+    const clusterEnabled = (capabilities.nav ?? []).some(
+      (item) => item.key === "clusters" && item.enabled,
+    );
+
+    if (!clusterEnabled) {
+      throw redirect({ to: "/dashboard" });
+    }
+  },
   component: ClusterDetailPage,
   head: () => generateMetadata({ title: "Cluster Detail" }),
 });

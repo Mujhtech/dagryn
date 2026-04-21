@@ -25,6 +25,8 @@ const (
 	SourceCargo SourceType = "cargo"
 	// SourceLocal represents plugins from a local directory.
 	SourceLocal SourceType = "local"
+	// SourceOfficial represents official Dagryn plugins from dagryn-plugins.
+	SourceOfficial SourceType = "official"
 )
 
 // Plugin represents a resolved plugin with all its metadata.
@@ -104,7 +106,14 @@ func (s *Spec) IsEmpty() bool {
 //   - npm:prettier@3.0.0
 //   - pip:black@23.12.0
 //   - cargo:ripgrep@14.0.3
-var pluginPattern = regexp.MustCompile(`^(github|go|npm|pip|cargo):(.+)@(.+)$`)
+var pluginPattern = regexp.MustCompile(`^(github|go|npm|pip|cargo|official):(.+)@(.+)$`)
+
+// officialPluginPattern matches official plugin specifications.
+// Version is optional for official plugins (bridge mode).
+// Examples:
+//   - official:setup-node
+//   - official:setup-node@v1
+var officialPluginPattern = regexp.MustCompile(`^official:(.+?)(?:@(.+))?$`)
 
 // localPluginPattern matches local plugin specifications.
 // Version is optional for local plugins since it comes from the manifest.
@@ -138,6 +147,12 @@ func Parse(spec string) (*Plugin, error) {
 		return parseLocalFormat(localMatches, spec)
 	}
 
+	// Try official format (official:name or official:name@version)
+	officialMatches := officialPluginPattern.FindStringSubmatch(spec)
+	if officialMatches != nil {
+		return parseOfficialFormat(officialMatches, spec)
+	}
+
 	// Try long format (source:name@version)
 	matches := pluginPattern.FindStringSubmatch(spec)
 	if matches != nil {
@@ -150,7 +165,27 @@ func Parse(spec string) (*Plugin, error) {
 		return parseShortFormat(shortMatches, spec)
 	}
 
-	return nil, fmt.Errorf("invalid plugin specification %q: must be in format 'source:name@version', 'owner/repo@version', or 'local:path'", spec)
+	return nil, fmt.Errorf("invalid plugin specification %q: must be in format 'source:name@version', 'owner/repo@version', 'local:path', or 'official:name'", spec)
+}
+
+func parseOfficialFormat(matches []string, spec string) (*Plugin, error) {
+	name := strings.TrimSpace(matches[1])
+	version := strings.TrimSpace(matches[2])
+	if name == "" {
+		return nil, fmt.Errorf("invalid official plugin %q: plugin name cannot be empty", spec)
+	}
+	if version == "" {
+		version = "latest"
+	}
+	return &Plugin{
+		Source:     SourceOfficial,
+		Owner:      "dagryn",
+		Repo:       name,
+		Name:       name,
+		Version:    version,
+		BinaryName: name,
+		Raw:        spec,
+	}, nil
 }
 
 // parseLongFormat parses the long format "source:name@version".

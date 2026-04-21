@@ -20,6 +20,7 @@ export const parseAsStatusFilters = parseAsArrayOf(parseAsString).withDefault([
   "failed",
   "cancelled",
   "running",
+  "pending",
 ]);
 
 /**

@@ -107,6 +107,7 @@ services:
       REDIS_PORT: ${REDIS_PORT:-6379}
       DAGRYN_HOST: ${DAGRYN_HOST:-0.0.0.0}
       DAGRYN_PORT: ${DAGRYN_PORT:-9000}
+      DAGRYN_LICENSE_PATH: /app/data/license.json
 
       # All other configuration should be in .env file
       # Required in .env:
@@ -162,6 +163,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/dagryn?sslmode=disable}
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
+      DAGRYN_LICENSE_PATH: /app/data/license.json
 
       # All other configuration should be in .env file
     volumes:

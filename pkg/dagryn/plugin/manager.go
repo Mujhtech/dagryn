@@ -108,6 +108,7 @@ func NewManager(projectRoot string, opts ...ManagerOption) *Manager {
 	registry.Register(SourcePip, NewPipResolver())
 	registry.Register(SourceCargo, NewCargoResolver())
 	registry.Register(SourceLocal, NewLocalResolver(projectRoot))
+	registry.Register(SourceOfficial, NewOfficialResolver(projectRoot))
 	m.registry = registry
 
 	// Load existing lock file if present
@@ -242,9 +243,11 @@ func (m *Manager) Install(ctx context.Context, spec string) (*InstallResult, err
 		return result, err
 	}
 
-	// Cache the installed plugin
+	// Cache the installed plugin returned by the resolver install step.
+	// Some resolvers (e.g. official composite plugins) return an updated
+	// plugin descriptor that includes the manifest and install metadata.
 	m.mu.Lock()
-	m.installed[spec] = plugin
+	m.installed[spec] = result.Plugin
 	m.mu.Unlock()
 
 	// Update lock file

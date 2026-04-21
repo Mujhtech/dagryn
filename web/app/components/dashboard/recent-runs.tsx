@@ -79,7 +79,7 @@ const RunCard = ({
         key={run.id}
         to="/projects/$projectId/runs/$runId"
         params={{ projectId: run.project_id, runId: run.id }}
-        className="flex items-center gap-3 rounded-none p-3 transition-colors hover:bg-accent/50"
+        className="flex items-start gap-3 rounded-none p-3 transition-colors hover:bg-accent/50"
       >
         <div className="min-w-0 flex-1 flex-col gap-0.5 flex">
           <div className="flex gap-1 items-center">

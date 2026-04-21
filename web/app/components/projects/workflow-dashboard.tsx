@@ -1,7 +1,14 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { useProjectWorkflows, useRunDetail } from "~/hooks/queries";
-import type { Project, Run, RunStatus, TaskStatus, TriggerRunRequest, Workflow } from "~/lib/api";
+import type {
+  Project,
+  Run,
+  RunStatus,
+  TaskStatus,
+  TriggerRunRequest,
+  Workflow,
+} from "~/lib/api";
 import { WorkflowDag, type TaskStatusInfo } from "~/components/workflow-dag";
 import { RunStreamClient, type TaskEventData } from "~/lib/sse";
 import { queryClient, queryKeys } from "~/lib/query-client";
@@ -42,6 +49,7 @@ const RUN_STATUS_FILTER: Array<{
   { label: "Failed", value: "failed", color: "text-pink-500" },
   { label: "Cancelled", value: "cancelled", color: "text-gray-500" },
   { label: "Running", value: "running", color: "text-yellow-500" },
+  { label: "Pending", value: "pending", color: "text-purple-500" },
 ];
 
 const chartConfig = {

@@ -146,7 +146,7 @@ type UpdateMemberRoleRequest struct {
 //	@Description	Project information
 type ProjectResponse struct {
 	ID                   uuid.UUID  `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	TeamID               uuid.UUID  `json:"team_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	TeamID               *uuid.UUID `json:"team_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Name                 string     `json:"name" example:"api-service"`
 	Slug                 string     `json:"slug" example:"api-service"`
 	Description          string     `json:"description,omitempty" example:"Main API service"`
@@ -186,6 +186,7 @@ type UpdateProjectRequest struct {
 	Description *string `json:"description,omitempty" example:"Main API service"`
 	RepoURL     *string `json:"repo_url,omitempty" example:"https://github.com/org/repo"`
 	Visibility  *string `json:"visibility,omitempty" example:"private"`
+	TeamID      *string `json:"team_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
 // ConnectGitHubRequest represents a request to connect a project to GitHub.
@@ -321,6 +322,7 @@ type RunResponse struct {
 	Status                string        `json:"status" example:"success"`
 	TriggerSource         string        `json:"trigger_source" example:"cli"`
 	TriggerRef            string        `json:"trigger_ref,omitempty" example:"refs/heads/main"`
+	Environment           string        `json:"environment,omitempty" example:"dev"`
 	CommitSHA             string        `json:"commit_sha,omitempty" example:"abc123def456"`
 	PRTitle               string        `json:"pr_title,omitempty" example:"Fix bug in authentication"`
 	PRNumber              *int          `json:"pr_number,omitempty" example:"123"`
@@ -360,7 +362,9 @@ type TaskResultResponse struct {
 //	@Description	Trigger run request
 type TriggerRunRequest struct {
 	Targets     []string `json:"targets,omitempty" example:"[\"build\",\"test\"]"`
+	Environment string   `json:"environment,omitempty" example:"dev"`
 	GitBranch   string   `json:"git_branch,omitempty" example:"main"`
+	GitTag      string   `json:"git_tag,omitempty" example:"v1.2.3"`
 	GitCommit   string   `json:"git_commit,omitempty" example:"abc123def456"`
 	Force       bool     `json:"force,omitempty" example:"false"`
 	Description string   `json:"description,omitempty" example:"Retrying after infra fix"`
@@ -1050,6 +1054,64 @@ type ProjectActivityResponse struct {
 	CacheSizeBytes    int64   `json:"cache_size_bytes"`
 	ArtifactSizeBytes int64   `json:"artifact_size_bytes"`
 	BandwidthBytes    int64   `json:"bandwidth_bytes"`
+}
+
+// ListProjectEnvVarsRequest filters project env var listing.
+type ListProjectEnvVarsRequest struct {
+	Environment *string `json:"environment,omitempty"`
+	Branch      *string `json:"branch,omitempty"`
+	Key         *string `json:"key,omitempty"`
+	ValueType   *string `json:"value_type,omitempty"`
+}
+
+// SetProjectEnvVarRequest creates or updates a project env var.
+type SetProjectEnvVarRequest struct {
+	Key         string  `json:"key"`
+	Value       string  `json:"value"`
+	Environment *string `json:"environment,omitempty"`
+	Branch      *string `json:"branch,omitempty"`
+	Required    bool    `json:"required"`
+	Secret      bool    `json:"secret"`
+	Description *string `json:"description,omitempty"`
+}
+
+// ResolveProjectEnvRequest resolves effective env vars for a scope.
+type ResolveProjectEnvRequest struct {
+	Environment string `json:"environment"`
+	Branch      string `json:"branch,omitempty"`
+	Reveal      bool   `json:"reveal,omitempty"`
+}
+
+// SeedProjectEnvVarsRequest bulk upserts project env vars.
+type SeedProjectEnvVarsRequest struct {
+	Items []SetProjectEnvVarRequest `json:"items"`
+}
+
+// RotateProjectEnvVarRequest rotates a secret value.
+type RotateProjectEnvVarRequest struct {
+	Value string `json:"value,omitempty"`
+}
+
+// UpdateProjectEnvVarRequest updates metadata for an env var.
+type UpdateProjectEnvVarRequest struct {
+	Description *string `json:"description,omitempty"`
+	Required    *bool   `json:"required,omitempty"`
+	Enabled     *bool   `json:"enabled,omitempty"`
+}
+
+// ProjectEnvVarResponse describes a project env var metadata record.
+type ProjectEnvVarResponse struct {
+	ID          uuid.UUID  `json:"id,omitempty"`
+	Key         string     `json:"key"`
+	ValueType   string     `json:"value_type"`
+	Environment *string    `json:"environment,omitempty"`
+	Branch      *string    `json:"branch,omitempty"`
+	Required    bool       `json:"required"`
+	Enabled     bool       `json:"enabled"`
+	Description *string    `json:"description,omitempty"`
+	Value       *string    `json:"value,omitempty"`
+	CreatedAt   *time.Time `json:"created_at,omitempty"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
 }
 
 // ParseJSON parses a JSON request body.

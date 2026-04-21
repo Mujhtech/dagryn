@@ -25,6 +25,7 @@ func NewExecutor(appCtx context.Context, opts asynq.RedisConnOpt, concurrency in
 			Queues: map[string]int{
 				string(QueueNameDefault):  1,
 				string(ScheduleQueueName): 1,
+				string(QueueNamePriority): 5,
 			},
 			Concurrency: concurrency,
 			BaseContext: func() context.Context {

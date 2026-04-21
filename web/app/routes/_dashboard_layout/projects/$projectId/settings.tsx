@@ -18,6 +18,7 @@ export const Route = createFileRoute(
 const navItems = [
   { label: "General", to: ".", icon: Icons.Settings },
   { label: "Git & Repository", to: "./git", icon: Icons.GitBranch },
+  { label: "Env & Secrets", to: "./env", icon: Icons.Lock },
   { label: "API Keys", to: "./api-keys", icon: Icons.Key },
 ] as const;
 

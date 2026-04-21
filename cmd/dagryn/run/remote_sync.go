@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mujhtech/dagryn/internal/cli"
+	"github.com/mujhtech/dagryn/pkg/ai/evidence"
 	"github.com/mujhtech/dagryn/pkg/client"
 	"github.com/mujhtech/dagryn/pkg/dagryn/cache"
 	"github.com/mujhtech/dagryn/pkg/dagryn/cache/cloud"
@@ -408,6 +409,8 @@ func (s *RemoteSync) updateLocalRunStatus(status, errorMsg string) {
 func (s *RemoteSync) AppendLog(taskName, stream, line string) {
 	s.logMu.Lock()
 	defer s.logMu.Unlock()
+
+	line = evidence.RedactAll(line)
 
 	// Increment per-task line number
 	s.taskLineNums[taskName]++

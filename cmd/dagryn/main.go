@@ -15,6 +15,7 @@ import (
 	"github.com/mujhtech/dagryn/cmd/dagryn/completion"
 	"github.com/mujhtech/dagryn/cmd/dagryn/config"
 	"github.com/mujhtech/dagryn/cmd/dagryn/doctor"
+	"github.com/mujhtech/dagryn/cmd/dagryn/env"
 	"github.com/mujhtech/dagryn/cmd/dagryn/graph"
 	initcmd "github.com/mujhtech/dagryn/cmd/dagryn/init"
 	"github.com/mujhtech/dagryn/cmd/dagryn/license"
@@ -46,6 +47,7 @@ func main() {
 	addCmd(root, "remote", cache.NewCmd(flags))
 	addCmd(root, "remote", use.NewCmd(flags))
 	addCmd(root, "remote", artifact.NewCmd(flags))
+	addCmd(root, "remote", env.NewCmd(flags))
 	addCmd(root, "remote", agent.NewCmd(flags))
 	addCmd(root, "remote", clustercmd.NewCmd(flags))
 	addCmd(root, "remote", nodes.NewCmd(flags))

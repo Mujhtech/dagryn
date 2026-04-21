@@ -23,6 +23,7 @@ type Run struct {
 	TriggeredBy           TriggerSource `json:"triggered_by" db:"triggered_by"`
 	TriggeredByUserID     *uuid.UUID    `json:"triggered_by_user_id,omitempty" db:"triggered_by_user_id"`
 	GitBranch             *string       `json:"git_branch,omitempty" db:"git_branch"`
+	Environment           *string       `json:"environment,omitempty" db:"environment"`
 	GitCommit             *string       `json:"git_commit,omitempty" db:"git_commit"`
 	PRTitle               *string       `json:"pr_title,omitempty" db:"pr_title"`             // For PR-triggered runs
 	PRNumber              *int          `json:"pr_number,omitempty" db:"pr_number"`           // For PR-triggered runs

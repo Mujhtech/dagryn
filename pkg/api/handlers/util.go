@@ -29,6 +29,7 @@ const (
 	ClusterIDParam       = "clusterId"
 	WorkerIDParam        = "workerId"
 	WorkerTokenIDParam   = "workerTokenId"
+	EnvVarIDParam        = "envVarId"
 	TeamSlugParam        = "teamSlug"
 	SCIMUserIDParam      = "scimUserId"
 	SCIMGroupIDParam     = "scimGroupId"
@@ -159,4 +160,18 @@ func getInvitationIDFromPath(r *http.Request) (uuid.UUID, error) {
 	}
 
 	return invitationUUID, nil
+}
+
+func getEnvVarIDFromPath(r *http.Request) (uuid.UUID, error) {
+	envVarID, err := pathParamOrError(r, EnvVarIDParam)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("env var ID is required")
+	}
+
+	envVarUUID, err := uuid.Parse(envVarID)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid env var ID")
+	}
+
+	return envVarUUID, nil
 }

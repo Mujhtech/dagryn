@@ -345,6 +345,20 @@ func (s *Server) Initialize(ctx context.Context) error {
 	apiHandler.SetAuditService(auditService)
 	s.auditService = auditService
 
+	apiHandler.SetEnvSecretsConfig(
+		s.config.EnvSecrets.Provider,
+		s.config.EnvSecrets.ProviderRefPrefix,
+		s.config.EnvSecrets.CloudflareStoreID,
+		s.config.EnvSecrets.AWSRegion,
+		s.config.EnvSecrets.AWSAccessKeyID,
+		s.config.EnvSecrets.AWSSecretAccessKey,
+		s.config.EnvSecrets.AWSCredentialsFile,
+		s.config.EnvSecrets.GCPCredentialsFile,
+		s.config.EnvSecrets.CloudflareAccountID,
+		s.config.EnvSecrets.CloudflareAPIToken,
+		s.config.EnvSecrets.CloudflareAPIBase,
+	)
+
 	// Wire encrypter for webhook secrets.
 	apiHandler.SetEncrypter(enc)
 
