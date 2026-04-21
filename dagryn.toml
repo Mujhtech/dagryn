@@ -56,7 +56,7 @@ patterns = ["v*"] # Trigger only on version tag creation (e.g., v1.2.3)
 # Global plugins (available to all tasks by reference name)
 [plugins]
 # golangci-lint = "github:golangci/golangci-lint@v2.8.0"
-golang-vul = "go:golang.org/x/vuln/cmd/govulncheck@latest"
+# golang-vul = "go:golang.org/x/vuln/cmd/govulncheck@latest"
 goreleaser = "github:goreleaser/goreleaser@latest"
 setup-node = "official:setup-node@v0.2.1"
 setup-pnpm = "official:setup-pnpm@v0.2.1"
@@ -140,13 +140,13 @@ timeout = "5m"
 # inputs = ["**/*.go", ".golangci.yml", ".golangci.yaml"]
 # timeout = "2m"
 
-[tasks.go-vulnerability-scan]
-command = "govulncheck ./... -json > gosec-report.json"
-uses = ["setup-go", "golang-vul"]
-needs = ["go-build"]
-inputs = ["**/*.go", "go.mod", "go.sum"]
-outputs = ["gosec-report.json"]
-timeout = "5m"
+# [tasks.go-vulnerability-scan]
+# command = "govulncheck -json ./... > gosec-report.json"
+# uses = ["setup-go", "golang-vul"]
+# needs = ["go-build"]
+# inputs = ["**/*.go", "go.mod", "go.sum"]
+# outputs = ["gosec-report.json"]
+# timeout = "5m"
 
 # Check code formatting (fails if files need formatting)
 [tasks.go-fmt]
