@@ -135,7 +135,7 @@ inputs = ["**/*.go", ".golangci.yml", ".golangci.yaml"]
 timeout = "2m"
 
 [tasks.go-vulnerability-scan]
-command = "govulncheck -C ./... -json > gosec-report.json"
+command = "govulncheck ./... -json > gosec-report.json"
 uses = ["setup-go", "golang-vul"]
 needs = ["go-build"]
 inputs = ["**/*.go", "go.mod", "go.sum"]
