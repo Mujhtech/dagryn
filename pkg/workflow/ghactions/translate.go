@@ -51,7 +51,7 @@ func TranslateWorkflows(files map[string][]byte) (TranslationResult, error) {
 		}
 
 		tasksBuf.WriteString("\n")
-		tasksBuf.WriteString(fmt.Sprintf("# Workflow: %s (from .github/workflows/%s)\n", workflowName, fname))
+		_, _ = fmt.Fprintf(&tasksBuf, "# Workflow: %s (from .github/workflows/%s)\n", workflowName, fname)
 
 		taskCount := 0
 		for jobID, job := range wf.Jobs {
@@ -89,18 +89,18 @@ func TranslateWorkflows(files map[string][]byte) (TranslationResult, error) {
 			joined := strings.Join(commands, " && ")
 			escapedCmd := escapeForTomlString(joined)
 
-			tasksBuf.WriteString(fmt.Sprintf("[tasks.%s]\n", taskName))
+			_, _ = fmt.Fprintf(&tasksBuf, "[tasks.%s]\n", taskName)
 			if job.Name != "" {
-				tasksBuf.WriteString(fmt.Sprintf("description = \"%s\"\n", escapeForTomlString(job.Name)))
+				_, _ = fmt.Fprintf(&tasksBuf, "description = \"%s\"\n", escapeForTomlString(job.Name))
 			}
 			if len(taskUses) > 0 {
 				quoted := make([]string, len(taskUses))
 				for i, u := range taskUses {
 					quoted[i] = fmt.Sprintf("\"%s\"", u)
 				}
-				tasksBuf.WriteString(fmt.Sprintf("uses = [%s]\n", strings.Join(quoted, ", ")))
+				_, _ = fmt.Fprintf(&tasksBuf, "uses = [%s]\n", strings.Join(quoted, ", "))
 			}
-			tasksBuf.WriteString(fmt.Sprintf("command = \"%s\"\n", escapedCmd))
+			_, _ = fmt.Fprintf(&tasksBuf, "command = \"%s\"\n", escapedCmd)
 			tasksBuf.WriteString("inputs = [\"**/*\"]\n\n")
 			taskCount++
 		}
@@ -133,7 +133,7 @@ func TranslateWorkflows(files map[string][]byte) (TranslationResult, error) {
 		}
 		sort.Strings(keys)
 		for _, k := range keys {
-			b.WriteString(fmt.Sprintf("%s = \"%s\"\n", k, result.Plugins[k]))
+			_, _ = fmt.Fprintf(&b, "%s = \"%s\"\n", k, result.Plugins[k])
 		}
 		b.WriteString("\n")
 	}

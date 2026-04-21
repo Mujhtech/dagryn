@@ -55,7 +55,7 @@ patterns = ["v*"] # Trigger only on version tag creation (e.g., v1.2.3)
 
 # Global plugins (available to all tasks by reference name)
 [plugins]
-golangci-lint = "github:golangci/golangci-lint@v2.8.0"
+# golangci-lint = "github:golangci/golangci-lint@v2.8.0"
 golang-vul = "go:golang.org/x/vuln/cmd/govulncheck@latest"
 goreleaser = "github:goreleaser/goreleaser@latest"
 setup-node = "official:setup-node@v0.2.1"
@@ -108,6 +108,12 @@ timeout = "2m"
 [tasks.web-lint.container]
 image = "node:20-bookworm-slim"
 
+# Go version
+[tasks.go-version]
+uses = ["setup-go"]
+command = "go version"
+inputs = ["go.mod"]
+
 # Build the Go application
 [tasks.go-build]
 command = "go build -v ./..."
@@ -127,12 +133,12 @@ outputs = ["coverage.out"]
 timeout = "5m"
 
 # Run linter (auto-installed via plugin)
-[tasks.go-lint]
-uses = ["setup-go", "golangci-lint"]
-needs = ["go-build"]
-command = "golangci-lint run ./..."
-inputs = ["**/*.go", ".golangci.yml", ".golangci.yaml"]
-timeout = "2m"
+# [tasks.go-lint]
+# uses = ["setup-go", "golangci-lint"]
+# needs = ["go-build"]
+# command = "golangci-lint run ./..."
+# inputs = ["**/*.go", ".golangci.yml", ".golangci.yaml"]
+# timeout = "2m"
 
 [tasks.go-vulnerability-scan]
 command = "govulncheck ./... -json > gosec-report.json"

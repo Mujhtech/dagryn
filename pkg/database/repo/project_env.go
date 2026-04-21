@@ -248,7 +248,6 @@ func (r *ProjectEnvRepo) ListEnvVars(ctx context.Context, filter ProjectEnvFilte
 	if filter.ValueType != nil {
 		conditions = append(conditions, fmt.Sprintf("value_type = $%d", idx))
 		args = append(args, *filter.ValueType)
-		idx++
 	}
 
 	query := fmt.Sprintf(`
