@@ -713,6 +713,7 @@ export interface DashboardRun {
   trigger_ref?: string;
   commit_sha?: string;
   commit_author_name?: string;
+  commit_author_avatar_url?: string;
   triggered_by_user?: {
     id: string;
     email: string;
@@ -1623,7 +1624,10 @@ class ApiClient {
   }
 
   // Project env vars
-  async listProjectEnvVars(projectId: string, filters?: ListProjectEnvVarsInput) {
+  async listProjectEnvVars(
+    projectId: string,
+    filters?: ListProjectEnvVarsInput,
+  ) {
     return this.fetch<ProjectEnvVar[]>(`/projects/${projectId}/env-vars`, {
       method: "POST",
       body: JSON.stringify(filters ?? {}),
@@ -1648,10 +1652,13 @@ class ApiClient {
     projectId: string,
     data: { environment: string; branch?: string; reveal?: boolean },
   ) {
-    return this.fetch<ProjectEnvVar[]>(`/projects/${projectId}/env-vars/resolve`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
+    return this.fetch<ProjectEnvVar[]>(
+      `/projects/${projectId}/env-vars/resolve`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    );
   }
 
   async rotateProjectEnvVar(
@@ -1679,10 +1686,13 @@ class ApiClient {
     envVarId: string,
     data: { description?: string; required?: boolean; enabled?: boolean },
   ) {
-    return this.fetch<ProjectEnvVar>(`/projects/${projectId}/env-vars/${envVarId}`, {
-      method: "PATCH",
-      body: JSON.stringify(data),
-    });
+    return this.fetch<ProjectEnvVar>(
+      `/projects/${projectId}/env-vars/${envVarId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      },
+    );
   }
 
   // Workflows

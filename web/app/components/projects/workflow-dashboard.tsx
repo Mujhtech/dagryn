@@ -453,20 +453,22 @@ export function WorkflowDashboard({
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">{project.name}</h1>
-              <p className="text-sm text-muted-foreground font-mono">
-                {project.slug}
-              </p>
-              {repoWebUrl ? (
-                <a
-                  href={repoWebUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground hover:underline"
-                >
-                  <Icons.ExternalLink className="h-3 w-3" />
-                  {repoPlatformName}: {repoName || repoWebUrl}
-                </a>
-              ) : null}
+              <div className="flex items-center gap-1">
+                <p className="text-sm text-muted-foreground font-mono">
+                  {project.slug}
+                </p>
+                {repoWebUrl ? (
+                  <a
+                    href={repoWebUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground hover:underline"
+                  >
+                    <Icons.ExternalLink className="h-3 w-3" />
+                    {repoPlatformName}: {repoName || repoWebUrl}
+                  </a>
+                ) : null}
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="icon" asChild>

@@ -393,13 +393,15 @@ func (r *RunRepo) GetDashboardFacetsByProject(ctx context.Context, projectID uui
 
 	// Commit authors as additional filter users.
 	authorRows, err := r.pool.Query(ctx, `
-		SELECT DISTINCT
+		SELECT
 			COALESCE(NULLIF(commit_author_email, ''), NULLIF(commit_author_name, '')) AS id,
-			COALESCE(NULLIF(commit_author_name, ''), commit_author_email) AS name
+			COALESCE(NULLIF(commit_author_name, ''), commit_author_email) AS name,
+			MAX(NULLIF(commit_author_avatar_url, '')) AS avatar_url
 		FROM runs
 		WHERE project_id = $1
 		  AND COALESCE(NULLIF(commit_author_email, ''), NULLIF(commit_author_name, '')) IS NOT NULL
 		  AND COALESCE(NULLIF(commit_author_name, ''), commit_author_email) IS NOT NULL
+		GROUP BY 1, 2
 	`, projectID)
 	if err != nil {
 		return nil, err
@@ -407,13 +409,15 @@ func (r *RunRepo) GetDashboardFacetsByProject(ctx context.Context, projectID uui
 	defer authorRows.Close()
 	for authorRows.Next() {
 		var id, name string
-		if err := authorRows.Scan(&id, &name); err != nil {
+		var avatarURL *string
+		if err := authorRows.Scan(&id, &name, &avatarURL); err != nil {
 			return nil, err
 		}
 		if _, exists := userIndex[id]; !exists {
 			userIndex[id] = RunDashboardUserFacet{
-				ID:   id,
-				Name: name,
+				ID:        id,
+				Name:      name,
+				AvatarURL: avatarURL,
 			}
 		}
 	}

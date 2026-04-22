@@ -177,6 +177,11 @@ func runToDashboardRun(run *models.Run, projectName string, userCache map[uuid.U
 	if run.CommitAuthorName != nil {
 		dr.CommitAuthorName = *run.CommitAuthorName
 	}
+
+	if run.CommitAuthorAvatarURL != nil {
+		dr.CommitAuthorAvatarURL = *run.CommitAuthorAvatarURL
+	}
+
 	if run.TriggeredByUserID != nil {
 		if u, ok := userCache[*run.TriggeredByUserID]; ok {
 			dr.TriggeredByUser = u

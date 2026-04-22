@@ -66,9 +66,13 @@ const RunCard = ({
 
     return {
       name: run.commit_author_name || "Unknown",
-      avatar: null,
+      avatar: run.commit_author_avatar_url || null,
     };
-  }, [run.triggered_by_user, run.commit_author_name]);
+  }, [
+    run.triggered_by_user,
+    run.commit_author_name,
+    run.commit_author_avatar_url,
+  ]);
 
   return (
     <div
@@ -96,7 +100,9 @@ const RunCard = ({
               <div className="flex items-center gap-0.5 min-w-0 shrink">
                 <Avatar className="h-3 w-3">
                   {triggerBy.avatar && <AvatarImage src={triggerBy.avatar} />}
-                  <AvatarFallback className="text-[10px]">U</AvatarFallback>
+                  <AvatarFallback className="text-[10px]">
+                    {triggerBy.name?.[0]?.toUpperCase() ?? "?"}
+                  </AvatarFallback>
                 </Avatar>
                 <span className="text-xs text-muted-foreground truncate">
                   {triggerBy.name}
@@ -106,9 +112,12 @@ const RunCard = ({
             {run.trigger_ref && (
               <Badge
                 variant="outline"
-                className="min-w-0 max-w-[11rem] overflow-hidden text-ellipsis whitespace-nowrap text-xs px-1 text-muted-foreground"
+                asChild
+                className="min-w-0 max-w-44 overflow-hidden justify-start text-xs px-1 text-muted-foreground"
               >
-                {branchName}
+                <div>
+                  <span className="truncate">{branchName}</span>
+                </div>
               </Badge>
             )}
           </div>

@@ -472,17 +472,18 @@ type DashboardProjectResponse struct {
 //
 //	@Description	Dashboard run entry
 type DashboardRunResponse struct {
-	ID               uuid.UUID     `json:"id"`
-	ProjectID        uuid.UUID     `json:"project_id"`
-	ProjectName      string        `json:"project_name"`
-	WorkflowName     string        `json:"workflow_name"`
-	Status           string        `json:"status"`
-	TriggerRef       string        `json:"trigger_ref,omitempty"`
-	CommitSHA        string        `json:"commit_sha,omitempty"`
-	CommitAuthorName string        `json:"commit_author_name,omitempty"`
-	TriggeredByUser  *UserResponse `json:"triggered_by_user,omitempty"`
-	DurationMs       *int64        `json:"duration_ms,omitempty"`
-	CreatedAt        time.Time     `json:"created_at"`
+	ID                    uuid.UUID     `json:"id"`
+	ProjectID             uuid.UUID     `json:"project_id"`
+	ProjectName           string        `json:"project_name"`
+	WorkflowName          string        `json:"workflow_name"`
+	Status                string        `json:"status"`
+	TriggerRef            string        `json:"trigger_ref,omitempty"`
+	CommitSHA             string        `json:"commit_sha,omitempty"`
+	CommitAuthorName      string        `json:"commit_author_name,omitempty"`
+	CommitAuthorAvatarURL string        `json:"commit_author_avatar_url,omitempty"`
+	TriggeredByUser       *UserResponse `json:"triggered_by_user,omitempty"`
+	DurationMs            *int64        `json:"duration_ms,omitempty"`
+	CreatedAt             time.Time     `json:"created_at"`
 }
 
 // ArtifactResponse represents a stored artifact.
