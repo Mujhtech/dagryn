@@ -1,9 +1,10 @@
-import { Link } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Card, CardContent } from "~/components/ui/card";
 import { Progress } from "~/components/ui/progress";
 import { Icons } from "~/components/icons";
 import type { Run } from "~/lib/api";
+import { getCommitUrl, getPullRequestUrl } from "~/lib/git-links";
 
 type CurrentUser = {
   id: string;
@@ -16,6 +17,7 @@ type RunCardProps = {
   run: Run;
   projectId: string;
   repoLabel: string;
+  repoUrl?: string;
   currentUser?: CurrentUser;
 };
 
@@ -23,13 +25,17 @@ export function RunCard({
   run,
   projectId,
   repoLabel,
+  repoUrl,
   currentUser,
 }: RunCardProps) {
+  const navigate = useNavigate();
   const triggerInfo = getTriggerInfo(run, currentUser);
   const eventType = getEventType(run);
   const displayName = run.description || run.pr_title || run.workflow_name;
   const description = run.commit_message || run.pr_title || "";
   const branch = run.trigger_ref?.replace("refs/heads/", "") || "";
+  const commitUrl = getCommitUrl(repoUrl, run.commit_sha);
+  const pullRequestUrl = getPullRequestUrl(repoUrl, run.pr_number);
 
   const progress =
     run.status === "success"
@@ -41,89 +47,129 @@ export function RunCard({
           : 0;
 
   return (
-    <Link
-      to="/projects/$projectId/runs/$runId"
-      params={{ projectId, runId: run.id }}
-      className="block"
+    <Card
+      className="hover:border-primary/50 transition-colors cursor-pointer"
+      role="link"
+      tabIndex={0}
+      onClick={() =>
+        navigate({
+          to: "/projects/$projectId/runs/$runId",
+          params: { projectId, runId: run.id },
+        })
+      }
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          navigate({
+            to: "/projects/$projectId/runs/$runId",
+            params: { projectId, runId: run.id },
+          });
+        }
+      }}
     >
-      <Card className="hover:border-primary/50 transition-colors cursor-pointer">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-4">
-            <div className="pt-1">
-              <RunStatusIcon status={run.status} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-base mb-2">{displayName}</h3>
-              <div className="flex items-center gap-2 mb-2">
-                <Avatar className="h-5 w-5">
-                  <AvatarImage src={triggerInfo.avatar} />
-                  <AvatarFallback className="text-xs">
-                    {triggerInfo.name[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-sm text-muted-foreground">
-                  {triggerInfo.name}
-                </span>
-                <EventIcon eventType={eventType} />
-                <span className="text-sm text-muted-foreground">
-                  {eventType}
-                </span>
-                {run.pr_number ? (
-                  <span className="text-sm text-muted-foreground">
-                    #{run.pr_number}
+      <CardContent className="p-4">
+        <div className="flex items-start gap-4">
+          <div className="pt-1">
+            <RunStatusIcon status={run.status} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-base mb-2">{displayName}</h3>
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <Avatar className="h-5 w-5">
+                <AvatarImage src={triggerInfo.avatar} />
+                <AvatarFallback className="text-xs">
+                  {triggerInfo.name[0]?.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm text-muted-foreground">{triggerInfo.name}</span>
+              <EventIcon eventType={eventType} />
+              <span className="text-sm text-muted-foreground">{eventType}</span>
+              {run.commit_sha ? (
+                commitUrl ? (
+                  <a
+                    href={commitUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(event) => event.stopPropagation()}
+                    className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground hover:underline"
+                  >
+                    {run.commit_sha.slice(0, 7)}
+                    <Icons.ExternalLink className="h-3 w-3" />
+                  </a>
+                ) : (
+                  <span className="text-sm text-muted-foreground font-mono">
+                    {run.commit_sha.slice(0, 7)}
                   </span>
-                ) : null}
-                <span className="text-sm text-muted-foreground">·</span>
-                <span className="text-sm text-muted-foreground">
-                  {formatTimeAgo(run.created_at)}
-                </span>
-              </div>
-
-              {description ? (
-                <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                  {description}
-                </p>
+                )
               ) : null}
+              {run.pr_number ? (
+                pullRequestUrl ? (
+                  <a
+                    href={pullRequestUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(event) => event.stopPropagation()}
+                    className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground hover:underline"
+                  >
+                    PR #{run.pr_number}
+                    <Icons.ExternalLink className="h-3 w-3" />
+                  </a>
+                ) : (
+                  <span className="text-sm text-muted-foreground">
+                    PR #{run.pr_number}
+                  </span>
+                )
+              ) : null}
+              <span className="text-sm text-muted-foreground">·</span>
+              <span className="text-sm text-muted-foreground">
+                {formatTimeAgo(run.created_at)}
+              </span>
+            </div>
 
-              <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
+            {description ? (
+              <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                {description}
+              </p>
+            ) : null}
+
+            <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
+              <div className="flex items-center gap-1">
+                <Icons.Github className="h-4 w-4" />
+                <span>{repoLabel}</span>
+              </div>
+              {branch ? (
                 <div className="flex items-center gap-1">
-                  <Icons.Github className="h-4 w-4" />
-                  <span>{repoLabel}</span>
+                  <Icons.GitBranch className="h-4 w-4" />
+                  <span>{branch}</span>
                 </div>
-                {branch ? (
-                  <div className="flex items-center gap-1">
-                    <Icons.GitBranch className="h-4 w-4" />
-                    <span>{branch}</span>
-                  </div>
-                ) : null}
-                {run.host_os ? (
-                  <div className="flex items-center gap-1">
-                    <Icons.Monitor className="h-4 w-4" />
-                    <span>
-                      {run.host_os}/{run.host_arch}
-                    </span>
-                  </div>
-                ) : null}
-              </div>
+              ) : null}
+              {run.host_os ? (
+                <div className="flex items-center gap-1">
+                  <Icons.Monitor className="h-4 w-4" />
+                  <span>
+                    {run.host_os}/{run.host_arch}
+                  </span>
+                </div>
+              ) : null}
+            </div>
 
-              <div className="flex items-center gap-4">
-                {run.duration_ms != null ? (
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <Icons.Clock className="h-4 w-4" />
-                    <span>{formatDuration(run.duration_ms)}</span>
-                  </div>
-                ) : null}
-                {run.task_count > 0 ? (
-                  <div className="flex-1">
-                    <Progress value={progress} className="h-1.5" />
-                  </div>
-                ) : null}
-              </div>
+            <div className="flex items-center gap-4">
+              {run.duration_ms != null ? (
+                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <Icons.Clock className="h-4 w-4" />
+                  <span>{formatDuration(run.duration_ms)}</span>
+                </div>
+              ) : null}
+              {run.task_count > 0 ? (
+                <div className="flex-1">
+                  <Progress value={progress} className="h-1.5" />
+                </div>
+              ) : null}
             </div>
           </div>
-        </CardContent>
-      </Card>
-    </Link>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

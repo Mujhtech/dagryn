@@ -33,6 +33,11 @@ import {
   ComposedChart,
 } from "recharts";
 import { cn } from "~/lib/utils";
+import {
+  getRepoDisplayName,
+  getRepoPlatformName,
+  getRepoWebUrl,
+} from "~/lib/git-links";
 import { formatDuration } from "./run-detail/status-ui";
 import { RunCard } from "./run-card";
 import { TriggerRunDialog } from "./trigger-run-dialog";
@@ -246,11 +251,9 @@ export function WorkflowDashboard({
     branch.toLowerCase().includes(branchSearch.toLowerCase()),
   );
 
-  const repoName = project.repo_url
-    ? project.repo_url
-        .replace(/^https?:\/\/(www\.)?github\.com\//, "")
-        .replace(/\.git$/, "")
-    : "";
+  const repoWebUrl = getRepoWebUrl(project.repo_url);
+  const repoName = getRepoDisplayName(project.repo_url);
+  const repoPlatformName = getRepoPlatformName(project.repo_url);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -453,6 +456,17 @@ export function WorkflowDashboard({
               <p className="text-sm text-muted-foreground font-mono">
                 {project.slug}
               </p>
+              {repoWebUrl ? (
+                <a
+                  href={repoWebUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  <Icons.ExternalLink className="h-3 w-3" />
+                  {repoPlatformName}: {repoName || repoWebUrl}
+                </a>
+              ) : null}
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="icon" asChild>
@@ -634,9 +648,7 @@ export function WorkflowDashboard({
               <div className="space-y-2">
                 {runs.map((run) => {
                   const repoLabel = project.repo_url
-                    ? project.repo_url
-                        .replace(/^https?:\/\/[^/]+\//, "")
-                        .replace(/\.git$/, "")
+                    ? getRepoDisplayName(project.repo_url)
                     : project.id;
 
                   return (
@@ -644,6 +656,7 @@ export function WorkflowDashboard({
                       key={run.id}
                       run={run}
                       projectId={projectId}
+                      repoUrl={project.repo_url}
                       repoLabel={repoLabel}
                       currentUser={currentUser}
                     />

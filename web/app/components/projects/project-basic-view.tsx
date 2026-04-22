@@ -4,6 +4,11 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { Icons } from "~/components/icons";
 import type { Project, Run } from "~/lib/api";
+import {
+  getRepoDisplayName,
+  getRepoPlatformName,
+  getRepoWebUrl,
+} from "~/lib/git-links";
 import { RunCard } from "./run-card";
 
 type ProjectBasicViewProps = {
@@ -29,6 +34,10 @@ export function ProjectBasicView({
   total,
   perPage,
 }: ProjectBasicViewProps) {
+  const repoWebUrl = getRepoWebUrl(project.repo_url);
+  const repoPlatformName = getRepoPlatformName(project.repo_url);
+  const repoLabel = getRepoDisplayName(project.repo_url);
+
   return (
     <div className="space-y-6 px-6 @container/main py-3">
       <div className="flex items-center gap-4">
@@ -47,6 +56,17 @@ export function ProjectBasicView({
             </Badge>
           </div>
           <p className="text-muted-foreground font-mono">{project.slug}</p>
+          {repoWebUrl ? (
+            <a
+              href={repoWebUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground hover:underline"
+            >
+              <Icons.ExternalLink className="h-3 w-3" />
+              {repoPlatformName}: {repoLabel || repoWebUrl}
+            </a>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" asChild>
@@ -108,12 +128,9 @@ export function ProjectBasicView({
                   key={run.id}
                   run={run}
                   projectId={projectId}
+                  repoUrl={project.repo_url}
                   repoLabel={
-                    project.repo_url
-                      ? project.repo_url
-                          .replace(/^https?:\/\/(www\.)?github\.com\//, "")
-                          .replace(/\.git$/, "")
-                      : ""
+                    repoLabel
                   }
                 />
               ))}

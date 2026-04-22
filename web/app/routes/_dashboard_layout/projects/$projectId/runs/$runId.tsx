@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import {
+  useProject,
   useRunArtifacts,
   useRunAssignments,
   useRunDetail,
@@ -36,6 +37,7 @@ import {
 } from "~/components/projects/run-detail/run-detail-tabs";
 import { useFavicon } from "~/hooks/use-favicon";
 import { generateMetadata } from "~/lib/metadata";
+import { getCommitUrl, getPullRequestUrl } from "~/lib/git-links";
 
 export const Route = createFileRoute(
   "/_dashboard_layout/projects/$projectId/runs/$runId",
@@ -55,6 +57,7 @@ function RunDetailPage() {
     error: runError,
     refetch: refetchRunDetail,
   } = useRunDetail(projectId, runId);
+  const { data: project } = useProject(projectId);
 
   const {
     data: historicalLogs,
@@ -319,6 +322,8 @@ function RunDetailPage() {
     isRunning && isClientDisconnected ? "stale" : currentStatus;
   const displayName =
     run.data.description || run.data.pr_title || run.data.workflow_name;
+  const commitUrl = getCommitUrl(project?.repo_url, run.data.commit_sha);
+  const pullRequestUrl = getPullRequestUrl(project?.repo_url, run.data.pr_number);
 
   return (
     <div className="space-y-6 px-6 @container/main py-3">
@@ -338,9 +343,36 @@ function RunDetailPage() {
             {run.data.trigger_source}
             {run.data.trigger_ref && ` - ${run.data.trigger_ref}`}
             {run.data.commit_sha ? (
-              <span className="ml-2 font-mono text-xs">
-                {run.data.commit_sha.slice(0, 7)}
-              </span>
+              commitUrl ? (
+                <a
+                  href={commitUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="ml-2 inline-flex items-center gap-1 font-mono text-xs hover:underline"
+                >
+                  <Icons.GitCommit className="h-3 w-3" />
+                  {run.data.commit_sha.slice(0, 7)}
+                </a>
+              ) : (
+                <span className="ml-2 font-mono text-xs">
+                  {run.data.commit_sha.slice(0, 7)}
+                </span>
+              )
+            ) : null}
+            {run.data.pr_number ? (
+              pullRequestUrl ? (
+                <a
+                  href={pullRequestUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="ml-2 inline-flex items-center gap-1 text-xs hover:underline"
+                >
+                  <Icons.GitPullRequest className="h-3 w-3" />
+                  PR #{run.data.pr_number}
+                </a>
+              ) : (
+                <span className="ml-2 text-xs">PR #{run.data.pr_number}</span>
+              )
             ) : null}
             {run.data.host_os ? (
               <span className="ml-2 text-xs text-muted-foreground">
