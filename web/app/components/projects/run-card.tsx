@@ -81,7 +81,9 @@ export function RunCard({
                   {triggerInfo.name[0]?.toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-sm text-muted-foreground">{triggerInfo.name}</span>
+              <span className="text-sm text-muted-foreground">
+                {triggerInfo.name}
+              </span>
               <EventIcon eventType={eventType} />
               <span className="text-sm text-muted-foreground">{eventType}</span>
               {run.commit_sha ? (
@@ -190,7 +192,7 @@ function getTriggerInfo(
   if (run.commit_author_name) {
     return {
       name: run.commit_author_name,
-      avatar: undefined,
+      avatar: run.commit_author_avatar_url,
     };
   }
 

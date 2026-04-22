@@ -255,6 +255,7 @@ export interface Run {
   pr_number?: number;
   commit_message?: string;
   commit_author_name?: string;
+  commit_author_avatar_url?: string;
   commit_author_email?: string;
   host_os?: string;
   host_arch?: string;
