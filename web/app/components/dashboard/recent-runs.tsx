@@ -54,6 +54,8 @@ const RunCard = ({
   index: number;
   isLast: boolean;
 }) => {
+  const branchName = run.trigger_ref?.replace("refs/heads/", "") || "no branch";
+
   const triggerBy = useMemo(() => {
     if (run.triggered_by_user) {
       return {
@@ -89,9 +91,9 @@ const RunCard = ({
               <span className="text-muted-foreground">{run.workflow_name}</span>
             </p>
           </div>
-          <div className="flex gap-1">
+          <div className="flex gap-1 min-w-0">
             {triggerBy && (
-              <div className="flex items-center gap-0.5">
+              <div className="flex items-center gap-0.5 min-w-0 shrink">
                 <Avatar className="h-3 w-3">
                   {triggerBy.avatar && <AvatarImage src={triggerBy.avatar} />}
                   <AvatarFallback className="text-[10px]">U</AvatarFallback>
@@ -104,9 +106,9 @@ const RunCard = ({
             {run.trigger_ref && (
               <Badge
                 variant="outline"
-                className="text-xs px-1 text-muted-foreground truncate"
+                className="min-w-0 max-w-[11rem] overflow-hidden text-ellipsis whitespace-nowrap text-xs px-1 text-muted-foreground"
               >
-                {run.trigger_ref || "no branch"}
+                {branchName}
               </Badge>
             )}
           </div>
