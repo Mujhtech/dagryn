@@ -336,7 +336,7 @@ export function WorkflowDashboard({
                   onClick={() => toggleUser(user.id)}
                   className="flex items-center gap-2 w-full px-2 py-1.5 rounded hover:bg-muted text-sm"
                 >
-                  <Avatar className="h-6 w-6">
+                  <Avatar className="h-5 w-5 data-[size=lg]:size-5 data-[size=sm]:size-5">
                     <AvatarImage src={user.avatar} />
                     <AvatarFallback>
                       {user.name[0]?.toUpperCase()}
